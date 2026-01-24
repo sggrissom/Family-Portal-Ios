@@ -158,3 +158,71 @@ struct FamilyTimelineItemDTO: Codable {
 struct GetFamilyTimelineResponseDTO: Codable {
     let people: [FamilyTimelineItemDTO]
 }
+
+// MARK: - Request DTOs
+
+struct AddPersonRequestDTO: Encodable {
+    let name: String
+    let personType: Int
+    let gender: Int
+    let birthdate: String  // "yyyy-MM-dd"
+}
+
+struct AddGrowthDataRequestDTO: Encodable {
+    let personId: Int
+    let measurementType: String  // "height" or "weight"
+    let value: Double
+    let unit: String             // "cm", "in", "kg", "lbs"
+    let inputType: String        // "date" or "today"
+    let measurementDate: String? // "yyyy-MM-dd" if inputType="date"
+}
+
+struct UpdateGrowthDataRequestDTO: Encodable {
+    let id: Int
+    let measurementType: String
+    let value: Double
+    let unit: String
+    let inputType: String
+    let measurementDate: String?
+}
+
+struct DeleteRequestDTO: Encodable {
+    let id: Int
+}
+
+struct SuccessResponseDTO: Decodable {
+    let success: Bool
+}
+
+struct AddMilestoneRequestDTO: Encodable {
+    let personId: Int
+    let description: String
+    let category: String
+    let inputType: String        // "date" or "today"
+    let milestoneDate: String?   // "yyyy-MM-dd" if inputType="date"
+}
+
+struct UpdateMilestoneRequestDTO: Encodable {
+    let id: Int
+    let description: String
+    let category: String
+    let inputType: String
+    let milestoneDate: String?
+}
+
+struct AddPeopleToPhotoRequestDTO: Encodable {
+    let photoId: Int
+    let personIds: [Int]
+}
+
+struct RemovePersonFromPhotoRequestDTO: Encodable {
+    let photoId: Int
+    let personId: Int
+}
+
+struct AddPersonResponseDTO: Decodable {
+    let person: PersonDTO
+    let growthData: [GrowthDataDTO]
+    let milestones: [MilestoneDTO]
+    let photos: [ImageDTO]
+}
