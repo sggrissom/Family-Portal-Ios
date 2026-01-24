@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Charts
 
 struct MeasurementListView: View {
     @Environment(\.modelContext) private var modelContext
@@ -35,6 +36,13 @@ struct MeasurementListView: View {
             }
             .pickerStyle(.segmented)
             .padding()
+
+            if filteredMeasurements.count >= 2 {
+                GrowthChartView(
+                    measurements: filteredMeasurements,
+                    measurementType: selectedType
+                )
+            }
 
             if filteredMeasurements.isEmpty {
                 ContentUnavailableView(
