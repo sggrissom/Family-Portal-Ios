@@ -6,12 +6,20 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct Family_Portal_IosApp: App {
+    let container: ModelContainer
+
+    init() {
+        container = DataStore.shared.container
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(container)
     }
 }
