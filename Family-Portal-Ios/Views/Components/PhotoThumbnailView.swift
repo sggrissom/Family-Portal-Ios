@@ -3,6 +3,7 @@ import SwiftUI
 struct PhotoThumbnailView: View {
     let imageData: Data?
     let title: String
+    var remoteId: String? = nil
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -10,6 +11,10 @@ struct PhotoThumbnailView: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                    .clipped()
+            } else if let remoteId, let remoteInt = Int(remoteId) {
+                RemotePhotoView(remoteId: remoteInt, size: .thumb)
                     .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     .clipped()
             } else {

@@ -24,7 +24,7 @@ struct PhotoGalleryView: View {
                         LazyVGrid(columns: columns, spacing: 4) {
                             ForEach(photos) { photo in
                                 NavigationLink(value: photo.id) {
-                                    PhotoThumbnailView(imageData: photo.imageData, title: photo.title)
+                                    PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                                 }
                             }
                         }

@@ -117,6 +117,60 @@ actor APIClient {
         clearCookies()
     }
 
+    func getBaseURL() -> URL { baseURL }
+
+    func getAccessToken() -> String? { accessToken }
+
+    func uploadMultipart<T: Decodable>(path: String, formData: Data, boundary: String, retryOnAuthFailure: Bool = true) async throws -> T {
+        guard let url = makeURL(for: path) else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = HTTPMethod.post.rawValue
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+        request.httpBody = formData
+
+        addAuthHeaders(to: &request, requiresAuth: true)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.invalidResponse
+            }
+
+            captureTokens(from: httpResponse)
+
+            if httpResponse.statusCode == 401, retryOnAuthFailure {
+                try await refreshAccessToken()
+                return try await uploadMultipart(path: path, formData: formData, boundary: boundary, retryOnAuthFailure: false)
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let message = String(data: data, encoding: .utf8)
+                if httpResponse.statusCode == 401 {
+                    throw APIError.unauthorized
+                }
+                throw APIError.server(statusCode: httpResponse.statusCode, message: message)
+            }
+
+            guard !data.isEmpty else {
+                throw APIError.invalidResponse
+            }
+
+            do {
+                return try decoder.decode(T.self, from: data)
+            } catch {
+                throw APIError.decoding(error)
+            }
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.network(error)
+        }
+    }
+
     func callRPC<T: Decodable, Body: Encodable>(_ name: String, payload: Body) async throws -> T {
         try await request(path: "rpc/\(name)", method: .post, body: payload, requiresAuth: true)
     }

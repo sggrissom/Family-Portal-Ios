@@ -157,7 +157,7 @@ struct PersonDetailView: View {
                                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                                     ForEach(recentPhotos) { photo in
                                         NavigationLink(value: photo.id) {
-                                            PhotoThumbnailView(imageData: photo.imageData, title: photo.title)
+                                            PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                                         }
                                     }
                                 }
@@ -274,7 +274,7 @@ struct PersonPhotosView: View {
                     LazyVGrid(columns: columns, spacing: 4) {
                         ForEach(person.photos) { photo in
                             NavigationLink(value: photo.id) {
-                                PhotoThumbnailView(imageData: photo.imageData, title: photo.title)
+                                PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                             }
                         }
                     }
