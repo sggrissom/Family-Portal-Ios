@@ -119,3 +119,47 @@ func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
     photo.descriptionText = dto.descriptionText
     photo.photoDate = dto.photoDate
 }
+
+// MARK: - DTO → New Model Constructors
+
+func personFromDTO(_ dto: PersonDTO) -> Person {
+    let person = Person(
+        name: dto.name,
+        type: intToPersonType(dto.type),
+        gender: intToGender(dto.gender),
+        birthday: dto.birthday
+    )
+    person.remoteId = String(dto.id)
+    return person
+}
+
+func growthDataFromDTO(_ dto: GrowthDataDTO) -> GrowthData {
+    let data = GrowthData(
+        measurementType: intToMeasurementType(dto.measurementType),
+        value: dto.value,
+        unit: unitFromString(dto.unit),
+        date: dto.measurementDate
+    )
+    data.remoteId = String(dto.id)
+    return data
+}
+
+func milestoneFromDTO(_ dto: MilestoneDTO) -> Milestone {
+    let milestone = Milestone(
+        descriptionText: dto.descriptionText,
+        category: MilestoneCategory(rawValue: dto.category) ?? .other,
+        date: dto.milestoneDate
+    )
+    milestone.remoteId = String(dto.id)
+    return milestone
+}
+
+func photoFromDTO(_ dto: ImageDTO) -> Photo {
+    let photo = Photo(
+        title: dto.title,
+        descriptionText: dto.descriptionText,
+        photoDate: dto.photoDate
+    )
+    photo.remoteId = String(dto.id)
+    return photo
+}
