@@ -67,6 +67,21 @@ struct PersonDetailView: View {
                         .padding(.vertical, 4)
                     }
                     .padding(.horizontal)
+
+                    GroupBox("Milestones") {
+                        NavigationLink(destination: MilestoneListView(personId: person.id)) {
+                            HStack {
+                                Label("Milestones", systemImage: "star.fill")
+                                Spacer()
+                                if !person.milestones.isEmpty {
+                                    Text("\(person.milestones.count)")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .padding(.horizontal)
                 }
             }
             .navigationTitle(person.name)
