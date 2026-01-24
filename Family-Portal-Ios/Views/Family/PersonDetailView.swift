@@ -2,7 +2,12 @@ import SwiftUI
 import SwiftData
 
 struct PersonDetailView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Query private var people: [Person]
+
+    @State private var showEditSheet = false
+    @State private var showDeleteConfirmation = false
 
     private var person: Person? { people.first }
 
@@ -22,6 +27,31 @@ struct PersonDetailView: View {
         } else {
             return "\(months) month\(months == 1 ? "" : "s")"
         }
+    }
+
+    private var latestHeight: GrowthData? {
+        person?.growthData
+            .filter { $0.measurementType == .height }
+            .sorted { $0.date > $1.date }
+            .first
+    }
+
+    private var latestWeight: GrowthData? {
+        person?.growthData
+            .filter { $0.measurementType == .weight }
+            .sorted { $0.date > $1.date }
+            .first
+    }
+
+    private var recentMilestones: [Milestone] {
+        (person?.milestones ?? [])
+            .sorted { $0.date > $1.date }
+            .prefix(3)
+            .map { $0 }
+    }
+
+    private var recentPhotos: [Photo] {
+        Array((person?.photos ?? []).prefix(4))
     }
 
     var body: some View {
@@ -53,39 +83,149 @@ struct PersonDetailView: View {
                     }
                     .padding(.horizontal)
 
-                    GroupBox("Measurements") {
-                        NavigationLink(destination: MeasurementListView(personId: person.id)) {
-                            HStack {
-                                Label("Measurements", systemImage: "chart.line.uptrend.xyaxis")
-                                Spacer()
-                                if !person.growthData.isEmpty {
-                                    Text("\(person.growthData.count)")
+                    // Latest Measurements Section
+                    GroupBox("Latest Measurements") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if let height = latestHeight {
+                                measurementRow(
+                                    icon: "ruler",
+                                    label: "Height",
+                                    value: formatMeasurement(height)
+                                )
+                            }
+
+                            if let weight = latestWeight {
+                                measurementRow(
+                                    icon: "scalemass",
+                                    label: "Weight",
+                                    value: formatMeasurement(weight)
+                                )
+                            }
+
+                            if latestHeight == nil && latestWeight == nil {
+                                Text("No measurements yet")
+                                    .foregroundStyle(.secondary)
+                                    .font(.subheadline)
+                            }
+
+                            NavigationLink(destination: MeasurementListView(personId: person.id)) {
+                                HStack {
+                                    Text("See All Measurements")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            .padding(.top, 4)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)
                     }
                     .padding(.horizontal)
 
-                    GroupBox("Milestones") {
-                        NavigationLink(destination: MilestoneListView(personId: person.id)) {
-                            HStack {
-                                Label("Milestones", systemImage: "star.fill")
-                                Spacer()
-                                if !person.milestones.isEmpty {
-                                    Text("\(person.milestones.count)")
+                    // Recent Milestones Section
+                    GroupBox("Recent Milestones") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if recentMilestones.isEmpty {
+                                Text("No milestones yet")
+                                    .foregroundStyle(.secondary)
+                                    .font(.subheadline)
+                            } else {
+                                ForEach(recentMilestones) { milestone in
+                                    MilestoneRowView(milestone: milestone)
+                                }
+                            }
+
+                            NavigationLink(destination: MilestoneListView(personId: person.id)) {
+                                HStack {
+                                    Text("See All Milestones")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            .padding(.top, 4)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                    }
+                    .padding(.horizontal)
+
+                    // Photos Section
+                    GroupBox("Photos") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if recentPhotos.isEmpty {
+                                Text("No photos yet")
+                                    .foregroundStyle(.secondary)
+                                    .font(.subheadline)
+                            } else {
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                    ForEach(recentPhotos) { photo in
+                                        NavigationLink(value: photo.id) {
+                                            PhotoThumbnailView(imageData: photo.imageData, title: photo.title)
+                                        }
+                                    }
+                                }
+                            }
+
+                            NavigationLink(destination: PersonPhotosView(person: person)) {
+                                HStack {
+                                    Text("See All Photos")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)
                     }
                     .padding(.horizontal)
                 }
+                .padding(.bottom, 24)
             }
             .navigationTitle(person.name)
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: UUID.self) { photoId in
+                PhotoDetailView(photoId: photoId)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: 16) {
+                        Button {
+                            showEditSheet = true
+                        } label: {
+                            Image(systemName: "pencil")
+                        }
+
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showEditSheet) {
+                EditPersonView(person: person)
+            }
+            .confirmationDialog(
+                "Delete \(person.name)?",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    modelContext.delete(person)
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Are you sure you want to delete \(person.name)? This will also delete all their measurements and milestones.")
+            }
         } else {
             ContentUnavailableView("Person Not Found", systemImage: "person.slash")
         }
@@ -98,5 +238,58 @@ struct PersonDetailView: View {
             Spacer()
             Text(value)
         }
+    }
+
+    private func measurementRow(icon: String, label: String, value: String) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundStyle(.blue)
+                .frame(width: 20)
+            Text(label)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+        }
+    }
+
+    private func formatMeasurement(_ data: GrowthData) -> String {
+        let valueStr = data.value.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", data.value)
+            : String(format: "%.1f", data.value)
+        let dateStr = data.date.formatted(date: .abbreviated, time: .omitted)
+        return "\(valueStr) \(data.unit.rawValue) (\(dateStr))"
+    }
+}
+
+// MARK: - Person Photos View
+
+struct PersonPhotosView: View {
+    let person: Person
+
+    private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
+
+    var body: some View {
+        Group {
+            if person.photos.isEmpty {
+                ContentUnavailableView(
+                    "No Photos",
+                    systemImage: "photo.on.rectangle",
+                    description: Text("No photos tagged with \(person.name).")
+                )
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 4) {
+                        ForEach(person.photos) { photo in
+                            NavigationLink(value: photo.id) {
+                                PhotoThumbnailView(imageData: photo.imageData, title: photo.title)
+                            }
+                        }
+                    }
+                    .padding(4)
+                }
+            }
+        }
+        .navigationTitle("\(person.name)'s Photos")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
