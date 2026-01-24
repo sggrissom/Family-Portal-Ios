@@ -11,6 +11,7 @@ import SwiftData
 @main
 struct Family_Portal_IosApp: App {
     let container: ModelContainer
+    @State private var authService = AuthService()
 
     init() {
         container = DataStore.shared.container
@@ -19,6 +20,7 @@ struct Family_Portal_IosApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(authService)
         }
         .modelContainer(container)
     }
