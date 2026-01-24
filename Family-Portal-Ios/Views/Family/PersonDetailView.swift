@@ -52,6 +52,21 @@ struct PersonDetailView: View {
                         .padding(.vertical, 4)
                     }
                     .padding(.horizontal)
+
+                    GroupBox("Measurements") {
+                        NavigationLink(destination: MeasurementListView(personId: person.id)) {
+                            HStack {
+                                Label("Measurements", systemImage: "chart.line.uptrend.xyaxis")
+                                Spacer()
+                                if !person.growthData.isEmpty {
+                                    Text("\(person.growthData.count)")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .padding(.horizontal)
                 }
             }
             .navigationTitle(person.name)
