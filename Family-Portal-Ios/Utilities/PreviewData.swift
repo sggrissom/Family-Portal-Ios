@@ -64,13 +64,15 @@ enum PreviewData {
     }
 
     static var sampleParent: Person {
-        let descriptor = FetchDescriptor<Person>(predicate: #Predicate { $0.type == .parent })
-        return try! container.mainContext.fetch(descriptor).first!
+        let descriptor = FetchDescriptor<Person>()
+        let people = try! container.mainContext.fetch(descriptor)
+        return people.first { $0.type == .parent }!
     }
 
     static var sampleChild: Person {
-        let descriptor = FetchDescriptor<Person>(predicate: #Predicate { $0.type == .child })
-        return try! container.mainContext.fetch(descriptor).first!
+        let descriptor = FetchDescriptor<Person>()
+        let people = try! container.mainContext.fetch(descriptor)
+        return people.first { $0.type == .child }!
     }
 
     static var sampleGrowthData: [GrowthData] {
@@ -92,3 +94,4 @@ enum PreviewData {
         Calendar.current.date(from: DateComponents(year: year, month: month, day: day))!
     }
 }
+
