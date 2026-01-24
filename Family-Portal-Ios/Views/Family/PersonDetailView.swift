@@ -19,14 +19,7 @@ struct PersonDetailView: View {
 
     private var age: String? {
         guard let birthday = person?.birthday else { return nil }
-        let components = Calendar.current.dateComponents([.year, .month], from: birthday, to: Date())
-        let years = components.year ?? 0
-        let months = components.month ?? 0
-        if years > 0 {
-            return "\(years) year\(years == 1 ? "" : "s")"
-        } else {
-            return "\(months) month\(months == 1 ? "" : "s")"
-        }
+        return AgeCalculator.age(from: birthday)
     }
 
     private var latestHeight: GrowthData? {
