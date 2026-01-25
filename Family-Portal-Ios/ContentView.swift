@@ -16,6 +16,11 @@ struct ContentView: View {
                     Label("Family", systemImage: "person.3")
                 }
 
+            TimelineView()
+                .tabItem {
+                    Label("Timeline", systemImage: "clock.fill")
+                }
+
             PhotoGalleryView()
                 .tabItem {
                     Label("Photos", systemImage: "photo.on.rectangle")
