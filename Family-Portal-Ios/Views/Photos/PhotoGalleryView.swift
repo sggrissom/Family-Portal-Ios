@@ -4,6 +4,7 @@ import PhotosUI
 
 struct PhotoGalleryView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(SyncService.self) private var syncService: SyncService?
     @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
     @State private var selectedItem: PhotosPickerItem?
     @State private var isLoading = false
@@ -72,6 +73,11 @@ struct PhotoGalleryView: View {
                         imageData: data
                     )
                     modelContext.insert(photo)
+                    do {
+                        try await syncService?.uploadPhoto(photo)
+                    } catch {
+                        print("Failed to upload photo: \(error)")
+                    }
                 }
             }
         }
