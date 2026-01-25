@@ -130,7 +130,7 @@ struct TimelineRowView: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             if let person = item.person {
                 PersonAvatarView(name: person.name, type: person.type, size: 32)
             } else {
@@ -147,11 +147,16 @@ struct TimelineRowView: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(itemColor.opacity(0.15), in: Capsule())
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(1)
 
                     if let person = item.person {
                         Text(person.name)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                 }
 
