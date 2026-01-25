@@ -117,6 +117,14 @@ struct GetPersonResponseDTO: Codable {
     let growthData: [GrowthDataDTO]
     let milestones: [MilestoneDTO]
     let photos: [ImageDTO]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        person = try container.decodeIfPresent(PersonDTO.self, forKey: .person)
+        growthData = try container.decodeIfPresent([GrowthDataDTO].self, forKey: .growthData) ?? []
+        milestones = try container.decodeIfPresent([MilestoneDTO].self, forKey: .milestones) ?? []
+        photos = try container.decodeIfPresent([ImageDTO].self, forKey: .photos) ?? []
+    }
 }
 
 struct ListPeopleResponseDTO: Codable {
@@ -153,6 +161,14 @@ struct FamilyTimelineItemDTO: Codable {
     let growthData: [GrowthDataDTO]
     let milestones: [MilestoneDTO]
     let photos: [ImageDTO]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        person = try container.decode(PersonDTO.self, forKey: .person)
+        growthData = try container.decodeIfPresent([GrowthDataDTO].self, forKey: .growthData) ?? []
+        milestones = try container.decodeIfPresent([MilestoneDTO].self, forKey: .milestones) ?? []
+        photos = try container.decodeIfPresent([ImageDTO].self, forKey: .photos) ?? []
+    }
 }
 
 struct GetFamilyTimelineResponseDTO: Codable {
@@ -225,4 +241,16 @@ struct AddPersonResponseDTO: Decodable {
     let growthData: [GrowthDataDTO]
     let milestones: [MilestoneDTO]
     let photos: [ImageDTO]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        person = try container.decode(PersonDTO.self, forKey: .person)
+        growthData = try container.decodeIfPresent([GrowthDataDTO].self, forKey: .growthData) ?? []
+        milestones = try container.decodeIfPresent([MilestoneDTO].self, forKey: .milestones) ?? []
+        photos = try container.decodeIfPresent([ImageDTO].self, forKey: .photos) ?? []
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case person, growthData, milestones, photos
+    }
 }
