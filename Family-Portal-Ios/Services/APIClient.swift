@@ -49,6 +49,31 @@ enum HTTPMethod: String {
 actor APIClient {
     static let shared = APIClient()
 
+    // Local constants to avoid main actor isolation issues
+    private static let keychainAccessToken = "com.familyportal.accessToken"
+    private static let keychainRefreshToken = "com.familyportal.refreshToken"
+    private static let keychainServerURL = "com.familyportal.serverURL"
+    private static let defaultServerURLString = "https://grissom.zone"
+    private static let refreshTokenExpiry: TimeInterval = 30 * 24 * 60 * 60
+
+    private struct DateFormatters: @unchecked Sendable {
+        let isoFormatter: ISO8601DateFormatter
+        let fallbackISOFormatter: ISO8601DateFormatter
+        let dateOnlyFormatter: DateFormatter
+
+        init() {
+            isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            fallbackISOFormatter = ISO8601DateFormatter()
+            fallbackISOFormatter.formatOptions = [.withInternetDateTime]
+            dateOnlyFormatter = DateFormatter()
+            dateOnlyFormatter.calendar = Calendar(identifier: .iso8601)
+            dateOnlyFormatter.locale = Locale(identifier: "en_US_POSIX")
+            dateOnlyFormatter.dateFormat = "yyyy-MM-dd"
+        }
+    }
+    private static let dateFormatters = DateFormatters()
+
     private var baseURL: URL
     private var accessToken: String?
     private var refreshToken: String?
@@ -57,28 +82,20 @@ actor APIClient {
     private let encoder: JSONEncoder
     private let clientId: String
 
-    init(baseURL: URL = URL(string: AppConstants.defaultServerURL)!, session: URLSession = .shared) {
-        self.baseURL = baseURL
+    init(baseURL: URL? = nil, session: URLSession = .shared) {
+        let initialBaseURL = baseURL ?? URL(string: Self.defaultServerURLString)!
         self.session = session
         self.encoder = JSONEncoder()
 
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallbackISOFormatter = ISO8601DateFormatter()
-        fallbackISOFormatter.formatOptions = [.withInternetDateTime]
-        let dateOnlyFormatter = DateFormatter()
-        dateOnlyFormatter.calendar = Calendar(identifier: .iso8601)
-        dateOnlyFormatter.locale = Locale(identifier: "en_US_POSIX")
-        dateOnlyFormatter.dateFormat = "yyyy-MM-dd"
-
+        let formatters = Self.dateFormatters
         decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
-            if let date = isoFormatter.date(from: dateString) ?? fallbackISOFormatter.date(from: dateString) {
+            if let date = formatters.isoFormatter.date(from: dateString) ?? formatters.fallbackISOFormatter.date(from: dateString) {
                 return date
             }
-            if let date = dateOnlyFormatter.date(from: dateString) {
+            if let date = formatters.dateOnlyFormatter.date(from: dateString) {
                 return date
             }
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format: \(dateString)")
@@ -87,33 +104,39 @@ actor APIClient {
 
         clientId = UUID().uuidString
 
-        accessToken = Self.loadToken(forKey: AppConstants.Keychain.accessToken)
-        refreshToken = Self.loadToken(forKey: AppConstants.Keychain.refreshToken)
-        if let savedURLString = Self.loadToken(forKey: AppConstants.Keychain.serverURL), let savedURL = URL(string: savedURLString) {
+        let loadedAccessToken = Self.loadToken(forKey: Self.keychainAccessToken)
+        let loadedRefreshToken = Self.loadToken(forKey: Self.keychainRefreshToken)
+        accessToken = loadedAccessToken
+        refreshToken = loadedRefreshToken
+
+        if let savedURLString = Self.loadToken(forKey: Self.keychainServerURL), let savedURL = URL(string: savedURLString) {
             self.baseURL = savedURL
+        } else {
+            self.baseURL = initialBaseURL
         }
-        syncCookies()
+
+        Self.syncCookiesNonisolated(baseURL: self.baseURL, accessToken: loadedAccessToken, refreshToken: loadedRefreshToken)
     }
 
     func updateBaseURL(_ url: URL) {
         baseURL = url
-        Self.storeToken(url.absoluteString, key: AppConstants.Keychain.serverURL)
+        Self.storeToken(url.absoluteString, key: Self.keychainServerURL)
         syncCookies()
     }
 
     func setTokens(accessToken: String?, refreshToken: String?) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
-        Self.storeToken(accessToken, key: AppConstants.Keychain.accessToken)
-        Self.storeToken(refreshToken, key: AppConstants.Keychain.refreshToken)
+        Self.storeToken(accessToken, key: Self.keychainAccessToken)
+        Self.storeToken(refreshToken, key: Self.keychainRefreshToken)
         syncCookies()
     }
 
     func clearTokens() {
         accessToken = nil
         refreshToken = nil
-        Self.storeToken(nil, key: AppConstants.Keychain.accessToken)
-        Self.storeToken(nil, key: AppConstants.Keychain.refreshToken)
+        Self.storeToken(nil, key: Self.keychainAccessToken)
+        Self.storeToken(nil, key: Self.keychainRefreshToken)
         clearCookies()
     }
 
@@ -160,7 +183,9 @@ actor APIClient {
             }
 
             do {
-                return try decoder.decode(T.self, from: data)
+                return try await MainActor.run {
+                    try decoder.decode(T.self, from: data)
+                }
             } catch {
                 throw APIError.decoding(error)
             }
@@ -227,7 +252,9 @@ actor APIClient {
             }
 
             do {
-                return try decoder.decode(T.self, from: data)
+                return try await MainActor.run {
+                    try decoder.decode(T.self, from: data)
+                }
             } catch {
                 throw APIError.decoding(error)
             }
@@ -270,7 +297,9 @@ actor APIClient {
 
             let refreshResponse: RefreshResponseDTO
             do {
-                refreshResponse = try decoder.decode(RefreshResponseDTO.self, from: data)
+                refreshResponse = try await MainActor.run {
+                    try decoder.decode(RefreshResponseDTO.self, from: data)
+                }
             } catch {
                 throw APIError.decoding(error)
             }
@@ -330,7 +359,7 @@ actor APIClient {
         }
     }
 
-    private func syncCookies() {
+    nonisolated private static func syncCookiesNonisolated(baseURL: URL, accessToken: String?, refreshToken: String?) {
         guard let host = baseURL.host else { return }
         let storage = HTTPCookieStorage.shared
 
@@ -355,11 +384,15 @@ actor APIClient {
                 .value: refreshToken,
                 .secure: "TRUE"
             ]
-            properties[.expires] = Date().addingTimeInterval(AppConstants.TokenExpiry.refreshToken)
+            properties[.expires] = Date().addingTimeInterval(Self.refreshTokenExpiry)
             if let cookie = HTTPCookie(properties: properties) {
                 storage.setCookie(cookie)
             }
         }
+    }
+
+    private func syncCookies() {
+        Self.syncCookiesNonisolated(baseURL: baseURL, accessToken: accessToken, refreshToken: refreshToken)
     }
 
     private func clearCookies() {
@@ -372,7 +405,7 @@ actor APIClient {
         }
     }
 
-    private static func loadToken(forKey key: String) -> String? {
+    nonisolated private static func loadToken(forKey key: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
@@ -388,7 +421,7 @@ actor APIClient {
         return String(data: data, encoding: .utf8)
     }
 
-    private static func storeToken(_ value: String?, key: String) {
+    nonisolated private static func storeToken(_ value: String?, key: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key

@@ -1,6 +1,6 @@
-import Foundation
+@preconcurrency import Foundation
 
-struct AuthResponseDTO: Codable {
+struct AuthResponseDTO: Codable, Sendable {
     let id: Int
     let name: String
     let email: String
@@ -8,27 +8,27 @@ struct AuthResponseDTO: Codable {
     let familyId: Int?
 }
 
-struct LoginResponseDTO: Codable {
+struct LoginResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let token: String?
     let auth: AuthResponseDTO?
 }
 
-struct RefreshResponseDTO: Codable {
+struct RefreshResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let token: String?
     let auth: AuthResponseDTO?
 }
 
-struct FamilyInfoDTO: Codable {
+struct FamilyInfoDTO: Codable, Sendable {
     let id: Int
     let name: String
     let inviteCode: String
 }
 
-struct PersonDTO: Codable {
+struct PersonDTO: Codable, Sendable {
     let id: Int
     let familyId: Int
     let name: String
@@ -42,7 +42,7 @@ struct PersonDTO: Codable {
     let profileCropScale: Double?
 }
 
-struct GrowthDataDTO: Codable {
+struct GrowthDataDTO: Codable, Sendable {
     let id: Int
     let personId: Int
     let familyId: Int
@@ -53,7 +53,7 @@ struct GrowthDataDTO: Codable {
     let createdAt: Date
 }
 
-struct MilestoneDTO: Codable {
+struct MilestoneDTO: Codable, Sendable {
     let id: Int
     let personId: Int
     let familyId: Int
@@ -73,7 +73,7 @@ struct MilestoneDTO: Codable {
     }
 }
 
-struct ImageDTO: Codable {
+struct ImageDTO: Codable, Sendable {
     let id: Int
     let familyId: Int
     let ownerUserId: Int
@@ -107,12 +107,12 @@ struct ImageDTO: Codable {
     }
 }
 
-struct PhotoWithPeopleDTO: Codable {
+struct PhotoWithPeopleDTO: Codable, Sendable {
     let image: ImageDTO
     let people: [PersonDTO]
 }
 
-struct GetPersonResponseDTO: Codable {
+struct GetPersonResponseDTO: Codable, Sendable {
     let person: PersonDTO?
     let growthData: [GrowthDataDTO]
     let milestones: [MilestoneDTO]
@@ -127,36 +127,36 @@ struct GetPersonResponseDTO: Codable {
     }
 }
 
-struct ListPeopleResponseDTO: Codable {
+struct ListPeopleResponseDTO: Codable, Sendable {
     let people: [PersonDTO]
 }
 
-struct AddGrowthDataResponseDTO: Codable {
+struct AddGrowthDataResponseDTO: Codable, Sendable {
     let growthData: GrowthDataDTO
 }
 
-struct UpdateGrowthDataResponseDTO: Codable {
+struct UpdateGrowthDataResponseDTO: Codable, Sendable {
     let growthData: GrowthDataDTO
 }
 
-struct AddMilestoneResponseDTO: Codable {
+struct AddMilestoneResponseDTO: Codable, Sendable {
     let milestone: MilestoneDTO
 }
 
-struct UpdateMilestoneResponseDTO: Codable {
+struct UpdateMilestoneResponseDTO: Codable, Sendable {
     let milestone: MilestoneDTO
 }
 
-struct GetPhotoResponseDTO: Codable {
+struct GetPhotoResponseDTO: Codable, Sendable {
     let image: ImageDTO
     let people: [PersonDTO]
 }
 
-struct ListFamilyPhotosResponseDTO: Codable {
+struct ListFamilyPhotosResponseDTO: Codable, Sendable {
     let photos: [PhotoWithPeopleDTO]
 }
 
-struct FamilyTimelineItemDTO: Codable {
+struct FamilyTimelineItemDTO: Codable, Sendable {
     let person: PersonDTO
     let growthData: [GrowthDataDTO]
     let milestones: [MilestoneDTO]
@@ -171,20 +171,20 @@ struct FamilyTimelineItemDTO: Codable {
     }
 }
 
-struct GetFamilyTimelineResponseDTO: Codable {
+struct GetFamilyTimelineResponseDTO: Codable, Sendable {
     let people: [FamilyTimelineItemDTO]
 }
 
 // MARK: - Request DTOs
 
-struct AddPersonRequestDTO: Encodable {
+struct AddPersonRequestDTO: Encodable, Sendable {
     let name: String
     let personType: Int
     let gender: Int
     let birthdate: String  // "yyyy-MM-dd"
 }
 
-struct AddGrowthDataRequestDTO: Encodable {
+struct AddGrowthDataRequestDTO: Encodable, Sendable {
     let personId: Int
     let measurementType: String  // "height" or "weight"
     let value: Double
@@ -193,7 +193,7 @@ struct AddGrowthDataRequestDTO: Encodable {
     let measurementDate: String? // "yyyy-MM-dd" if inputType="date"
 }
 
-struct UpdateGrowthDataRequestDTO: Encodable {
+struct UpdateGrowthDataRequestDTO: Encodable, Sendable {
     let id: Int
     let measurementType: String
     let value: Double
@@ -202,15 +202,15 @@ struct UpdateGrowthDataRequestDTO: Encodable {
     let measurementDate: String?
 }
 
-struct DeleteRequestDTO: Encodable {
+struct DeleteRequestDTO: Encodable, Sendable {
     let id: Int
 }
 
-struct SuccessResponseDTO: Decodable {
+struct SuccessResponseDTO: Decodable, Sendable {
     let success: Bool
 }
 
-struct AddMilestoneRequestDTO: Encodable {
+struct AddMilestoneRequestDTO: Encodable, Sendable {
     let personId: Int
     let description: String
     let category: String
@@ -218,7 +218,7 @@ struct AddMilestoneRequestDTO: Encodable {
     let milestoneDate: String?   // "yyyy-MM-dd" if inputType="date"
 }
 
-struct UpdateMilestoneRequestDTO: Encodable {
+struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let id: Int
     let description: String
     let category: String
@@ -226,17 +226,17 @@ struct UpdateMilestoneRequestDTO: Encodable {
     let milestoneDate: String?
 }
 
-struct AddPeopleToPhotoRequestDTO: Encodable {
+struct AddPeopleToPhotoRequestDTO: Encodable, Sendable {
     let photoId: Int
     let personIds: [Int]
 }
 
-struct RemovePersonFromPhotoRequestDTO: Encodable {
+struct RemovePersonFromPhotoRequestDTO: Encodable, Sendable {
     let photoId: Int
     let personId: Int
 }
 
-struct AddPersonResponseDTO: Decodable {
+struct AddPersonResponseDTO: Decodable, Sendable {
     let person: PersonDTO
     let growthData: [GrowthDataDTO]
     let milestones: [MilestoneDTO]

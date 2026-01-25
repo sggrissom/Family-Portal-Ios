@@ -11,6 +11,12 @@ actor PhotoSyncService {
         self.apiClient = apiClient
     }
 
+    nonisolated private static func appendString(_ string: String, to data: inout Data) {
+        if let stringData = string.data(using: .utf8) {
+            data.append(stringData)
+        }
+    }
+
     func photoURL(remoteId: Int, size: PhotoSizeVariant) async -> URL? {
         let baseURL = await apiClient.getBaseURL()
         return baseURL.appendingPathComponent("api/photo/\(remoteId)/\(size.rawValue)")
@@ -34,36 +40,36 @@ actor PhotoSyncService {
         let crlf = "\r\n"
 
         // File part
-        body.append("--\(boundary)\(crlf)")
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"photo.jpg\"\(crlf)")
-        body.append("Content-Type: \(mimeType(for: imageData))\(crlf)\(crlf)")
+        Self.appendString("--\(boundary)\(crlf)", to: &body)
+        Self.appendString("Content-Disposition: form-data; name=\"file\"; filename=\"photo.jpg\"\(crlf)", to: &body)
+        Self.appendString("Content-Type: \(mimeType(for: imageData))\(crlf)\(crlf)", to: &body)
         body.append(imageData)
-        body.append(crlf)
+        Self.appendString(crlf, to: &body)
 
         // Text fields
-        appendTextField(to: &body, name: "title", value: title, boundary: boundary)
-        appendTextField(to: &body, name: "description", value: description, boundary: boundary)
+        Self.appendTextField(to: &body, name: "title", value: title, boundary: boundary)
+        Self.appendTextField(to: &body, name: "description", value: description, boundary: boundary)
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
-        appendTextField(to: &body, name: "photoDate", value: formatter.string(from: photoDate), boundary: boundary)
+        Self.appendTextField(to: &body, name: "photoDate", value: formatter.string(from: photoDate), boundary: boundary)
 
         if let personIdsJSON = try? JSONSerialization.data(withJSONObject: personIds),
            let personIdsString = String(data: personIdsJSON, encoding: .utf8) {
-            appendTextField(to: &body, name: "personIds", value: personIdsString, boundary: boundary)
+            Self.appendTextField(to: &body, name: "personIds", value: personIdsString, boundary: boundary)
         }
 
         // Closing boundary
-        body.append("--\(boundary)--\(crlf)")
+        Self.appendString("--\(boundary)--\(crlf)", to: &body)
 
         return body
     }
 
-    private func appendTextField(to body: inout Data, name: String, value: String, boundary: String) {
+    nonisolated private static func appendTextField(to body: inout Data, name: String, value: String, boundary: String) {
         let crlf = "\r\n"
-        body.append("--\(boundary)\(crlf)")
-        body.append("Content-Disposition: form-data; name=\"\(name)\"\(crlf)\(crlf)")
-        body.append("\(value)\(crlf)")
+        appendString("--\(boundary)\(crlf)", to: &body)
+        appendString("Content-Disposition: form-data; name=\"\(name)\"\(crlf)\(crlf)", to: &body)
+        appendString("\(value)\(crlf)", to: &body)
     }
 
     private func mimeType(for data: Data) -> String {
@@ -80,13 +86,5 @@ actor PhotoSyncService {
             return "image/webp"
         }
         return "image/jpeg"
-    }
-}
-
-private extension Data {
-    mutating func append(_ string: String) {
-        if let data = string.data(using: .utf8) {
-            append(data)
-        }
     }
 }

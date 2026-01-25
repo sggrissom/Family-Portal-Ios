@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Operation Types
 
-enum SyncOperationType: String, Codable {
+enum SyncOperationType: String, Codable, Sendable {
     case createPerson
     case createGrowthData
     case createMilestone
@@ -16,7 +16,7 @@ enum SyncOperationType: String, Codable {
 
 // MARK: - Pending Operation
 
-struct PendingOperation: Codable, Identifiable {
+struct PendingOperation: Codable, Identifiable, Sendable {
     let id: UUID
     let type: SyncOperationType
     let localId: String
@@ -46,14 +46,14 @@ struct PendingOperation: Codable, Identifiable {
 
 // MARK: - Payload Structs
 
-struct CreatePersonPayload: Codable {
+struct CreatePersonPayload: Codable, Sendable {
     let name: String
     let personType: Int
     let gender: Int
     let birthdate: String
 }
 
-struct CreateGrowthDataPayload: Codable {
+struct CreateGrowthDataPayload: Codable, Sendable {
     let personLocalId: String
     let measurementType: String
     let value: Double
@@ -61,21 +61,21 @@ struct CreateGrowthDataPayload: Codable {
     let measurementDate: String
 }
 
-struct CreateMilestonePayload: Codable {
+struct CreateMilestonePayload: Codable, Sendable {
     let personLocalId: String
     let description: String
     let category: String
     let milestoneDate: String
 }
 
-struct UploadPhotoPayload: Codable {
+struct UploadPhotoPayload: Codable, Sendable {
     let title: String
     let description: String
     let photoDate: String
     let taggedPersonLocalIds: [String]
 }
 
-struct UpdateGrowthDataPayload: Codable {
+struct UpdateGrowthDataPayload: Codable, Sendable {
     let remoteId: Int
     let measurementType: String
     let value: Double
@@ -83,14 +83,14 @@ struct UpdateGrowthDataPayload: Codable {
     let measurementDate: String
 }
 
-struct UpdateMilestonePayload: Codable {
+struct UpdateMilestonePayload: Codable, Sendable {
     let remoteId: Int
     let description: String
     let category: String
     let milestoneDate: String
 }
 
-struct DeletePayload: Codable {
+struct DeletePayload: Codable, Sendable {
     let remoteId: Int
 }
 
@@ -100,10 +100,22 @@ actor SyncQueue {
     private static let storageKey = "com.familyportal.syncQueue"
     private static let maxRetries = 5
 
-    private var operations: [PendingOperation] = []
+    private var operations: [PendingOperation]
 
     init() {
-        loadFromStorage()
+        operations = Self.loadOperationsFromStorage()
+    }
+
+    nonisolated private static func loadOperationsFromStorage() -> [PendingOperation] {
+        guard let data = UserDefaults.standard.data(forKey: storageKey) else {
+            return []
+        }
+        do {
+            return try JSONDecoder().decode([PendingOperation].self, from: data)
+        } catch {
+            print("[SyncQueue] Failed to load from storage: \(error)")
+            return []
+        }
     }
 
     // MARK: - Queue Management
@@ -159,19 +171,6 @@ actor SyncQueue {
     }
 
     // MARK: - Persistence
-
-    private func loadFromStorage() {
-        guard let data = UserDefaults.standard.data(forKey: Self.storageKey) else {
-            return
-        }
-
-        do {
-            operations = try JSONDecoder().decode([PendingOperation].self, from: data)
-        } catch {
-            print("[SyncQueue] Failed to load from storage: \(error)")
-            operations = []
-        }
-    }
 
     private func saveToStorage() {
         do {
