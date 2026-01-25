@@ -289,5 +289,8 @@ struct PersonPhotosView: View {
         }
         .navigationTitle("\(person.name)'s Photos")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: PhotoRoute.self) { route in
+            PhotoDetailView(photoId: route.id)
+        }
     }
 }
