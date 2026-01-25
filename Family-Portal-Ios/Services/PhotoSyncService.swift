@@ -22,9 +22,10 @@ actor PhotoSyncService {
         return baseURL.appendingPathComponent("api/photo/\(remoteId)/\(size.rawValue)")
     }
 
+    @MainActor
     func uploadPhoto(imageData: Data, title: String, description: String, photoDate: Date, personIds: [Int]) async throws -> ImageDTO {
         let boundary = "Boundary-\(UUID().uuidString)"
-        let formData = buildMultipartBody(
+        let formData = await buildMultipartBody(
             imageData: imageData,
             title: title,
             description: description,
