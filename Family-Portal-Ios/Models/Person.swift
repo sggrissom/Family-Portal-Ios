@@ -9,7 +9,7 @@ final class Person {
     var type: PersonType
     var gender: Gender
     var birthday: Date?
-    var profilePhotoId: UUID?
+    var profilePhotoId: Int?
 
     var family: Family?
 

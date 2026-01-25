@@ -51,7 +51,12 @@ struct PersonDetailView: View {
         if let person {
             ScrollView {
                 VStack(spacing: 24) {
-                    PersonAvatarView(name: person.name, type: person.type, size: 100)
+                    PersonAvatarView(
+                        name: person.name,
+                        type: person.type,
+                        profilePhotoRemoteId: person.profilePhotoId,
+                        size: 100
+                    )
                         .padding(.top, 20)
 
                     Text(person.name)

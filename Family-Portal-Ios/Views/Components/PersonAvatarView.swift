@@ -3,11 +3,13 @@ import SwiftUI
 struct PersonAvatarView: View {
     let name: String
     let type: PersonType
+    let profilePhotoRemoteId: Int?
     let size: CGFloat
 
-    init(name: String, type: PersonType, size: CGFloat = 44) {
+    init(name: String, type: PersonType, profilePhotoRemoteId: Int? = nil, size: CGFloat = 44) {
         self.name = name
         self.type = type
+        self.profilePhotoRemoteId = profilePhotoRemoteId
         self.size = size
     }
 
@@ -26,6 +28,20 @@ struct PersonAvatarView: View {
     }
 
     var body: some View {
+        if let profilePhotoRemoteId {
+            ZStack {
+                initialsView
+                RemotePhotoView(remoteId: profilePhotoRemoteId, size: .thumb)
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+            }
+            .frame(width: size, height: size)
+        } else {
+            initialsView
+        }
+    }
+
+    private var initialsView: some View {
         Text(initials)
             .font(.system(size: size * 0.4, weight: .semibold))
             .foregroundStyle(.white)

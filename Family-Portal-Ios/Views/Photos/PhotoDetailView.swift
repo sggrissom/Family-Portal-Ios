@@ -86,7 +86,12 @@ private struct PhotoDetailContent: View {
                         FlowLayout(spacing: 8) {
                             ForEach(photo.taggedPeople) { person in
                                 HStack(spacing: 4) {
-                                    PersonAvatarView(name: person.name, type: person.type, size: 20)
+                                    PersonAvatarView(
+                                        name: person.name,
+                                        type: person.type,
+                                        profilePhotoRemoteId: person.profilePhotoId,
+                                        size: 20
+                                    )
                                     Text(person.name)
                                         .font(.subheadline)
                                 }

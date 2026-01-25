@@ -96,6 +96,7 @@ func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
     person.type = intToPersonType(dto.type)
     person.gender = intToGender(dto.gender)
     person.birthday = dto.birthday
+    person.profilePhotoId = dto.profilePhotoId
 }
 
 func applyGrowthDataDTO(_ dto: GrowthDataDTO, to growthData: GrowthData) {
@@ -130,6 +131,7 @@ func personFromDTO(_ dto: PersonDTO) -> Person {
         birthday: dto.birthday
     )
     person.remoteId = String(dto.id)
+    person.profilePhotoId = dto.profilePhotoId
     return person
 }
 
