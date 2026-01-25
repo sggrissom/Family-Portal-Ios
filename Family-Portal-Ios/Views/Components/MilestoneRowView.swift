@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MilestoneRowView: View {
     let milestone: Milestone
+    @State private var showingFullDescription = false
 
     private var categoryIcon: String {
         switch milestone.category {
@@ -43,6 +44,48 @@ struct MilestoneRowView: View {
             Text(milestone.date.formatted(date: .abbreviated, time: .omitted))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            showingFullDescription = true
+        }
+        .sheet(isPresented: $showingFullDescription) {
+            MilestoneDetailSheetView(milestone: milestone)
+        }
+    }
+}
+
+private struct MilestoneDetailSheetView: View {
+    let milestone: Milestone
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(milestone.descriptionText)
+                        .font(.body)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: 12) {
+                        Label(milestone.category.rawValue.capitalized, systemImage: "tag.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text(milestone.date.formatted(date: .abbreviated, time: .omitted))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Milestone")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

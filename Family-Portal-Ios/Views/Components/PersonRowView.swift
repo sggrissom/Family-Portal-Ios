@@ -4,15 +4,16 @@ struct PersonRowView: View {
     let name: String
     let type: PersonType
     let birthday: Date?
+    let profilePhotoRemoteId: Int?
 
-    private var birthdayText: String? {
+    private var ageText: String? {
         guard let birthday else { return nil }
-        return birthday.formatted(date: .abbreviated, time: .omitted)
+        return "Age \(AgeCalculator.age(from: birthday))"
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            PersonAvatarView(name: name, type: type)
+            PersonAvatarView(name: name, type: type, profilePhotoRemoteId: profilePhotoRemoteId)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
@@ -23,8 +24,8 @@ struct PersonRowView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    if let birthdayText {
-                        Text(birthdayText)
+                    if let ageText {
+                        Text(ageText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
