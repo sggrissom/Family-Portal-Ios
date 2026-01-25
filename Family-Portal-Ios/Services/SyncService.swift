@@ -203,8 +203,36 @@ final class SyncService {
     }
 
     private func executeUploadPhoto(_ operation: PendingOperation) async throws {
-        // Photo upload requires image data which can't be easily queued
-        // Skip for now - photos should be uploaded when online
+        let payload = try JSONDecoder().decode(UploadPhotoPayload.self, from: operation.payload)
+
+        guard let photo = findPhoto(byLocalId: operation.localId),
+              let imageData = photo.imageData else {
+            return
+        }
+
+        let personIds = try payload.taggedPersonLocalIds.compactMap { localId -> Int? in
+            guard let person = findPerson(byLocalId: localId) else {
+                return nil
+            }
+            guard let remoteId = person.remoteId, let id = Int(remoteId) else {
+                throw SyncError.missingRemoteId("Tagged people must be synced before uploading photo")
+            }
+            return id
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let photoDate = formatter.date(from: payload.photoDate) ?? photo.photoDate
+
+        let response = try await PhotoSyncService(apiClient: apiClient).uploadPhoto(
+            imageData: imageData,
+            title: payload.title,
+            description: payload.description,
+            photoDate: photoDate,
+            personIds: personIds
+        )
+        applyPhotoDTO(response, to: photo)
+        try modelContext.save()
     }
 
     private func executeUpdateGrowthData(_ operation: PendingOperation) async throws {
@@ -663,6 +691,61 @@ final class SyncService {
         }
     }
 
+    func uploadPhoto(_ photo: Photo) async throws {
+        guard let imageData = photo.imageData else {
+            return
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let payload = UploadPhotoPayload(
+            title: photo.title,
+            description: photo.descriptionText,
+            photoDate: formatter.string(from: photo.photoDate),
+            taggedPersonLocalIds: photo.taggedPeople.map { $0.id.uuidString }
+        )
+
+        guard networkMonitor.isConnected else {
+            try await enqueueOperation(
+                type: .uploadPhoto,
+                localId: photo.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: nil
+            )
+            return
+        }
+
+        let personIds = try photo.taggedPeople.map { person in
+            guard let remoteId = person.remoteId, let id = Int(remoteId) else {
+                throw SyncError.missingRemoteId("Tagged people must be synced before uploading photo")
+            }
+            return id
+        }
+
+        do {
+            let response = try await PhotoSyncService(apiClient: apiClient).uploadPhoto(
+                imageData: imageData,
+                title: photo.title,
+                description: photo.descriptionText,
+                photoDate: photo.photoDate,
+                personIds: personIds
+            )
+            applyPhotoDTO(response, to: photo)
+            try modelContext.save()
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .uploadPhoto,
+                    localId: photo.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: nil
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
     func addPeopleToPhoto(_ photo: Photo, people: [Person]) async throws {
         guard let photoRemoteId = photo.remoteId, let photoId = Int(photoRemoteId) else {
             throw SyncError.missingRemoteId("Photo must be synced before adding people")
@@ -770,6 +853,15 @@ final class SyncService {
     private func findMilestone(byLocalId localId: String) -> Milestone? {
         guard let uuid = UUID(uuidString: localId) else { return nil }
         var descriptor = FetchDescriptor<Milestone>(
+            predicate: #Predicate { $0.id == uuid }
+        )
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
+    }
+
+    private func findPhoto(byLocalId localId: String) -> Photo? {
+        guard let uuid = UUID(uuidString: localId) else { return nil }
+        var descriptor = FetchDescriptor<Photo>(
             predicate: #Predicate { $0.id == uuid }
         )
         descriptor.fetchLimit = 1
