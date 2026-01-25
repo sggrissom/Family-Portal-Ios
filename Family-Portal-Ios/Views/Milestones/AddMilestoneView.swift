@@ -4,6 +4,7 @@ import SwiftData
 struct AddMilestoneView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(SyncService.self) private var syncService: SyncService?
 
     @Query private var people: [Person]
     private var person: Person? { people.first }
@@ -11,6 +12,7 @@ struct AddMilestoneView: View {
     @State private var descriptionText: String = ""
     @State private var category: MilestoneCategory = .development
     @State private var date: Date = .now
+    @State private var isSaving = false
 
     private var isValid: Bool {
         !descriptionText.trimmingCharacters(in: .whitespaces).isEmpty
@@ -54,7 +56,7 @@ struct AddMilestoneView: View {
                     Button("Save") {
                         save()
                     }
-                    .disabled(!isValid)
+                    .disabled(!isValid || isSaving)
                 }
             }
         }
@@ -62,9 +64,18 @@ struct AddMilestoneView: View {
 
     private func save() {
         guard let person else { return }
+        isSaving = true
         let milestone = Milestone(descriptionText: descriptionText.trimmingCharacters(in: .whitespaces), category: category, date: date)
         milestone.person = person
         modelContext.insert(milestone)
-        dismiss()
+
+        Task {
+            do {
+                try await syncService?.addMilestone(milestone, for: person)
+            } catch {
+                print("Failed to sync milestone: \(error)")
+            }
+            dismiss()
+        }
     }
 }

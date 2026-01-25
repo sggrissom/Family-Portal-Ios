@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AuthService.self) private var authService
+    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(NetworkMonitor.self) private var networkMonitor
     @State private var showServerConfig = false
     @State private var serverURLInput = ""
     @State private var showLogoutConfirmation = false
@@ -42,6 +44,28 @@ struct SettingsView: View {
                             LoginView()
                         }
                     }
+                }
+
+                Section("Sync") {
+                    SyncStatusView(
+                        isConnected: networkMonitor.isConnected,
+                        isSyncing: syncService?.isSyncing ?? false,
+                        syncError: syncService?.syncError,
+                        pendingCount: syncService?.pendingOperationCount ?? 0,
+                        lastSyncDate: syncService?.lastSyncDate
+                    )
+
+                    Button {
+                        Task {
+                            await syncService?.performFullSync()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                            Text("Sync Now")
+                        }
+                    }
+                    .disabled(syncService?.isSyncing ?? true || !networkMonitor.isConnected)
                 }
 
                 Section("Server") {

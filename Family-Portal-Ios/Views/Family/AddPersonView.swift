@@ -4,12 +4,14 @@ import SwiftData
 struct AddPersonView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(SyncService.self) private var syncService: SyncService?
 
     @State private var name = ""
     @State private var type: PersonType = .parent
     @State private var gender: Gender = .male
     @State private var hasBirthday = false
     @State private var birthday = Date()
+    @State private var isSaving = false
 
     var body: some View {
         NavigationStack {
@@ -54,18 +56,32 @@ struct AddPersonView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let person = Person(
-                            name: name,
-                            type: type,
-                            gender: gender,
-                            birthday: hasBirthday ? birthday : nil
-                        )
-                        modelContext.insert(person)
-                        dismiss()
+                        savePerson()
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }
+        }
+    }
+
+    private func savePerson() {
+        isSaving = true
+        let person = Person(
+            name: name,
+            type: type,
+            gender: gender,
+            birthday: hasBirthday ? birthday : nil
+        )
+        modelContext.insert(person)
+
+        Task {
+            do {
+                try await syncService?.addPerson(person)
+            } catch {
+                // Person is saved locally, sync will retry later
+                print("Failed to sync person: \(error)")
+            }
+            dismiss()
         }
     }
 }

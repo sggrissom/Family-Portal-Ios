@@ -4,6 +4,7 @@ import SwiftData
 struct PhotoDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(SyncService.self) private var syncService: SyncService?
     @Query private var photos: [Photo]
     @State private var showDeleteConfirmation = false
 
@@ -21,8 +22,14 @@ struct PhotoDetailView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .confirmationDialog("Delete Photo", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
                     Button("Delete", role: .destructive) {
-                        modelContext.delete(photo)
-                        dismiss()
+                        Task {
+                            do {
+                                try await syncService?.deletePhoto(photo)
+                            } catch {
+                                print("Failed to sync delete photo: \(error)")
+                            }
+                            dismiss()
+                        }
                     }
                 } message: {
                     Text("This photo will be permanently deleted.")

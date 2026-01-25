@@ -3,6 +3,7 @@ import SwiftData
 
 struct MilestoneListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(SyncService.self) private var syncService: SyncService?
 
     @Query private var people: [Person]
     private var person: Person? { people.first }
@@ -93,7 +94,14 @@ struct MilestoneListView: View {
 
     private func deleteMilestones(at offsets: IndexSet) {
         for index in offsets {
-            modelContext.delete(filteredMilestones[index])
+            let milestone = filteredMilestones[index]
+            Task {
+                do {
+                    try await syncService?.deleteMilestone(milestone)
+                } catch {
+                    print("Failed to sync delete milestone: \(error)")
+                }
+            }
         }
     }
 }

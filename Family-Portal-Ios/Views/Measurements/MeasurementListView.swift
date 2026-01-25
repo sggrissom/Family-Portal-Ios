@@ -4,6 +4,7 @@ import Charts
 
 struct MeasurementListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(SyncService.self) private var syncService: SyncService?
 
     @Query private var people: [Person]
     private var person: Person? { people.first }
@@ -78,7 +79,14 @@ struct MeasurementListView: View {
 
     private func deleteMeasurements(at offsets: IndexSet) {
         for index in offsets {
-            modelContext.delete(filteredMeasurements[index])
+            let measurement = filteredMeasurements[index]
+            Task {
+                do {
+                    try await syncService?.deleteGrowthData(measurement)
+                } catch {
+                    print("Failed to sync delete growth data: \(error)")
+                }
+            }
         }
     }
 }

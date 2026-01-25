@@ -7,15 +7,29 @@ final class SyncService {
     let modelContext: ModelContext
     let apiClient: APIClient
     let networkMonitor: NetworkMonitor
+    let syncQueue: SyncQueue
 
     var isSyncing: Bool = false
     var lastSyncDate: Date?
     var syncError: String?
+    var pendingOperationCount: Int = 0
 
     init(modelContext: ModelContext, apiClient: APIClient, networkMonitor: NetworkMonitor) {
         self.modelContext = modelContext
         self.apiClient = apiClient
         self.networkMonitor = networkMonitor
+        self.syncQueue = SyncQueue()
+
+        Task {
+            await updatePendingCount()
+        }
+    }
+
+    // MARK: - Full Sync
+
+    func performFullSync() async {
+        await processQueue()
+        await pullFamilyData()
     }
 
     // MARK: - Pull
@@ -79,120 +93,574 @@ final class SyncService {
         isSyncing = false
     }
 
-    // MARK: - Push: Person
+    // MARK: - Queue Processing
 
-    func addPerson(_ person: Person) async throws {
+    func processQueue() async {
+        guard networkMonitor.isConnected else { return }
+
+        let syncedLocalIds = await fetchAllSyncedLocalIds()
+        let operations = await syncQueue.readyOperations(syncedLocalIds: syncedLocalIds)
+
+        for operation in operations {
+            do {
+                try await executeOperation(operation)
+                await syncQueue.dequeue(operation.id)
+            } catch {
+                if isNetworkError(error) {
+                    break
+                }
+                await syncQueue.markFailed(operation.id)
+            }
+        }
+
+        await updatePendingCount()
+    }
+
+    private func executeOperation(_ operation: PendingOperation) async throws {
+        switch operation.type {
+        case .createPerson:
+            try await executeCreatePerson(operation)
+        case .createGrowthData:
+            try await executeCreateGrowthData(operation)
+        case .createMilestone:
+            try await executeCreateMilestone(operation)
+        case .uploadPhoto:
+            try await executeUploadPhoto(operation)
+        case .updateGrowthData:
+            try await executeUpdateGrowthData(operation)
+        case .updateMilestone:
+            try await executeUpdateMilestone(operation)
+        case .deleteGrowthData:
+            try await executeDeleteGrowthData(operation)
+        case .deleteMilestone:
+            try await executeDeleteMilestone(operation)
+        case .deletePhoto:
+            try await executeDeletePhoto(operation)
+        }
+    }
+
+    private func executeCreatePerson(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(CreatePersonPayload.self, from: operation.payload)
+
+        guard let person = findPerson(byLocalId: operation.localId) else {
+            return
+        }
+
         let request = AddPersonRequestDTO(
-            name: person.name,
-            personType: personTypeToInt(person.type),
-            gender: genderToInt(person.gender),
-            birthdate: dateToAPIString(person.birthday ?? Date())
+            name: payload.name,
+            personType: payload.personType,
+            gender: payload.gender,
+            birthdate: payload.birthdate
         )
         let response: AddPersonResponseDTO = try await apiClient.callRPC("AddPerson", payload: request)
         applyPersonDTO(response.person, to: person)
         try modelContext.save()
     }
 
-    // MARK: - Push: GrowthData
+    private func executeCreateGrowthData(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(CreateGrowthDataPayload.self, from: operation.payload)
 
-    func addGrowthData(_ data: GrowthData, for person: Person) async throws {
-        guard let personRemoteId = person.remoteId, let personId = Int(personRemoteId) else {
-            throw SyncError.missingRemoteId("Person must be synced before adding growth data")
+        guard let growthData = findGrowthData(byLocalId: operation.localId),
+              let person = findPerson(byLocalId: payload.personLocalId),
+              let personRemoteId = person.remoteId,
+              let personId = Int(personRemoteId) else {
+            return
         }
+
         let request = AddGrowthDataRequestDTO(
             personId: personId,
-            measurementType: measurementTypeToString(data.measurementType),
-            value: data.value,
-            unit: unitToString(data.unit),
+            measurementType: payload.measurementType,
+            value: payload.value,
+            unit: payload.unit,
             inputType: "date",
-            measurementDate: dateToAPIString(data.date)
+            measurementDate: payload.measurementDate
         )
         let response: AddGrowthDataResponseDTO = try await apiClient.callRPC("AddGrowthData", payload: request)
-        applyGrowthDataDTO(response.growthData, to: data)
+        applyGrowthDataDTO(response.growthData, to: growthData)
         try modelContext.save()
     }
 
-    func updateGrowthData(_ data: GrowthData) async throws {
-        guard let remoteId = data.remoteId, let id = Int(remoteId) else {
-            throw SyncError.missingRemoteId("GrowthData must be synced before updating")
-        }
-        let request = UpdateGrowthDataRequestDTO(
-            id: id,
-            measurementType: measurementTypeToString(data.measurementType),
-            value: data.value,
-            unit: unitToString(data.unit),
-            inputType: "date",
-            measurementDate: dateToAPIString(data.date)
-        )
-        let response: UpdateGrowthDataResponseDTO = try await apiClient.callRPC("UpdateGrowthData", payload: request)
-        applyGrowthDataDTO(response.growthData, to: data)
-        try modelContext.save()
-    }
+    private func executeCreateMilestone(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(CreateMilestonePayload.self, from: operation.payload)
 
-    func deleteGrowthData(_ data: GrowthData) async throws {
-        guard let remoteId = data.remoteId, let id = Int(remoteId) else {
-            throw SyncError.missingRemoteId("GrowthData must be synced before deleting")
+        guard let milestone = findMilestone(byLocalId: operation.localId),
+              let person = findPerson(byLocalId: payload.personLocalId),
+              let personRemoteId = person.remoteId,
+              let personId = Int(personRemoteId) else {
+            return
         }
-        let request = DeleteRequestDTO(id: id)
-        let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteGrowthData", payload: request)
-        modelContext.delete(data)
-        try modelContext.save()
-    }
 
-    // MARK: - Push: Milestones
-
-    func addMilestone(_ milestone: Milestone, for person: Person) async throws {
-        guard let personRemoteId = person.remoteId, let personId = Int(personRemoteId) else {
-            throw SyncError.missingRemoteId("Person must be synced before adding milestone")
-        }
         let request = AddMilestoneRequestDTO(
             personId: personId,
-            description: milestone.descriptionText,
-            category: milestone.category.rawValue,
+            description: payload.description,
+            category: payload.category,
             inputType: "date",
-            milestoneDate: dateToAPIString(milestone.date)
+            milestoneDate: payload.milestoneDate
         )
         let response: AddMilestoneResponseDTO = try await apiClient.callRPC("AddMilestone", payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
         try modelContext.save()
     }
 
-    func updateMilestone(_ milestone: Milestone) async throws {
-        guard let remoteId = milestone.remoteId, let id = Int(remoteId) else {
-            throw SyncError.missingRemoteId("Milestone must be synced before updating")
+    private func executeUploadPhoto(_ operation: PendingOperation) async throws {
+        // Photo upload requires image data which can't be easily queued
+        // Skip for now - photos should be uploaded when online
+    }
+
+    private func executeUpdateGrowthData(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(UpdateGrowthDataPayload.self, from: operation.payload)
+
+        guard let growthData = findGrowthData(byLocalId: operation.localId) else {
+            return
         }
-        let request = UpdateMilestoneRequestDTO(
-            id: id,
-            description: milestone.descriptionText,
-            category: milestone.category.rawValue,
+
+        let request = UpdateGrowthDataRequestDTO(
+            id: payload.remoteId,
+            measurementType: payload.measurementType,
+            value: payload.value,
+            unit: payload.unit,
             inputType: "date",
-            milestoneDate: dateToAPIString(milestone.date)
+            measurementDate: payload.measurementDate
+        )
+        let response: UpdateGrowthDataResponseDTO = try await apiClient.callRPC("UpdateGrowthData", payload: request)
+        applyGrowthDataDTO(response.growthData, to: growthData)
+        try modelContext.save()
+    }
+
+    private func executeUpdateMilestone(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(UpdateMilestonePayload.self, from: operation.payload)
+
+        guard let milestone = findMilestone(byLocalId: operation.localId) else {
+            return
+        }
+
+        let request = UpdateMilestoneRequestDTO(
+            id: payload.remoteId,
+            description: payload.description,
+            category: payload.category,
+            inputType: "date",
+            milestoneDate: payload.milestoneDate
         )
         let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC("UpdateMilestone", payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
         try modelContext.save()
     }
 
+    private func executeDeleteGrowthData(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(DeletePayload.self, from: operation.payload)
+
+        do {
+            let request = DeleteRequestDTO(id: payload.remoteId)
+            let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteGrowthData", payload: request)
+        } catch let error as APIError {
+            if case .server(let statusCode, _) = error, statusCode == 404 {
+                return
+            }
+            throw error
+        }
+    }
+
+    private func executeDeleteMilestone(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(DeletePayload.self, from: operation.payload)
+
+        do {
+            let request = DeleteRequestDTO(id: payload.remoteId)
+            let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteMilestone", payload: request)
+        } catch let error as APIError {
+            if case .server(let statusCode, _) = error, statusCode == 404 {
+                return
+            }
+            throw error
+        }
+    }
+
+    private func executeDeletePhoto(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(DeletePayload.self, from: operation.payload)
+
+        do {
+            let request = DeleteRequestDTO(id: payload.remoteId)
+            let _: SuccessResponseDTO = try await apiClient.callRPC("DeletePhoto", payload: request)
+        } catch let error as APIError {
+            if case .server(let statusCode, _) = error, statusCode == 404 {
+                return
+            }
+            throw error
+        }
+    }
+
+    // MARK: - Push: Person
+
+    func addPerson(_ person: Person) async throws {
+        let payload = CreatePersonPayload(
+            name: person.name,
+            personType: personTypeToInt(person.type),
+            gender: genderToInt(person.gender),
+            birthdate: dateToAPIString(person.birthday ?? Date())
+        )
+
+        guard networkMonitor.isConnected else {
+            try await enqueueOperation(
+                type: .createPerson,
+                localId: person.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: nil
+            )
+            return
+        }
+
+        do {
+            let request = AddPersonRequestDTO(
+                name: person.name,
+                personType: personTypeToInt(person.type),
+                gender: genderToInt(person.gender),
+                birthdate: dateToAPIString(person.birthday ?? Date())
+            )
+            let response: AddPersonResponseDTO = try await apiClient.callRPC("AddPerson", payload: request)
+            applyPersonDTO(response.person, to: person)
+            try modelContext.save()
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .createPerson,
+                    localId: person.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: nil
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
+    // MARK: - Push: GrowthData
+
+    func addGrowthData(_ data: GrowthData, for person: Person) async throws {
+        let payload = CreateGrowthDataPayload(
+            personLocalId: person.id.uuidString,
+            measurementType: measurementTypeToString(data.measurementType),
+            value: data.value,
+            unit: unitToString(data.unit),
+            measurementDate: dateToAPIString(data.date)
+        )
+
+        let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
+
+        guard networkMonitor.isConnected else {
+            try await enqueueOperation(
+                type: .createGrowthData,
+                localId: data.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: dependsOnLocalId
+            )
+            return
+        }
+
+        guard let personRemoteId = person.remoteId, let personId = Int(personRemoteId) else {
+            try await enqueueOperation(
+                type: .createGrowthData,
+                localId: data.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: person.id.uuidString
+            )
+            return
+        }
+
+        do {
+            let request = AddGrowthDataRequestDTO(
+                personId: personId,
+                measurementType: measurementTypeToString(data.measurementType),
+                value: data.value,
+                unit: unitToString(data.unit),
+                inputType: "date",
+                measurementDate: dateToAPIString(data.date)
+            )
+            let response: AddGrowthDataResponseDTO = try await apiClient.callRPC("AddGrowthData", payload: request)
+            applyGrowthDataDTO(response.growthData, to: data)
+            try modelContext.save()
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .createGrowthData,
+                    localId: data.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: dependsOnLocalId
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
+    func updateGrowthData(_ data: GrowthData) async throws {
+        guard let remoteId = data.remoteId, let id = Int(remoteId) else {
+            throw SyncError.missingRemoteId("GrowthData must be synced before updating")
+        }
+
+        let payload = UpdateGrowthDataPayload(
+            remoteId: id,
+            measurementType: measurementTypeToString(data.measurementType),
+            value: data.value,
+            unit: unitToString(data.unit),
+            measurementDate: dateToAPIString(data.date)
+        )
+
+        guard networkMonitor.isConnected else {
+            try await enqueueOperation(
+                type: .updateGrowthData,
+                localId: data.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: nil
+            )
+            return
+        }
+
+        do {
+            let request = UpdateGrowthDataRequestDTO(
+                id: id,
+                measurementType: measurementTypeToString(data.measurementType),
+                value: data.value,
+                unit: unitToString(data.unit),
+                inputType: "date",
+                measurementDate: dateToAPIString(data.date)
+            )
+            let response: UpdateGrowthDataResponseDTO = try await apiClient.callRPC("UpdateGrowthData", payload: request)
+            applyGrowthDataDTO(response.growthData, to: data)
+            try modelContext.save()
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .updateGrowthData,
+                    localId: data.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: nil
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
+    func deleteGrowthData(_ data: GrowthData) async throws {
+        guard let remoteId = data.remoteId, let id = Int(remoteId) else {
+            modelContext.delete(data)
+            try modelContext.save()
+            return
+        }
+
+        let payload = DeletePayload(remoteId: id)
+
+        modelContext.delete(data)
+        try modelContext.save()
+
+        guard networkMonitor.isConnected else {
+            try await enqueueOperation(
+                type: .deleteGrowthData,
+                localId: data.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: nil
+            )
+            return
+        }
+
+        do {
+            let request = DeleteRequestDTO(id: id)
+            let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteGrowthData", payload: request)
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .deleteGrowthData,
+                    localId: data.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: nil
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
+    // MARK: - Push: Milestones
+
+    func addMilestone(_ milestone: Milestone, for person: Person) async throws {
+        let payload = CreateMilestonePayload(
+            personLocalId: person.id.uuidString,
+            description: milestone.descriptionText,
+            category: milestone.category.rawValue,
+            milestoneDate: dateToAPIString(milestone.date)
+        )
+
+        let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
+
+        guard networkMonitor.isConnected else {
+            try await enqueueOperation(
+                type: .createMilestone,
+                localId: milestone.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: dependsOnLocalId
+            )
+            return
+        }
+
+        guard let personRemoteId = person.remoteId, let personId = Int(personRemoteId) else {
+            try await enqueueOperation(
+                type: .createMilestone,
+                localId: milestone.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: person.id.uuidString
+            )
+            return
+        }
+
+        do {
+            let request = AddMilestoneRequestDTO(
+                personId: personId,
+                description: milestone.descriptionText,
+                category: milestone.category.rawValue,
+                inputType: "date",
+                milestoneDate: dateToAPIString(milestone.date)
+            )
+            let response: AddMilestoneResponseDTO = try await apiClient.callRPC("AddMilestone", payload: request)
+            applyMilestoneDTO(response.milestone, to: milestone)
+            try modelContext.save()
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .createMilestone,
+                    localId: milestone.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: dependsOnLocalId
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
+    func updateMilestone(_ milestone: Milestone) async throws {
+        guard let remoteId = milestone.remoteId, let id = Int(remoteId) else {
+            throw SyncError.missingRemoteId("Milestone must be synced before updating")
+        }
+
+        let payload = UpdateMilestonePayload(
+            remoteId: id,
+            description: milestone.descriptionText,
+            category: milestone.category.rawValue,
+            milestoneDate: dateToAPIString(milestone.date)
+        )
+
+        guard networkMonitor.isConnected else {
+            try await enqueueOperation(
+                type: .updateMilestone,
+                localId: milestone.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: nil
+            )
+            return
+        }
+
+        do {
+            let request = UpdateMilestoneRequestDTO(
+                id: id,
+                description: milestone.descriptionText,
+                category: milestone.category.rawValue,
+                inputType: "date",
+                milestoneDate: dateToAPIString(milestone.date)
+            )
+            let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC("UpdateMilestone", payload: request)
+            applyMilestoneDTO(response.milestone, to: milestone)
+            try modelContext.save()
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .updateMilestone,
+                    localId: milestone.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: nil
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
     func deleteMilestone(_ milestone: Milestone) async throws {
         guard let remoteId = milestone.remoteId, let id = Int(remoteId) else {
-            throw SyncError.missingRemoteId("Milestone must be synced before deleting")
+            modelContext.delete(milestone)
+            try modelContext.save()
+            return
         }
-        let request = DeleteRequestDTO(id: id)
-        let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteMilestone", payload: request)
+
+        let payload = DeletePayload(remoteId: id)
+
         modelContext.delete(milestone)
         try modelContext.save()
+
+        guard networkMonitor.isConnected else {
+            try await enqueueOperation(
+                type: .deleteMilestone,
+                localId: milestone.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: nil
+            )
+            return
+        }
+
+        do {
+            let request = DeleteRequestDTO(id: id)
+            let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteMilestone", payload: request)
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .deleteMilestone,
+                    localId: milestone.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: nil
+                )
+            } else {
+                throw error
+            }
+        }
     }
 
     // MARK: - Push: Photos
 
     func deletePhoto(_ photo: Photo) async throws {
         guard let remoteId = photo.remoteId, let id = Int(remoteId) else {
-            throw SyncError.missingRemoteId("Photo must be synced before deleting")
+            modelContext.delete(photo)
+            try modelContext.save()
+            return
         }
-        let request = DeleteRequestDTO(id: id)
-        let _: SuccessResponseDTO = try await apiClient.callRPC("DeletePhoto", payload: request)
+
+        let payload = DeletePayload(remoteId: id)
+
         modelContext.delete(photo)
         try modelContext.save()
+
+        guard networkMonitor.isConnected else {
+            try await enqueueOperation(
+                type: .deletePhoto,
+                localId: photo.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: nil
+            )
+            return
+        }
+
+        do {
+            let request = DeleteRequestDTO(id: id)
+            let _: SuccessResponseDTO = try await apiClient.callRPC("DeletePhoto", payload: request)
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .deletePhoto,
+                    localId: photo.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: nil
+                )
+            } else {
+                throw error
+            }
+        }
     }
 
     func addPeopleToPhoto(_ photo: Photo, people: [Person]) async throws {
@@ -220,6 +688,92 @@ final class SyncService {
         let request = RemovePersonFromPhotoRequestDTO(photoId: photoId, personId: personId)
         let _: SuccessResponseDTO = try await apiClient.callRPC("RemovePersonFromPhoto", payload: request)
         try modelContext.save()
+    }
+
+    // MARK: - Queue Helpers
+
+    private func enqueueOperation<T: Encodable>(
+        type: SyncOperationType,
+        localId: String,
+        payload: T,
+        dependsOnLocalId: String?
+    ) async throws {
+        let payloadData = try JSONEncoder().encode(payload)
+        let operation = PendingOperation(
+            type: type,
+            localId: localId,
+            payload: payloadData,
+            dependsOnLocalId: dependsOnLocalId
+        )
+        await syncQueue.enqueue(operation)
+        await updatePendingCount()
+    }
+
+    private func isNetworkError(_ error: Error) -> Bool {
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .network:
+                return true
+            default:
+                return false
+            }
+        }
+
+        let nsError = error as NSError
+        let networkErrorCodes = [
+            NSURLErrorNotConnectedToInternet,
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorTimedOut,
+            NSURLErrorCannotConnectToHost,
+            NSURLErrorCannotFindHost
+        ]
+        return networkErrorCodes.contains(nsError.code)
+    }
+
+    private func updatePendingCount() async {
+        pendingOperationCount = await syncQueue.count()
+    }
+
+    private func fetchAllSyncedLocalIds() async -> Set<String> {
+        var syncedIds = Set<String>()
+
+        let personDescriptor = FetchDescriptor<Person>()
+        if let persons = try? modelContext.fetch(personDescriptor) {
+            for person in persons where person.remoteId != nil {
+                syncedIds.insert(person.id.uuidString)
+            }
+        }
+
+        return syncedIds
+    }
+
+    // MARK: - Lookup Helpers
+
+    private func findPerson(byLocalId localId: String) -> Person? {
+        guard let uuid = UUID(uuidString: localId) else { return nil }
+        var descriptor = FetchDescriptor<Person>(
+            predicate: #Predicate { $0.id == uuid }
+        )
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
+    }
+
+    private func findGrowthData(byLocalId localId: String) -> GrowthData? {
+        guard let uuid = UUID(uuidString: localId) else { return nil }
+        var descriptor = FetchDescriptor<GrowthData>(
+            predicate: #Predicate { $0.id == uuid }
+        )
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
+    }
+
+    private func findMilestone(byLocalId localId: String) -> Milestone? {
+        guard let uuid = UUID(uuidString: localId) else { return nil }
+        var descriptor = FetchDescriptor<Milestone>(
+            predicate: #Predicate { $0.id == uuid }
+        )
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
     }
 
     // MARK: - Upsert Helpers
