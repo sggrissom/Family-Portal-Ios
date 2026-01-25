@@ -12,12 +12,19 @@ import SwiftData
 struct Family_Portal_IosApp: App {
     let container: ModelContainer
     @State private var authService = AuthService()
-    @State private var networkMonitor = NetworkMonitor()
-    @State private var syncService: SyncService?
+    @State private var networkMonitor: NetworkMonitor
+    @State private var syncService: SyncService
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
         container = DataStore.shared.container
+        let monitor = NetworkMonitor()
+        _networkMonitor = State(initialValue: monitor)
+        _syncService = State(initialValue: SyncService(
+            modelContext: container.mainContext,
+            apiClient: APIClient.shared,
+            networkMonitor: monitor
+        ))
     }
 
     var body: some Scene {
@@ -33,7 +40,7 @@ struct Family_Portal_IosApp: App {
                     if newPhase == .active {
                         Task {
                             if authService.isAuthenticated {
-                                await syncService?.performFullSync()
+                                await syncService.performFullSync()
                             }
                         }
                     }
@@ -41,7 +48,7 @@ struct Family_Portal_IosApp: App {
                 .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
                     if isAuthenticated {
                         Task {
-                            await syncService?.performFullSync()
+                            await syncService.performFullSync()
                         }
                     }
                 }
@@ -51,25 +58,17 @@ struct Family_Portal_IosApp: App {
 
     @MainActor
     private func setupServices() async {
-        let context = container.mainContext
-        let service = SyncService(
-            modelContext: context,
-            apiClient: APIClient.shared,
-            networkMonitor: networkMonitor
-        )
-        syncService = service
-
-        networkMonitor.onConnectivityRestored = { [weak service] in
+        networkMonitor.onConnectivityRestored = { [weak syncService] in
             Task { @MainActor in
                 if self.authService.isAuthenticated {
-                    await service?.performFullSync()
+                    await syncService?.performFullSync()
                 }
             }
         }
 
         await authService.restoreSession()
         if authService.isAuthenticated {
-            await service.performFullSync()
+            await syncService.performFullSync()
         }
     }
 }
