@@ -53,6 +53,14 @@ private struct PhotoDetailContent: View {
                         .scaledToFit()
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .padding(.horizontal)
+                } else if let remoteId = photo.remoteId, let remoteInt = Int(remoteId) {
+                    RemotePhotoView(remoteId: remoteInt, size: .xlarge)
+                        .scaledToFit()
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal)
+                } else {
+                    ContentUnavailableView("No Photo", systemImage: "photo")
+                        .padding(.horizontal)
                 }
 
                 Text(photo.photoDate.formatted(date: .long, time: .shortened))

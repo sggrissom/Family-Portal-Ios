@@ -11,7 +11,20 @@ struct FamilyMembersView: View {
     }
 
     private var children: [Person] {
-        people.filter { $0.type == .child }
+        people
+            .filter { $0.type == .child }
+            .sorted { left, right in
+                switch (left.birthday, right.birthday) {
+                case let (leftBirthday?, rightBirthday?):
+                    return leftBirthday < rightBirthday
+                case (nil, nil):
+                    return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
+                case (nil, _?):
+                    return false
+                case (_?, nil):
+                    return true
+                }
+            }
     }
 
     var body: some View {
