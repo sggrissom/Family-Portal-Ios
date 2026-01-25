@@ -175,7 +175,7 @@ struct TimelineRowView: View {
         .modelContainer(for: [Person.self, GrowthData.self, Milestone.self], inMemory: true)
         .environment(SyncService(
             modelContext: ModelContext(try! ModelContainer(for: Person.self, GrowthData.self, Milestone.self)),
-            apiClient: APIClient(authService: AuthService()),
+            apiClient: APIClient(),
             networkMonitor: NetworkMonitor()
         ))
 }

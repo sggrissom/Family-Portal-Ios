@@ -90,7 +90,7 @@ actor APIClient {
         accessToken = Self.loadToken(forKey: AppConstants.Keychain.accessToken)
         refreshToken = Self.loadToken(forKey: AppConstants.Keychain.refreshToken)
         if let savedURLString = Self.loadToken(forKey: AppConstants.Keychain.serverURL), let savedURL = URL(string: savedURLString) {
-            baseURL = savedURL
+            self.baseURL = savedURL
         }
         syncCookies()
     }
@@ -126,16 +126,16 @@ actor APIClient {
             throw APIError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = HTTPMethod.post.rawValue
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
-        request.httpBody = formData
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = HTTPMethod.post.rawValue
+        urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+        urlRequest.httpBody = formData
 
-        addAuthHeaders(to: &request, requiresAuth: true)
+        addAuthHeaders(to: &urlRequest, requiresAuth: true)
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: urlRequest)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIError.invalidResponse
             }
@@ -186,23 +186,23 @@ actor APIClient {
             throw APIError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = method.rawValue
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = method.rawValue
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
 
         if let body = body {
             do {
-                request.httpBody = try encoder.encode(body)
+                urlRequest.httpBody = try encoder.encode(body)
             } catch {
                 throw APIError.network(error)
             }
         }
 
-        addAuthHeaders(to: &request, requiresAuth: requiresAuth)
+        addAuthHeaders(to: &urlRequest, requiresAuth: requiresAuth)
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: urlRequest)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIError.invalidResponse
             }
@@ -249,14 +249,14 @@ actor APIClient {
             throw APIError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = HTTPMethod.post.rawValue
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
-        addAuthHeaders(to: &request, requiresAuth: false)
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = HTTPMethod.post.rawValue
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+        addAuthHeaders(to: &urlRequest, requiresAuth: false)
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: urlRequest)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIError.invalidResponse
             }
