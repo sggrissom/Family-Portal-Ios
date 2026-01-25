@@ -161,7 +161,7 @@ struct PersonDetailView: View {
                             } else {
                                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                                     ForEach(recentPhotos) { photo in
-                                        NavigationLink(value: photo.id) {
+                                        NavigationLink(value: PhotoRoute(id: photo.id)) {
                                             PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                                         }
                                     }
@@ -188,8 +188,8 @@ struct PersonDetailView: View {
             }
             .navigationTitle(person.name)
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: UUID.self) { photoId in
-                PhotoDetailView(photoId: photoId)
+            .navigationDestination(for: PhotoRoute.self) { route in
+                PhotoDetailView(photoId: route.id)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -278,7 +278,7 @@ struct PersonPhotosView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 4) {
                         ForEach(person.photos) { photo in
-                            NavigationLink(value: photo.id) {
+                            NavigationLink(value: PhotoRoute(id: photo.id)) {
                                 PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                             }
                         }
