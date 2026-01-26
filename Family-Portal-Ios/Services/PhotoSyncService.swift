@@ -33,7 +33,7 @@ actor PhotoSyncService {
             personIds: personIds,
             boundary: boundary
         )
-        return try await apiClient.uploadMultipart(path: "api/photo/upload", formData: formData, boundary: boundary)
+        return try await apiClient.uploadMultipart(path: "api/upload-photo", formData: formData, boundary: boundary)
     }
 
     private func buildMultipartBody(imageData: Data, title: String, description: String, photoDate: Date, personIds: [Int], boundary: String) -> Data {
@@ -42,7 +42,7 @@ actor PhotoSyncService {
 
         // File part
         Self.appendString("--\(boundary)\(crlf)", to: &body)
-        Self.appendString("Content-Disposition: form-data; name=\"file\"; filename=\"photo.jpg\"\(crlf)", to: &body)
+        Self.appendString("Content-Disposition: form-data; name=\"photo\"; filename=\"photo.jpg\"\(crlf)", to: &body)
         Self.appendString("Content-Type: \(mimeType(for: imageData))\(crlf)\(crlf)", to: &body)
         body.append(imageData)
         Self.appendString(crlf, to: &body)
@@ -50,9 +50,10 @@ actor PhotoSyncService {
         // Text fields
         Self.appendTextField(to: &body, name: "title", value: title, boundary: boundary)
         Self.appendTextField(to: &body, name: "description", value: description, boundary: boundary)
+        Self.appendTextField(to: &body, name: "inputType", value: "date", boundary: boundary)
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
         Self.appendTextField(to: &body, name: "photoDate", value: formatter.string(from: photoDate), boundary: boundary)
 
         if let personIdsJSON = try? JSONSerialization.data(withJSONObject: personIds),
