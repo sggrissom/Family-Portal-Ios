@@ -8,6 +8,8 @@ struct PhotoGalleryView: View {
     @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
     @State private var selectedItem: PhotosPickerItem?
     @State private var isLoading = false
+    @State private var uploadError: Error?
+    @State private var showUploadError = false
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
@@ -73,12 +75,20 @@ struct PhotoGalleryView: View {
                         imageData: data
                     )
                     modelContext.insert(photo)
+                    try? modelContext.save()
                     do {
                         try await syncService?.uploadPhoto(photo)
                     } catch {
                         print("Failed to upload photo: \(error)")
+                        uploadError = error
+                        showUploadError = true
                     }
                 }
+            }
+            .alert("Upload Failed", isPresented: $showUploadError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(uploadError?.localizedDescription ?? "An unknown error occurred while uploading the photo.")
             }
         }
     }

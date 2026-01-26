@@ -692,9 +692,13 @@ final class SyncService {
     }
 
     func uploadPhoto(_ photo: Photo) async throws {
+        print("[PhotoSync] uploadPhoto called for photo id: \(photo.id)")
+
         guard let imageData = photo.imageData else {
-            return
+            print("[PhotoSync] ERROR: imageData is nil for photo id: \(photo.id)")
+            throw SyncError.missingImageData
         }
+        print("[PhotoSync] imageData present, size: \(imageData.count) bytes")
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -706,6 +710,7 @@ final class SyncService {
         )
 
         guard networkMonitor.isConnected else {
+            print("[PhotoSync] Offline - enqueueing operation")
             try await enqueueOperation(
                 type: .uploadPhoto,
                 localId: photo.id.uuidString,
@@ -714,6 +719,7 @@ final class SyncService {
             )
             return
         }
+        print("[PhotoSync] Online - proceeding with immediate upload")
 
         let personIds = try photo.taggedPeople.map { person in
             guard let remoteId = person.remoteId, let id = Int(remoteId) else {
@@ -721,8 +727,10 @@ final class SyncService {
             }
             return id
         }
+        print("[PhotoSync] Tagged person IDs: \(personIds)")
 
         do {
+            print("[PhotoSync] Calling PhotoSyncService.uploadPhoto...")
             let response = try await PhotoSyncService(apiClient: apiClient).uploadPhoto(
                 imageData: imageData,
                 title: photo.title,
@@ -730,10 +738,14 @@ final class SyncService {
                 photoDate: photo.photoDate,
                 personIds: personIds
             )
+            print("[PhotoSync] Upload successful, received remoteId: \(response.id)")
             applyPhotoDTO(response, to: photo)
             try modelContext.save()
+            print("[PhotoSync] Photo saved with remoteId")
         } catch {
+            print("[PhotoSync] Upload failed with error: \(error)")
             if isNetworkError(error) {
+                print("[PhotoSync] Network error - enqueueing for retry")
                 try await enqueueOperation(
                     type: .uploadPhoto,
                     localId: photo.id.uuidString,
@@ -944,11 +956,14 @@ final class SyncService {
 
 enum SyncError: LocalizedError {
     case missingRemoteId(String)
+    case missingImageData
 
     var errorDescription: String? {
         switch self {
         case .missingRemoteId(let message):
             return message
+        case .missingImageData:
+            return "Photo data is missing and cannot be uploaded"
         }
     }
 }
