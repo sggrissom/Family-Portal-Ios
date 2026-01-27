@@ -946,6 +946,9 @@ final class SyncService {
         for model in allModels {
             guard let remoteId = (model as? RemoteIdentifiable)?.remoteId else { continue }
             if !seenIds.contains(remoteId) {
+                if let photo = model as? Photo, photo.imageData != nil {
+                    continue
+                }
                 modelContext.delete(model)
             }
         }
