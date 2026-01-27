@@ -41,14 +41,21 @@ final class SyncService {
 
         do {
             struct EmptyPayload: Encodable {}
-            let response: GetFamilyTimelineResponseDTO = try await apiClient.callRPC("GetFamilyTimeline", payload: EmptyPayload())
+            let timelineResponse: GetFamilyTimelineResponseDTO = try await apiClient.callRPC(
+                "GetFamilyTimeline",
+                payload: EmptyPayload()
+            )
+            let photoResponse: ListFamilyPhotosResponseDTO = try await apiClient.callRPC(
+                "ListFamilyPhotos",
+                payload: EmptyPayload()
+            )
 
             var seenPersonIds = Set<String>()
             var seenGrowthDataIds = Set<String>()
             var seenMilestoneIds = Set<String>()
             var seenPhotoIds = Set<String>()
 
-            for item in response.people {
+            for item in timelineResponse.people {
                 let personRemoteId = String(item.person.id)
                 seenPersonIds.insert(personRemoteId)
 
@@ -77,6 +84,20 @@ final class SyncService {
                     let photo = findOrCreatePhoto(remoteId: photoRemoteId)
                     applyPhotoDTO(imageDTO, to: photo)
                 }
+            }
+
+            for photoWithPeople in photoResponse.photos {
+                let photoRemoteId = String(photoWithPeople.image.id)
+                seenPhotoIds.insert(photoRemoteId)
+                let photo = findOrCreatePhoto(remoteId: photoRemoteId)
+                applyPhotoDTO(photoWithPeople.image, to: photo)
+                let taggedPeople = photoWithPeople.people.map { personDTO in
+                    let personRemoteId = String(personDTO.id)
+                    let person = findOrCreatePerson(remoteId: personRemoteId)
+                    applyPersonDTO(personDTO, to: person)
+                    return person
+                }
+                photo.taggedPeople = taggedPeople
             }
 
             removeOrphans(Person.self, seenIds: seenPersonIds)
