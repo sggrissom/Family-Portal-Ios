@@ -147,6 +147,10 @@ struct UpdateMilestoneResponseDTO: Codable, Sendable {
     let milestone: MilestoneDTO
 }
 
+struct AddPhotoResponseDTO: Codable, Sendable {
+    let image: ImageDTO
+}
+
 struct GetPhotoResponseDTO: Codable, Sendable {
     let image: ImageDTO
     let people: [PersonDTO]

@@ -33,7 +33,8 @@ actor PhotoSyncService {
             personIds: personIds,
             boundary: boundary
         )
-        return try await apiClient.uploadMultipart(path: "api/upload-photo", formData: formData, boundary: boundary)
+        let response: AddPhotoResponseDTO = try await apiClient.uploadMultipart(path: "api/upload-photo", formData: formData, boundary: boundary)
+        return response.image
     }
 
     private func buildMultipartBody(imageData: Data, title: String, description: String, photoDate: Date, personIds: [Int], boundary: String) -> Data {
