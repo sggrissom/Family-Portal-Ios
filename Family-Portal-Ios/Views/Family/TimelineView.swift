@@ -313,7 +313,7 @@ struct TimelineRowView: View {
                     name: person.name,
                     type: person.type,
                     profilePhotoRemoteId: person.profilePhotoId,
-                    size: 32
+                    size: 44
                 )
             } else {
                 Circle()

@@ -5,6 +5,21 @@ struct PersonRowView: View {
     let type: PersonType
     let birthday: Date?
     let profilePhotoRemoteId: Int?
+    let avatarSize: CGFloat
+
+    init(
+        name: String,
+        type: PersonType,
+        birthday: Date?,
+        profilePhotoRemoteId: Int?,
+        avatarSize: CGFloat = 56
+    ) {
+        self.name = name
+        self.type = type
+        self.birthday = birthday
+        self.profilePhotoRemoteId = profilePhotoRemoteId
+        self.avatarSize = avatarSize
+    }
 
     private var ageText: String? {
         guard let birthday else { return nil }
@@ -13,7 +28,12 @@ struct PersonRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            PersonAvatarView(name: name, type: type, profilePhotoRemoteId: profilePhotoRemoteId)
+            PersonAvatarView(
+                name: name,
+                type: type,
+                profilePhotoRemoteId: profilePhotoRemoteId,
+                size: avatarSize
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
