@@ -88,6 +88,13 @@ func dateToAPIString(_ date: Date) -> String {
     apiDateFormatter.string(from: date)
 }
 
+private func normalizeBirthdayDate(_ date: Date) -> Date {
+    var utcCalendar = Calendar(identifier: .iso8601)
+    utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+    let components = utcCalendar.dateComponents([.year, .month, .day], from: date)
+    return Calendar.current.date(from: components) ?? date
+}
+
 // MARK: - Model Apply Functions
 
 func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
@@ -95,7 +102,7 @@ func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
     person.name = dto.name
     person.type = intToPersonType(dto.type)
     person.gender = intToGender(dto.gender)
-    person.birthday = dto.birthday
+    person.birthday = normalizeBirthdayDate(dto.birthday)
     person.profilePhotoId = dto.profilePhotoId
 }
 
@@ -128,7 +135,7 @@ func personFromDTO(_ dto: PersonDTO) -> Person {
         name: dto.name,
         type: intToPersonType(dto.type),
         gender: intToGender(dto.gender),
-        birthday: dto.birthday
+        birthday: normalizeBirthdayDate(dto.birthday)
     )
     person.remoteId = String(dto.id)
     person.profilePhotoId = dto.profilePhotoId
