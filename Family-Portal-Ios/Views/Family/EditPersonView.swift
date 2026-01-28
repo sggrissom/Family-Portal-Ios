@@ -3,6 +3,7 @@ import SwiftData
 
 struct EditPersonView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(SyncService.self) private var syncService: SyncService?
 
     let person: Person
 
@@ -11,6 +12,7 @@ struct EditPersonView: View {
     @State private var gender: Gender
     @State private var hasBirthday: Bool
     @State private var birthday: Date
+    @State private var isSaving = false
 
     init(person: Person) {
         self.person = person
@@ -64,15 +66,28 @@ struct EditPersonView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        person.name = name
-                        person.type = type
-                        person.gender = gender
-                        person.birthday = hasBirthday ? birthday : nil
-                        dismiss()
+                        savePerson()
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }
+        }
+    }
+
+    private func savePerson() {
+        isSaving = true
+        person.name = name
+        person.type = type
+        person.gender = gender
+        person.birthday = hasBirthday ? birthday : nil
+
+        Task {
+            do {
+                try await syncService?.updatePerson(person)
+            } catch {
+                print("Failed to sync person update: \(error)")
+            }
+            dismiss()
         }
     }
 }
