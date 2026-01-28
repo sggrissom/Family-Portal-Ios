@@ -94,7 +94,6 @@ struct RemovePersonFromPhotoPayload: Codable, Sendable {
 }
 
 struct UpdateGrowthDataPayload: Codable, Sendable {
-    let remoteId: Int
     let measurementType: String
     let value: Double
     let unit: String
@@ -102,7 +101,6 @@ struct UpdateGrowthDataPayload: Codable, Sendable {
 }
 
 struct UpdateMilestonePayload: Codable, Sendable {
-    let remoteId: Int
     let description: String
     let category: String
     let milestoneDate: String
