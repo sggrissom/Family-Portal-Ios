@@ -12,7 +12,7 @@ struct PersonRowView: View {
         type: PersonType,
         birthday: Date?,
         profilePhotoRemoteId: Int?,
-        avatarSize: CGFloat = 56
+        avatarSize: CGFloat = 80
     ) {
         self.name = name
         self.type = type
