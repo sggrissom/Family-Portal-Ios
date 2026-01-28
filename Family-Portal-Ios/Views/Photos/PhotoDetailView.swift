@@ -48,16 +48,20 @@ private struct PhotoDetailContent: View {
         ScrollView {
             VStack(spacing: 20) {
                 if let imageData = photo.imageData, let uiImage = UIImage(data: imageData) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal)
+                    ZoomableView {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal)
                 } else if let remoteId = photo.remoteId, let remoteInt = Int(remoteId) {
-                    RemotePhotoView(remoteId: remoteInt, size: .xlarge)
-                        .scaledToFit()
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal)
+                    ZoomableView {
+                        RemotePhotoView(remoteId: remoteInt, size: .xlarge, contentMode: .fit)
+                            .scaledToFit()
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal)
                 } else {
                     ContentUnavailableView("No Photo", systemImage: "photo")
                         .padding(.horizontal)

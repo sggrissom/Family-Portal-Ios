@@ -3,17 +3,24 @@ import SwiftUI
 struct RemotePhotoView: View {
     let remoteId: Int
     let size: PhotoSizeVariant
+    let contentMode: ContentMode
 
     @State private var image: UIImage?
     @State private var isLoading = true
     @State private var hasFailed = false
+
+    init(remoteId: Int, size: PhotoSizeVariant, contentMode: ContentMode = .fill) {
+        self.remoteId = remoteId
+        self.size = size
+        self.contentMode = contentMode
+    }
 
     var body: some View {
         Group {
             if let image {
                 Image(uiImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .aspectRatio(contentMode: contentMode)
             } else if isLoading {
                 ProgressView()
             } else {
