@@ -7,6 +7,8 @@ enum SyncOperationType: String, Codable, Sendable {
     case createGrowthData
     case createMilestone
     case uploadPhoto
+    case addPeopleToPhoto
+    case removePersonFromPhoto
     case updateGrowthData
     case updateMilestone
     case deleteGrowthData
@@ -73,6 +75,14 @@ struct UploadPhotoPayload: Codable, Sendable {
     let description: String
     let photoDate: String
     let taggedPersonLocalIds: [String]
+}
+
+struct AddPeopleToPhotoPayload: Codable, Sendable {
+    let personLocalIds: [String]
+}
+
+struct RemovePersonFromPhotoPayload: Codable, Sendable {
+    let personLocalId: String
 }
 
 struct UpdateGrowthDataPayload: Codable, Sendable {

@@ -130,6 +130,9 @@ final class SyncService {
                 if isNetworkError(error) {
                     break
                 }
+                if case SyncError.missingRemoteId = error {
+                    continue
+                }
                 await syncQueue.markFailed(operation.id)
             }
         }
@@ -147,6 +150,10 @@ final class SyncService {
             try await executeCreateMilestone(operation)
         case .uploadPhoto:
             try await executeUploadPhoto(operation)
+        case .addPeopleToPhoto:
+            try await executeAddPeopleToPhoto(operation)
+        case .removePersonFromPhoto:
+            try await executeRemovePersonFromPhoto(operation)
         case .updateGrowthData:
             try await executeUpdateGrowthData(operation)
         case .updateMilestone:
@@ -253,6 +260,49 @@ final class SyncService {
             personIds: personIds
         )
         applyPhotoDTO(response, to: photo)
+        try modelContext.save()
+    }
+
+    private func executeAddPeopleToPhoto(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(AddPeopleToPhotoPayload.self, from: operation.payload)
+
+        guard let photo = findPhoto(byLocalId: operation.localId),
+              let photoRemoteId = photo.remoteId,
+              let photoId = Int(photoRemoteId) else {
+            throw SyncError.missingRemoteId("Photo must be synced before adding people")
+        }
+
+        let personIds = try payload.personLocalIds.map { localId -> Int in
+            guard let person = findPerson(byLocalId: localId),
+                  let remoteId = person.remoteId,
+                  let id = Int(remoteId) else {
+                throw SyncError.missingRemoteId("All people must be synced before adding to photo")
+            }
+            return id
+        }
+
+        let request = AddPeopleToPhotoRequestDTO(photoId: photoId, personIds: personIds)
+        let _: SuccessResponseDTO = try await apiClient.callRPC("AddPeopleToPhoto", payload: request)
+        try modelContext.save()
+    }
+
+    private func executeRemovePersonFromPhoto(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(RemovePersonFromPhotoPayload.self, from: operation.payload)
+
+        guard let photo = findPhoto(byLocalId: operation.localId),
+              let photoRemoteId = photo.remoteId,
+              let photoId = Int(photoRemoteId) else {
+            throw SyncError.missingRemoteId("Photo must be synced before removing person")
+        }
+
+        guard let person = findPerson(byLocalId: payload.personLocalId),
+              let personRemoteId = person.remoteId,
+              let personId = Int(personRemoteId) else {
+            throw SyncError.missingRemoteId("Person must be synced before removing from photo")
+        }
+
+        let request = RemovePersonFromPhotoRequestDTO(photoId: photoId, personId: personId)
+        let _: SuccessResponseDTO = try await apiClient.callRPC("RemovePersonFromPhoto", payload: request)
         try modelContext.save()
     }
 
@@ -780,6 +830,19 @@ final class SyncService {
     }
 
     func addPeopleToPhoto(_ photo: Photo, people: [Person]) async throws {
+        let payload = AddPeopleToPhotoPayload(personLocalIds: people.map { $0.id.uuidString })
+        let dependsOnLocalId = dependencyLocalIdForTagging(photo: photo, people: people)
+
+        guard networkMonitor.isConnected, dependsOnLocalId == nil else {
+            try await enqueueOperation(
+                type: .addPeopleToPhoto,
+                localId: photo.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: dependsOnLocalId
+            )
+            return
+        }
+
         guard let photoRemoteId = photo.remoteId, let photoId = Int(photoRemoteId) else {
             throw SyncError.missingRemoteId("Photo must be synced before adding people")
         }
@@ -795,6 +858,19 @@ final class SyncService {
     }
 
     func removePersonFromPhoto(_ photo: Photo, person: Person) async throws {
+        let payload = RemovePersonFromPhotoPayload(personLocalId: person.id.uuidString)
+        let dependsOnLocalId = dependencyLocalIdForTagging(photo: photo, people: [person])
+
+        guard networkMonitor.isConnected, dependsOnLocalId == nil else {
+            try await enqueueOperation(
+                type: .removePersonFromPhoto,
+                localId: photo.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: dependsOnLocalId
+            )
+            return
+        }
+
         guard let photoRemoteId = photo.remoteId, let photoId = Int(photoRemoteId) else {
             throw SyncError.missingRemoteId("Photo must be synced before removing person")
         }
@@ -860,7 +936,26 @@ final class SyncService {
             }
         }
 
+        let photoDescriptor = FetchDescriptor<Photo>()
+        if let photos = try? modelContext.fetch(photoDescriptor) {
+            for photo in photos where photo.remoteId != nil {
+                syncedIds.insert(photo.id.uuidString)
+            }
+        }
+
         return syncedIds
+    }
+
+    private func dependencyLocalIdForTagging(photo: Photo, people: [Person]) -> String? {
+        if photo.remoteId == nil {
+            return photo.id.uuidString
+        }
+
+        if let person = people.first(where: { $0.remoteId == nil }) {
+            return person.id.uuidString
+        }
+
+        return nil
     }
 
     // MARK: - Lookup Helpers
