@@ -188,6 +188,14 @@ struct AddPersonRequestDTO: Encodable, Sendable {
     let birthdate: String  // "yyyy-MM-dd"
 }
 
+struct UpdatePersonRequestDTO: Encodable, Sendable {
+    let id: Int
+    let name: String
+    let personType: Int
+    let gender: Int
+    let birthdate: String  // "yyyy-MM-dd"
+}
+
 struct AddGrowthDataRequestDTO: Encodable, Sendable {
     let personId: Int
     let measurementType: String  // "height" or "weight"
@@ -257,4 +265,8 @@ struct AddPersonResponseDTO: Decodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case person, growthData, milestones, photos
     }
+}
+
+struct UpdatePersonResponseDTO: Decodable, Sendable {
+    let person: PersonDTO
 }

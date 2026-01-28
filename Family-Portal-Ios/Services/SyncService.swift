@@ -144,6 +144,8 @@ final class SyncService {
         switch operation.type {
         case .createPerson:
             try await executeCreatePerson(operation)
+        case .updatePerson:
+            try await executeUpdatePerson(operation)
         case .createGrowthData:
             try await executeCreateGrowthData(operation)
         case .createMilestone:
@@ -181,6 +183,27 @@ final class SyncService {
             birthdate: payload.birthdate
         )
         let response: AddPersonResponseDTO = try await apiClient.callRPC("AddPerson", payload: request)
+        applyPersonDTO(response.person, to: person)
+        try modelContext.save()
+    }
+
+    private func executeUpdatePerson(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(UpdatePersonPayload.self, from: operation.payload)
+
+        guard let person = findPerson(byLocalId: operation.localId),
+              let remoteId = person.remoteId,
+              let personId = Int(remoteId) else {
+            throw SyncError.missingRemoteId("Person must be synced before updating")
+        }
+
+        let request = UpdatePersonRequestDTO(
+            id: personId,
+            name: payload.name,
+            personType: payload.personType,
+            gender: payload.gender,
+            birthdate: payload.birthdate
+        )
+        let response: UpdatePersonResponseDTO = try await apiClient.callRPC("UpdatePerson", payload: request)
         applyPersonDTO(response.person, to: person)
         try modelContext.save()
     }
@@ -424,6 +447,61 @@ final class SyncService {
                     localId: person.id.uuidString,
                     payload: payload,
                     dependsOnLocalId: nil
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
+    func updatePerson(_ person: Person) async throws {
+        let payload = UpdatePersonPayload(
+            name: person.name,
+            personType: personTypeToInt(person.type),
+            gender: genderToInt(person.gender),
+            birthdate: dateToAPIString(person.birthday ?? Date())
+        )
+
+        let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
+
+        guard networkMonitor.isConnected, dependsOnLocalId == nil else {
+            try await enqueueOperation(
+                type: .updatePerson,
+                localId: person.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: dependsOnLocalId
+            )
+            return
+        }
+
+        guard let remoteId = person.remoteId, let personId = Int(remoteId) else {
+            try await enqueueOperation(
+                type: .updatePerson,
+                localId: person.id.uuidString,
+                payload: payload,
+                dependsOnLocalId: person.id.uuidString
+            )
+            return
+        }
+
+        do {
+            let request = UpdatePersonRequestDTO(
+                id: personId,
+                name: person.name,
+                personType: personTypeToInt(person.type),
+                gender: genderToInt(person.gender),
+                birthdate: dateToAPIString(person.birthday ?? Date())
+            )
+            let response: UpdatePersonResponseDTO = try await apiClient.callRPC("UpdatePerson", payload: request)
+            applyPersonDTO(response.person, to: person)
+            try modelContext.save()
+        } catch {
+            if isNetworkError(error) {
+                try await enqueueOperation(
+                    type: .updatePerson,
+                    localId: person.id.uuidString,
+                    payload: payload,
+                    dependsOnLocalId: dependsOnLocalId
                 )
             } else {
                 throw error

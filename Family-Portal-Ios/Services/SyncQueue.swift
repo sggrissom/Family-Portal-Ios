@@ -4,6 +4,7 @@ import Foundation
 
 enum SyncOperationType: String, Codable, Sendable {
     case createPerson
+    case updatePerson
     case createGrowthData
     case createMilestone
     case uploadPhoto
@@ -49,6 +50,13 @@ struct PendingOperation: Codable, Identifiable, Sendable {
 // MARK: - Payload Structs
 
 struct CreatePersonPayload: Codable, Sendable {
+    let name: String
+    let personType: Int
+    let gender: Int
+    let birthdate: String
+}
+
+struct UpdatePersonPayload: Codable, Sendable {
     let name: String
     let personType: Int
     let gender: Int
