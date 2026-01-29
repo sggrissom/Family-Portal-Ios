@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import GoogleSignIn
 
 @main
 struct Family_Portal_IosApp: App {
@@ -51,6 +52,9 @@ struct Family_Portal_IosApp: App {
                             await syncService.performFullSync()
                         }
                     }
+                }
+                .onOpenURL { url in
+                    _ = authService.handleGoogleSignInURL(url)
                 }
         }
         .modelContainer(container)

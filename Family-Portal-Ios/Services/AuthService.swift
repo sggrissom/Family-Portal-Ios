@@ -7,8 +7,14 @@ final class AuthService {
     private(set) var errorMessage: String?
     var serverURL: String = AppConstants.defaultServerURL
 
+    private let googleSignInService = GoogleSignInService()
+
     var isAuthenticated: Bool {
         currentUser != nil
+    }
+
+    var isGoogleSigningIn: Bool {
+        googleSignInService.isSigningIn
     }
 
     init() {
@@ -56,6 +62,49 @@ final class AuthService {
     }
 
     @MainActor
+    func loginWithGoogle() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // Update server URL before login
+            if let url = URL(string: serverURL) {
+                await APIClient.shared.updateBaseURL(url)
+            }
+
+            // Get ID token from Google
+            let idToken = try await googleSignInService.signIn()
+
+            // Send token to backend for verification
+            let response: LoginResponseDTO = try await APIClient.shared.request(
+                path: "api/login/google/token",
+                method: .post,
+                body: GoogleTokenLoginRequestDTO(idToken: idToken),
+                requiresAuth: false
+            )
+
+            if response.success, let token = response.token, let auth = response.auth {
+                await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
+                currentUser = auth
+            } else {
+                errorMessage = response.error ?? "Google sign-in failed."
+            }
+        } catch let error as GoogleSignInError {
+            if case .cancelled = error {
+                // User cancelled, don't show error
+            } else {
+                errorMessage = error.errorDescription
+            }
+        } catch let error as APIError {
+            errorMessage = error.errorDescription
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
+    }
+
+    @MainActor
     func logout() async {
         do {
             struct EmptyBody: Encodable {}
@@ -69,6 +118,9 @@ final class AuthService {
         } catch {
             // Logout locally even if server call fails
         }
+
+        // Sign out of Google as well
+        googleSignInService.signOut()
 
         await APIClient.shared.clearTokens()
         currentUser = nil
@@ -114,6 +166,12 @@ final class AuthService {
 
     private func loadServerURL() -> String? {
         UserDefaults.standard.string(forKey: "serverURL")
+    }
+
+    // MARK: - Google Sign-In URL Handling
+
+    func handleGoogleSignInURL(_ url: URL) -> Bool {
+        googleSignInService.handle(url)
     }
 }
 

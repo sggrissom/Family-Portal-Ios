@@ -181,6 +181,10 @@ struct GetFamilyTimelineResponseDTO: Codable, Sendable {
 
 // MARK: - Request DTOs
 
+struct GoogleTokenLoginRequestDTO: Encodable, Sendable {
+    let idToken: String
+}
+
 struct AddPersonRequestDTO: Encodable, Sendable {
     let name: String
     let personType: Int

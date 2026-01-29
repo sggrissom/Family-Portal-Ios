@@ -65,6 +65,8 @@
 			);
 			name = "Family-Portal-Ios";
 			packageProductDependencies = (
+				33BC6D712F2326CF00A38756 /* GoogleSignIn */,
+				33BC6D722F2326CF00A38756 /* GoogleSignInSwift */,
 			);
 			productName = "Family-Portal-Ios";
 			productReference = 33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */;
@@ -94,6 +96,9 @@
 			);
 			mainGroup = 33BC6D4B2F2326CE00A38756;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				33BC6D702F2326CF00A38756 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 33BC6D552F2326CE00A38756 /* Products */;
 			projectDirPath = "";
@@ -254,6 +259,9 @@
 				DEVELOPMENT_TEAM = 7S5TBT3VAE;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				GOOGLE_CLIENT_ID = "1046976182979-343b7bpiu6i7mlk57r4rfunaeohnb6mc.apps.googleusercontent.com";
+				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.1046976182979-343b7bpiu6i7mlk57r4rfunaeohnb6mc";
+				INFOPLIST_FILE = "Family-Portal-Ios/Info.plist";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -286,6 +294,9 @@
 				DEVELOPMENT_TEAM = 7S5TBT3VAE;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				GOOGLE_CLIENT_ID = "1046976182979-343b7bpiu6i7mlk57r4rfunaeohnb6mc.apps.googleusercontent.com";
+				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.1046976182979-343b7bpiu6i7mlk57r4rfunaeohnb6mc";
+				INFOPLIST_FILE = "Family-Portal-Ios/Info.plist";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -330,6 +341,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		33BC6D702F2326CF00A38756 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		33BC6D712F2326CF00A38756 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 33BC6D702F2326CF00A38756 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		33BC6D722F2326CF00A38756 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 33BC6D702F2326CF00A38756 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 33BC6D4C2F2326CE00A38756 /* Project object */;
 }
