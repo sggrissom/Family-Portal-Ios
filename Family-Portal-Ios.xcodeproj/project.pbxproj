@@ -10,9 +10,22 @@
 		33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Family-Portal-Ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		33BC6D732F2326CF00A38756 /* Exceptions for "Family-Portal-Ios" folder in "Family-Portal-Ios" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 33BC6D532F2326CE00A38756 /* Family-Portal-Ios */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		33BC6D562F2326CE00A38756 /* Family-Portal-Ios */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				33BC6D732F2326CF00A38756 /* Exceptions for "Family-Portal-Ios" folder in "Family-Portal-Ios" target */,
+			);
 			path = "Family-Portal-Ios";
 			sourceTree = "<group>";
 		};
@@ -258,11 +271,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7S5TBT3VAE;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				GOOGLE_CLIENT_ID = "1046976182979-343b7bpiu6i7mlk57r4rfunaeohnb6mc.apps.googleusercontent.com";
 				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.1046976182979-343b7bpiu6i7mlk57r4rfunaeohnb6mc";
 				INFOPLIST_FILE = "Family-Portal-Ios/Info.plist";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -293,11 +305,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7S5TBT3VAE;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				GOOGLE_CLIENT_ID = "1046976182979-343b7bpiu6i7mlk57r4rfunaeohnb6mc.apps.googleusercontent.com";
 				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.1046976182979-343b7bpiu6i7mlk57r4rfunaeohnb6mc";
 				INFOPLIST_FILE = "Family-Portal-Ios/Info.plist";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
