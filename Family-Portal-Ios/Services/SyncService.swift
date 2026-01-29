@@ -332,12 +332,14 @@ final class SyncService {
     private func executeUpdateGrowthData(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(UpdateGrowthDataPayload.self, from: operation.payload)
 
-        guard let growthData = findGrowthData(byLocalId: operation.localId) else {
-            return
+        guard let growthData = findGrowthData(byLocalId: operation.localId),
+              let remoteId = growthData.remoteId,
+              let id = Int(remoteId) else {
+            throw SyncError.missingRemoteId("GrowthData must be synced before updating")
         }
 
         let request = UpdateGrowthDataRequestDTO(
-            id: payload.remoteId,
+            id: id,
             measurementType: payload.measurementType,
             value: payload.value,
             unit: payload.unit,
@@ -352,12 +354,14 @@ final class SyncService {
     private func executeUpdateMilestone(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(UpdateMilestonePayload.self, from: operation.payload)
 
-        guard let milestone = findMilestone(byLocalId: operation.localId) else {
-            return
+        guard let milestone = findMilestone(byLocalId: operation.localId),
+              let remoteId = milestone.remoteId,
+              let id = Int(remoteId) else {
+            throw SyncError.missingRemoteId("Milestone must be synced before updating")
         }
 
         let request = UpdateMilestoneRequestDTO(
-            id: payload.remoteId,
+            id: id,
             description: payload.description,
             category: payload.category,
             inputType: "date",
@@ -420,38 +424,12 @@ final class SyncService {
             birthdate: dateToAPIString(person.birthday ?? Date())
         )
 
-        guard networkMonitor.isConnected else {
-            try await enqueueOperation(
-                type: .createPerson,
-                localId: person.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: nil
-            )
-            return
-        }
-
-        do {
-            let request = AddPersonRequestDTO(
-                name: person.name,
-                personType: personTypeToInt(person.type),
-                gender: genderToInt(person.gender),
-                birthdate: dateToAPIString(person.birthday ?? Date())
-            )
-            let response: AddPersonResponseDTO = try await apiClient.callRPC("AddPerson", payload: request)
-            applyPersonDTO(response.person, to: person)
-            try modelContext.save()
-        } catch {
-            if isNetworkError(error) {
-                try await enqueueOperation(
-                    type: .createPerson,
-                    localId: person.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: nil
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .createPerson,
+            localId: person.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: nil
+        )
     }
 
     func updatePerson(_ person: Person) async throws {
@@ -464,49 +442,12 @@ final class SyncService {
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
 
-        guard networkMonitor.isConnected, dependsOnLocalId == nil else {
-            try await enqueueOperation(
-                type: .updatePerson,
-                localId: person.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: dependsOnLocalId
-            )
-            return
-        }
-
-        guard let remoteId = person.remoteId, let personId = Int(remoteId) else {
-            try await enqueueOperation(
-                type: .updatePerson,
-                localId: person.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: person.id.uuidString
-            )
-            return
-        }
-
-        do {
-            let request = UpdatePersonRequestDTO(
-                id: personId,
-                name: person.name,
-                personType: personTypeToInt(person.type),
-                gender: genderToInt(person.gender),
-                birthdate: dateToAPIString(person.birthday ?? Date())
-            )
-            let response: UpdatePersonResponseDTO = try await apiClient.callRPC("UpdatePerson", payload: request)
-            applyPersonDTO(response.person, to: person)
-            try modelContext.save()
-        } catch {
-            if isNetworkError(error) {
-                try await enqueueOperation(
-                    type: .updatePerson,
-                    localId: person.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: dependsOnLocalId
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .updatePerson,
+            localId: person.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: dependsOnLocalId
+        )
     }
 
     // MARK: - Push: GrowthData
@@ -522,99 +463,28 @@ final class SyncService {
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
 
-        guard networkMonitor.isConnected else {
-            try await enqueueOperation(
-                type: .createGrowthData,
-                localId: data.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: dependsOnLocalId
-            )
-            return
-        }
-
-        guard let personRemoteId = person.remoteId, let personId = Int(personRemoteId) else {
-            try await enqueueOperation(
-                type: .createGrowthData,
-                localId: data.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: person.id.uuidString
-            )
-            return
-        }
-
-        do {
-            let request = AddGrowthDataRequestDTO(
-                personId: personId,
-                measurementType: measurementTypeToString(data.measurementType),
-                value: data.value,
-                unit: unitToString(data.unit),
-                inputType: "date",
-                measurementDate: dateToAPIString(data.date)
-            )
-            let response: AddGrowthDataResponseDTO = try await apiClient.callRPC("AddGrowthData", payload: request)
-            applyGrowthDataDTO(response.growthData, to: data)
-            try modelContext.save()
-        } catch {
-            if isNetworkError(error) {
-                try await enqueueOperation(
-                    type: .createGrowthData,
-                    localId: data.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: dependsOnLocalId
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .createGrowthData,
+            localId: data.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: dependsOnLocalId
+        )
     }
 
     func updateGrowthData(_ data: GrowthData) async throws {
-        guard let remoteId = data.remoteId, let id = Int(remoteId) else {
-            throw SyncError.missingRemoteId("GrowthData must be synced before updating")
-        }
-
         let payload = UpdateGrowthDataPayload(
-            remoteId: id,
             measurementType: measurementTypeToString(data.measurementType),
             value: data.value,
             unit: unitToString(data.unit),
             measurementDate: dateToAPIString(data.date)
         )
 
-        guard networkMonitor.isConnected else {
-            try await enqueueOperation(
-                type: .updateGrowthData,
-                localId: data.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: nil
-            )
-            return
-        }
-
-        do {
-            let request = UpdateGrowthDataRequestDTO(
-                id: id,
-                measurementType: measurementTypeToString(data.measurementType),
-                value: data.value,
-                unit: unitToString(data.unit),
-                inputType: "date",
-                measurementDate: dateToAPIString(data.date)
-            )
-            let response: UpdateGrowthDataResponseDTO = try await apiClient.callRPC("UpdateGrowthData", payload: request)
-            applyGrowthDataDTO(response.growthData, to: data)
-            try modelContext.save()
-        } catch {
-            if isNetworkError(error) {
-                try await enqueueOperation(
-                    type: .updateGrowthData,
-                    localId: data.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: nil
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .updateGrowthData,
+            localId: data.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: nil
+        )
     }
 
     func deleteGrowthData(_ data: GrowthData) async throws {
@@ -629,31 +499,12 @@ final class SyncService {
         modelContext.delete(data)
         try modelContext.save()
 
-        guard networkMonitor.isConnected else {
-            try await enqueueOperation(
-                type: .deleteGrowthData,
-                localId: data.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: nil
-            )
-            return
-        }
-
-        do {
-            let request = DeleteRequestDTO(id: id)
-            let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteGrowthData", payload: request)
-        } catch {
-            if isNetworkError(error) {
-                try await enqueueOperation(
-                    type: .deleteGrowthData,
-                    localId: data.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: nil
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .deleteGrowthData,
+            localId: data.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: nil
+        )
     }
 
     // MARK: - Push: Milestones
@@ -668,96 +519,27 @@ final class SyncService {
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
 
-        guard networkMonitor.isConnected else {
-            try await enqueueOperation(
-                type: .createMilestone,
-                localId: milestone.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: dependsOnLocalId
-            )
-            return
-        }
-
-        guard let personRemoteId = person.remoteId, let personId = Int(personRemoteId) else {
-            try await enqueueOperation(
-                type: .createMilestone,
-                localId: milestone.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: person.id.uuidString
-            )
-            return
-        }
-
-        do {
-            let request = AddMilestoneRequestDTO(
-                personId: personId,
-                description: milestone.descriptionText,
-                category: milestone.category.rawValue,
-                inputType: "date",
-                milestoneDate: dateToAPIString(milestone.date)
-            )
-            let response: AddMilestoneResponseDTO = try await apiClient.callRPC("AddMilestone", payload: request)
-            applyMilestoneDTO(response.milestone, to: milestone)
-            try modelContext.save()
-        } catch {
-            if isNetworkError(error) {
-                try await enqueueOperation(
-                    type: .createMilestone,
-                    localId: milestone.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: dependsOnLocalId
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .createMilestone,
+            localId: milestone.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: dependsOnLocalId
+        )
     }
 
     func updateMilestone(_ milestone: Milestone) async throws {
-        guard let remoteId = milestone.remoteId, let id = Int(remoteId) else {
-            throw SyncError.missingRemoteId("Milestone must be synced before updating")
-        }
-
         let payload = UpdateMilestonePayload(
-            remoteId: id,
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
             milestoneDate: dateToAPIString(milestone.date)
         )
 
-        guard networkMonitor.isConnected else {
-            try await enqueueOperation(
-                type: .updateMilestone,
-                localId: milestone.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: nil
-            )
-            return
-        }
-
-        do {
-            let request = UpdateMilestoneRequestDTO(
-                id: id,
-                description: milestone.descriptionText,
-                category: milestone.category.rawValue,
-                inputType: "date",
-                milestoneDate: dateToAPIString(milestone.date)
-            )
-            let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC("UpdateMilestone", payload: request)
-            applyMilestoneDTO(response.milestone, to: milestone)
-            try modelContext.save()
-        } catch {
-            if isNetworkError(error) {
-                try await enqueueOperation(
-                    type: .updateMilestone,
-                    localId: milestone.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: nil
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .updateMilestone,
+            localId: milestone.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: nil
+        )
     }
 
     func deleteMilestone(_ milestone: Milestone) async throws {
@@ -772,31 +554,12 @@ final class SyncService {
         modelContext.delete(milestone)
         try modelContext.save()
 
-        guard networkMonitor.isConnected else {
-            try await enqueueOperation(
-                type: .deleteMilestone,
-                localId: milestone.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: nil
-            )
-            return
-        }
-
-        do {
-            let request = DeleteRequestDTO(id: id)
-            let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteMilestone", payload: request)
-        } catch {
-            if isNetworkError(error) {
-                try await enqueueOperation(
-                    type: .deleteMilestone,
-                    localId: milestone.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: nil
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .deleteMilestone,
+            localId: milestone.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: nil
+        )
     }
 
     // MARK: - Push: Photos
@@ -813,41 +576,18 @@ final class SyncService {
         modelContext.delete(photo)
         try modelContext.save()
 
-        guard networkMonitor.isConnected else {
-            try await enqueueOperation(
-                type: .deletePhoto,
-                localId: photo.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: nil
-            )
-            return
-        }
-
-        do {
-            let request = DeleteRequestDTO(id: id)
-            let _: SuccessResponseDTO = try await apiClient.callRPC("DeletePhoto", payload: request)
-        } catch {
-            if isNetworkError(error) {
-                try await enqueueOperation(
-                    type: .deletePhoto,
-                    localId: photo.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: nil
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .deletePhoto,
+            localId: photo.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: nil
+        )
     }
 
     func uploadPhoto(_ photo: Photo) async throws {
-        print("[PhotoSync] uploadPhoto called for photo id: \(photo.id)")
-
-        guard let imageData = photo.imageData else {
-            print("[PhotoSync] ERROR: imageData is nil for photo id: \(photo.id)")
+        guard photo.imageData != nil else {
             throw SyncError.missingImageData
         }
-        print("[PhotoSync] imageData present, size: \(imageData.count) bytes")
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -858,106 +598,36 @@ final class SyncService {
             taggedPersonLocalIds: photo.taggedPeople.map { $0.id.uuidString }
         )
 
-        guard networkMonitor.isConnected else {
-            print("[PhotoSync] Offline - enqueueing operation")
-            try await enqueueOperation(
-                type: .uploadPhoto,
-                localId: photo.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: nil
-            )
-            return
-        }
-        print("[PhotoSync] Online - proceeding with immediate upload")
-
-        let personIds = try photo.taggedPeople.map { person in
-            guard let remoteId = person.remoteId, let id = Int(remoteId) else {
-                throw SyncError.missingRemoteId("Tagged people must be synced before uploading photo")
-            }
-            return id
-        }
-        print("[PhotoSync] Tagged person IDs: \(personIds)")
-
-        do {
-            print("[PhotoSync] Calling PhotoSyncService.uploadPhoto...")
-            let response = try await PhotoSyncService(apiClient: apiClient).uploadPhoto(
-                imageData: imageData,
-                title: photo.title,
-                description: photo.descriptionText,
-                photoDate: photo.photoDate,
-                personIds: personIds
-            )
-            print("[PhotoSync] Upload successful, received remoteId: \(response.id)")
-            applyPhotoDTO(response, to: photo)
-            try modelContext.save()
-            print("[PhotoSync] Photo saved with remoteId")
-        } catch {
-            print("[PhotoSync] Upload failed with error: \(error)")
-            if isNetworkError(error) {
-                print("[PhotoSync] Network error - enqueueing for retry")
-                try await enqueueOperation(
-                    type: .uploadPhoto,
-                    localId: photo.id.uuidString,
-                    payload: payload,
-                    dependsOnLocalId: nil
-                )
-            } else {
-                throw error
-            }
-        }
+        try await enqueueOperation(
+            type: .uploadPhoto,
+            localId: photo.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: nil
+        )
     }
 
     func addPeopleToPhoto(_ photo: Photo, people: [Person]) async throws {
         let payload = AddPeopleToPhotoPayload(personLocalIds: people.map { $0.id.uuidString })
         let dependsOnLocalId = dependencyLocalIdForTagging(photo: photo, people: people)
 
-        guard networkMonitor.isConnected, dependsOnLocalId == nil else {
-            try await enqueueOperation(
-                type: .addPeopleToPhoto,
-                localId: photo.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: dependsOnLocalId
-            )
-            return
-        }
-
-        guard let photoRemoteId = photo.remoteId, let photoId = Int(photoRemoteId) else {
-            throw SyncError.missingRemoteId("Photo must be synced before adding people")
-        }
-        let personIds: [Int] = try people.map { person in
-            guard let rid = person.remoteId, let id = Int(rid) else {
-                throw SyncError.missingRemoteId("All people must be synced before adding to photo")
-            }
-            return id
-        }
-        let request = AddPeopleToPhotoRequestDTO(photoId: photoId, personIds: personIds)
-        let _: SuccessResponseDTO = try await apiClient.callRPC("AddPeopleToPhoto", payload: request)
-        try modelContext.save()
+        try await enqueueOperation(
+            type: .addPeopleToPhoto,
+            localId: photo.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: dependsOnLocalId
+        )
     }
 
     func removePersonFromPhoto(_ photo: Photo, person: Person) async throws {
         let payload = RemovePersonFromPhotoPayload(personLocalId: person.id.uuidString)
         let dependsOnLocalId = dependencyLocalIdForTagging(photo: photo, people: [person])
 
-        guard networkMonitor.isConnected, dependsOnLocalId == nil else {
-            try await enqueueOperation(
-                type: .removePersonFromPhoto,
-                localId: photo.id.uuidString,
-                payload: payload,
-                dependsOnLocalId: dependsOnLocalId
-            )
-            return
-        }
-
-        guard let photoRemoteId = photo.remoteId, let photoId = Int(photoRemoteId) else {
-            throw SyncError.missingRemoteId("Photo must be synced before removing person")
-        }
-        guard let personRemoteId = person.remoteId, let personId = Int(personRemoteId) else {
-            throw SyncError.missingRemoteId("Person must be synced before removing from photo")
-        }
-        let request = RemovePersonFromPhotoRequestDTO(photoId: photoId, personId: personId)
-        let _: SuccessResponseDTO = try await apiClient.callRPC("RemovePersonFromPhoto", payload: request)
-        try modelContext.save()
+        try await enqueueOperation(
+            type: .removePersonFromPhoto,
+            localId: photo.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: dependsOnLocalId
+        )
     }
 
     // MARK: - Queue Helpers
@@ -977,6 +647,11 @@ final class SyncService {
         )
         await syncQueue.enqueue(operation)
         await updatePendingCount()
+        if networkMonitor.isConnected {
+            Task {
+                await processQueue()
+            }
+        }
     }
 
     private func isNetworkError(_ error: Error) -> Bool {
