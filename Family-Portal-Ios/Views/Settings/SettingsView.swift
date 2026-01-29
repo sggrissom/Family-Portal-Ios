@@ -4,8 +4,6 @@ struct SettingsView: View {
     @Environment(AuthService.self) private var authService
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(NetworkMonitor.self) private var networkMonitor
-    @State private var showServerConfig = false
-    @State private var serverURLInput = ""
     @State private var showLogoutConfirmation = false
 
     var body: some View {
@@ -69,21 +67,14 @@ struct SettingsView: View {
                 }
 
                 Section("Server") {
-                    Button {
-                        serverURLInput = authService.serverURL
-                        showServerConfig = true
-                    } label: {
-                        HStack {
-                            Text("URL")
-                            Spacer()
-                            Text(authService.serverURL)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
+                    HStack {
+                        Text("URL")
+                        Spacer()
+                        Text(AppConstants.defaultServerURL)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
-                    .tint(.primary)
-
                     HStack {
                         Text("Status")
                         Spacer()
@@ -109,20 +100,6 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .alert("Server URL", isPresented: $showServerConfig) {
-                TextField("https://example.com", text: $serverURLInput)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                Button("Save") {
-                    let trimmed = serverURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty {
-                        authService.updateServerURL(trimmed)
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Enter the URL of your Family Portal server.")
-            }
             .confirmationDialog("Sign Out", isPresented: $showLogoutConfirmation) {
                 Button("Sign Out", role: .destructive) {
                     Task {

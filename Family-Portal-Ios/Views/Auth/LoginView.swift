@@ -4,8 +4,6 @@ struct LoginView: View {
     @Environment(AuthService.self) private var authService
     @State private var email = ""
     @State private var password = ""
-    @State private var showServerConfig = false
-    @State private var serverURLInput = ""
 
     var body: some View {
         NavigationStack {
@@ -86,40 +84,8 @@ struct LoginView: View {
                     .disabled(authService.isLoading)
                 }
 
-                Section {
-                    Button {
-                        serverURLInput = authService.serverURL
-                        showServerConfig = true
-                    } label: {
-                        HStack {
-                            Label("Server", systemImage: "server.rack")
-                            Spacer()
-                            Text(displayHost(authService.serverURL))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
             }
             .navigationTitle("Sign In")
-            .alert("Server URL", isPresented: $showServerConfig) {
-                TextField("https://example.com", text: $serverURLInput)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                Button("Save") {
-                    let trimmed = serverURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty {
-                        authService.updateServerURL(trimmed)
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Enter the URL of your Family Portal server.")
-            }
         }
-    }
-
-    private func displayHost(_ urlString: String) -> String {
-        URL(string: urlString)?.host ?? urlString
     }
 }
