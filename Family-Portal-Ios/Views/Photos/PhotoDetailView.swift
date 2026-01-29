@@ -59,7 +59,7 @@ private struct PhotoDetailContent: View {
                         .background(isZoomed ? Color.black : Color.clear)
                         .clipShape(isZoomed ? Rectangle() : RoundedRectangle(cornerRadius: 12))
                         .padding(isZoomed ? .zero : .horizontal)
-                        .ignoresSafeArea(isZoomed ? .all : [])
+                        .ignoresSafeAreaIfNeeded(isZoomed)
                     } else if let remoteId = photo.remoteId, let remoteInt = Int(remoteId) {
                         ZoomableView(isZoomed: $isZoomed) {
                             RemotePhotoView(remoteId: remoteInt, size: .xlarge, contentMode: .fit)
@@ -69,7 +69,7 @@ private struct PhotoDetailContent: View {
                         .background(isZoomed ? Color.black : Color.clear)
                         .clipShape(isZoomed ? Rectangle() : RoundedRectangle(cornerRadius: 12))
                         .padding(isZoomed ? .zero : .horizontal)
-                        .ignoresSafeArea(isZoomed ? .all : [])
+                        .ignoresSafeAreaIfNeeded(isZoomed)
                     } else {
                         ContentUnavailableView("No Photo", systemImage: "photo")
                             .padding(.horizontal)
@@ -134,6 +134,17 @@ private struct PhotoDetailContent: View {
                 .padding(.vertical)
             }
             .scrollDisabled(isZoomed)
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func ignoresSafeAreaIfNeeded(_ shouldIgnore: Bool) -> some View {
+        if shouldIgnore {
+            ignoresSafeArea()
+        } else {
+            self
         }
     }
 }
