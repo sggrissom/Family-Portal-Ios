@@ -278,7 +278,7 @@ struct PersonPhotosView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 4) {
                         ForEach(person.photos) { photo in
-                            NavigationLink(value: PhotoRoute(id: photo.id)) {
+                            NavigationLink(destination: PhotoDetailView(photoId: photo.id)) {
                                 PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                             }
                         }
@@ -289,8 +289,5 @@ struct PersonPhotosView: View {
         }
         .navigationTitle("\(person.name)'s Photos")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: PhotoRoute.self) { route in
-            PhotoDetailView(photoId: route.id)
-        }
     }
 }
