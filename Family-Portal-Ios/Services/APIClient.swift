@@ -427,3 +427,25 @@ actor APIClient {
         SecItemAdd(attributes as CFDictionary, nil)
     }
 }
+
+// MARK: - Chat API
+
+extension APIClient {
+    func sendMessage(content: String, clientMessageId: String) async throws -> ChatMessageDTO {
+        let request = SendMessageRequestDTO(content: content, clientMessageId: clientMessageId)
+        let response: SendMessageResponseDTO = try await callRPC("SendMessage", payload: request)
+        return response.message
+    }
+
+    func getChatMessages(limit: Int = 50, offset: Int = 0) async throws -> [ChatMessageDTO] {
+        let request = GetChatMessagesRequestDTO(limit: limit, offset: offset)
+        let response: GetChatMessagesResponseDTO = try await callRPC("GetChatMessages", payload: request)
+        return response.messages
+    }
+
+    func deleteMessage(id: Int) async throws -> Bool {
+        let request = DeleteMessageRequestDTO(messageId: id)
+        let response: DeleteMessageResponseDTO = try await callRPC("DeleteMessage", payload: request)
+        return response.success
+    }
+}
