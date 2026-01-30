@@ -57,8 +57,8 @@ private struct PhotoDetailContent: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: isZoomed ? proxy.size.height : nil)
                         .background(isZoomed ? Color.black : Color.clear)
-                        .clipShape(isZoomed ? Rectangle() : RoundedRectangle(cornerRadius: 12))
-                        .padding(isZoomed ? .zero : .horizontal)
+                        .clipShape(RoundedRectangle(cornerRadius: isZoomed ? 0 : 12))
+                        .padding(isZoomed ? Edge.Set() : .horizontal)
                         Group {
                             if isZoomed {
                                 baseView.ignoresSafeArea()
@@ -73,8 +73,8 @@ private struct PhotoDetailContent: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: isZoomed ? proxy.size.height : nil)
                         .background(isZoomed ? Color.black : Color.clear)
-                        .clipShape(isZoomed ? Rectangle() : RoundedRectangle(cornerRadius: 12))
-                        .padding(isZoomed ? .zero : .horizontal)
+                        .clipShape(RoundedRectangle(cornerRadius: isZoomed ? 0 : 12))
+                        .padding(isZoomed ? Edge.Set() : .horizontal)
                         Group {
                             if isZoomed {
                                 baseView.ignoresSafeArea()
@@ -149,3 +149,4 @@ private struct PhotoDetailContent: View {
         }
     }
 }
+
