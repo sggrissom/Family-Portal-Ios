@@ -50,7 +50,7 @@ private struct PhotoDetailContent: View {
             ScrollView {
                 VStack(spacing: 20) {
                     if let imageData = photo.imageData, let uiImage = UIImage(data: imageData) {
-                        ZoomableView(isZoomed: $isZoomed) {
+                        let baseView = ZoomableView(isZoomed: $isZoomed) {
                             Image(uiImage: uiImage)
                                 .resizable()
                                 .scaledToFit()
@@ -59,9 +59,15 @@ private struct PhotoDetailContent: View {
                         .background(isZoomed ? Color.black : Color.clear)
                         .clipShape(isZoomed ? Rectangle() : RoundedRectangle(cornerRadius: 12))
                         .padding(isZoomed ? .zero : .horizontal)
-                        .ignoresSafeAreaIfNeeded(isZoomed)
+                        Group {
+                            if isZoomed {
+                                baseView.ignoresSafeArea()
+                            } else {
+                                baseView
+                            }
+                        }
                     } else if let remoteId = photo.remoteId, let remoteInt = Int(remoteId) {
-                        ZoomableView(isZoomed: $isZoomed) {
+                        let baseView = ZoomableView(isZoomed: $isZoomed) {
                             RemotePhotoView(remoteId: remoteInt, size: .xlarge, contentMode: .fit)
                                 .scaledToFit()
                         }
@@ -69,7 +75,13 @@ private struct PhotoDetailContent: View {
                         .background(isZoomed ? Color.black : Color.clear)
                         .clipShape(isZoomed ? Rectangle() : RoundedRectangle(cornerRadius: 12))
                         .padding(isZoomed ? .zero : .horizontal)
-                        .ignoresSafeAreaIfNeeded(isZoomed)
+                        Group {
+                            if isZoomed {
+                                baseView.ignoresSafeArea()
+                            } else {
+                                baseView
+                            }
+                        }
                     } else {
                         ContentUnavailableView("No Photo", systemImage: "photo")
                             .padding(.horizontal)
@@ -134,17 +146,6 @@ private struct PhotoDetailContent: View {
                 .padding(.vertical)
             }
             .scrollDisabled(isZoomed)
-        }
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func ignoresSafeAreaIfNeeded(_ shouldIgnore: Bool) -> some View {
-        if shouldIgnore {
-            ignoresSafeArea()
-        } else {
-            self
         }
     }
 }
