@@ -10,15 +10,20 @@ struct ChatView: View {
 
     var body: some View {
         NavigationStack {
-            if let chatService {
-                chatContent(chatService: chatService)
-            } else {
-                ContentUnavailableView(
-                    "Chat Unavailable",
-                    systemImage: "bubble.left.and.bubble.right",
-                    description: Text("Sign in to use chat")
-                )
-            }
+            bodyContent()
+        }
+    }
+
+    @ViewBuilder
+    private func bodyContent() -> some View {
+        if let chatService {
+            chatContent(chatService: chatService)
+        } else {
+            ContentUnavailableView(
+                "Chat Unavailable",
+                systemImage: "bubble.left.and.bubble.right",
+                description: Text("Sign in to use chat")
+            )
         }
     }
 
@@ -29,26 +34,20 @@ struct ChatView: View {
             ConnectionStatusView(state: chatService.connectionState)
 
             // Messages
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(chatService.messages, id: \.id) { message in
-                            MessageBubbleView(
-                                message: message,
-                                isOwnMessage: message.userId == authService.currentUser?.userId,
-                                onDelete: { deleteMessage(message, chatService: chatService) },
-                                onRetry: { retryMessage(message, chatService: chatService) }
-                            )
-                            .id(message.id)
-                        }
-                    }
-                    .padding()
-                }
-                .onAppear { scrollProxy = proxy }
-                .onChange(of: chatService.messages.count) { _, _ in
-                    scrollToBottom(animated: true)
-                }
-            }
+            MessagesListView(
+                messages: chatService.messages,
+                isOwnMessage: { userId in
+                    userId == authService.currentUser?.id
+                },
+                onDelete: { message in
+                    deleteMessage(message, chatService: chatService)
+                },
+                onRetry: { message in
+                    retryMessage(message, chatService: chatService)
+                },
+                scrollProxy: $scrollProxy,
+                onMessagesCountChange: { scrollToBottom(animated: true) }
+            )
 
             // Typing indicator
             if !chatService.typingUsers.isEmpty {
@@ -73,6 +72,38 @@ struct ChatView: View {
         .onDisappear {
             Task {
                 await chatService.onDisappear()
+            }
+        }
+    }
+
+    private struct MessagesListView: View {
+        let messages: [ChatMessage]
+        let isOwnMessage: (_ userId: Int) -> Bool
+        let onDelete: (_ message: ChatMessage) -> Void
+        let onRetry: (_ message: ChatMessage) -> Void
+        @Binding var scrollProxy: ScrollViewProxy?
+        let onMessagesCountChange: () -> Void
+
+        var body: some View {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(messages, id: \.id) { message in
+                            MessageBubbleView(
+                                message: message,
+                                isOwnMessage: isOwnMessage(message.userId),
+                                onDelete: { onDelete(message) },
+                                onRetry: { onRetry(message) }
+                            )
+                            .id(message.id)
+                        }
+                    }
+                    .padding()
+                }
+                .onAppear { scrollProxy = proxy }
+                .onChange(of: messages.count) { _, _ in
+                    onMessagesCountChange()
+                }
             }
         }
     }
@@ -102,14 +133,14 @@ struct ChatView: View {
 
     private func scrollToBottom(animated: Bool) {
         guard let chatService,
-              let lastMessage = chatService.messages.last else { return }
+              let last: ChatMessage = chatService.messages.last else { return }
 
         if animated {
             withAnimation {
-                scrollProxy?.scrollTo(lastMessage.id, anchor: .bottom)
+                scrollProxy?.scrollTo(last.id, anchor: .bottom)
             }
         } else {
-            scrollProxy?.scrollTo(lastMessage.id, anchor: .bottom)
+            scrollProxy?.scrollTo(last.id, anchor: .bottom)
         }
     }
 }

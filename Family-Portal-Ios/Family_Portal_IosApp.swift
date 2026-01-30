@@ -88,7 +88,7 @@ struct Family_Portal_IosApp: App {
         chatService = await ChatService(
             modelContext: container.mainContext,
             apiClient: APIClient.shared,
-            currentUserId: user.userId,
+            currentUserId: user.id,
             currentUserName: user.name
         )
     }

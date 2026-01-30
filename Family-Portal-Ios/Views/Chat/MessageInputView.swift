@@ -28,7 +28,7 @@ struct MessageInputView: View {
             Button(action: onSend) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
-                    .foregroundStyle(canSend ? .accent : .secondary)
+                    .foregroundStyle(canSend ? Color.accentColor : Color.secondary)
             }
             .disabled(!canSend)
         }
@@ -41,3 +41,4 @@ struct MessageInputView: View {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
+

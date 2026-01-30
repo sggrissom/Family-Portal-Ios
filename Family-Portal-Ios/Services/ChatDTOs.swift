@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Chat Message DTOs
 
-struct ChatMessageDTO: Codable, Sendable {
+struct ChatMessageDTO: Sendable {
     let id: Int
     let familyId: Int
     let userId: Int
@@ -11,7 +11,7 @@ struct ChatMessageDTO: Codable, Sendable {
     let createdAt: Date
     let clientMessageId: String
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case id
         case familyId = "family_id"
         case userId = "user_id"
@@ -20,7 +20,31 @@ struct ChatMessageDTO: Codable, Sendable {
         case createdAt = "created_at"
         case clientMessageId = "client_message_id"
     }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        familyId = try container.decode(Int.self, forKey: .familyId)
+        userId = try container.decode(Int.self, forKey: .userId)
+        userName = try container.decode(String.self, forKey: .userName)
+        content = try container.decode(String.self, forKey: .content)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        clientMessageId = try container.decode(String.self, forKey: .clientMessageId)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(familyId, forKey: .familyId)
+        try container.encode(userId, forKey: .userId)
+        try container.encode(userName, forKey: .userName)
+        try container.encode(content, forKey: .content)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(clientMessageId, forKey: .clientMessageId)
+    }
 }
+
+extension ChatMessageDTO: Codable {}
 
 // MARK: - Request/Response DTOs
 
@@ -34,18 +58,50 @@ struct SendMessageRequestDTO: Encodable, Sendable {
     }
 }
 
-struct SendMessageResponseDTO: Codable, Sendable {
+struct SendMessageResponseDTO: Sendable {
     let message: ChatMessageDTO
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        message = try container.decode(ChatMessageDTO.self, forKey: .message)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(message, forKey: .message)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case message
+    }
 }
+
+extension SendMessageResponseDTO: Codable {}
 
 struct GetChatMessagesRequestDTO: Encodable, Sendable {
     let limit: Int
     let offset: Int
 }
 
-struct GetChatMessagesResponseDTO: Codable, Sendable {
+struct GetChatMessagesResponseDTO: Sendable {
     let messages: [ChatMessageDTO]
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        messages = try container.decode([ChatMessageDTO].self, forKey: .messages)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(messages, forKey: .messages)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case messages
+    }
 }
+
+extension GetChatMessagesResponseDTO: Codable {}
 
 struct DeleteMessageRequestDTO: Encodable, Sendable {
     let messageId: Int
@@ -55,9 +111,25 @@ struct DeleteMessageRequestDTO: Encodable, Sendable {
     }
 }
 
-struct DeleteMessageResponseDTO: Codable, Sendable {
+struct DeleteMessageResponseDTO: Sendable {
     let success: Bool
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        success = try container.decode(Bool.self, forKey: .success)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(success, forKey: .success)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case success
+    }
 }
+
+extension DeleteMessageResponseDTO: Codable {}
 
 // MARK: - WebSocket Message Types
 
@@ -141,17 +213,29 @@ struct WSTypingPayload: Codable, Sendable {
 
 // MARK: - WebSocket Outgoing Messages
 
-struct WSOutgoingMessage: Encodable, Sendable {
+struct WSOutgoingMessage: Sendable {
     let type: WSMessageType
     let payload: WSOutgoingPayload
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encode(payload, forKey: .payload)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type, payload
+    }
 }
 
-enum WSOutgoingPayload: Encodable, Sendable {
+extension WSOutgoingMessage: Encodable {}
+
+enum WSOutgoingPayload: Sendable {
     case sendMessage(WSSendMessagePayload)
     case deleteMessage(WSDeleteMessagePayload)
     case typing(WSTypingIndicatorPayload)
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .sendMessage(let payload):
@@ -164,28 +248,52 @@ enum WSOutgoingPayload: Encodable, Sendable {
     }
 }
 
-struct WSSendMessagePayload: Encodable, Sendable {
+extension WSOutgoingPayload: Encodable {}
+
+struct WSSendMessagePayload: Sendable {
     let content: String
     let clientMessageId: String
 
-    enum CodingKeys: String, CodingKey {
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(content, forKey: .content)
+        try container.encode(clientMessageId, forKey: .clientMessageId)
+    }
+
+    private enum CodingKeys: String, CodingKey {
         case content
         case clientMessageId = "client_message_id"
     }
 }
 
-struct WSDeleteMessagePayload: Encodable, Sendable {
+extension WSSendMessagePayload: Encodable {}
+
+struct WSDeleteMessagePayload: Sendable {
     let messageId: Int
 
-    enum CodingKeys: String, CodingKey {
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(messageId, forKey: .messageId)
+    }
+
+    private enum CodingKeys: String, CodingKey {
         case messageId = "message_id"
     }
 }
 
-struct WSTypingIndicatorPayload: Encodable, Sendable {
+extension WSDeleteMessagePayload: Encodable {}
+
+struct WSTypingIndicatorPayload: Sendable {
     let isTyping: Bool
 
-    enum CodingKeys: String, CodingKey {
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(isTyping, forKey: .isTyping)
+    }
+
+    private enum CodingKeys: String, CodingKey {
         case isTyping = "is_typing"
     }
 }
+
+extension WSTypingIndicatorPayload: Encodable {}

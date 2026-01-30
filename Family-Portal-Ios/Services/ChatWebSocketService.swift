@@ -1,12 +1,28 @@
 import Foundation
 
-enum WebSocketConnectionState: Equatable {
+enum WebSocketConnectionState {
     case disconnected
     case connecting
     case connected
     case reconnecting(attempt: Int)
     case failed
+
+    nonisolated static func == (lhs: WebSocketConnectionState, rhs: WebSocketConnectionState) -> Bool {
+        switch (lhs, rhs) {
+        case (.disconnected, .disconnected),
+             (.connecting, .connecting),
+             (.connected, .connected),
+             (.failed, .failed):
+            return true
+        case (.reconnecting(let a), .reconnecting(let b)):
+            return a == b
+        default:
+            return false
+        }
+    }
 }
+
+extension WebSocketConnectionState: Equatable {}
 
 @MainActor
 protocol ChatWebSocketDelegate: AnyObject {
@@ -43,7 +59,7 @@ actor ChatWebSocketService {
     private(set) var connectionState: WebSocketConnectionState = .disconnected {
         didSet {
             if oldValue != connectionState {
-                Task { @MainActor [weak self] in
+                Task { [weak self] in
                     guard let self else { return }
                     await self.notifyConnectionStateChange()
                 }
@@ -53,6 +69,8 @@ actor ChatWebSocketService {
 
     private func notifyConnectionStateChange() async {
         let state = connectionState
+        // Capture delegate on the actor to avoid crossing isolation
+        let delegate = self.delegate
         await MainActor.run {
             delegate?.didChangeConnectionState(state)
         }
@@ -189,6 +207,7 @@ actor ChatWebSocketService {
                     let payload: ChatMessageDTO
                 }
                 let wrapper = try decoder.decode(NewMessageWrapper.self, from: data)
+                let delegate = self.delegate
                 await MainActor.run {
                     delegate?.didReceiveMessage(wrapper.payload)
                 }
@@ -199,6 +218,7 @@ actor ChatWebSocketService {
                     let payload: WSMessageDeletedPayload
                 }
                 let wrapper = try decoder.decode(DeleteWrapper.self, from: data)
+                let delegate = self.delegate
                 await MainActor.run {
                     delegate?.didReceiveDeleteMessage(
                         messageId: wrapper.payload.messageId,
@@ -212,6 +232,7 @@ actor ChatWebSocketService {
                     let payload: WSTypingPayload
                 }
                 let wrapper = try decoder.decode(TypingWrapper.self, from: data)
+                let delegate = self.delegate
                 await MainActor.run {
                     delegate?.didReceiveTypingUpdate(
                         userId: wrapper.payload.userId,
@@ -276,7 +297,7 @@ actor ChatWebSocketService {
                 guard !Task.isCancelled else { break }
 
                 // Send a ping frame instead of a custom heartbeat message
-                try? await self?.webSocketTask?.sendPing { _ in }
+                await self?.webSocketTask?.sendPing { _ in }
             }
         }
     }

@@ -1,12 +1,36 @@
 @preconcurrency import Foundation
 
-struct AuthResponseDTO: Codable, Sendable {
+struct AuthResponseDTO: Sendable {
     let id: Int
     let name: String
     let email: String
     let isAdmin: Bool
     let familyId: Int?
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        email = try container.decode(String.self, forKey: .email)
+        isAdmin = try container.decode(Bool.self, forKey: .isAdmin)
+        familyId = try container.decodeIfPresent(Int.self, forKey: .familyId)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(email, forKey: .email)
+        try container.encode(isAdmin, forKey: .isAdmin)
+        try container.encodeIfPresent(familyId, forKey: .familyId)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, email, isAdmin, familyId
+    }
 }
+
+extension AuthResponseDTO: Codable {}
 
 struct LoginResponseDTO: Codable, Sendable {
     let success: Bool
@@ -15,12 +39,34 @@ struct LoginResponseDTO: Codable, Sendable {
     let auth: AuthResponseDTO?
 }
 
-struct RefreshResponseDTO: Codable, Sendable {
+struct RefreshResponseDTO: Sendable {
     let success: Bool
     let error: String?
     let token: String?
     let auth: AuthResponseDTO?
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        success = try container.decode(Bool.self, forKey: .success)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+        token = try container.decodeIfPresent(String.self, forKey: .token)
+        auth = try container.decodeIfPresent(AuthResponseDTO.self, forKey: .auth)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(success, forKey: .success)
+        try container.encodeIfPresent(error, forKey: .error)
+        try container.encodeIfPresent(token, forKey: .token)
+        try container.encodeIfPresent(auth, forKey: .auth)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case success, error, token, auth
+    }
 }
+
+extension RefreshResponseDTO: Codable {}
 
 struct FamilyInfoDTO: Codable, Sendable {
     let id: Int
