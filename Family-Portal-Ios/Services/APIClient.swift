@@ -52,8 +52,6 @@ actor APIClient {
     // Local constants to avoid main actor isolation issues
     private static let keychainAccessToken = "com.familyportal.accessToken"
     private static let keychainRefreshToken = "com.familyportal.refreshToken"
-    private static let keychainServerURL = "com.familyportal.serverURL"
-    private static let defaultServerURLString = "https://grissom.zone"
     private static let refreshTokenExpiry: TimeInterval = 30 * 24 * 60 * 60
 
     private struct DateFormatters: @unchecked Sendable {
@@ -83,7 +81,7 @@ actor APIClient {
     private let clientId: String
 
     init(baseURL: URL? = nil, session: URLSession = .shared) {
-        let initialBaseURL = baseURL ?? URL(string: Self.defaultServerURLString)!
+        let initialBaseURL = baseURL ?? URL(string: AppConstants.defaultServerURL)!
         self.session = session
         self.encoder = JSONEncoder()
 
@@ -109,19 +107,9 @@ actor APIClient {
         accessToken = loadedAccessToken
         refreshToken = loadedRefreshToken
 
-        if let savedURLString = Self.loadToken(forKey: Self.keychainServerURL), let savedURL = URL(string: savedURLString) {
-            self.baseURL = savedURL
-        } else {
-            self.baseURL = initialBaseURL
-        }
+        self.baseURL = initialBaseURL
 
         Self.syncCookiesNonisolated(baseURL: self.baseURL, accessToken: loadedAccessToken, refreshToken: loadedRefreshToken)
-    }
-
-    func updateBaseURL(_ url: URL) {
-        baseURL = url
-        Self.storeToken(url.absoluteString, key: Self.keychainServerURL)
-        syncCookies()
     }
 
     func setTokens(accessToken: String?, refreshToken: String?) {

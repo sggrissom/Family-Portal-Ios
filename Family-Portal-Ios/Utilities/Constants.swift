@@ -7,7 +7,6 @@ enum AppConstants {
     enum Keychain {
         static let accessToken = "com.familyportal.accessToken"
         static let refreshToken = "com.familyportal.refreshToken"
-        static let serverURL = "com.familyportal.serverURL"
     }
 
     enum TokenExpiry {

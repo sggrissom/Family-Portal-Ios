@@ -5,7 +5,6 @@ final class AuthService {
     private(set) var currentUser: AuthResponseDTO?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
-    var serverURL: String = AppConstants.defaultServerURL
 
     private let googleSignInService = GoogleSignInService()
 
@@ -17,11 +16,7 @@ final class AuthService {
         googleSignInService.isSigningIn
     }
 
-    init() {
-        if let saved = loadServerURL() {
-            serverURL = saved
-        }
-    }
+    init() {}
 
     @MainActor
     func login(email: String, password: String) async {
@@ -29,11 +24,6 @@ final class AuthService {
         errorMessage = nil
 
         do {
-            // Update server URL before login
-            if let url = URL(string: serverURL) {
-                await APIClient.shared.updateBaseURL(url)
-            }
-
             struct LoginRequest: Encodable {
                 let email: String
                 let password: String
@@ -67,11 +57,6 @@ final class AuthService {
         errorMessage = nil
 
         do {
-            // Update server URL before login
-            if let url = URL(string: serverURL) {
-                await APIClient.shared.updateBaseURL(url)
-            }
-
             // Get ID token from Google
             let idToken = try await googleSignInService.signIn()
 
@@ -146,26 +131,6 @@ final class AuthService {
         } catch {
             await APIClient.shared.clearTokens()
         }
-    }
-
-    func updateServerURL(_ urlString: String) {
-        serverURL = urlString
-        saveServerURL(urlString)
-        if let url = URL(string: urlString) {
-            Task {
-                await APIClient.shared.updateBaseURL(url)
-            }
-        }
-    }
-
-    // MARK: - Server URL Persistence
-
-    private func saveServerURL(_ urlString: String) {
-        UserDefaults.standard.set(urlString, forKey: "serverURL")
-    }
-
-    private func loadServerURL() -> String? {
-        UserDefaults.standard.string(forKey: "serverURL")
     }
 
     // MARK: - Google Sign-In URL Handling
