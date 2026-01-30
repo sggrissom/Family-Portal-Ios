@@ -52,8 +52,6 @@ actor APIClient {
     // Local constants to avoid main actor isolation issues
     private static let keychainAccessToken = "com.familyportal.accessToken"
     private static let keychainRefreshToken = "com.familyportal.refreshToken"
-    private static let keychainServerURL = "com.familyportal.serverURL"
-    private static let defaultServerURLString = "https://grissom.zone"
     private static let refreshTokenExpiry: TimeInterval = 30 * 24 * 60 * 60
 
     private struct DateFormatters: @unchecked Sendable {
@@ -74,21 +72,9 @@ actor APIClient {
     }
     private static let dateFormatters = DateFormatters()
 
-    private var baseURL: URL
-    private var accessToken: String?
-    private var refreshToken: String?
-    private let session: URLSession
-    private let decoder: JSONDecoder
-    private let encoder: JSONEncoder
-    private let clientId: String
-
-    init(baseURL: URL? = nil, session: URLSession = .shared) {
-        let initialBaseURL = baseURL ?? URL(string: Self.defaultServerURLString)!
-        self.session = session
-        self.encoder = JSONEncoder()
-
-        let formatters = Self.dateFormatters
-        decoder = JSONDecoder()
+    private static let sharedDecoder: JSONDecoder = {
+        let formatters = dateFormatters
+        let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
@@ -100,7 +86,30 @@ actor APIClient {
             }
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format: \(dateString)")
         }
+        return decoder
+    }()
+
+    private static let sharedEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }()
+
+    nonisolated private static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        try sharedDecoder.decode(type, from: data)
+    }
+
+    private var baseURL: URL
+    private var accessToken: String?
+    private var refreshToken: String?
+    private let session: URLSession
+    private let clientId: String
+
+    private nonisolated static let defaultURL = URL(string: "https://grissom.zone")!
+
+    init(baseURL: URL? = nil, session: URLSession = .shared) {
+        let initialBaseURL = baseURL ?? Self.defaultURL
+        self.session = session
 
         clientId = UUID().uuidString
 
@@ -109,19 +118,9 @@ actor APIClient {
         accessToken = loadedAccessToken
         refreshToken = loadedRefreshToken
 
-        if let savedURLString = Self.loadToken(forKey: Self.keychainServerURL), let savedURL = URL(string: savedURLString) {
-            self.baseURL = savedURL
-        } else {
-            self.baseURL = initialBaseURL
-        }
+        self.baseURL = initialBaseURL
 
         Self.syncCookiesNonisolated(baseURL: self.baseURL, accessToken: loadedAccessToken, refreshToken: loadedRefreshToken)
-    }
-
-    func updateBaseURL(_ url: URL) {
-        baseURL = url
-        Self.storeToken(url.absoluteString, key: Self.keychainServerURL)
-        syncCookies()
     }
 
     func setTokens(accessToken: String?, refreshToken: String?) {
@@ -183,9 +182,7 @@ actor APIClient {
             }
 
             do {
-                return try await MainActor.run {
-                    try decoder.decode(T.self, from: data)
-                }
+                return try Self.decode(T.self, from: data)
             } catch {
                 throw APIError.decoding(error)
             }
@@ -218,7 +215,7 @@ actor APIClient {
 
         if let body = body {
             do {
-                urlRequest.httpBody = try encoder.encode(body)
+                urlRequest.httpBody = try Self.sharedEncoder.encode(body)
             } catch {
                 throw APIError.network(error)
             }
@@ -252,9 +249,7 @@ actor APIClient {
             }
 
             do {
-                return try await MainActor.run {
-                    try decoder.decode(T.self, from: data)
-                }
+                return try Self.decode(T.self, from: data)
             } catch {
                 throw APIError.decoding(error)
             }
@@ -297,9 +292,7 @@ actor APIClient {
 
             let refreshResponse: RefreshResponseDTO
             do {
-                refreshResponse = try await MainActor.run {
-                    try decoder.decode(RefreshResponseDTO.self, from: data)
-                }
+                refreshResponse = try Self.decode(RefreshResponseDTO.self, from: data)
             } catch {
                 throw APIError.decoding(error)
             }
@@ -437,5 +430,27 @@ actor APIClient {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
         SecItemAdd(attributes as CFDictionary, nil)
+    }
+}
+
+// MARK: - Chat API
+
+extension APIClient {
+    func sendMessage(content: String, clientMessageId: String) async throws -> ChatMessageDTO {
+        let request = SendMessageRequestDTO(content: content, clientMessageId: clientMessageId)
+        let response: SendMessageResponseDTO = try await callRPC("SendMessage", payload: request)
+        return response.message
+    }
+
+    func getChatMessages(limit: Int = 50, offset: Int = 0) async throws -> [ChatMessageDTO] {
+        let request = GetChatMessagesRequestDTO(limit: limit, offset: offset)
+        let response: GetChatMessagesResponseDTO = try await callRPC("GetChatMessages", payload: request)
+        return response.messages
+    }
+
+    func deleteMessage(id: Int) async throws -> Bool {
+        let request = DeleteMessageRequestDTO(messageId: id)
+        let response: DeleteMessageResponseDTO = try await callRPC("DeleteMessage", payload: request)
+        return response.success
     }
 }

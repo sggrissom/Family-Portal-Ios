@@ -13,7 +13,8 @@ struct DataStore {
             GrowthData.self,
             Milestone.self,
             Photo.self,
-            User.self
+            User.self,
+            ChatMessage.self
         ])
         let configuration = ModelConfiguration(schema: schema)
         do {

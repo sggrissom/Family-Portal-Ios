@@ -15,6 +15,7 @@ struct Family_Portal_IosApp: App {
     @State private var authService = AuthService()
     @State private var networkMonitor: NetworkMonitor
     @State private var syncService: SyncService
+    @State private var chatService: ChatService?
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -34,6 +35,7 @@ struct Family_Portal_IosApp: App {
                 .environment(authService)
                 .environment(networkMonitor)
                 .environment(syncService)
+                .environment(chatService)
                 .task {
                     await setupServices()
                 }
@@ -50,7 +52,10 @@ struct Family_Portal_IosApp: App {
                     if isAuthenticated {
                         Task {
                             await syncService.performFullSync()
+                            await initializeChatService()
                         }
+                    } else {
+                        chatService = nil
                     }
                 }
                 .onOpenURL { url in
@@ -73,6 +78,18 @@ struct Family_Portal_IosApp: App {
         await authService.restoreSession()
         if authService.isAuthenticated {
             await syncService.performFullSync()
+            await initializeChatService()
         }
+    }
+
+    @MainActor
+    private func initializeChatService() async {
+        guard let user = authService.currentUser else { return }
+        chatService = await ChatService(
+            modelContext: container.mainContext,
+            apiClient: APIClient.shared,
+            currentUserId: user.id,
+            currentUserName: user.name
+        )
     }
 }

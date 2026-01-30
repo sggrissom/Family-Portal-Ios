@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		3322F9AD2F2B1DB4001AEB43 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 33BC6D712F2326CF00A38756 /* GoogleSignIn */; };
+		3322F9AE2F2B1DB4001AEB43 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 33BC6D722F2326CF00A38756 /* GoogleSignInSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Family-Portal-Ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -36,6 +41,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3322F9AE2F2B1DB4001AEB43 /* GoogleSignInSwift in Frameworks */,
+				3322F9AD2F2B1DB4001AEB43 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
