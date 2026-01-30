@@ -21,6 +21,11 @@ struct ContentView: View {
                     Label("Timeline", systemImage: "clock.fill")
                 }
 
+            ChatView()
+                .tabItem {
+                    Label("Chat", systemImage: "bubble.left.and.bubble.right.fill")
+                }
+
             PhotoGalleryView()
                 .tabItem {
                     Label("Photos", systemImage: "photo.on.rectangle")
