@@ -11,11 +11,13 @@ import GoogleSignIn
 
 @main
 struct Family_Portal_IosApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     let container: ModelContainer
     @State private var authService = AuthService()
     @State private var networkMonitor: NetworkMonitor
     @State private var syncService: SyncService
     @State private var chatService: ChatService?
+    @State private var pushNotificationService = PushNotificationService.shared
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -36,6 +38,7 @@ struct Family_Portal_IosApp: App {
                 .environment(networkMonitor)
                 .environment(syncService)
                 .environment(chatService)
+                .environment(pushNotificationService)
                 .task {
                     await setupServices()
                 }
@@ -49,13 +52,14 @@ struct Family_Portal_IosApp: App {
                     }
                 }
                 .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
-                    if isAuthenticated {
-                        Task {
+                    Task {
+                        await pushNotificationService.updateAuthentication(isAuthenticated: isAuthenticated)
+                        if isAuthenticated {
                             await syncService.performFullSync()
                             await initializeChatService()
+                        } else {
+                            chatService = nil
                         }
-                    } else {
-                        chatService = nil
                     }
                 }
                 .onOpenURL { url in
@@ -80,6 +84,7 @@ struct Family_Portal_IosApp: App {
             await syncService.performFullSync()
             await initializeChatService()
         }
+        await pushNotificationService.updateAuthentication(isAuthenticated: authService.isAuthenticated)
     }
 
     @MainActor
