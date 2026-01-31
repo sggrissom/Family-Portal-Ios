@@ -31,26 +31,17 @@ struct TypingIndicatorView: View {
 }
 
 struct TypingDotsView: View {
-    @State private var animationPhase = 0
-
     var body: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(Color.secondary)
-                    .frame(width: 6, height: 6)
-                    .offset(y: animationPhase == index ? -4 : 0)
-            }
-        }
-        .onAppear {
-            startAnimation()
-        }
-    }
-
-    private func startAnimation() {
-        Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                animationPhase = (animationPhase + 1) % 3
+        TimelineView(.periodic(from: .now, by: 0.2)) { timeline in
+            let phase = Int(timeline.date.timeIntervalSinceReferenceDate / 0.2) % 3
+            HStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(Color.secondary)
+                        .frame(width: 6, height: 6)
+                        .offset(y: phase == index ? -4 : 0)
+                        .animation(.easeInOut(duration: 0.2), value: phase)
+                }
             }
         }
     }
