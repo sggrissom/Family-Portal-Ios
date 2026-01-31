@@ -32,7 +32,7 @@ struct TypingIndicatorView: View {
 
 struct TypingDotsView: View {
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.2)) { timeline in
+        SwiftUI.TimelineView(.periodic(from: .now, by: 0.2)) { timeline in
             let phase = Int(timeline.date.timeIntervalSinceReferenceDate / 0.2) % 3
             HStack(spacing: 3) {
                 ForEach(0..<3, id: \.self) { index in
