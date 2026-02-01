@@ -25,8 +25,9 @@ struct PhotoGalleryView: View {
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 4) {
+                            let photoIds = photos.map(\.id)
                             ForEach(photos) { photo in
-                                NavigationLink(value: PhotoRoute(id: photo.id)) {
+                                NavigationLink(value: PhotoRoute(photoIds: photoIds, selectedId: photo.id)) {
                                     PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                                 }
                             }
@@ -47,7 +48,7 @@ struct PhotoGalleryView: View {
             }
             .navigationTitle("Photos")
             .navigationDestination(for: PhotoRoute.self) { route in
-                PhotoDetailView(photoId: route.id)
+                PhotoDetailView(photoIds: route.photoIds, initialPhotoId: route.selectedId)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

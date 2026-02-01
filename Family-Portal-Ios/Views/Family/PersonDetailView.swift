@@ -43,8 +43,12 @@ struct PersonDetailView: View {
             .map { $0 }
     }
 
+    private var sortedPhotos: [Photo] {
+        (person?.photos ?? []).sorted { $0.photoDate > $1.photoDate }
+    }
+
     private var recentPhotos: [Photo] {
-        Array((person?.photos ?? []).prefix(4))
+        Array(sortedPhotos.prefix(4))
     }
 
     var body: some View {
@@ -159,9 +163,10 @@ struct PersonDetailView: View {
                                     .foregroundStyle(.secondary)
                                     .font(.subheadline)
                             } else {
+                                let photoIds = recentPhotos.map(\.id)
                                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                                     ForEach(recentPhotos) { photo in
-                                        NavigationLink(value: PhotoRoute(id: photo.id)) {
+                                        NavigationLink(value: PhotoRoute(photoIds: photoIds, selectedId: photo.id)) {
                                             PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                                         }
                                     }
@@ -189,7 +194,7 @@ struct PersonDetailView: View {
             .navigationTitle(person.name)
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: PhotoRoute.self) { route in
-                PhotoDetailView(photoId: route.id)
+                PhotoDetailView(photoIds: route.photoIds, initialPhotoId: route.selectedId)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -265,6 +270,9 @@ struct PersonPhotosView: View {
     let person: Person
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
+    private var sortedPhotos: [Photo] {
+        person.photos.sorted { $0.photoDate > $1.photoDate }
+    }
 
     var body: some View {
         Group {
@@ -277,8 +285,9 @@ struct PersonPhotosView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 4) {
-                        ForEach(person.photos) { photo in
-                            NavigationLink(destination: PhotoDetailView(photoId: photo.id)) {
+                        let photoIds = sortedPhotos.map(\.id)
+                        ForEach(sortedPhotos) { photo in
+                            NavigationLink(value: PhotoRoute(photoIds: photoIds, selectedId: photo.id)) {
                                 PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                             }
                         }
@@ -289,5 +298,8 @@ struct PersonPhotosView: View {
         }
         .navigationTitle("\(person.name)'s Photos")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: PhotoRoute.self) { route in
+            PhotoDetailView(photoIds: route.photoIds, initialPhotoId: route.selectedId)
+        }
     }
 }

@@ -2,40 +2,58 @@ import SwiftUI
 import SwiftData
 
 struct PhotoDetailView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncService.self) private var syncService: SyncService?
     @Query private var photos: [Photo]
     @State private var showDeleteConfirmation = false
+    @State private var selection: UUID
 
-    private var photo: Photo? { photos.first }
+    private let photoIds: [UUID]
 
-    init(photoId: UUID) {
+    private var orderedPhotos: [Photo] {
+        let photoById = Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) })
+        return photoIds.compactMap { photoById[$0] }
+    }
+
+    private var selectedPhoto: Photo? {
+        orderedPhotos.first { $0.id == selection }
+    }
+
+    init(photoIds: [UUID], initialPhotoId: UUID) {
+        self.photoIds = photoIds
+        _selection = State(initialValue: initialPhotoId)
         _photos = Query(filter: #Predicate<Photo> { photo in
-            photo.id == photoId
+            photoIds.contains(photo.id)
         })
     }
 
     var body: some View {
-        if let photo {
-            PhotoDetailContent(photo: photo, showDeleteConfirmation: $showDeleteConfirmation)
-                .navigationBarTitleDisplayMode(.inline)
-                .confirmationDialog("Delete Photo", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-                    Button("Delete", role: .destructive) {
-                        Task {
-                            do {
-                                try await syncService?.deletePhoto(photo)
-                            } catch {
-                                print("Failed to sync delete photo: \(error)")
-                            }
-                            dismiss()
-                        }
-                    }
-                } message: {
-                    Text("This photo will be permanently deleted.")
-                }
-        } else {
+        if orderedPhotos.isEmpty {
             ContentUnavailableView("Photo Not Found", systemImage: "photo.slash")
+        } else {
+            TabView(selection: $selection) {
+                ForEach(orderedPhotos) { photo in
+                    PhotoDetailContent(photo: photo, showDeleteConfirmation: $showDeleteConfirmation)
+                        .tag(photo.id)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .automatic))
+            .navigationBarTitleDisplayMode(.inline)
+            .confirmationDialog("Delete Photo", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    guard let selectedPhoto else { return }
+                    Task {
+                        do {
+                            try await syncService?.deletePhoto(selectedPhoto)
+                        } catch {
+                            print("Failed to sync delete photo: \(error)")
+                        }
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text("This photo will be permanently deleted.")
+            }
         }
     }
 }

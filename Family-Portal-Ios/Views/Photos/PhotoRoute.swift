@@ -1,5 +1,6 @@
 import Foundation
 
 struct PhotoRoute: Hashable {
-    let id: UUID
+    let photoIds: [UUID]
+    let selectedId: UUID
 }
