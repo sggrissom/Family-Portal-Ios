@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LoginView: View {
     @Environment(AuthService.self) private var authService
+    @Environment(\.dismiss) private var dismiss
     @State private var email = ""
     @State private var password = ""
 
@@ -86,6 +87,11 @@ struct LoginView: View {
 
             }
             .navigationTitle("Sign In")
+            .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                if isAuthenticated {
+                    dismiss()
+                }
+            }
         }
     }
 }
