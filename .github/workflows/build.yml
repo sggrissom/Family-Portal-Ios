@@ -22,12 +22,22 @@ jobs:
             -configuration Debug \
             build
 
+      - name: Select iOS Simulator
+        run: |
+          SIMULATOR_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
+          if [ -z "$SIMULATOR_ID" ]; then
+            echo "No available iPhone simulator found."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "SIMULATOR_ID=$SIMULATOR_ID" >> "$GITHUB_ENV"
+
       - name: Test (iOS Simulator)
         run: |
           xcodebuild \
             -project "Family-Portal-Ios.xcodeproj" \
             -scheme "Family-Portal-Ios" \
             -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination "id=$SIMULATOR_ID" \
             -configuration Debug \
             test
