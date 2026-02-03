@@ -140,15 +140,13 @@ struct TimelineView: View {
     @ViewBuilder
     private var filterChips: some View {
         VStack(spacing: 0) {
-            if !people.isEmpty {
-                filterSection {
-                    filterChip(label: "All People", isSelected: selectedPersonId == nil) {
-                        selectedPersonId = nil
-                    }
-                    ForEach(people, id: \.id) { person in
-                        filterChip(label: person.name, isSelected: selectedPersonId == person.id) {
-                            selectedPersonId = person.id
-                        }
+            filterSection {
+                filterChip(label: "All People", isSelected: selectedPersonId == nil) {
+                    selectedPersonId = nil
+                }
+                ForEach(people, id: \.id) { person in
+                    filterChip(label: person.name, isSelected: selectedPersonId == person.id) {
+                        selectedPersonId = person.id
                     }
                 }
             }
