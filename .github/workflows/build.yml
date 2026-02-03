@@ -21,3 +21,13 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             build
+
+      - name: Test (iOS Simulator)
+        run: |
+          xcodebuild \
+            -project "Family-Portal-Ios.xcodeproj" \
+            -scheme "Family-Portal-Ios" \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -configuration Debug \
+            test
