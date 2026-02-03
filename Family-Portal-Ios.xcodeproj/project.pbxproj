@@ -9,10 +9,23 @@
 /* Begin PBXBuildFile section */
 		3322F9AD2F2B1DB4001AEB43 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 33BC6D712F2326CF00A38756 /* GoogleSignIn */; };
 		3322F9AE2F2B1DB4001AEB43 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 33BC6D722F2326CF00A38756 /* GoogleSignInSwift */; };
+		90A1B2C3D4E5F607890A1B2C /* AgeCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A1B2C3D4E5F607890A1B2D /* AgeCalculatorTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		90A1B2C3D4E5F607890A1B35 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 33BC6D4C2F2326CE00A38756 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 33BC6D532F2326CE00A38756;
+			remoteInfo = "Family-Portal-Ios";
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Family-Portal-Ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		90A1B2C3D4E5F607890A1B2D /* AgeCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgeCalculatorTests.swift; sourceTree = "<group>"; };
+		90A1B2C3D4E5F607890A1B2E /* Family-Portal-IosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Family-Portal-IosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -46,6 +59,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		90A1B2C3D4E5F607890A1B2F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -53,6 +73,7 @@
 			isa = PBXGroup;
 			children = (
 				33BC6D562F2326CE00A38756 /* Family-Portal-Ios */,
+				90A1B2C3D4E5F607890A1B32 /* Family-Portal-IosTests */,
 				33BC6D552F2326CE00A38756 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,8 +82,17 @@
 			isa = PBXGroup;
 			children = (
 				33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */,
+				90A1B2C3D4E5F607890A1B2E /* Family-Portal-IosTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		90A1B2C3D4E5F607890A1B32 /* Family-Portal-IosTests */ = {
+			isa = PBXGroup;
+			children = (
+				90A1B2C3D4E5F607890A1B2D /* AgeCalculatorTests.swift */,
+			);
+			path = "Family-Portal-IosTests";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -92,6 +122,24 @@
 			productReference = 33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */;
 			productType = "com.apple.product-type.application";
 		};
+		90A1B2C3D4E5F607890A1B33 /* Family-Portal-IosTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 90A1B2C3D4E5F607890A1B38 /* Build configuration list for PBXNativeTarget "Family-Portal-IosTests" */;
+			buildPhases = (
+				90A1B2C3D4E5F607890A1B31 /* Sources */,
+				90A1B2C3D4E5F607890A1B2F /* Frameworks */,
+				90A1B2C3D4E5F607890A1B30 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				90A1B2C3D4E5F607890A1B34 /* PBXTargetDependency */,
+			);
+			name = "Family-Portal-IosTests";
+			productName = "Family-Portal-IosTests";
+			productReference = 90A1B2C3D4E5F607890A1B2E /* Family-Portal-IosTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -104,6 +152,10 @@
 				TargetAttributes = {
 					33BC6D532F2326CE00A38756 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					90A1B2C3D4E5F607890A1B33 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 33BC6D532F2326CE00A38756;
 					};
 				};
 			};
@@ -125,12 +177,20 @@
 			projectRoot = "";
 			targets = (
 				33BC6D532F2326CE00A38756 /* Family-Portal-Ios */,
+				90A1B2C3D4E5F607890A1B33 /* Family-Portal-IosTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		33BC6D522F2326CE00A38756 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		90A1B2C3D4E5F607890A1B30 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -147,7 +207,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		90A1B2C3D4E5F607890A1B31 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				90A1B2C3D4E5F607890A1B2C /* AgeCalculatorTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		90A1B2C3D4E5F607890A1B34 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 33BC6D532F2326CE00A38756 /* Family-Portal-Ios */;
+			targetProxy = 90A1B2C3D4E5F607890A1B35 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		33BC6D5D2F2326CF00A38756 /* Debug */ = {
@@ -337,6 +413,51 @@
 			};
 			name = Release;
 		};
+		90A1B2C3D4E5F607890A1B36 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7S5TBT3VAE;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "$(PRODUCT_NAME)";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "grissom.Family-Portal-IosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Family-Portal-Ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Family-Portal-Ios";
+			};
+			name = Debug;
+		};
+		90A1B2C3D4E5F607890A1B37 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7S5TBT3VAE;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "$(PRODUCT_NAME)";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "grissom.Family-Portal-IosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Family-Portal-Ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Family-Portal-Ios";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -354,6 +475,15 @@
 			buildConfigurations = (
 				33BC6D602F2326CF00A38756 /* Debug */,
 				33BC6D612F2326CF00A38756 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		90A1B2C3D4E5F607890A1B38 /* Build configuration list for PBXNativeTarget "Family-Portal-IosTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				90A1B2C3D4E5F607890A1B36 /* Debug */,
+				90A1B2C3D4E5F607890A1B37 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
