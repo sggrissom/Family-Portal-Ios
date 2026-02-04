@@ -10,6 +10,7 @@ struct MilestoneListView: View {
 
     @State private var selectedCategory: MilestoneCategory?
     @State private var showingAddMilestone = false
+    @State private var searchText = ""
 
     private let personId: UUID
 
@@ -21,7 +22,14 @@ struct MilestoneListView: View {
         } else {
             milestones = person.milestones
         }
-        return milestones.sorted { $0.date > $1.date }
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let searched = trimmedSearch.isEmpty
+            ? milestones
+            : milestones.filter { milestone in
+                milestone.descriptionText.localizedCaseInsensitiveContains(trimmedSearch)
+                    || milestone.category.rawValue.localizedCaseInsensitiveContains(trimmedSearch)
+            }
+        return searched.sorted { $0.date > $1.date }
     }
 
     init(personId: UUID) {
@@ -71,6 +79,7 @@ struct MilestoneListView: View {
                 }
             }
         }
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search milestones")
         .sheet(isPresented: $showingAddMilestone) {
             AddMilestoneView(personId: personId)
         }
