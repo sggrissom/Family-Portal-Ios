@@ -2,9 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct FamilyMembersView: View {
-    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Person.name) private var people: [Person]
-    @State private var showingAddPerson = false
 
     private var parents: [Person] {
         people.filter { $0.type == .parent }
@@ -34,7 +32,7 @@ struct FamilyMembersView: View {
                     ContentUnavailableView(
                         "No Family Members",
                         systemImage: "person.3",
-                        description: Text("Tap the + button to add a family member.")
+                        description: Text("Manage family members from Settings.")
                     )
                 } else {
                     List {
@@ -49,9 +47,6 @@ struct FamilyMembersView: View {
                                             profilePhotoRemoteId: person.profilePhotoId
                                         )
                                     }
-                                }
-                                .onDelete { offsets in
-                                    deletePeople(offsets, from: parents)
                                 }
                             }
                         }
@@ -68,9 +63,6 @@ struct FamilyMembersView: View {
                                         )
                                     }
                                 }
-                                .onDelete { offsets in
-                                    deletePeople(offsets, from: children)
-                                }
                             }
                         }
                     }
@@ -78,26 +70,8 @@ struct FamilyMembersView: View {
             }
             .navigationTitle("Family")
             .navigationDestination(for: UUID.self) { personId in
-                PersonDetailView(personId: personId)
+                PersonDetailView(personId: personId, allowsManagementActions: false)
             }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showingAddPerson = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                }
-            }
-            .sheet(isPresented: $showingAddPerson) {
-                AddPersonView()
-            }
-        }
-    }
-
-    private func deletePeople(_ offsets: IndexSet, from source: [Person]) {
-        for index in offsets {
-            modelContext.delete(source[index])
         }
     }
 }

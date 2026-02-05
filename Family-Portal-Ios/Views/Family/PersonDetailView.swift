@@ -8,13 +8,15 @@ struct PersonDetailView: View {
 
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
+    let allowsManagementActions: Bool
 
     private var person: Person? { people.first }
 
-    init(personId: UUID) {
+    init(personId: UUID, allowsManagementActions: Bool = true) {
         _people = Query(filter: #Predicate<Person> { person in
             person.id == personId
         })
+        self.allowsManagementActions = allowsManagementActions
     }
 
     private var age: String? {
@@ -192,18 +194,20 @@ struct PersonDetailView: View {
                 PhotoDetailView(photoId: route.id)
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 16) {
-                        Button {
-                            showEditSheet = true
-                        } label: {
-                            Image(systemName: "pencil")
-                        }
+                if allowsManagementActions {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        HStack(spacing: 16) {
+                            Button {
+                                showEditSheet = true
+                            } label: {
+                                Image(systemName: "pencil")
+                            }
 
-                        Button(role: .destructive) {
-                            showDeleteConfirmation = true
-                        } label: {
-                            Image(systemName: "trash")
+                            Button(role: .destructive) {
+                                showDeleteConfirmation = true
+                            } label: {
+                                Image(systemName: "trash")
+                            }
                         }
                     }
                 }
