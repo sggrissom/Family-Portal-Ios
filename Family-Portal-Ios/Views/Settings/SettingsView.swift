@@ -90,6 +90,12 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Family") {
+                    NavigationLink("Manage Family") {
+                        FamilyManagementView()
+                    }
+                }
+
                 Section("About") {
                     HStack {
                         Text("Version")
