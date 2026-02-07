@@ -46,7 +46,8 @@ struct ChatView: View {
                     retryMessage(message, chatService: chatService)
                 },
                 scrollProxy: $scrollProxy,
-                onMessagesCountChange: { scrollToBottom(animated: true) }
+                onMessagesCountChange: { scrollToBottom(animated: true) },
+                onDismissKeyboard: { isInputFocused = false }
             )
 
             // Typing indicator
@@ -70,6 +71,7 @@ struct ChatView: View {
             await chatService.onAppear()
         }
         .onDisappear {
+            isInputFocused = false
             Task {
                 await chatService.onDisappear()
             }
@@ -83,23 +85,40 @@ struct ChatView: View {
         let onRetry: (_ message: ChatMessage) -> Void
         @Binding var scrollProxy: ScrollViewProxy?
         let onMessagesCountChange: () -> Void
+        var onDismissKeyboard: (() -> Void)?
+
+        private var groupedMessages: [(date: Date, messages: [ChatMessage])] {
+            let grouped = Dictionary(grouping: messages) {
+                Calendar.current.startOfDay(for: $0.createdAt)
+            }
+            return grouped
+                .map { (date: $0.key, messages: $0.value) }
+                .sorted { $0.date < $1.date }
+        }
 
         var body: some View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(messages, id: \.id) { message in
-                            MessageBubbleView(
-                                message: message,
-                                isOwnMessage: isOwnMessage(message.userId),
-                                onDelete: { onDelete(message) },
-                                onRetry: { onRetry(message) }
-                            )
-                            .id(message.id)
+                        ForEach(groupedMessages, id: \.date) { group in
+                            DateSeparatorView(date: group.date)
+
+                            ForEach(group.messages, id: \.id) { message in
+                                MessageBubbleView(
+                                    message: message,
+                                    isOwnMessage: isOwnMessage(message.userId),
+                                    onDelete: { onDelete(message) },
+                                    onRetry: { onRetry(message) }
+                                )
+                                .id(message.id)
+                            }
                         }
                     }
                     .padding()
+                    .contentShape(Rectangle())
+                    .onTapGesture { onDismissKeyboard?() }
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .onAppear { scrollProxy = proxy }
                 .onChange(of: messages.count) { _, _ in
                     onMessagesCountChange()

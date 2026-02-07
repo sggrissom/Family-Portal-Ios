@@ -204,12 +204,12 @@ actor ChatWebSocketService {
             case .newMessage:
                 struct NewMessageWrapper: Codable {
                     let type: String
-                    let payload: ChatMessageDTO
+                    let payload: WSNewMessagePayload
                 }
                 let wrapper = try decoder.decode(NewMessageWrapper.self, from: data)
                 let delegate = self.delegate
                 await MainActor.run {
-                    delegate?.didReceiveMessage(wrapper.payload)
+                    delegate?.didReceiveMessage(wrapper.payload.message)
                 }
 
             case .messageDeleted:

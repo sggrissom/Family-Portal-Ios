@@ -237,6 +237,22 @@ final class ChatService: ChatWebSocketDelegate {
             return
         }
 
+        // Fallback: match our own messages when clientMessageId is missing from server
+        if dto.userId == currentUserId && dto.clientMessageId.isEmpty {
+            if let existing = messages.first(where: { message in
+                message.userId == currentUserId
+                    && message.remoteId == nil
+                    && message.content == dto.content
+                    && abs(message.createdAt.timeIntervalSince(dto.createdAt)) < 5
+            }) {
+                existing.remoteId = String(dto.id)
+                existing.createdAt = dto.createdAt
+                existing.isSending = false
+                try? modelContext.save()
+                return
+            }
+        }
+
         // Skip duplicates by remoteId
         let remoteIdStr = String(dto.id)
         if messages.contains(where: { $0.remoteId == remoteIdStr }) {

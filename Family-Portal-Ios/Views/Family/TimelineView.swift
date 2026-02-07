@@ -44,6 +44,7 @@ struct TimelineView: View {
     @State private var selectedMilestoneCategory: MilestoneCategory? = nil
     @State private var selectedMeasurementType: MeasurementType? = nil
     @State private var selectedYear: Int? = nil
+    @State private var searchText = ""
 
     private var timelineItems: [TimelineItem] {
         let milestoneItems = milestones.map { TimelineItem.milestone($0) }
@@ -89,7 +90,7 @@ struct TimelineView: View {
                 }
             }
 
-            return true
+            return matchesSearch(item)
         }
     }
 
@@ -124,6 +125,7 @@ struct TimelineView: View {
                 await syncService.performFullSync()
             }
         }
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search timeline")
         .onChange(of: selectedItemType) { _, newValue in
             switch newValue {
             case .all:
@@ -137,18 +139,35 @@ struct TimelineView: View {
         }
     }
 
+    private func matchesSearch(_ item: TimelineItem) -> Bool {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearch.isEmpty else { return true }
+        var haystacks: [String] = []
+        if let person = item.person {
+            haystacks.append(person.name)
+        }
+        switch item {
+        case .milestone(let milestone):
+            haystacks.append(milestone.descriptionText)
+            haystacks.append(milestone.category.rawValue)
+        case .growthData(let data):
+            haystacks.append(data.measurementType.rawValue)
+            haystacks.append(data.unit.rawValue)
+            haystacks.append(String(format: "%.1f", data.value))
+        }
+        return haystacks.contains { $0.localizedCaseInsensitiveContains(trimmedSearch) }
+    }
+
     @ViewBuilder
     private var filterChips: some View {
         VStack(spacing: 0) {
-            if !people.isEmpty {
-                filterSection {
-                    filterChip(label: "All People", isSelected: selectedPersonId == nil) {
-                        selectedPersonId = nil
-                    }
-                    ForEach(people, id: \.id) { person in
-                        filterChip(label: person.name, isSelected: selectedPersonId == person.id) {
-                            selectedPersonId = person.id
-                        }
+            filterSection {
+                filterChip(label: "All People", isSelected: selectedPersonId == nil) {
+                    selectedPersonId = nil
+                }
+                ForEach(people, id: \.id) { person in
+                    filterChip(label: person.name, isSelected: selectedPersonId == person.id) {
+                        selectedPersonId = person.id
                     }
                 }
             }

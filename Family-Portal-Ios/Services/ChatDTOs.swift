@@ -24,12 +24,12 @@ struct ChatMessageDTO: Sendable {
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(Int.self, forKey: .id)
-        familyId = try container.decode(Int.self, forKey: .familyId)
-        userId = try container.decode(Int.self, forKey: .userId)
-        userName = try container.decode(String.self, forKey: .userName)
+        familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
+        userId = try container.decodeIfPresent(Int.self, forKey: .userId) ?? 0
+        userName = try container.decodeIfPresent(String.self, forKey: .userName) ?? ""
         content = try container.decode(String.self, forKey: .content)
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
-        clientMessageId = try container.decode(String.self, forKey: .clientMessageId)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        clientMessageId = try container.decodeIfPresent(String.self, forKey: .clientMessageId) ?? ""
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
