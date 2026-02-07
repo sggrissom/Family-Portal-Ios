@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Photos
 import PhotosUI
 
 struct PhotoGalleryView: View {
@@ -71,7 +72,7 @@ struct PhotoGalleryView: View {
                     let photo = Photo(
                         title: "",
                         descriptionText: "",
-                        photoDate: Date(),
+                        photoDate: photoDate(from: newItem),
                         imageData: data
                     )
                     modelContext.insert(photo)
@@ -91,5 +92,13 @@ struct PhotoGalleryView: View {
                 Text(uploadError?.localizedDescription ?? "An unknown error occurred while uploading the photo.")
             }
         }
+    }
+
+    private func photoDate(from item: PhotosPickerItem) -> Date {
+        guard let identifier = item.itemIdentifier else {
+            return Date()
+        }
+        let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
+        return asset?.creationDate ?? Date()
     }
 }
