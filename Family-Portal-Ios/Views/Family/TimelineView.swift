@@ -45,6 +45,7 @@ struct TimelineView: View {
     @State private var selectedMeasurementType: MeasurementType? = nil
     @State private var selectedYear: Int? = nil
     @State private var searchText = ""
+    @State private var cachedPeople: [Person] = []
 
     private var timelineItems: [TimelineItem] {
         let milestoneItems = milestones.map { TimelineItem.milestone($0) }
@@ -126,6 +127,14 @@ struct TimelineView: View {
             }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search timeline")
+        .onAppear {
+            cachedPeople = people
+        }
+        .onChange(of: people) { _, newValue in
+            if !newValue.isEmpty || cachedPeople.isEmpty {
+                cachedPeople = newValue
+            }
+        }
         .onChange(of: selectedItemType) { _, newValue in
             switch newValue {
             case .all:
@@ -165,7 +174,7 @@ struct TimelineView: View {
                 filterChip(label: "All People", isSelected: selectedPersonId == nil) {
                     selectedPersonId = nil
                 }
-                ForEach(people, id: \.id) { person in
+                ForEach(cachedPeople, id: \.id) { person in
                     filterChip(label: person.name, isSelected: selectedPersonId == person.id) {
                         selectedPersonId = person.id
                     }
