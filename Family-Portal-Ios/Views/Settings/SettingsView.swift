@@ -45,6 +45,20 @@ struct SettingsView: View {
                 }
 
                 Section("Sync") {
+                    HStack {
+                        Text("Connection")
+                        Spacer()
+                        if authService.isAuthenticated {
+                            Label("Connected", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.callout)
+                        } else {
+                            Label("Disconnected", systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                                .font(.callout)
+                        }
+                    }
+
                     SyncStatusView(
                         isConnected: networkMonitor.isConnected,
                         isSyncing: syncService?.isSyncing ?? false,
@@ -64,30 +78,6 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(syncService?.isSyncing ?? true || !networkMonitor.isConnected)
-                }
-
-                Section("Server") {
-                    HStack {
-                        Text("URL")
-                        Spacer()
-                        Text(AppConstants.defaultServerURL)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    HStack {
-                        Text("Status")
-                        Spacer()
-                        if authService.isAuthenticated {
-                            Label("Connected", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .font(.callout)
-                        } else {
-                            Label("Disconnected", systemImage: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                                .font(.callout)
-                        }
-                    }
                 }
 
                 Section("Family") {
