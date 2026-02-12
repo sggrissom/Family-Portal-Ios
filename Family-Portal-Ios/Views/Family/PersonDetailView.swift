@@ -46,7 +46,10 @@ struct PersonDetailView: View {
     }
 
     private var recentPhotos: [Photo] {
-        Array((person?.photos ?? []).prefix(4))
+        (person?.photos ?? [])
+            .sorted { $0.photoDate > $1.photoDate }
+            .prefix(4)
+            .map { $0 }
     }
 
     var body: some View {
