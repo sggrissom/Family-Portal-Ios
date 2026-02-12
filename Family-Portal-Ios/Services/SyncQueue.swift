@@ -137,6 +137,11 @@ actor SyncQueue {
     // MARK: - Queue Management
 
     func enqueue(_ operation: PendingOperation) {
+        if mergeOperationIfPossible(operation) {
+            saveToStorage()
+            return
+        }
+
         operations.append(operation)
         saveToStorage()
     }
@@ -187,6 +192,144 @@ actor SyncQueue {
     }
 
     // MARK: - Persistence
+
+    private func mergeOperationIfPossible(_ incoming: PendingOperation) -> Bool {
+        switch incoming.type {
+        case .updatePerson, .updateGrowthData, .updateMilestone:
+            return replaceExistingOperation(of: incoming.type, localId: incoming.localId, with: incoming)
+        case .addPeopleToPhoto:
+            return mergeAddPeopleToPhoto(incoming)
+        case .removePersonFromPhoto:
+            return mergeRemovePersonFromPhoto(incoming)
+        default:
+            return false
+        }
+    }
+
+    private func replaceExistingOperation(of type: SyncOperationType, localId: String, with incoming: PendingOperation) -> Bool {
+        guard let index = operations.lastIndex(where: { $0.type == type && $0.localId == localId }) else {
+            return false
+        }
+
+        var replacement = incoming
+        replacement.retryCount = operations[index].retryCount
+        operations[index] = replacement
+        return true
+    }
+
+    private func mergeAddPeopleToPhoto(_ incoming: PendingOperation) -> Bool {
+        guard let incomingPayload = try? JSONDecoder().decode(AddPeopleToPhotoPayload.self, from: incoming.payload) else {
+            return false
+        }
+
+        // Cancel out queued removals for the same people on this photo.
+        var peopleToAdd = Set(incomingPayload.personLocalIds)
+        operations.removeAll { operation in
+            guard operation.type == .removePersonFromPhoto,
+                  operation.localId == incoming.localId,
+                  let payload = try? JSONDecoder().decode(RemovePersonFromPhotoPayload.self, from: operation.payload)
+            else {
+                return false
+            }
+
+            return peopleToAdd.remove(payload.personLocalId) != nil
+        }
+
+        guard !peopleToAdd.isEmpty else {
+            return true
+        }
+
+        if let existingIndex = operations.lastIndex(where: { $0.type == .addPeopleToPhoto && $0.localId == incoming.localId }),
+           let existingPayload = try? JSONDecoder().decode(AddPeopleToPhotoPayload.self, from: operations[existingIndex].payload) {
+            var mergedPeople = Set(existingPayload.personLocalIds)
+            mergedPeople.formUnion(peopleToAdd)
+            let mergedPayload = AddPeopleToPhotoPayload(personLocalIds: Array(mergedPeople).sorted())
+
+            guard let encodedPayload = try? JSONEncoder().encode(mergedPayload) else {
+                return false
+            }
+
+            var mergedOperation = operations[existingIndex]
+            mergedOperation = PendingOperation(
+                id: mergedOperation.id,
+                type: mergedOperation.type,
+                localId: mergedOperation.localId,
+                payload: encodedPayload,
+                createdAt: mergedOperation.createdAt,
+                retryCount: mergedOperation.retryCount,
+                dependsOnLocalId: mergedOperation.dependsOnLocalId
+            )
+            operations[existingIndex] = mergedOperation
+            return true
+        }
+
+        guard peopleToAdd.count == incomingPayload.personLocalIds.count else {
+            let adjustedPayload = AddPeopleToPhotoPayload(personLocalIds: Array(peopleToAdd).sorted())
+            guard let encodedPayload = try? JSONEncoder().encode(adjustedPayload) else {
+                return false
+            }
+
+            let adjustedOperation = PendingOperation(
+                id: incoming.id,
+                type: incoming.type,
+                localId: incoming.localId,
+                payload: encodedPayload,
+                createdAt: incoming.createdAt,
+                retryCount: incoming.retryCount,
+                dependsOnLocalId: incoming.dependsOnLocalId
+            )
+            operations.append(adjustedOperation)
+            return true
+        }
+
+        return false
+    }
+
+    private func mergeRemovePersonFromPhoto(_ incoming: PendingOperation) -> Bool {
+        guard let incomingPayload = try? JSONDecoder().decode(RemovePersonFromPhotoPayload.self, from: incoming.payload) else {
+            return false
+        }
+
+        // If a matching add is still queued, remove it and drop this operation.
+        if let addIndex = operations.lastIndex(where: { $0.type == .addPeopleToPhoto && $0.localId == incoming.localId }),
+           let addPayload = try? JSONDecoder().decode(AddPeopleToPhotoPayload.self, from: operations[addIndex].payload) {
+            let remainingPeople = addPayload.personLocalIds.filter { $0 != incomingPayload.personLocalId }
+
+            if remainingPeople.count != addPayload.personLocalIds.count {
+                if remainingPeople.isEmpty {
+                    operations.remove(at: addIndex)
+                } else {
+                    let updatedPayload = AddPeopleToPhotoPayload(personLocalIds: remainingPeople)
+                    guard let encodedPayload = try? JSONEncoder().encode(updatedPayload) else {
+                        return false
+                    }
+                    let previous = operations[addIndex]
+                    operations[addIndex] = PendingOperation(
+                        id: previous.id,
+                        type: previous.type,
+                        localId: previous.localId,
+                        payload: encodedPayload,
+                        createdAt: previous.createdAt,
+                        retryCount: previous.retryCount,
+                        dependsOnLocalId: previous.dependsOnLocalId
+                    )
+                }
+                return true
+            }
+        }
+
+        // Replace any existing removal for the same person on the same photo.
+        if let existingIndex = operations.lastIndex(where: { $0.type == .removePersonFromPhoto && $0.localId == incoming.localId }),
+           let existingPayload = try? JSONDecoder().decode(RemovePersonFromPhotoPayload.self, from: operations[existingIndex].payload),
+           existingPayload.personLocalId == incomingPayload.personLocalId {
+            var replacement = incoming
+            replacement.retryCount = operations[existingIndex].retryCount
+            operations[existingIndex] = replacement
+            return true
+        }
+
+        return false
+    }
 
     private func saveToStorage() {
         do {
