@@ -119,6 +119,7 @@ func applyMilestoneDTO(_ dto: MilestoneDTO, to milestone: Milestone) {
     milestone.descriptionText = dto.descriptionText
     milestone.category = MilestoneCategory(rawValue: dto.category) ?? .other
     milestone.date = dto.milestoneDate
+    milestone.photoRemoteIds = dto.photoIds
 }
 
 func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
@@ -160,6 +161,7 @@ func milestoneFromDTO(_ dto: MilestoneDTO) -> Milestone {
         date: dto.milestoneDate
     )
     milestone.remoteId = String(dto.id)
+    milestone.photoRemoteIds = dto.photoIds
     return milestone
 }
 

@@ -8,6 +8,7 @@ final class Milestone {
     var descriptionText: String
     var category: MilestoneCategory
     var date: Date
+    var photoRemoteIds: [Int] = []
 
     var person: Person?
 

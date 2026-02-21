@@ -107,15 +107,24 @@ struct MilestoneDTO: Codable, Sendable {
     let category: String
     let milestoneDate: Date
     let createdAt: Date
+    let photoIds: [Int]
 
     enum CodingKeys: String, CodingKey {
-        case id
-        case personId
-        case familyId
+        case id, personId, familyId, category, milestoneDate, createdAt
         case descriptionText = "description"
-        case category
-        case milestoneDate
-        case createdAt
+        case photoIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(Int.self, forKey: .id)
+        personId = try c.decode(Int.self, forKey: .personId)
+        familyId = try c.decode(Int.self, forKey: .familyId)
+        descriptionText = try c.decode(String.self, forKey: .descriptionText)
+        category = try c.decode(String.self, forKey: .category)
+        milestoneDate = try c.decode(Date.self, forKey: .milestoneDate)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        photoIds = try c.decodeIfPresent([Int].self, forKey: .photoIds) ?? []
     }
 }
 

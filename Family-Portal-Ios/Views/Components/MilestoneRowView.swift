@@ -39,6 +39,12 @@ struct MilestoneRowView: View {
                 .font(.body)
                 .lineLimit(2)
 
+            if !milestone.photoRemoteIds.isEmpty {
+                Image(systemName: "photo.on.rectangle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Spacer()
 
             Text(milestone.date.formatted(date: .abbreviated, time: .omitted))
@@ -74,6 +80,18 @@ private struct MilestoneDetailSheetView: View {
                         Text(milestone.date.formatted(date: .abbreviated, time: .omitted))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                    }
+
+                    if !milestone.photoRemoteIds.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(milestone.photoRemoteIds, id: \.self) { photoId in
+                                    RemotePhotoView(remoteId: photoId, size: .thumb)
+                                        .frame(width: 72, height: 72)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                        }
                     }
                 }
                 .padding()
