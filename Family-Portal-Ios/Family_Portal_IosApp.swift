@@ -13,6 +13,7 @@ import GoogleSignIn
 struct Family_Portal_IosApp: App {
     let container: ModelContainer
     @State private var authService = AuthService()
+    @State private var mobileVersionService = MobileVersionService()
     @State private var networkMonitor: NetworkMonitor
     @State private var syncService: SyncService
     @State private var chatService: ChatService?
@@ -33,6 +34,7 @@ struct Family_Portal_IosApp: App {
         WindowGroup {
             ContentView()
                 .environment(authService)
+                .environment(mobileVersionService)
                 .environment(networkMonitor)
                 .environment(syncService)
                 .environment(chatService)
@@ -75,7 +77,13 @@ struct Family_Portal_IosApp: App {
             }
         }
 
+        // Runs alongside session restore rather than before it: the check must
+        // never delay a signed-in user, and an unsupported build is gated by
+        // ContentView regardless of how the restore turns out.
+        async let versionCheck: Void = mobileVersionService.check()
+
         await authService.restoreSession()
+        await versionCheck
         if authService.isAuthenticated {
             await syncService.performFullSync()
             await initializeChatService()
