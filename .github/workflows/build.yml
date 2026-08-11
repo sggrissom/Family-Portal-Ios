@@ -12,12 +12,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build (iOS Simulator)
+      - name: Build and test (iOS Simulator)
         run: |
           xcodebuild \
             -project "Family-Portal-Ios.xcodeproj" \
             -scheme "Family-Portal-Ios" \
             -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
             -configuration Debug \
-            build
+            build test

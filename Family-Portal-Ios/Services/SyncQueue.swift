@@ -124,13 +124,17 @@ actor SyncQueue {
     private static let maxRetries = 5
 
     private var operations: [PendingOperation]
+    private let defaults: UserDefaults
 
-    init() {
-        operations = Self.loadOperationsFromStorage()
+    /// `defaults` is injectable so tests can exercise the merge/cancel logic
+    /// against a scratch suite instead of the app's real queue.
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        operations = Self.loadOperationsFromStorage(defaults: defaults)
     }
 
-    nonisolated private static func loadOperationsFromStorage() -> [PendingOperation] {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else {
+    nonisolated private static func loadOperationsFromStorage(defaults: UserDefaults) -> [PendingOperation] {
+        guard let data = defaults.data(forKey: storageKey) else {
             return []
         }
         do {
@@ -341,7 +345,7 @@ actor SyncQueue {
     private func saveToStorage() {
         do {
             let data = try JSONEncoder().encode(operations)
-            UserDefaults.standard.set(data, forKey: Self.storageKey)
+            defaults.set(data, forKey: Self.storageKey)
         } catch {
             print("[SyncQueue] Failed to save to storage: \(error)")
         }
