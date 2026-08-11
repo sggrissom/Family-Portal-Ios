@@ -347,8 +347,10 @@ struct AddGrowthDataRequestDTO: Encodable, Sendable {
     let measurementType: String  // "height" or "weight"
     let value: Double
     let unit: String             // "cm", "in", "kg", "lbs"
-    let inputType: String        // "date" or "today"
+    let inputType: String        // "today", "date", or "age"
     let measurementDate: String? // "yyyy-MM-dd" if inputType="date"
+    let ageYears: Int?           // if inputType="age"
+    let ageMonths: Int?          // if inputType="age"
 }
 
 struct UpdateGrowthDataRequestDTO: Encodable, Sendable {
@@ -358,6 +360,8 @@ struct UpdateGrowthDataRequestDTO: Encodable, Sendable {
     let unit: String
     let inputType: String
     let measurementDate: String?
+    let ageYears: Int?
+    let ageMonths: Int?
 }
 
 struct DeleteRequestDTO: Encodable, Sendable {
@@ -372,8 +376,10 @@ struct AddMilestoneRequestDTO: Encodable, Sendable {
     let personId: Int
     let description: String
     let category: String
-    let inputType: String        // "date" or "today"
+    let inputType: String        // "today", "date", or "age"
     let milestoneDate: String?   // "yyyy-MM-dd" if inputType="date"
+    let ageYears: Int?           // if inputType="age"
+    let ageMonths: Int?          // if inputType="age"
 }
 
 struct UpdateMilestoneRequestDTO: Encodable, Sendable {
@@ -382,6 +388,8 @@ struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     let inputType: String
     let milestoneDate: String?
+    let ageYears: Int?
+    let ageMonths: Int?
 }
 
 struct UpdatePhotoRequestDTO: Encodable, Sendable {

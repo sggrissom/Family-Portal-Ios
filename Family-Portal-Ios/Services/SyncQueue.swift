@@ -70,6 +70,11 @@ struct CreateGrowthDataPayload: Codable, Sendable {
     let value: Double
     let unit: String
     let measurementDate: String
+    /// "date" or "age" — see DateEntryField. Absent in operations queued before
+    /// age entry existed, which decode as "date".
+    let inputType: String?
+    let ageYears: Int?
+    let ageMonths: Int?
 }
 
 struct CreateMilestonePayload: Codable, Sendable {
@@ -77,6 +82,9 @@ struct CreateMilestonePayload: Codable, Sendable {
     let description: String
     let category: String
     let milestoneDate: String
+    let inputType: String?
+    let ageYears: Int?
+    let ageMonths: Int?
 }
 
 struct UploadPhotoPayload: Codable, Sendable {
@@ -99,12 +107,18 @@ struct UpdateGrowthDataPayload: Codable, Sendable {
     let value: Double
     let unit: String
     let measurementDate: String
+    let inputType: String?
+    let ageYears: Int?
+    let ageMonths: Int?
 }
 
 struct UpdateMilestonePayload: Codable, Sendable {
     let description: String
     let category: String
     let milestoneDate: String
+    let inputType: String?
+    let ageYears: Int?
+    let ageMonths: Int?
 }
 
 struct UpdatePhotoPayload: Codable, Sendable {

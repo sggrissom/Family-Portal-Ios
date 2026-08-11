@@ -225,8 +225,10 @@ final class SyncService {
             measurementType: payload.measurementType,
             value: payload.value,
             unit: payload.unit,
-            inputType: "date",
-            measurementDate: payload.measurementDate
+            inputType: payload.inputType ?? "date",
+            measurementDate: payload.measurementDate,
+            ageYears: payload.ageYears,
+            ageMonths: payload.ageMonths
         )
         let response: AddGrowthDataResponseDTO = try await apiClient.callRPC("AddGrowthData", payload: request)
         applyGrowthDataDTO(response.growthData, to: growthData)
@@ -247,8 +249,10 @@ final class SyncService {
             personId: personId,
             description: payload.description,
             category: payload.category,
-            inputType: "date",
-            milestoneDate: payload.milestoneDate
+            inputType: payload.inputType ?? "date",
+            milestoneDate: payload.milestoneDate,
+            ageYears: payload.ageYears,
+            ageMonths: payload.ageMonths
         )
         let response: AddMilestoneResponseDTO = try await apiClient.callRPC("AddMilestone", payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -345,8 +349,10 @@ final class SyncService {
             measurementType: payload.measurementType,
             value: payload.value,
             unit: payload.unit,
-            inputType: "date",
-            measurementDate: payload.measurementDate
+            inputType: payload.inputType ?? "date",
+            measurementDate: payload.measurementDate,
+            ageYears: payload.ageYears,
+            ageMonths: payload.ageMonths
         )
         let response: UpdateGrowthDataResponseDTO = try await apiClient.callRPC("UpdateGrowthData", payload: request)
         applyGrowthDataDTO(response.growthData, to: growthData)
@@ -366,8 +372,10 @@ final class SyncService {
             id: id,
             description: payload.description,
             category: payload.category,
-            inputType: "date",
-            milestoneDate: payload.milestoneDate
+            inputType: payload.inputType ?? "date",
+            milestoneDate: payload.milestoneDate,
+            ageYears: payload.ageYears,
+            ageMonths: payload.ageMonths
         )
         let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC("UpdateMilestone", payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -475,13 +483,20 @@ final class SyncService {
 
     // MARK: - Push: GrowthData
 
-    func addGrowthData(_ data: GrowthData, for person: Person) async throws {
+    func addGrowthData(
+        _ data: GrowthData,
+        for person: Person,
+        dateEntry: DateEntryResult? = nil
+    ) async throws {
         let payload = CreateGrowthDataPayload(
             personLocalId: person.id.uuidString,
             measurementType: measurementTypeToString(data.measurementType),
             value: data.value,
             unit: unitToString(data.unit),
-            measurementDate: dateToAPIString(data.date)
+            measurementDate: dateToAPIString(data.date),
+            inputType: dateEntry?.inputType,
+            ageYears: dateEntry?.ageYears,
+            ageMonths: dateEntry?.ageMonths
         )
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
@@ -494,12 +509,15 @@ final class SyncService {
         )
     }
 
-    func updateGrowthData(_ data: GrowthData) async throws {
+    func updateGrowthData(_ data: GrowthData, dateEntry: DateEntryResult? = nil) async throws {
         let payload = UpdateGrowthDataPayload(
             measurementType: measurementTypeToString(data.measurementType),
             value: data.value,
             unit: unitToString(data.unit),
-            measurementDate: dateToAPIString(data.date)
+            measurementDate: dateToAPIString(data.date),
+            inputType: dateEntry?.inputType,
+            ageYears: dateEntry?.ageYears,
+            ageMonths: dateEntry?.ageMonths
         )
 
         try await enqueueOperation(
@@ -535,12 +553,19 @@ final class SyncService {
 
     // MARK: - Push: Milestones
 
-    func addMilestone(_ milestone: Milestone, for person: Person) async throws {
+    func addMilestone(
+        _ milestone: Milestone,
+        for person: Person,
+        dateEntry: DateEntryResult? = nil
+    ) async throws {
         let payload = CreateMilestonePayload(
             personLocalId: person.id.uuidString,
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
-            milestoneDate: dateToAPIString(milestone.date)
+            milestoneDate: dateToAPIString(milestone.date),
+            inputType: dateEntry?.inputType,
+            ageYears: dateEntry?.ageYears,
+            ageMonths: dateEntry?.ageMonths
         )
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
@@ -553,11 +578,14 @@ final class SyncService {
         )
     }
 
-    func updateMilestone(_ milestone: Milestone) async throws {
+    func updateMilestone(_ milestone: Milestone, dateEntry: DateEntryResult? = nil) async throws {
         let payload = UpdateMilestonePayload(
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
-            milestoneDate: dateToAPIString(milestone.date)
+            milestoneDate: dateToAPIString(milestone.date),
+            inputType: dateEntry?.inputType,
+            ageYears: dateEntry?.ageYears,
+            ageMonths: dateEntry?.ageMonths
         )
 
         try await enqueueOperation(
