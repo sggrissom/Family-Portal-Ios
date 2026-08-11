@@ -6,6 +6,11 @@ final class AuthService {
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
+    /// False until `restoreSession()` has finished once. Lets the root view hold
+    /// a launch placeholder instead of flashing the sign-in screen at a user who
+    /// turns out to have a valid session.
+    private(set) var hasCheckedStoredSession = false
+
     private let googleSignInService = GoogleSignInService()
 
     var isAuthenticated: Bool {
@@ -113,6 +118,8 @@ final class AuthService {
 
     @MainActor
     func restoreSession() async {
+        defer { hasCheckedStoredSession = true }
+
         do {
             struct EmptyBody: Encodable {}
             let response: RefreshResponseDTO = try await APIClient.shared.request(

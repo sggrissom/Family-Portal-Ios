@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftData
-import Photos
+import ImageIO
 import PhotosUI
 
 struct PhotoGalleryView: View {
@@ -72,7 +72,7 @@ struct PhotoGalleryView: View {
                     let photo = Photo(
                         title: "",
                         descriptionText: "",
-                        photoDate: photoDate(from: newItem),
+                        photoDate: Self.captureDate(from: data) ?? Date(),
                         imageData: data
                     )
                     modelContext.insert(photo)
@@ -94,11 +94,26 @@ struct PhotoGalleryView: View {
         }
     }
 
-    private func photoDate(from item: PhotosPickerItem) -> Date {
-        guard let identifier = item.itemIdentifier else {
-            return Date()
+    /// Reads the capture date out of the picked image's own EXIF. Deliberately
+    /// avoids `PHAsset`, which needs photo-library authorization the picker
+    /// itself does not; the backend does the same thing for `inputType: "auto"`.
+    private static func captureDate(from data: Data) -> Date? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
+              let original = (exif[kCGImagePropertyExifDateTimeOriginal]
+                              ?? exif[kCGImagePropertyExifDateTimeDigitized]) as? String
+        else {
+            return nil
         }
-        let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
-        return asset?.creationDate ?? Date()
+
+        return exifDateFormatter.date(from: original)
     }
+
+    private static let exifDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        return formatter
+    }()
 }

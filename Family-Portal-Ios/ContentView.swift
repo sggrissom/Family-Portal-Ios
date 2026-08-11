@@ -9,7 +9,29 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
+    @Environment(AuthService.self) private var authService
+
     var body: some View {
+        if authService.isAuthenticated {
+            mainTabs
+        } else if authService.hasCheckedStoredSession {
+            LoginView()
+        } else {
+            launchPlaceholder
+        }
+    }
+
+    private var launchPlaceholder: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "house.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.tint)
+            ProgressView()
+        }
+        .accessibilityLabel("Restoring your session")
+    }
+
+    private var mainTabs: some View {
         TabView {
             FamilyMembersView()
                 .tabItem {
@@ -41,5 +63,6 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environment(AuthService())
         .modelContainer(for: Person.self, inMemory: true)
 }

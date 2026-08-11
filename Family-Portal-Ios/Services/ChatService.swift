@@ -83,7 +83,7 @@ final class ChatService: ChatWebSocketDelegate {
                 if messages.contains(where: { $0.remoteId == remoteIdStr }) {
                     continue
                 }
-                if sentClientMessageIds.contains(dto.clientMessageId) {
+                if !dto.clientMessageId.isEmpty, sentClientMessageIds.contains(dto.clientMessageId) {
                     continue
                 }
 
@@ -185,8 +185,9 @@ final class ChatService: ChatWebSocketDelegate {
             _ = try await apiClient.deleteMessage(id: remoteId)
             try modelContext.save()
         } catch {
-            // Message already deleted locally, just log
-            print("[Chat] Delete failed: \(error)")
+            // The local row is already gone, but the server copy isn't — say so,
+            // otherwise the message silently returns on the next pull.
+            self.error = error.localizedDescription
         }
     }
 
@@ -226,7 +227,7 @@ final class ChatService: ChatWebSocketDelegate {
 
     func didReceiveMessage(_ dto: ChatMessageDTO) {
         // Skip if we sent this message (already have it optimistically)
-        if sentClientMessageIds.contains(dto.clientMessageId) {
+        if !dto.clientMessageId.isEmpty, sentClientMessageIds.contains(dto.clientMessageId) {
             // Update optimistic message with server data
             if let existing = messages.first(where: { $0.clientMessageId == dto.clientMessageId }) {
                 existing.remoteId = String(dto.id)
@@ -322,8 +323,10 @@ final class ChatService: ChatWebSocketDelegate {
         if let localMessages = try? modelContext.fetch(descriptor) {
             messages = localMessages
 
-            // Populate sent IDs for deduplication
-            for msg in localMessages where msg.userId == currentUserId {
+            // Populate sent IDs for deduplication. An empty id is "unknown",
+            // not a match — inserting it would make every server message that
+            // lacks one look like a duplicate of our own.
+            for msg in localMessages where msg.userId == currentUserId && !msg.clientMessageId.isEmpty {
                 sentClientMessageIds.insert(msg.clientMessageId)
             }
         }

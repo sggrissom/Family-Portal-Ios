@@ -41,8 +41,16 @@ struct PhotoDetailView: View {
 }
 
 private struct PhotoDetailContent: View {
+    @Environment(SyncService.self) private var syncService: SyncService?
     @Bindable var photo: Photo
     @Binding var showDeleteConfirmation: Bool
+
+    /// Values last handed to the sync queue, so leaving a field that wasn't
+    /// touched doesn't enqueue a redundant update.
+    @State private var syncedTitle: String?
+    @State private var syncedDescription: String?
+    @State private var saveError: String?
+    @FocusState private var editingMetadata: Bool
 
     var body: some View {
         ScrollView {
@@ -74,10 +82,20 @@ private struct PhotoDetailContent: View {
                 VStack(alignment: .leading, spacing: 16) {
                     TextField("Title", text: $photo.title)
                         .textFieldStyle(.roundedBorder)
+                        .focused($editingMetadata)
+                        .submitLabel(.done)
+                        .onSubmit { commitEdits() }
 
                     TextField("Description", text: $photo.descriptionText, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(3...6)
+                        .focused($editingMetadata)
+
+                    if let saveError {
+                        Text(saveError)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
                 }
                 .padding(.horizontal)
 
@@ -122,6 +140,36 @@ private struct PhotoDetailContent: View {
                 .padding(.top, 8)
             }
             .padding(.vertical)
+        }
+        .onAppear {
+            if syncedTitle == nil { syncedTitle = photo.title }
+            if syncedDescription == nil { syncedDescription = photo.descriptionText }
+        }
+        .onChange(of: editingMetadata) { _, isEditing in
+            if !isEditing { commitEdits() }
+        }
+        .onDisappear { commitEdits() }
+    }
+
+    /// Queues the edited title/description. Without this the next `pullFamilyData`
+    /// overwrites both fields from the server and the typing disappears.
+    private func commitEdits() {
+        let title = photo.title
+        let description = photo.descriptionText
+        guard title != syncedTitle || description != syncedDescription else { return }
+
+        syncedTitle = title
+        syncedDescription = description
+        saveError = nil
+
+        Task {
+            do {
+                try await syncService?.updatePhoto(photo)
+            } catch {
+                saveError = "Couldn't save changes: \(error.localizedDescription)"
+                syncedTitle = nil
+                syncedDescription = nil
+            }
         }
     }
 }

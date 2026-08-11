@@ -206,6 +206,10 @@ struct AddPhotoResponseDTO: Codable, Sendable {
     let image: ImageDTO
 }
 
+struct UpdatePhotoResponseDTO: Codable, Sendable {
+    let image: ImageDTO
+}
+
 struct GetPhotoResponseDTO: Codable, Sendable {
     let image: ImageDTO
     let people: [PersonDTO]
@@ -295,6 +299,14 @@ struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     let inputType: String
     let milestoneDate: String?
+}
+
+struct UpdatePhotoRequestDTO: Encodable, Sendable {
+    let id: Int
+    let title: String
+    let description: String
+    let inputType: String
+    let photoDate: String?
 }
 
 struct AddPeopleToPhotoRequestDTO: Encodable, Sendable {

@@ -160,6 +160,8 @@ final class SyncService {
             try await executeUpdateGrowthData(operation)
         case .updateMilestone:
             try await executeUpdateMilestone(operation)
+        case .updatePhoto:
+            try await executeUpdatePhoto(operation)
         case .deleteGrowthData:
             try await executeDeleteGrowthData(operation)
         case .deleteMilestone:
@@ -372,6 +374,27 @@ final class SyncService {
         try modelContext.save()
     }
 
+    private func executeUpdatePhoto(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(UpdatePhotoPayload.self, from: operation.payload)
+
+        guard let photo = findPhoto(byLocalId: operation.localId),
+              let remoteId = photo.remoteId,
+              let id = Int(remoteId) else {
+            throw SyncError.missingRemoteId("Photo must be uploaded before updating")
+        }
+
+        let request = UpdatePhotoRequestDTO(
+            id: id,
+            title: payload.title,
+            description: payload.description,
+            inputType: "date",
+            photoDate: payload.photoDate
+        )
+        let response: UpdatePhotoResponseDTO = try await apiClient.callRPC("UpdatePhoto", payload: request)
+        applyPhotoDTO(response.image, to: photo)
+        try modelContext.save()
+    }
+
     private func executeDeleteGrowthData(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(DeletePayload.self, from: operation.payload)
 
@@ -495,13 +518,16 @@ final class SyncService {
         }
 
         let payload = DeletePayload(remoteId: id)
+        // Read the local id before the delete — afterwards the model is gone
+        // from the context and its properties are no longer safe to touch.
+        let localId = data.id.uuidString
 
         modelContext.delete(data)
         try modelContext.save()
 
         try await enqueueOperation(
             type: .deleteGrowthData,
-            localId: data.id.uuidString,
+            localId: localId,
             payload: payload,
             dependsOnLocalId: nil
         )
@@ -550,13 +576,14 @@ final class SyncService {
         }
 
         let payload = DeletePayload(remoteId: id)
+        let localId = milestone.id.uuidString
 
         modelContext.delete(milestone)
         try modelContext.save()
 
         try await enqueueOperation(
             type: .deleteMilestone,
-            localId: milestone.id.uuidString,
+            localId: localId,
             payload: payload,
             dependsOnLocalId: nil
         )
@@ -572,15 +599,35 @@ final class SyncService {
         }
 
         let payload = DeletePayload(remoteId: id)
+        let localId = photo.id.uuidString
 
         modelContext.delete(photo)
         try modelContext.save()
 
         try await enqueueOperation(
             type: .deletePhoto,
-            localId: photo.id.uuidString,
+            localId: localId,
             payload: payload,
             dependsOnLocalId: nil
+        )
+    }
+
+    func updatePhoto(_ photo: Photo) async throws {
+        let payload = UpdatePhotoPayload(
+            title: photo.title,
+            description: photo.descriptionText,
+            photoDate: dateToAPIString(photo.photoDate)
+        )
+
+        // A photo edited before its upload has flushed has no remote id yet, so
+        // the update has to wait for the upload operation to assign one.
+        let dependsOnLocalId = photo.remoteId == nil ? photo.id.uuidString : nil
+
+        try await enqueueOperation(
+            type: .updatePhoto,
+            localId: photo.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: dependsOnLocalId
         )
     }
 
