@@ -85,6 +85,10 @@ struct SettingsView: View {
                     NavigationLink("Manage Family") {
                         FamilyManagementView()
                     }
+
+                    NavigationLink("Family & Invite Code") {
+                        FamilyInfoView()
+                    }
                 }
 
                 Section("About") {

@@ -200,6 +200,19 @@ actor APIClient {
         try await request(path: "rpc/\(name)", method: .post, body: payload, requiresAuth: true)
     }
 
+    /// For procs a signed-out user must reach — account creation and password
+    /// reset. Skips the 401 refresh retry, which would only fail without a
+    /// session and turn a plain error into a confusing one.
+    func callRPCUnauthenticated<T: Decodable, Body: Encodable>(_ name: String, payload: Body) async throws -> T {
+        try await request(
+            path: "rpc/\(name)",
+            method: .post,
+            body: payload,
+            requiresAuth: false,
+            retryOnAuthFailure: false
+        )
+    }
+
     func request<T: Decodable, Body: Encodable>(
         path: String,
         method: HTTPMethod = .post,
@@ -483,6 +496,19 @@ actor APIClient {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
         SecItemAdd(attributes as CFDictionary, nil)
+    }
+}
+
+// MARK: - Family API
+
+extension APIClient {
+    func getFamilyInfo() async throws -> FamilyInfoResponseDTO {
+        struct EmptyRequest: Encodable {}
+        return try await callRPC("GetFamilyInfo", payload: EmptyRequest())
+    }
+
+    func joinFamily(inviteCode: String) async throws -> JoinFamilyResponseDTO {
+        try await callRPC("JoinFamily", payload: JoinFamilyRequestDTO(inviteCode: inviteCode))
     }
 }
 

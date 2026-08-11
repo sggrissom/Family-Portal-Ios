@@ -68,6 +68,80 @@ struct RefreshResponseDTO: Sendable {
 
 extension RefreshResponseDTO: Codable {}
 
+// MARK: - Account creation and password reset (backend/users.go, password_reset.go)
+
+struct CreateAccountRequestDTO: Encodable, Sendable {
+    let name: String
+    let email: String
+    let password: String
+    let confirmPassword: String
+    /// Optional invite code. Empty means the backend creates "<Name>'s Family".
+    let familyCode: String?
+}
+
+struct CreateAccountResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+    let token: String?
+    let auth: AuthResponseDTO?
+}
+
+struct RequestPasswordResetRequestDTO: Encodable, Sendable {
+    let email: String
+}
+
+struct RequestPasswordResetResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+}
+
+// MARK: - Family membership (backend/users.go)
+
+/// One family the user belongs to. `role` is the backend's `AccessLevel`.
+struct FamilyRefDTO: Codable, Sendable {
+    let id: Int
+    let name: String
+    let inviteCode: String
+    let role: Int
+    let isPrimary: Bool
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        inviteCode = try container.decodeIfPresent(String.self, forKey: .inviteCode) ?? ""
+        role = try container.decodeIfPresent(Int.self, forKey: .role) ?? 0
+        isPrimary = try container.decodeIfPresent(Bool.self, forKey: .isPrimary) ?? false
+    }
+}
+
+/// `FamilyInfoResponse` in backend/users.go. The top-level id/name/inviteCode
+/// describe the primary family; `families` lists every one the user can see.
+struct FamilyInfoResponseDTO: Codable, Sendable {
+    let id: Int
+    let name: String
+    let inviteCode: String
+    let families: [FamilyRefDTO]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(Int.self, forKey: .id) ?? 0
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        inviteCode = try container.decodeIfPresent(String.self, forKey: .inviteCode) ?? ""
+        families = try container.decodeIfPresent([FamilyRefDTO].self, forKey: .families) ?? []
+    }
+}
+
+struct JoinFamilyRequestDTO: Encodable, Sendable {
+    let inviteCode: String
+}
+
+struct JoinFamilyResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+    let auth: AuthResponseDTO?
+}
+
 /// `CheckMobileVersionResponse` in backend/mobile_version.go.
 struct MobileVersionPolicyDTO: Codable, Sendable {
     let status: String

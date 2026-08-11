@@ -56,6 +56,117 @@ final class AuthService {
         isLoading = false
     }
 
+    /// `CreateAccount` (backend/users.go). A blank `familyCode` is fine — the
+    /// backend then creates "<Name>'s Family" and makes the user its admin.
+    @MainActor
+    func createAccount(
+        name: String,
+        email: String,
+        password: String,
+        confirmPassword: String,
+        familyCode: String
+    ) async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let trimmedCode = familyCode.trimmingCharacters(in: .whitespacesAndNewlines)
+            let response: CreateAccountResponseDTO = try await APIClient.shared.callRPCUnauthenticated(
+                "CreateAccount",
+                payload: CreateAccountRequestDTO(
+                    name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                    email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                    password: password,
+                    confirmPassword: confirmPassword,
+                    familyCode: trimmedCode.isEmpty ? nil : trimmedCode
+                )
+            )
+
+            if response.success, let token = response.token, let auth = response.auth {
+                await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
+                currentUser = auth
+            } else {
+                errorMessage = response.error ?? "Could not create your account."
+            }
+        } catch let error as APIError {
+            errorMessage = error.errorDescription
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
+    }
+
+    /// `RequestPasswordReset` (backend/password_reset.go). The server emails a
+    /// link to the website; there is no in-app completion step.
+    ///
+    /// Returns true when the request was accepted. The backend deliberately
+    /// reports success for unknown addresses so this can't be used to discover
+    /// which emails have accounts — so a true result means "we sent it if that
+    /// address exists", not "that address exists".
+    @MainActor
+    func requestPasswordReset(email: String) async -> Bool {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            let response: RequestPasswordResetResponseDTO = try await APIClient.shared.callRPCUnauthenticated(
+                "RequestPasswordReset",
+                payload: RequestPasswordResetRequestDTO(
+                    email: email.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+            )
+
+            if response.success {
+                return true
+            }
+            errorMessage = response.error ?? "Could not send the reset email."
+            return false
+        } catch let error as APIError {
+            errorMessage = error.errorDescription
+            return false
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    /// `JoinFamily` (backend/users.go). Refreshes `currentUser` so the rest of
+    /// the app sees the new membership.
+    @MainActor
+    func joinFamily(inviteCode: String) async -> Bool {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            let response = try await APIClient.shared.joinFamily(
+                inviteCode: inviteCode.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+
+            if response.success {
+                if let auth = response.auth {
+                    currentUser = auth
+                }
+                return true
+            }
+            errorMessage = response.error ?? "Could not join that family."
+            return false
+        } catch let error as APIError {
+            errorMessage = error.errorDescription
+            return false
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    @MainActor
+    func clearError() {
+        errorMessage = nil
+    }
+
     @MainActor
     func loginWithGoogle() async {
         isLoading = true

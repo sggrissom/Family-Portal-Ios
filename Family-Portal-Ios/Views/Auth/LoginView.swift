@@ -59,6 +59,11 @@ struct LoginView: View {
                         }
                     }
                     .disabled(email.isEmpty || password.isEmpty || authService.isLoading)
+
+                    NavigationLink("Forgot password?") {
+                        ForgotPasswordView()
+                    }
+                    .font(.callout)
                 }
 
                 Section {
@@ -85,6 +90,17 @@ struct LoginView: View {
                     .disabled(authService.isLoading)
                 }
 
+                Section {
+                    NavigationLink {
+                        CreateAccountView()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text("New here? **Create an account**")
+                            Spacer()
+                        }
+                    }
+                }
             }
             .navigationTitle("Sign In")
             .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
