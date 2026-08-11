@@ -111,8 +111,8 @@ actor ChatWebSocketService {
 
     func sendTypingIndicator(isTyping: Bool) async {
         let message = WSOutgoingMessage(
-            type: isTyping ? .startTyping : .stopTyping,
-            payload: .typing(WSTypingIndicatorPayload(isTyping: isTyping))
+            type: .userTyping,
+            payload: WSTypingIndicatorPayload(isTyping: isTyping)
         )
         await send(message)
     }
@@ -188,13 +188,12 @@ actor ChatWebSocketService {
     private func handleIncomingMessage(_ text: String) async {
         guard let data = text.data(using: .utf8) else { return }
 
+        // Go marshals time.Time as RFC3339 with fractional seconds, which
+        // JSONDecoder's `.iso8601` strategy rejects; reuse the tolerant decoder.
         do {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-
             // Parse type first
-            struct TypeOnly: Codable { let type: String }
-            let typeMessage = try decoder.decode(TypeOnly.self, from: data)
+            struct TypeOnly: Decodable { let type: String }
+            let typeMessage = try APIClient.decode(TypeOnly.self, from: data)
 
             guard let messageType = WSMessageType(rawValue: typeMessage.type) else {
                 return
@@ -202,36 +201,24 @@ actor ChatWebSocketService {
 
             switch messageType {
             case .newMessage:
-                struct NewMessageWrapper: Codable {
-                    let type: String
-                    let payload: WSNewMessagePayload
-                }
-                let wrapper = try decoder.decode(NewMessageWrapper.self, from: data)
+                let wrapper = try APIClient.decode(Envelope<WSNewMessagePayload>.self, from: data)
                 let delegate = self.delegate
                 await MainActor.run {
                     delegate?.didReceiveMessage(wrapper.payload.message)
                 }
 
-            case .messageDeleted:
-                struct DeleteWrapper: Codable {
-                    let type: String
-                    let payload: WSMessageDeletedPayload
-                }
-                let wrapper = try decoder.decode(DeleteWrapper.self, from: data)
+            case .deleteMessage:
+                let wrapper = try APIClient.decode(Envelope<WSDeleteMessagePayload>.self, from: data)
                 let delegate = self.delegate
                 await MainActor.run {
                     delegate?.didReceiveDeleteMessage(
                         messageId: wrapper.payload.messageId,
-                        userId: 0 // Server doesn't always send userId for deletes
+                        userId: wrapper.payload.userId
                     )
                 }
 
-            case .typing:
-                struct TypingWrapper: Codable {
-                    let type: String
-                    let payload: WSTypingPayload
-                }
-                let wrapper = try decoder.decode(TypingWrapper.self, from: data)
+            case .userTyping:
+                let wrapper = try APIClient.decode(Envelope<WSTypingPayload>.self, from: data)
                 let delegate = self.delegate
                 await MainActor.run {
                     delegate?.didReceiveTypingUpdate(
@@ -241,13 +228,39 @@ actor ChatWebSocketService {
                     )
                 }
 
-            case .sendMessage, .deleteMessage, .startTyping, .stopTyping:
-                // These are outgoing message types, ignore if received
+            case .userOnline, .userOffline:
+                let wrapper = try APIClient.decode(Envelope<WSUserStatusPayload>.self, from: data)
+                let payload = wrapper.payload
+                let delegate = self.delegate
+                await MainActor.run {
+                    if payload.isOnline {
+                        delegate?.didReceiveUserOnline(userId: payload.userId, userName: payload.userName)
+                    } else {
+                        delegate?.didReceiveUserOffline(userId: payload.userId, userName: payload.userName)
+                    }
+                }
+
+            case .heartbeat:
+                // The receive itself already refreshed the watchdog timestamp.
                 break
+
+            case .error:
+                struct ErrorEnvelope: Decodable { let payload: String? }
+                let wrapper = try? APIClient.decode(ErrorEnvelope.self, from: data)
+                let message = wrapper?.payload ?? "Chat connection error"
+                let delegate = self.delegate
+                await MainActor.run {
+                    delegate?.didReceiveError(message)
+                }
             }
         } catch {
             print("[WebSocket] Failed to decode message: \(error)")
         }
+    }
+
+    private struct Envelope<Payload: Decodable>: Decodable {
+        let type: String
+        let payload: Payload
     }
 
     private func handleDisconnection() async {
@@ -296,10 +309,16 @@ actor ChatWebSocketService {
 
                 guard !Task.isCancelled else { break }
 
-                // Send a ping frame instead of a custom heartbeat message
-                await self?.webSocketTask?.sendPing { _ in }
+                // The server's readPump times out after 60s of silence and a ping
+                // frame doesn't reset it, so send the protocol-level heartbeat it
+                // understands. Its `heartbeat` reply also feeds the watchdog below.
+                await self?.sendHeartbeat()
             }
         }
+    }
+
+    private func sendHeartbeat() async {
+        await send(WSOutgoingMessage(type: .heartbeat, payload: "ping"))
     }
 
     private func startWatchdog() {
@@ -321,7 +340,7 @@ actor ChatWebSocketService {
         }
     }
 
-    private func send(_ message: WSOutgoingMessage) async {
+    private func send<Payload: Encodable>(_ message: WSOutgoingMessage<Payload>) async {
         guard let task = webSocketTask,
               connectionState == .connected else {
             return

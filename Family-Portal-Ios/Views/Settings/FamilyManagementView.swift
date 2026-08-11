@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftData
 
 struct FamilyManagementView: View {
-    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Person.name) private var people: [Person]
     @State private var showingAddPerson = false
 
@@ -48,9 +47,6 @@ struct FamilyManagementView: View {
                                 )
                             }
                         }
-                        .onDelete { offsets in
-                            deletePeople(offsets, from: parents)
-                        }
                     }
                 }
 
@@ -65,9 +61,6 @@ struct FamilyManagementView: View {
                                     profilePhotoRemoteId: person.profilePhotoId
                                 )
                             }
-                        }
-                        .onDelete { offsets in
-                            deletePeople(offsets, from: children)
                         }
                     }
                 }
@@ -88,12 +81,6 @@ struct FamilyManagementView: View {
         }
         .sheet(isPresented: $showingAddPerson) {
             AddPersonView()
-        }
-    }
-
-    private func deletePeople(_ offsets: IndexSet, from source: [Person]) {
-        for index in offsets {
-            modelContext.delete(source[index])
         }
     }
 }

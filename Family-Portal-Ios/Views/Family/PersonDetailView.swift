@@ -2,12 +2,9 @@ import SwiftUI
 import SwiftData
 
 struct PersonDetailView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
     @Query private var people: [Person]
 
     @State private var showEditSheet = false
-    @State private var showDeleteConfirmation = false
     let allowsManagementActions: Bool
 
     private var person: Person? { people.first }
@@ -198,38 +195,21 @@ struct PersonDetailView: View {
             }
             .toolbar {
                 if allowsManagementActions {
+                    // No delete affordance: the backend has no DeletePerson proc
+                    // (backend/person.go), so a local delete is undone by the
+                    // next pullFamilyData.
                     ToolbarItem(placement: .topBarTrailing) {
-                        HStack(spacing: 16) {
-                            Button {
-                                showEditSheet = true
-                            } label: {
-                                Image(systemName: "pencil")
-                            }
-
-                            Button(role: .destructive) {
-                                showDeleteConfirmation = true
-                            } label: {
-                                Image(systemName: "trash")
-                            }
+                        Button {
+                            showEditSheet = true
+                        } label: {
+                            Image(systemName: "pencil")
                         }
+                        .accessibilityLabel("Edit \(person.name)")
                     }
                 }
             }
             .sheet(isPresented: $showEditSheet) {
                 EditPersonView(person: person)
-            }
-            .confirmationDialog(
-                "Delete \(person.name)?",
-                isPresented: $showDeleteConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Delete", role: .destructive) {
-                    modelContext.delete(person)
-                    dismiss()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Are you sure you want to delete \(person.name)? This will also delete all their measurements and milestones.")
             }
         } else {
             ContentUnavailableView("Person Not Found", systemImage: "person.slash")

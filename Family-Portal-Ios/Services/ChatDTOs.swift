@@ -11,24 +11,27 @@ struct ChatMessageDTO: Sendable {
     let createdAt: Date
     let clientMessageId: String
 
+    // Keys match `type ChatMessage` in backend/chat.go, which marshals camelCase.
     private enum CodingKeys: String, CodingKey {
         case id
-        case familyId = "family_id"
-        case userId = "user_id"
-        case userName = "user_name"
+        case familyId
+        case userId
+        case userName
         case content
-        case createdAt = "created_at"
-        case clientMessageId = "client_message_id"
+        case createdAt
+        case clientMessageId
     }
 
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(Int.self, forKey: .id)
         familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
-        userId = try container.decodeIfPresent(Int.self, forKey: .userId) ?? 0
+        // Author identity and timestamp drive bubble alignment and date grouping,
+        // so a missing key here has to fail loudly rather than default.
+        userId = try container.decode(Int.self, forKey: .userId)
         userName = try container.decodeIfPresent(String.self, forKey: .userName) ?? ""
         content = try container.decode(String.self, forKey: .content)
-        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
         clientMessageId = try container.decodeIfPresent(String.self, forKey: .clientMessageId) ?? ""
     }
 
@@ -51,11 +54,6 @@ extension ChatMessageDTO: Codable {}
 struct SendMessageRequestDTO: Encodable, Sendable {
     let content: String
     let clientMessageId: String
-
-    enum CodingKeys: String, CodingKey {
-        case content
-        case clientMessageId = "client_message_id"
-    }
 }
 
 struct SendMessageResponseDTO: Sendable {
@@ -106,8 +104,9 @@ extension GetChatMessagesResponseDTO: Codable {}
 struct DeleteMessageRequestDTO: Encodable, Sendable {
     let messageId: Int
 
+    // backend/chat.go `DeleteMessageRequest` reads `id`.
     enum CodingKeys: String, CodingKey {
-        case messageId = "message_id"
+        case messageId = "id"
     }
 }
 
@@ -133,167 +132,53 @@ extension DeleteMessageResponseDTO: Codable {}
 
 // MARK: - WebSocket Message Types
 
+/// Wire values from `backend/websocket_chat.go` (`WSMsgType*`). The server uses
+/// the same value in both directions, so there is no separate outgoing set.
 enum WSMessageType: String, Codable, Sendable {
     case newMessage = "new_message"
-    case messageDeleted = "message_deleted"
-    case typing = "typing"
-    case sendMessage = "send_message"
     case deleteMessage = "delete_message"
-    case startTyping = "start_typing"
-    case stopTyping = "stop_typing"
+    case userTyping = "user_typing"
+    case userOnline = "user_online"
+    case userOffline = "user_offline"
+    case heartbeat = "heartbeat"
+    case error = "error"
 }
 
-// MARK: - WebSocket Incoming Messages
+// MARK: - WebSocket Payloads
+//
+// `nonisolated` on the declarations keeps their Codable conformances off the
+// main actor, so `ChatWebSocketService` can decode them from its own actor.
 
-struct WSIncomingMessage: Codable, Sendable {
-    let type: WSMessageType
-    let payload: WSIncomingPayload
-}
-
-enum WSIncomingPayload: Codable, Sendable {
-    case newMessage(WSNewMessagePayload)
-    case messageDeleted(WSMessageDeletedPayload)
-    case typing(WSTypingPayload)
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-
-        if let payload = try? container.decode(WSNewMessagePayload.self) {
-            self = .newMessage(payload)
-            return
-        }
-        if let payload = try? container.decode(WSMessageDeletedPayload.self) {
-            self = .messageDeleted(payload)
-            return
-        }
-        if let payload = try? container.decode(WSTypingPayload.self) {
-            self = .typing(payload)
-            return
-        }
-
-        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unable to decode WSIncomingPayload")
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch self {
-        case .newMessage(let payload):
-            try container.encode(payload)
-        case .messageDeleted(let payload):
-            try container.encode(payload)
-        case .typing(let payload):
-            try container.encode(payload)
-        }
-    }
-}
-
-struct WSNewMessagePayload: Codable, Sendable {
+nonisolated struct WSNewMessagePayload: Codable, Sendable {
     let message: ChatMessageDTO
 }
 
-struct WSMessageDeletedPayload: Codable, Sendable {
+nonisolated struct WSDeleteMessagePayload: Codable, Sendable {
     let messageId: Int
-
-    enum CodingKeys: String, CodingKey {
-        case messageId = "message_id"
-    }
+    let userId: Int
 }
 
-struct WSTypingPayload: Codable, Sendable {
+nonisolated struct WSTypingPayload: Codable, Sendable {
     let userId: Int
     let userName: String
     let isTyping: Bool
+}
 
-    enum CodingKeys: String, CodingKey {
-        case userId = "user_id"
-        case userName = "user_name"
-        case isTyping = "is_typing"
-    }
+nonisolated struct WSUserStatusPayload: Codable, Sendable {
+    let userId: Int
+    let userName: String
+    let isOnline: Bool
 }
 
 // MARK: - WebSocket Outgoing Messages
 
-struct WSOutgoingMessage: Sendable {
+/// Envelope for the two message types the server accepts from a client
+/// (`user_typing` and `heartbeat`); everything else goes over the REST procs.
+nonisolated struct WSOutgoingMessage<Payload: Encodable>: Encodable {
     let type: WSMessageType
-    let payload: WSOutgoingPayload
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(type, forKey: .type)
-        try container.encode(payload, forKey: .payload)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case type, payload
-    }
+    let payload: Payload
 }
 
-extension WSOutgoingMessage: Encodable {}
-
-enum WSOutgoingPayload: Sendable {
-    case sendMessage(WSSendMessagePayload)
-    case deleteMessage(WSDeleteMessagePayload)
-    case typing(WSTypingIndicatorPayload)
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch self {
-        case .sendMessage(let payload):
-            try container.encode(payload)
-        case .deleteMessage(let payload):
-            try container.encode(payload)
-        case .typing(let payload):
-            try container.encode(payload)
-        }
-    }
-}
-
-extension WSOutgoingPayload: Encodable {}
-
-struct WSSendMessagePayload: Sendable {
-    let content: String
-    let clientMessageId: String
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(content, forKey: .content)
-        try container.encode(clientMessageId, forKey: .clientMessageId)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case content
-        case clientMessageId = "client_message_id"
-    }
-}
-
-extension WSSendMessagePayload: Encodable {}
-
-struct WSDeleteMessagePayload: Sendable {
-    let messageId: Int
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(messageId, forKey: .messageId)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case messageId = "message_id"
-    }
-}
-
-extension WSDeleteMessagePayload: Encodable {}
-
-struct WSTypingIndicatorPayload: Sendable {
+nonisolated struct WSTypingIndicatorPayload: Encodable {
     let isTyping: Bool
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(isTyping, forKey: .isTyping)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case isTyping = "is_typing"
-    }
 }
-
-extension WSTypingIndicatorPayload: Encodable {}

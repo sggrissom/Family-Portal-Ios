@@ -12,6 +12,7 @@ enum SyncOperationType: String, Codable, Sendable {
     case removePersonFromPhoto
     case updateGrowthData
     case updateMilestone
+    case updatePhoto
     case deleteGrowthData
     case deleteMilestone
     case deletePhoto
@@ -106,6 +107,12 @@ struct UpdateMilestonePayload: Codable, Sendable {
     let milestoneDate: String
 }
 
+struct UpdatePhotoPayload: Codable, Sendable {
+    let title: String
+    let description: String
+    let photoDate: String
+}
+
 struct DeletePayload: Codable, Sendable {
     let remoteId: Int
 }
@@ -113,7 +120,7 @@ struct DeletePayload: Codable, Sendable {
 // MARK: - SyncQueue Actor
 
 actor SyncQueue {
-    private static let storageKey = "com.familyportal.syncQueue"
+    private static let storageKey = "com.familyrecord.syncQueue"
     private static let maxRetries = 5
 
     private var operations: [PendingOperation]
@@ -195,7 +202,7 @@ actor SyncQueue {
 
     private func mergeOperationIfPossible(_ incoming: PendingOperation) -> Bool {
         switch incoming.type {
-        case .updatePerson, .updateGrowthData, .updateMilestone:
+        case .updatePerson, .updateGrowthData, .updateMilestone, .updatePhoto:
             return replaceExistingOperation(of: incoming.type, localId: incoming.localId, with: incoming)
         case .addPeopleToPhoto:
             return mergeAddPeopleToPhoto(incoming)

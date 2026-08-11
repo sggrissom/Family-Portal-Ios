@@ -50,8 +50,8 @@ actor APIClient {
     static let shared = APIClient()
 
     // Local constants to avoid main actor isolation issues
-    private static let keychainAccessToken = "com.familyportal.accessToken"
-    private static let keychainRefreshToken = "com.familyportal.refreshToken"
+    private static let keychainAccessToken = AppConstants.Keychain.accessToken
+    private static let keychainRefreshToken = AppConstants.Keychain.refreshToken
     private static let refreshTokenExpiry: TimeInterval = 30 * 24 * 60 * 60
 
     private struct DateFormatters: @unchecked Sendable {
@@ -95,7 +95,10 @@ actor APIClient {
         return encoder
     }()
 
-    nonisolated private static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+    /// Shared entry point for every JSON body the server sends, including the
+    /// WebSocket stream — its date strategy tolerates RFC3339 with fractional
+    /// seconds, which is what Go's `time.Time` marshals.
+    nonisolated static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         try sharedDecoder.decode(type, from: data)
     }
 
@@ -105,7 +108,7 @@ actor APIClient {
     private let session: URLSession
     private let clientId: String
 
-    private nonisolated static let defaultURL = URL(string: "https://grissom.zone")!
+    private nonisolated static let defaultURL = URL(string: AppConstants.defaultServerURL)!
 
     init(baseURL: URL? = nil, session: URLSession = .shared) {
         let initialBaseURL = baseURL ?? Self.defaultURL
