@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Environment(AuthService.self) private var authService
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(NetworkMonitor.self) private var networkMonitor
+    @Environment(MobileVersionService.self) private var mobileVersionService
     @State private var showLogoutConfirmation = false
 
     var body: some View {
@@ -92,6 +93,24 @@ struct SettingsView: View {
                         Spacer()
                         Text(AppConstants.displayVersion)
                             .foregroundStyle(.secondary)
+                    }
+
+                    // update_required blocks the whole app in ContentView;
+                    // update_available is only worth a nudge.
+                    if mobileVersionService.status == .updateAvailable,
+                       let updateURL = mobileVersionService.updateURL {
+                        Link(destination: updateURL) {
+                            Label(
+                                mobileVersionService.latestVersion.isEmpty
+                                    ? "Update available"
+                                    : "Update available (\(mobileVersionService.latestVersion))",
+                                systemImage: "arrow.down.circle"
+                            )
+                        }
+                    }
+
+                    Link(destination: AppConstants.privacyPolicyURL) {
+                        Label("Privacy Policy", systemImage: "hand.raised")
                     }
                 }
             }

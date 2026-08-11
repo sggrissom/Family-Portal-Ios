@@ -4,6 +4,9 @@ enum AppConstants {
     static let appName = "Family Record"
     static let defaultServerURL = "https://familyrecord.app"
 
+    /// Required by the App Store listing and linked from Settings.
+    static let privacyPolicyURL = URL(string: "https://familyrecord.app/privacy")!
+
     /// Read from the bundle rather than hardcoded, so the displayed version can
     /// never drift from `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`.
     /// `/api/mobile-version` rejects anything that isn't strict major.minor.patch.

@@ -263,6 +263,56 @@ actor APIClient {
         }
     }
 
+    /// `GET /api/mobile-version` (backend/mobile_version.go). Deliberately
+    /// pre-auth and cached 300s server-side, so the app can decide whether it
+    /// must update before it presents login. Rejects anything that isn't strict
+    /// major.minor.patch with a 400.
+    func checkMobileVersion(appVersion: String) async throws -> MobileVersionPolicyDTO {
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/mobile-version"),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw APIError.invalidURL
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "platform", value: "ios"),
+            URLQueryItem(name: "appVersion", value: appVersion)
+        ]
+
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = HTTPMethod.get.rawValue
+        urlRequest.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+
+        do {
+            let (data, response) = try await session.data(for: urlRequest)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.invalidResponse
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw APIError.server(
+                    statusCode: httpResponse.statusCode,
+                    message: String(data: data, encoding: .utf8)
+                )
+            }
+
+            do {
+                return try Self.decode(MobileVersionPolicyDTO.self, from: data)
+            } catch {
+                throw APIError.decoding(error)
+            }
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.network(error)
+        }
+    }
+
     func refreshAccessToken() async throws {
         guard refreshToken != nil else {
             throw APIError.missingRefreshToken
