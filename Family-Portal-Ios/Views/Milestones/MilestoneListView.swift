@@ -10,7 +10,6 @@ struct MilestoneListView: View {
 
     @State private var selectedCategory: MilestoneCategory?
     @State private var showingAddMilestone = false
-    @State private var editingMilestone: Milestone?
     @State private var searchText = ""
 
     private let personId: UUID
@@ -62,13 +61,7 @@ struct MilestoneListView: View {
             } else {
                 List {
                     ForEach(filteredMilestones, id: \.id) { milestone in
-                        Button {
-                            editingMilestone = milestone
-                        } label: {
-                            MilestoneRowView(milestone: milestone)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Edit this milestone")
+                        MilestoneRowView(milestone: milestone, personId: personId)
                     }
                     .onDelete(perform: deleteMilestones)
                 }
@@ -89,9 +82,6 @@ struct MilestoneListView: View {
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search milestones")
         .sheet(isPresented: $showingAddMilestone) {
             AddMilestoneView(personId: personId)
-        }
-        .sheet(item: $editingMilestone) { milestone in
-            AddMilestoneView(editing: milestone, personId: personId)
         }
     }
 

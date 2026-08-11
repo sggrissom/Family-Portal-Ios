@@ -252,7 +252,8 @@ final class SyncService {
             inputType: payload.inputType ?? "date",
             milestoneDate: payload.milestoneDate,
             ageYears: payload.ageYears,
-            ageMonths: payload.ageMonths
+            ageMonths: payload.ageMonths,
+            photoIds: payload.photoIds
         )
         let response: AddMilestoneResponseDTO = try await apiClient.callRPC("AddMilestone", payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -375,7 +376,8 @@ final class SyncService {
             inputType: payload.inputType ?? "date",
             milestoneDate: payload.milestoneDate,
             ageYears: payload.ageYears,
-            ageMonths: payload.ageMonths
+            ageMonths: payload.ageMonths,
+            photoIds: payload.photoIds
         )
         let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC("UpdateMilestone", payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -565,7 +567,8 @@ final class SyncService {
             milestoneDate: dateToAPIString(milestone.date),
             inputType: dateEntry?.inputType,
             ageYears: dateEntry?.ageYears,
-            ageMonths: dateEntry?.ageMonths
+            ageMonths: dateEntry?.ageMonths,
+            photoIds: milestone.photoRemoteIds.isEmpty ? nil : milestone.photoRemoteIds
         )
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
@@ -585,7 +588,10 @@ final class SyncService {
             milestoneDate: dateToAPIString(milestone.date),
             inputType: dateEntry?.inputType,
             ageYears: dateEntry?.ageYears,
-            ageMonths: dateEntry?.ageMonths
+            ageMonths: dateEntry?.ageMonths,
+            // Always sent on update, including empty, so detaching every photo
+            // is expressible rather than being read as "leave them alone".
+            photoIds: milestone.photoRemoteIds
         )
 
         try await enqueueOperation(

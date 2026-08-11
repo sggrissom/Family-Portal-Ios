@@ -4,6 +4,7 @@ import SwiftData
 enum TimelineItem: Identifiable {
     case milestone(Milestone)
     case growthData(GrowthData)
+    case photo(Photo)
 
     var id: UUID {
         switch self {
@@ -11,6 +12,8 @@ enum TimelineItem: Identifiable {
             return milestone.id
         case .growthData(let data):
             return data.id
+        case .photo(let photo):
+            return photo.id
         }
     }
 
@@ -20,15 +23,32 @@ enum TimelineItem: Identifiable {
             return milestone.date
         case .growthData(let data):
             return data.date
+        case .photo(let photo):
+            return photo.photoDate
         }
     }
 
+    /// A photo can be tagged with several people; the timeline attributes it to
+    /// the first so person filtering has something to match. `people` below is
+    /// what filtering actually uses.
     var person: Person? {
         switch self {
         case .milestone(let milestone):
             return milestone.person
         case .growthData(let data):
             return data.person
+        case .photo(let photo):
+            return photo.taggedPeople.first
+        }
+    }
+
+    /// Everyone this item belongs to. Only photos can have more than one.
+    var people: [Person] {
+        switch self {
+        case .photo(let photo):
+            return photo.taggedPeople
+        default:
+            return person.map { [$0] } ?? []
         }
     }
 }
@@ -36,6 +56,7 @@ enum TimelineItem: Identifiable {
 struct TimelineView: View {
     @Query(sort: \GrowthData.date, order: .reverse) private var growthData: [GrowthData]
     @Query(sort: \Milestone.date, order: .reverse) private var milestones: [Milestone]
+    @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
     @Query private var people: [Person]
     @Environment(SyncService.self) private var syncService
 
@@ -50,7 +71,8 @@ struct TimelineView: View {
     private var timelineItems: [TimelineItem] {
         let milestoneItems = milestones.map { TimelineItem.milestone($0) }
         let growthItems = growthData.map { TimelineItem.growthData($0) }
-        return (milestoneItems + growthItems).sorted { $0.date > $1.date }
+        let photoItems = photos.map { TimelineItem.photo($0) }
+        return (milestoneItems + growthItems + photoItems).sorted { $0.date > $1.date }
     }
 
     private var availableYears: [Int] {
@@ -60,7 +82,7 @@ struct TimelineView: View {
 
     private var filteredTimelineItems: [TimelineItem] {
         timelineItems.filter { item in
-            if let selectedPersonId, item.person?.id != selectedPersonId {
+            if let selectedPersonId, !item.people.contains(where: { $0.id == selectedPersonId }) {
                 return false
             }
 
@@ -71,6 +93,8 @@ struct TimelineView: View {
                 guard case .milestone = item else { return false }
             case .measurements:
                 guard case .growthData = item else { return false }
+            case .photos:
+                guard case .photo = item else { return false }
             }
 
             if let selectedYear {
@@ -89,6 +113,8 @@ struct TimelineView: View {
                 if let selectedMeasurementType, data.measurementType != selectedMeasurementType {
                     return false
                 }
+            case .photo:
+                break
             }
 
             return matchesSearch(item)
@@ -102,7 +128,7 @@ struct TimelineView: View {
                     ContentUnavailableView(
                         "No activity yet",
                         systemImage: "clock",
-                        description: Text("Milestones and measurements will appear here")
+                        description: Text("Milestones, measurements, and photos will appear here")
                     )
                 } else {
                     VStack(spacing: 0) {
@@ -144,6 +170,9 @@ struct TimelineView: View {
                 selectedMeasurementType = nil
             case .measurements:
                 selectedMilestoneCategory = nil
+            case .photos:
+                selectedMilestoneCategory = nil
+                selectedMeasurementType = nil
             }
         }
     }
@@ -163,6 +192,10 @@ struct TimelineView: View {
             haystacks.append(data.measurementType.rawValue)
             haystacks.append(data.unit.rawValue)
             haystacks.append(String(format: "%.1f", data.value))
+        case .photo(let photo):
+            haystacks.append(photo.title)
+            haystacks.append(photo.descriptionText)
+            haystacks.append(contentsOf: photo.taggedPeople.map(\.name))
         }
         return haystacks.contains { $0.localizedCaseInsensitiveContains(trimmedSearch) }
     }
@@ -259,6 +292,7 @@ private enum TimelineFilterType: CaseIterable {
     case all
     case milestones
     case measurements
+    case photos
 
     var label: String {
         switch self {
@@ -268,6 +302,8 @@ private enum TimelineFilterType: CaseIterable {
             return "Milestones"
         case .measurements:
             return "Measurements"
+        case .photos:
+            return "Photos"
         }
     }
 }
@@ -291,6 +327,8 @@ struct TimelineRowView: View {
             case .height: return "ruler"
             case .weight: return "scalemass"
             }
+        case .photo:
+            return "photo"
         }
     }
 
@@ -310,6 +348,8 @@ struct TimelineRowView: View {
             case .height: return .blue
             case .weight: return .teal
             }
+        case .photo:
+            return .pink
         }
     }
 
@@ -322,6 +362,9 @@ struct TimelineRowView: View {
                 ? String(format: "%.0f", data.value)
                 : String(format: "%.1f", data.value)
             return "\(data.measurementType.rawValue.capitalized): \(formatted) \(data.unit.rawValue)"
+        case .photo(let photo):
+            // Uploads start with an empty title until someone names them.
+            return photo.title.isEmpty ? "Photo" : photo.title
         }
     }
 
@@ -331,12 +374,24 @@ struct TimelineRowView: View {
             return milestone.category.rawValue.capitalized
         case .growthData(let data):
             return data.measurementType.rawValue.capitalized
+        case .photo:
+            return "Photo"
         }
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            if let person = item.person {
+            if case .photo(let photo) = item {
+                // Show the photo itself rather than an avatar — it's the point
+                // of the row, and a photo can be tagged with several people.
+                PhotoThumbnailView(
+                    imageData: photo.imageData,
+                    title: "",
+                    remoteId: photo.remoteId
+                )
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else if let person = item.person {
                 PersonAvatarView(
                     name: person.name,
                     type: person.type,
@@ -361,8 +416,8 @@ struct TimelineRowView: View {
                         .fixedSize(horizontal: true, vertical: false)
                         .layoutPriority(1)
 
-                    if let person = item.person {
-                        Text(person.name)
+                    if !item.people.isEmpty {
+                        Text(item.people.map(\.name).joined(separator: ", "))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -387,9 +442,9 @@ struct TimelineRowView: View {
 
 #Preview {
     TimelineView()
-        .modelContainer(for: [Person.self, GrowthData.self, Milestone.self], inMemory: true)
+        .modelContainer(for: [Person.self, GrowthData.self, Milestone.self, Photo.self], inMemory: true)
         .environment(SyncService(
-            modelContext: ModelContext(try! ModelContainer(for: Person.self, GrowthData.self, Milestone.self)),
+            modelContext: ModelContext(try! ModelContainer(for: Person.self, GrowthData.self, Milestone.self, Photo.self)),
             apiClient: APIClient(),
             networkMonitor: NetworkMonitor()
         ))

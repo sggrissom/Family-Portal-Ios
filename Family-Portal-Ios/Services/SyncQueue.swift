@@ -85,6 +85,7 @@ struct CreateMilestonePayload: Codable, Sendable {
     let inputType: String?
     let ageYears: Int?
     let ageMonths: Int?
+    let photoIds: [Int]?
 }
 
 struct UploadPhotoPayload: Codable, Sendable {
@@ -119,6 +120,7 @@ struct UpdateMilestonePayload: Codable, Sendable {
     let inputType: String?
     let ageYears: Int?
     let ageMonths: Int?
+    let photoIds: [Int]?
 }
 
 struct UpdatePhotoPayload: Codable, Sendable {

@@ -380,6 +380,7 @@ struct AddMilestoneRequestDTO: Encodable, Sendable {
     let milestoneDate: String?   // "yyyy-MM-dd" if inputType="date"
     let ageYears: Int?           // if inputType="age"
     let ageMonths: Int?          // if inputType="age"
+    let photoIds: [Int]?         // remote ids of photos to associate
 }
 
 struct UpdateMilestoneRequestDTO: Encodable, Sendable {
@@ -390,6 +391,7 @@ struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let milestoneDate: String?
     let ageYears: Int?
     let ageMonths: Int?
+    let photoIds: [Int]?
 }
 
 struct UpdatePhotoRequestDTO: Encodable, Sendable {

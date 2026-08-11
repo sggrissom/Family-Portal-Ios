@@ -149,7 +149,8 @@ struct DateEntryTests {
                 inputType: "age",
                 milestoneDate: nil,
                 ageYears: 1,
-                ageMonths: 0
+                ageMonths: 0,
+                photoIds: nil
             )
         )
         let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
