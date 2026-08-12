@@ -77,10 +77,53 @@ nonisolated struct MobileVersionPolicyDTO: Codable, Sendable {
     let updateMessage: String
 }
 
-struct FamilyInfoDTO: Codable, Sendable {
+/// `FamilyInfo` in backend/users.go — one family the signed-in user belongs to,
+/// and what they may do in it.
+struct FamilyInfoDTO: Codable, Sendable, Identifiable {
     let id: Int
     let name: String
     let inviteCode: String
+    let role: Int
+    let isPrimary: Bool
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        inviteCode = try container.decode(String.self, forKey: .inviteCode)
+        role = try container.decodeIfPresent(Int.self, forKey: .role) ?? 0
+        isPrimary = try container.decodeIfPresent(Bool.self, forKey: .isPrimary) ?? false
+    }
+}
+
+/// `FamilyInfoResponse`. The top-level fields describe the primary family and
+/// predate multi-family membership; `families` is the full list.
+struct FamilyInfoResponseDTO: Codable, Sendable {
+    let id: Int
+    let name: String
+    let inviteCode: String
+    let families: [FamilyInfoDTO]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        inviteCode = try container.decode(String.self, forKey: .inviteCode)
+        // A nil Go slice marshals as null.
+        families = try container.decodeIfPresent([FamilyInfoDTO].self, forKey: .families) ?? []
+    }
+}
+
+/// `JoinFamilyRequest` / `JoinFamilyResponse` in backend/users.go. Joining adds
+/// a family rather than moving between them: the primary family is left alone.
+struct JoinFamilyRequestDTO: Codable, Sendable {
+    let inviteCode: String
+}
+
+struct JoinFamilyResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+    let auth: AuthResponseDTO?
 }
 
 struct PersonDTO: Codable, Sendable {
