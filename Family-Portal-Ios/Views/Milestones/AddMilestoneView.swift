@@ -41,7 +41,7 @@ struct AddMilestoneView: View {
                 }
 
                 Section {
-                    DatePicker("Date", selection: $date, displayedComponents: .date)
+                    DateEntryPicker(birthday: person?.birthday, date: $date)
                 }
             }
             .navigationTitle("Add Milestone")
