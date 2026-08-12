@@ -248,7 +248,8 @@ final class SyncService {
             description: payload.description,
             category: payload.category,
             inputType: "date",
-            milestoneDate: payload.milestoneDate
+            milestoneDate: payload.milestoneDate,
+            photoIds: payload.photoIds
         )
         let response: AddMilestoneResponseDTO = try await apiClient.callRPC("AddMilestone", payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -367,7 +368,8 @@ final class SyncService {
             description: payload.description,
             category: payload.category,
             inputType: "date",
-            milestoneDate: payload.milestoneDate
+            milestoneDate: payload.milestoneDate,
+            photoIds: payload.photoIds
         )
         let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC("UpdateMilestone", payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -540,7 +542,8 @@ final class SyncService {
             personLocalId: person.id.uuidString,
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
-            milestoneDate: dateToAPIString(milestone.date)
+            milestoneDate: dateToAPIString(milestone.date),
+            photoIds: milestone.photoRemoteIds
         )
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
@@ -554,10 +557,14 @@ final class SyncService {
     }
 
     func updateMilestone(_ milestone: Milestone) async throws {
+        // Always sent, so unlinking a photo takes effect. photoRemoteIds
+        // mirrors the server after every pull, so it is safe to treat as the
+        // desired set rather than a partial update.
         let payload = UpdateMilestonePayload(
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
-            milestoneDate: dateToAPIString(milestone.date)
+            milestoneDate: dateToAPIString(milestone.date),
+            photoIds: milestone.photoRemoteIds
         )
 
         try await enqueueOperation(

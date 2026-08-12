@@ -77,6 +77,9 @@ nonisolated struct CreateMilestonePayload: Codable, Sendable {
     let description: String
     let category: String
     let milestoneDate: String
+    /// Optional so operations queued before milestone photos existed still
+    /// decode. nil and [] mean the same thing on create.
+    let photoIds: [Int]?
 }
 
 nonisolated struct UploadPhotoPayload: Codable, Sendable {
@@ -105,6 +108,9 @@ nonisolated struct UpdateMilestonePayload: Codable, Sendable {
     let description: String
     let category: String
     let milestoneDate: String
+    /// Optional both for queue compatibility and because the backend reads nil
+    /// as "leave the existing links alone", while [] clears them.
+    let photoIds: [Int]?
 }
 
 nonisolated struct UpdatePhotoPayload: Codable, Sendable {

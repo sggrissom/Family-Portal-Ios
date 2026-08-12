@@ -300,6 +300,10 @@ struct AddMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     let inputType: String        // "date" or "today"
     let milestoneDate: String?   // "yyyy-MM-dd" if inputType="date"
+    /// Photos to link, by remote id. Omitted when nil — and on update the
+    /// backend reads a missing `photoIds` as "leave existing links alone"
+    /// (backend/milestone.go: `if req.PhotoIds != nil`).
+    let photoIds: [Int]?
 }
 
 struct UpdateMilestoneRequestDTO: Encodable, Sendable {
@@ -308,6 +312,7 @@ struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     let inputType: String
     let milestoneDate: String?
+    let photoIds: [Int]?
 }
 
 struct UpdatePhotoRequestDTO: Encodable, Sendable {

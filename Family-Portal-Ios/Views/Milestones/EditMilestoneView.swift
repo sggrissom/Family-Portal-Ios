@@ -13,12 +13,14 @@ struct EditMilestoneView: View {
     @State private var descriptionText: String
     @State private var category: MilestoneCategory
     @State private var date: Date
+    @State private var selectedPhotoIds: [Int]
 
     init(milestone: Milestone) {
         self.milestone = milestone
         _descriptionText = State(initialValue: milestone.descriptionText)
         _category = State(initialValue: milestone.category)
         _date = State(initialValue: milestone.date)
+        _selectedPhotoIds = State(initialValue: milestone.photoRemoteIds)
     }
 
     private var isValid: Bool {
@@ -44,6 +46,8 @@ struct EditMilestoneView: View {
                 Section {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
+
+                MilestonePhotosSection(selectedPhotoIds: $selectedPhotoIds)
             }
             .navigationTitle("Edit Milestone")
             .navigationBarTitleDisplayMode(.inline)
@@ -67,6 +71,7 @@ struct EditMilestoneView: View {
         milestone.descriptionText = descriptionText.trimmingCharacters(in: .whitespaces)
         milestone.category = category
         milestone.date = date
+        milestone.photoRemoteIds = selectedPhotoIds
 
         // The write is already local and the queue guarantees delivery, so the
         // sheet doesn't wait on the network to close.

@@ -13,6 +13,7 @@ struct AddMilestoneView: View {
     @State private var category: MilestoneCategory = .development
     @State private var date: Date = .now
     @State private var isSaving = false
+    @State private var selectedPhotoIds: [Int] = []
 
     private var isValid: Bool {
         !descriptionText.trimmingCharacters(in: .whitespaces).isEmpty
@@ -43,6 +44,8 @@ struct AddMilestoneView: View {
                 Section {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
+
+                MilestonePhotosSection(selectedPhotoIds: $selectedPhotoIds)
             }
             .navigationTitle("Add Milestone")
             .navigationBarTitleDisplayMode(.inline)
@@ -67,6 +70,7 @@ struct AddMilestoneView: View {
         isSaving = true
         let milestone = Milestone(descriptionText: descriptionText.trimmingCharacters(in: .whitespaces), category: category, date: date)
         milestone.person = person
+        milestone.photoRemoteIds = selectedPhotoIds
         modelContext.insert(milestone)
 
         Task {
