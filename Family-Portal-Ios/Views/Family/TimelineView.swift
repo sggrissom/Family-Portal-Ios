@@ -4,6 +4,7 @@ import SwiftData
 enum TimelineItem: Identifiable {
     case milestone(Milestone)
     case growthData(GrowthData)
+    case photo(Photo)
 
     var id: UUID {
         switch self {
@@ -11,6 +12,8 @@ enum TimelineItem: Identifiable {
             return milestone.id
         case .growthData(let data):
             return data.id
+        case .photo(let photo):
+            return photo.id
         }
     }
 
@@ -20,22 +23,33 @@ enum TimelineItem: Identifiable {
             return milestone.date
         case .growthData(let data):
             return data.date
+        case .photo(let photo):
+            return photo.photoDate
+        }
+    }
+
+    /// A photo can be tagged with several people, so person filtering matches
+    /// any of them; `person` is only what the row shows.
+    var people: [Person] {
+        switch self {
+        case .milestone(let milestone):
+            return [milestone.person].compactMap { $0 }
+        case .growthData(let data):
+            return [data.person].compactMap { $0 }
+        case .photo(let photo):
+            return photo.taggedPeople
         }
     }
 
     var person: Person? {
-        switch self {
-        case .milestone(let milestone):
-            return milestone.person
-        case .growthData(let data):
-            return data.person
-        }
+        people.first
     }
 }
 
 struct TimelineView: View {
     @Query(sort: \GrowthData.date, order: .reverse) private var growthData: [GrowthData]
     @Query(sort: \Milestone.date, order: .reverse) private var milestones: [Milestone]
+    @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
     @Query private var people: [Person]
     @Environment(SyncService.self) private var syncService
 
@@ -50,7 +64,8 @@ struct TimelineView: View {
     private var timelineItems: [TimelineItem] {
         let milestoneItems = milestones.map { TimelineItem.milestone($0) }
         let growthItems = growthData.map { TimelineItem.growthData($0) }
-        return (milestoneItems + growthItems).sorted { $0.date > $1.date }
+        let photoItems = photos.map { TimelineItem.photo($0) }
+        return (milestoneItems + growthItems + photoItems).sorted { $0.date > $1.date }
     }
 
     private var availableYears: [Int] {
@@ -60,7 +75,7 @@ struct TimelineView: View {
 
     private var filteredTimelineItems: [TimelineItem] {
         timelineItems.filter { item in
-            if let selectedPersonId, item.person?.id != selectedPersonId {
+            if let selectedPersonId, !item.people.contains(where: { $0.id == selectedPersonId }) {
                 return false
             }
 
@@ -71,6 +86,8 @@ struct TimelineView: View {
                 guard case .milestone = item else { return false }
             case .measurements:
                 guard case .growthData = item else { return false }
+            case .photos:
+                guard case .photo = item else { return false }
             }
 
             if let selectedYear {
@@ -89,6 +106,8 @@ struct TimelineView: View {
                 if let selectedMeasurementType, data.measurementType != selectedMeasurementType {
                     return false
                 }
+            case .photo:
+                break
             }
 
             return matchesSearch(item)
@@ -144,6 +163,9 @@ struct TimelineView: View {
                 selectedMeasurementType = nil
             case .measurements:
                 selectedMilestoneCategory = nil
+            case .photos:
+                selectedMilestoneCategory = nil
+                selectedMeasurementType = nil
             }
         }
     }
@@ -151,10 +173,7 @@ struct TimelineView: View {
     private func matchesSearch(_ item: TimelineItem) -> Bool {
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedSearch.isEmpty else { return true }
-        var haystacks: [String] = []
-        if let person = item.person {
-            haystacks.append(person.name)
-        }
+        var haystacks: [String] = item.people.map(\.name)
         switch item {
         case .milestone(let milestone):
             haystacks.append(milestone.descriptionText)
@@ -163,6 +182,9 @@ struct TimelineView: View {
             haystacks.append(data.measurementType.rawValue)
             haystacks.append(data.unit.rawValue)
             haystacks.append(String(format: "%.1f", data.value))
+        case .photo(let photo):
+            haystacks.append(photo.title)
+            haystacks.append(photo.descriptionText)
         }
         return haystacks.contains { $0.localizedCaseInsensitiveContains(trimmedSearch) }
     }
@@ -259,6 +281,7 @@ private enum TimelineFilterType: CaseIterable {
     case all
     case milestones
     case measurements
+    case photos
 
     var label: String {
         switch self {
@@ -268,6 +291,8 @@ private enum TimelineFilterType: CaseIterable {
             return "Milestones"
         case .measurements:
             return "Measurements"
+        case .photos:
+            return "Photos"
         }
     }
 }
@@ -291,6 +316,8 @@ struct TimelineRowView: View {
             case .height: return "ruler"
             case .weight: return "scalemass"
             }
+        case .photo:
+            return "photo"
         }
     }
 
@@ -310,6 +337,8 @@ struct TimelineRowView: View {
             case .height: return .blue
             case .weight: return .teal
             }
+        case .photo:
+            return .indigo
         }
     }
 
@@ -322,6 +351,13 @@ struct TimelineRowView: View {
                 ? String(format: "%.0f", data.value)
                 : String(format: "%.1f", data.value)
             return "\(data.measurementType.rawValue.capitalized): \(formatted) \(data.unit.rawValue)"
+        case .photo(let photo):
+            // Photos are uploaded with no title from the gallery today, so fall
+            // back to something better than an empty row.
+            let title = photo.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !title.isEmpty { return title }
+            let description = photo.descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return description.isEmpty ? "Photo" : description
         }
     }
 
@@ -331,6 +367,8 @@ struct TimelineRowView: View {
             return milestone.category.rawValue.capitalized
         case .growthData(let data):
             return data.measurementType.rawValue.capitalized
+        case .photo:
+            return "Photo"
         }
     }
 
@@ -377,6 +415,12 @@ struct TimelineRowView: View {
 
             Spacer()
 
+            if case .photo(let photo) = item {
+                PhotoThumbnailView(imageData: photo.imageData, title: "", remoteId: photo.remoteId)
+                    .frame(width: 44, height: 44)
+                    .accessibilityLabel(descriptionText)
+            }
+
             Text(item.date.formatted(date: .abbreviated, time: .omitted))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -387,9 +431,9 @@ struct TimelineRowView: View {
 
 #Preview {
     TimelineView()
-        .modelContainer(for: [Person.self, GrowthData.self, Milestone.self], inMemory: true)
+        .modelContainer(for: [Person.self, GrowthData.self, Milestone.self, Photo.self], inMemory: true)
         .environment(SyncService(
-            modelContext: ModelContext(try! ModelContainer(for: Person.self, GrowthData.self, Milestone.self)),
+            modelContext: ModelContext(try! ModelContainer(for: Person.self, GrowthData.self, Milestone.self, Photo.self)),
             apiClient: APIClient(),
             networkMonitor: NetworkMonitor()
         ))
