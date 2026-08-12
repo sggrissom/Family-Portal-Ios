@@ -176,6 +176,62 @@ final class AuthService {
         isLoading = false
     }
 
+    // MARK: - Families
+
+    /// `GetFamilyInfo` (backend/users.go). Every family the user belongs to,
+    /// each with the invite code others need to join it. Empty until loaded.
+    @MainActor private(set) var families: [FamilyInfoDTO] = []
+
+    /// Returns nil on success or a message to show the user. A user with no
+    /// family at all gets an error rather than an empty list, which is why the
+    /// caller has to distinguish "not loaded" from "none".
+    @MainActor
+    func loadFamilyInfo() async -> String? {
+        do {
+            struct EmptyPayload: Encodable {}
+            let response: FamilyInfoResponseDTO = try await APIClient.shared.callRPC(
+                "GetFamilyInfo",
+                payload: EmptyPayload()
+            )
+            families = response.families
+            return nil
+        } catch let error as APIError {
+            families = []
+            return error.errorDescription
+        } catch {
+            families = []
+            return error.localizedDescription
+        }
+    }
+
+    /// `JoinFamily` (backend/users.go). The joined family's people show up on
+    /// the next pull, since `GetFamilyTimeline` reads every family the user can
+    /// see — so callers should sync afterwards.
+    ///
+    /// Returns nil on success or a message to show the user.
+    @MainActor
+    func joinFamily(inviteCode: String) async -> String? {
+        do {
+            let response: JoinFamilyResponseDTO = try await APIClient.shared.callRPC(
+                "JoinFamily",
+                payload: JoinFamilyRequestDTO(inviteCode: inviteCode)
+            )
+
+            guard response.success else {
+                return response.error ?? "Could not join that family."
+            }
+
+            if let auth = response.auth {
+                currentUser = auth
+            }
+            return await loadFamilyInfo()
+        } catch let error as APIError {
+            return error.errorDescription
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     @MainActor
     func logout() async {
         do {
@@ -196,6 +252,7 @@ final class AuthService {
 
         await APIClient.shared.clearTokens()
         currentUser = nil
+        families = []
     }
 
     @MainActor
