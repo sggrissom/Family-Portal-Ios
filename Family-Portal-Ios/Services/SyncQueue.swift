@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Operation Types
 
-enum SyncOperationType: String, Codable, Sendable {
+nonisolated enum SyncOperationType: String, Codable, Sendable {
     case createPerson
     case updatePerson
     case createGrowthData
@@ -20,7 +20,7 @@ enum SyncOperationType: String, Codable, Sendable {
 
 // MARK: - Pending Operation
 
-struct PendingOperation: Codable, Identifiable, Sendable {
+nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
     let id: UUID
     let type: SyncOperationType
     let localId: String
@@ -50,21 +50,21 @@ struct PendingOperation: Codable, Identifiable, Sendable {
 
 // MARK: - Payload Structs
 
-struct CreatePersonPayload: Codable, Sendable {
+nonisolated struct CreatePersonPayload: Codable, Sendable {
     let name: String
     let personType: Int
     let gender: Int
     let birthdate: String
 }
 
-struct UpdatePersonPayload: Codable, Sendable {
+nonisolated struct UpdatePersonPayload: Codable, Sendable {
     let name: String
     let personType: Int
     let gender: Int
     let birthdate: String
 }
 
-struct CreateGrowthDataPayload: Codable, Sendable {
+nonisolated struct CreateGrowthDataPayload: Codable, Sendable {
     let personLocalId: String
     let measurementType: String
     let value: Double
@@ -72,48 +72,48 @@ struct CreateGrowthDataPayload: Codable, Sendable {
     let measurementDate: String
 }
 
-struct CreateMilestonePayload: Codable, Sendable {
+nonisolated struct CreateMilestonePayload: Codable, Sendable {
     let personLocalId: String
     let description: String
     let category: String
     let milestoneDate: String
 }
 
-struct UploadPhotoPayload: Codable, Sendable {
+nonisolated struct UploadPhotoPayload: Codable, Sendable {
     let title: String
     let description: String
     let photoDate: String
     let taggedPersonLocalIds: [String]
 }
 
-struct AddPeopleToPhotoPayload: Codable, Sendable {
+nonisolated struct AddPeopleToPhotoPayload: Codable, Sendable {
     let personLocalIds: [String]
 }
 
-struct RemovePersonFromPhotoPayload: Codable, Sendable {
+nonisolated struct RemovePersonFromPhotoPayload: Codable, Sendable {
     let personLocalId: String
 }
 
-struct UpdateGrowthDataPayload: Codable, Sendable {
+nonisolated struct UpdateGrowthDataPayload: Codable, Sendable {
     let measurementType: String
     let value: Double
     let unit: String
     let measurementDate: String
 }
 
-struct UpdateMilestonePayload: Codable, Sendable {
+nonisolated struct UpdateMilestonePayload: Codable, Sendable {
     let description: String
     let category: String
     let milestoneDate: String
 }
 
-struct UpdatePhotoPayload: Codable, Sendable {
+nonisolated struct UpdatePhotoPayload: Codable, Sendable {
     let title: String
     let description: String
     let photoDate: String
 }
 
-struct DeletePayload: Codable, Sendable {
+nonisolated struct DeletePayload: Codable, Sendable {
     let remoteId: Int
 }
 

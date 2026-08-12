@@ -23,13 +23,9 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<!-- iPhone only. This target uses a manual Info.plist, so
-	     TARGETED_DEVICE_FAMILY alone does not emit UIDeviceFamily and the
-	     declared device support has to be stated here. -->
-	<key>UIDeviceFamily</key>
-	<array>
-		<integer>1</integer>
-	</array>
+	<!-- iPhone only. Device support comes from the TARGETED_DEVICE_FAMILY
+	     build setting, which emits UIDeviceFamily into the built plist;
+	     declaring it here too is overwritten at build time and warns. -->
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

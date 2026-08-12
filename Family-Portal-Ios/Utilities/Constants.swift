@@ -1,6 +1,8 @@
 import Foundation
 
-enum AppConstants {
+/// `nonisolated` so actors (APIClient, SyncQueue) can read these without
+/// hopping to the main actor.
+nonisolated enum AppConstants {
     static let appName = "Family Record"
     static let defaultServerURL = "https://familyrecord.app"
 
@@ -23,12 +25,12 @@ enum AppConstants {
         "\(marketingVersion) (\(buildNumber))"
     }
 
-    enum Keychain {
+    nonisolated enum Keychain {
         static let accessToken = "com.familyrecord.accessToken"
         static let refreshToken = "com.familyrecord.refreshToken"
     }
 
-    enum TokenExpiry {
+    nonisolated enum TokenExpiry {
         static let accessToken: TimeInterval = 24 * 60 * 60       // 24 hours
         static let refreshToken: TimeInterval = 30 * 24 * 60 * 60 // 30 days
     }
