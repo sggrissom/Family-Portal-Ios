@@ -11,6 +11,7 @@ struct MeasurementListView: View {
 
     @State private var selectedType: MeasurementType = .height
     @State private var showingAddMeasurement = false
+    @State private var editingMeasurement: GrowthData?
 
     private let personId: UUID
 
@@ -54,7 +55,13 @@ struct MeasurementListView: View {
             } else {
                 List {
                     ForEach(filteredMeasurements, id: \.id) { measurement in
-                        MeasurementRowView(value: measurement.value, unit: measurement.unit, date: measurement.date)
+                        Button {
+                            editingMeasurement = measurement
+                        } label: {
+                            MeasurementRowView(value: measurement.value, unit: measurement.unit, date: measurement.date)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Edit this measurement")
                     }
                     .onDelete(perform: deleteMeasurements)
                 }
@@ -74,6 +81,9 @@ struct MeasurementListView: View {
         }
         .sheet(isPresented: $showingAddMeasurement) {
             AddMeasurementView(personId: personId, initialType: selectedType)
+        }
+        .sheet(item: $editingMeasurement) { measurement in
+            EditMeasurementView(measurement: measurement)
         }
     }
 

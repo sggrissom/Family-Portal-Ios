@@ -64,6 +64,7 @@ struct MilestoneRowView: View {
 private struct MilestoneDetailSheetView: View {
     let milestone: Milestone
     @Environment(\.dismiss) private var dismiss
+    @State private var isEditing = false
 
     var body: some View {
         NavigationStack {
@@ -98,11 +99,19 @@ private struct MilestoneDetailSheetView: View {
             }
             .navigationTitle("Milestone")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Edit") {
+                        isEditing = true
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
+            }
+            .sheet(isPresented: $isEditing) {
+                EditMilestoneView(milestone: milestone)
             }
         }
     }
