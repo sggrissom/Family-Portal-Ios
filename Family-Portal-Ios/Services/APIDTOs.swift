@@ -159,6 +159,28 @@ struct JoinFamilyResponseDTO: Codable, Sendable {
     let auth: AuthResponseDTO?
 }
 
+/// `RegisterPushDeviceRequest` in backend/push_notifications.go. The server
+/// validates `platform`, `environment`, and `bundleId` against its own APNs
+/// configuration and rejects anything that doesn't match.
+struct RegisterPushDeviceRequestDTO: Codable, Sendable {
+    let token: String
+    let platform: String
+    let environment: String
+    let bundleId: String
+}
+
+struct RegisterPushDeviceResponseDTO: Codable, Sendable {
+    let success: Bool
+}
+
+struct UnregisterPushDeviceRequestDTO: Codable, Sendable {
+    let token: String
+}
+
+struct UnregisterPushDeviceResponseDTO: Codable, Sendable {
+    let success: Bool
+}
+
 struct PersonDTO: Codable, Sendable {
     let id: Int
     let familyId: Int

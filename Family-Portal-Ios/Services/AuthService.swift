@@ -13,6 +13,11 @@ final class AuthService {
 
     private let googleSignInService = GoogleSignInService()
 
+    /// Runs at the start of `logout`, while the session is still valid. Push
+    /// registration is retired here so it can't be missed by whichever screen
+    /// happens to trigger the sign-out.
+    @MainActor var onWillLogout: (@MainActor () async -> Void)?
+
     var isAuthenticated: Bool {
         currentUser != nil
     }
@@ -234,6 +239,8 @@ final class AuthService {
 
     @MainActor
     func logout() async {
+        await onWillLogout?()
+
         do {
             struct EmptyBody: Encodable {}
             let _: LogoutResponseDTO = try await APIClient.shared.request(
