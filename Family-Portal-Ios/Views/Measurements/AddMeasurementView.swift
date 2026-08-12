@@ -45,7 +45,9 @@ struct AddMeasurementView: View {
                     }
                 }
 
-                DatePicker("Date", selection: $date, displayedComponents: .date)
+                Section {
+                    DateEntryPicker(birthday: person?.birthday, date: $date)
+                }
             }
             .navigationTitle("Add Measurement")
             .navigationBarTitleDisplayMode(.inline)
