@@ -56,6 +56,88 @@ final class AuthService {
         isLoading = false
     }
 
+    /// `CreateAccount` (backend/users.go) creates the account, its family, and
+    /// an optional first person, then returns a token — so a successful sign-up
+    /// leaves the user signed in exactly as `login` would.
+    ///
+    /// Returns nil on success or a message to show the user. The failure is kept
+    /// out of the shared `errorMessage` so it can't surface on the sign-in
+    /// screen behind this one.
+    @MainActor
+    func createAccount(
+        name: String,
+        email: String,
+        password: String,
+        confirmPassword: String,
+        familyCode: String = "",
+        initialPerson: InitialPerson? = nil
+    ) async -> String? {
+        isLoading = true
+        defer { isLoading = false }
+
+        // The website falls back to the account name here, and the backend
+        // validates the person only when a birthdate is present.
+        let personName = initialPerson.map { $0.name.isEmpty ? name : $0.name } ?? name
+
+        let request = CreateAccountRequestDTO(
+            name: name,
+            email: email,
+            password: password,
+            confirmPassword: confirmPassword,
+            familyCode: familyCode,
+            initialPersonName: personName,
+            initialPersonGender: genderToInt(initialPerson?.gender ?? .other),
+            initialPersonBirthdate: initialPerson.map { dateToAPIString($0.birthdate) } ?? ""
+        )
+
+        do {
+            let response: CreateAccountResponseDTO = try await APIClient.shared.callPublicRPC(
+                "CreateAccount",
+                payload: request
+            )
+
+            guard response.success, let token = response.token, let auth = response.auth else {
+                return response.error ?? "Could not create your account."
+            }
+
+            await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
+            errorMessage = nil
+            currentUser = auth
+            return nil
+        } catch let error as APIError {
+            return error.errorDescription
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// `RequestPasswordReset` (backend/password_reset.go) emails a link to the
+    /// website's reset page. It answers identically for unknown addresses, so
+    /// the caller must not claim the account exists.
+    ///
+    /// Returns nil on success or a message to show the user.
+    @MainActor
+    func requestPasswordReset(email: String) async -> String? {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            let response: RequestPasswordResetResponseDTO = try await APIClient.shared.callPublicRPC(
+                "RequestPasswordReset",
+                payload: RequestPasswordResetRequestDTO(email: email)
+            )
+
+            guard response.success else {
+                return response.error ?? "Could not send the reset email."
+            }
+            return nil
+        } catch let error as APIError {
+            return error.errorDescription
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     @MainActor
     func loginWithGoogle() async {
         isLoading = true
@@ -145,6 +227,14 @@ final class AuthService {
     func handleGoogleSignInURL(_ url: URL) -> Bool {
         googleSignInService.handle(url)
     }
+}
+
+/// The first family member to create alongside a new account, mirroring the
+/// optional block on the website's create-account form.
+struct InitialPerson {
+    var name: String
+    var gender: Gender
+    var birthdate: Date
 }
 
 // MARK: - Additional DTOs

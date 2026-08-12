@@ -85,6 +85,15 @@ struct LoginView: View {
                     .disabled(authService.isLoading)
                 }
 
+                Section {
+                    NavigationLink("Create Account") {
+                        CreateAccountView()
+                    }
+
+                    NavigationLink("Forgot Password?") {
+                        ForgotPasswordView()
+                    }
+                }
             }
             .navigationTitle("Sign In")
             .onChange(of: authService.isAuthenticated) { _, isAuthenticated in

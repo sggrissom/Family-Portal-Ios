@@ -200,6 +200,19 @@ actor APIClient {
         try await request(path: "rpc/\(name)", method: .post, body: payload, requiresAuth: true)
     }
 
+    /// For the procs a signed-out user has to reach: `CreateAccount`,
+    /// `RequestPasswordReset`. No token is attached and a 401 is never retried,
+    /// because there is no session to refresh.
+    func callPublicRPC<T: Decodable, Body: Encodable>(_ name: String, payload: Body) async throws -> T {
+        try await request(
+            path: "rpc/\(name)",
+            method: .post,
+            body: payload,
+            requiresAuth: false,
+            retryOnAuthFailure: false
+        )
+    }
+
     func request<T: Decodable, Body: Encodable>(
         path: String,
         method: HTTPMethod = .post,
