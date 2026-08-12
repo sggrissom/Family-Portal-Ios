@@ -39,6 +39,39 @@ struct LoginResponseDTO: Codable, Sendable {
     let auth: AuthResponseDTO?
 }
 
+/// `CreateAccountRequest` in backend/users.go. An empty `familyCode` starts a
+/// new family; a matching invite code joins an existing one. The initial-person
+/// fields seed the family with its first member and are skipped entirely when
+/// `initialPersonBirthdate` is empty.
+struct CreateAccountRequestDTO: Codable, Sendable {
+    let name: String
+    let email: String
+    let password: String
+    let confirmPassword: String
+    let familyCode: String
+    let initialPersonName: String
+    let initialPersonGender: Int
+    let initialPersonBirthdate: String
+}
+
+struct CreateAccountResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+    let token: String?
+    let auth: AuthResponseDTO?
+}
+
+/// `RequestPasswordResetRequest` in backend/password_reset.go. The response is
+/// deliberately identical for known and unknown addresses.
+struct RequestPasswordResetRequestDTO: Codable, Sendable {
+    let email: String
+}
+
+struct RequestPasswordResetResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+}
+
 struct RefreshResponseDTO: Sendable {
     let success: Bool
     let error: String?
