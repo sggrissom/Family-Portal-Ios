@@ -7,10 +7,34 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 import GoogleSignIn
+
+/// SwiftUI has no hook for the APNs token, so registration results still have
+/// to arrive through a UIApplicationDelegate.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            await PushNotificationService.shared.handleDeviceToken(deviceToken)
+        }
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Task { @MainActor in
+            PushNotificationService.shared.handleRegistrationFailure(error)
+        }
+    }
+}
 
 @main
 struct Family_Portal_IosApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     let container: ModelContainer
     @State private var authService = AuthService()
     @State private var mobileVersionService = MobileVersionService()
@@ -55,6 +79,7 @@ struct Family_Portal_IosApp: App {
                         Task {
                             await syncService.performFullSync()
                             await initializeChatService()
+                            await PushNotificationService.shared.registerForPushNotifications()
                         }
                     } else {
                         chatService = nil
@@ -77,6 +102,12 @@ struct Family_Portal_IosApp: App {
             }
         }
 
+        // Retiring the device token needs a valid session, so it has to happen
+        // before logout clears it — wherever logout is triggered from.
+        authService.onWillLogout = {
+            await PushNotificationService.shared.unregisterForPushNotifications()
+        }
+
         // Runs alongside session restore rather than before it: the check must
         // never delay a signed-in user, and an unsupported build is gated by
         // ContentView regardless of how the restore turns out.
@@ -87,6 +118,9 @@ struct Family_Portal_IosApp: App {
         if authService.isAuthenticated {
             await syncService.performFullSync()
             await initializeChatService()
+            // Re-registering every launch is how a rotated APNs token reaches
+            // the server; RegisterPushDevice upserts, so a repeat is cheap.
+            await PushNotificationService.shared.registerForPushNotifications()
         }
     }
 
