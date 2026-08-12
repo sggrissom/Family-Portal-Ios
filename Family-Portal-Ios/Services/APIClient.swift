@@ -134,6 +134,18 @@ actor APIClient {
         syncCookies()
     }
 
+    /// Replaces the access token while leaving the refresh token alone.
+    ///
+    /// The refresh token never appears in a response body — `/api/login` sets it
+    /// as a `Set-Cookie`, which `captureTokens` has already stored by the time a
+    /// caller sees the JSON. Passing nil to `setTokens` here would delete the
+    /// one the server just issued, and `/api/refresh` never issues another
+    /// (backend/auth.go `refreshTokenHandler`), so the session would die with
+    /// the 24-hour access token.
+    func setAccessToken(_ token: String?) {
+        setTokens(accessToken: token, refreshToken: refreshToken)
+    }
+
     func clearTokens() {
         accessToken = nil
         refreshToken = nil

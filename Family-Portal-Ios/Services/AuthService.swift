@@ -42,7 +42,7 @@ final class AuthService {
             )
 
             if response.success, let token = response.token, let auth = response.auth {
-                await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
+                await APIClient.shared.setAccessToken(token)
                 currentUser = auth
             } else {
                 errorMessage = response.error ?? "Login failed."
@@ -100,14 +100,43 @@ final class AuthService {
                 return response.error ?? "Could not create your account."
             }
 
-            await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
+            await APIClient.shared.setAccessToken(token)
             errorMessage = nil
             currentUser = auth
+
+            // CreateAccount is an RPC, so unlike /api/login it never sets the
+            // refresh cookie — the new account would hold a 24-hour token and
+            // nothing to renew it with.
+            if !password.isEmpty {
+                await acquireRefreshToken(email: email, password: password)
+            }
             return nil
         } catch let error as APIError {
             return error.errorDescription
         } catch {
             return error.localizedDescription
+        }
+    }
+
+    /// Signs in behind an already-established session purely for the
+    /// `Set-Cookie` on the response, which `APIClient.captureTokens` stores.
+    /// A failure only costs the ability to renew silently, so it's swallowed.
+    @MainActor
+    private func acquireRefreshToken(email: String, password: String) async {
+        struct LoginRequest: Encodable {
+            let email: String
+            let password: String
+        }
+
+        do {
+            let _: LoginResponseDTO = try await APIClient.shared.request(
+                path: "api/login",
+                method: .post,
+                body: LoginRequest(email: email, password: password),
+                requiresAuth: false
+            )
+        } catch {
+            // Already signed in on the token CreateAccount returned.
         }
     }
 
@@ -156,7 +185,7 @@ final class AuthService {
             )
 
             if response.success, let token = response.token, let auth = response.auth {
-                await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
+                await APIClient.shared.setAccessToken(token)
                 currentUser = auth
             } else {
                 errorMessage = response.error ?? "Google sign-in failed."
@@ -212,7 +241,7 @@ final class AuthService {
                 retryOnAuthFailure: false
             )
             if response.success, let token = response.token {
-                await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
+                await APIClient.shared.setAccessToken(token)
                 currentUser = response.auth
             } else {
                 await APIClient.shared.clearTokens()
