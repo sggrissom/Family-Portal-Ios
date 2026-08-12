@@ -11,7 +11,18 @@
 		3322F9AE2F2B1DB4001AEB43 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 33BC6D722F2326CF00A38756 /* GoogleSignInSwift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		33AA0001AAAA0000BBBB000B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 33BC6D4C2F2326CE00A38756 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 33BC6D532F2326CE00A38756;
+			remoteInfo = "Family-Portal-Ios";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		33AA0001AAAA0000BBBB0002 /* Family-Portal-IosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Family-Portal-IosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Family-Portal-Ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -26,6 +37,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		33AA0001AAAA0000BBBB0003 /* Family-Portal-IosTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Family-Portal-IosTests";
+			sourceTree = "<group>";
+		};
 		33BC6D562F2326CE00A38756 /* Family-Portal-Ios */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -37,6 +53,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		33AA0001AAAA0000BBBB0005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		33BC6D512F2326CE00A38756 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -53,6 +76,7 @@
 			isa = PBXGroup;
 			children = (
 				33BC6D562F2326CE00A38756 /* Family-Portal-Ios */,
+				33AA0001AAAA0000BBBB0003 /* Family-Portal-IosTests */,
 				33BC6D552F2326CE00A38756 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */,
+				33AA0001AAAA0000BBBB0002 /* Family-Portal-IosTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -68,6 +93,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		33AA0001AAAA0000BBBB0001 /* Family-Portal-IosTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 33AA0001AAAA0000BBBB0007 /* Build configuration list for PBXNativeTarget "Family-Portal-IosTests" */;
+			buildPhases = (
+				33AA0001AAAA0000BBBB0004 /* Sources */,
+				33AA0001AAAA0000BBBB0005 /* Frameworks */,
+				33AA0001AAAA0000BBBB0006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				33AA0001AAAA0000BBBB000A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				33AA0001AAAA0000BBBB0003 /* Family-Portal-IosTests */,
+			);
+			name = "Family-Portal-IosTests";
+			packageProductDependencies = (
+			);
+			productName = "Family-Portal-IosTests";
+			productReference = 33AA0001AAAA0000BBBB0002 /* Family-Portal-IosTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		33BC6D532F2326CE00A38756 /* Family-Portal-Ios */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 33BC6D5F2F2326CF00A38756 /* Build configuration list for PBXNativeTarget "Family-Portal-Ios" */;
@@ -102,6 +150,10 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					33AA0001AAAA0000BBBB0001 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 33BC6D532F2326CE00A38756;
+					};
 					33BC6D532F2326CE00A38756 = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -125,11 +177,19 @@
 			projectRoot = "";
 			targets = (
 				33BC6D532F2326CE00A38756 /* Family-Portal-Ios */,
+				33AA0001AAAA0000BBBB0001 /* Family-Portal-IosTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		33AA0001AAAA0000BBBB0006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		33BC6D522F2326CE00A38756 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -140,6 +200,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		33AA0001AAAA0000BBBB0004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		33BC6D502F2326CE00A38756 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -149,7 +216,57 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		33AA0001AAAA0000BBBB000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 33BC6D532F2326CE00A38756 /* Family-Portal-Ios */;
+			targetProxy = 33AA0001AAAA0000BBBB000B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		33AA0001AAAA0000BBBB0008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7S5TBT3VAE;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Family-Portal-Ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Family-Portal-Ios";
+			};
+			name = Debug;
+		};
+		33AA0001AAAA0000BBBB0009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7S5TBT3VAE;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Family-Portal-Ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Family-Portal-Ios";
+			};
+			name = Release;
+		};
 		33BC6D5D2F2326CF00A38756 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -202,7 +319,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -259,7 +376,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -284,14 +401,13 @@
 				INFOPLIST_FILE = "Family-Portal-Ios/Info.plist";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "grissom.Family-Portal-Ios";
+				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -299,7 +415,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -318,14 +434,13 @@
 				INFOPLIST_FILE = "Family-Portal-Ios/Info.plist";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "grissom.Family-Portal-Ios";
+				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -333,13 +448,22 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		33AA0001AAAA0000BBBB0007 /* Build configuration list for PBXNativeTarget "Family-Portal-IosTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				33AA0001AAAA0000BBBB0008 /* Debug */,
+				33AA0001AAAA0000BBBB0009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		33BC6D4F2F2326CE00A38756 /* Build configuration list for PBXProject "Family-Portal-Ios" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

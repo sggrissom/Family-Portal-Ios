@@ -1,0 +1,8 @@
+# Xcode per-user state — scheme ordering, window layout, breakpoints.
+# Shared schemes live in xcshareddata/ and stay tracked.
+xcuserdata/
+
+# Build products
+build/
+DerivedData/
+*.xcresult

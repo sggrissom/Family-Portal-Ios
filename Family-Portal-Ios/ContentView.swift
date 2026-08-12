@@ -10,9 +10,17 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(AuthService.self) private var authService
+    @Environment(MobileVersionService.self) private var mobileVersionService
 
     var body: some View {
-        if authService.isAuthenticated {
+        // The version gate sits outside the auth gate on purpose: the policy
+        // endpoint is pre-auth so an unsupported build never reaches login.
+        if mobileVersionService.status == .updateRequired {
+            UpdateRequiredView(
+                message: mobileVersionService.updateMessage,
+                updateURL: mobileVersionService.updateURL
+            )
+        } else if authService.isAuthenticated {
             mainTabs
         } else if authService.hasCheckedStoredSession {
             LoginView()
@@ -64,5 +72,6 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environment(AuthService())
+        .environment(MobileVersionService())
         .modelContainer(for: Person.self, inMemory: true)
 }

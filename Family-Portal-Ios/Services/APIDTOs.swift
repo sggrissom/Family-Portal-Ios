@@ -68,6 +68,15 @@ struct RefreshResponseDTO: Sendable {
 
 extension RefreshResponseDTO: Codable {}
 
+/// `CheckMobileVersionResponse` in backend/mobile_version.go.
+struct MobileVersionPolicyDTO: Codable, Sendable {
+    let status: String
+    let minimumVersion: String
+    let latestVersion: String
+    let updateUrl: String
+    let updateMessage: String
+}
+
 struct FamilyInfoDTO: Codable, Sendable {
     let id: Int
     let name: String
