@@ -5,6 +5,7 @@ struct PersonRowView: View {
     let type: PersonType
     let birthday: Date?
     let profilePhotoRemoteId: Int?
+    let crop: ProfilePhotoCrop
     let avatarSize: CGFloat
 
     init(
@@ -12,13 +13,30 @@ struct PersonRowView: View {
         type: PersonType,
         birthday: Date?,
         profilePhotoRemoteId: Int?,
+        crop: ProfilePhotoCrop = .centered,
         avatarSize: CGFloat = 80
     ) {
         self.name = name
         self.type = type
         self.birthday = birthday
         self.profilePhotoRemoteId = profilePhotoRemoteId
+        self.crop = crop
         self.avatarSize = avatarSize
+    }
+
+    init(person: Person, avatarSize: CGFloat = 80) {
+        self.init(
+            name: person.name,
+            type: person.type,
+            birthday: person.birthday,
+            profilePhotoRemoteId: person.profilePhotoId,
+            crop: ProfilePhotoCrop(
+                x: person.profileCropX,
+                y: person.profileCropY,
+                scale: person.profileCropScale
+            ),
+            avatarSize: avatarSize
+        )
     }
 
     private var ageText: String? {
@@ -32,6 +50,7 @@ struct PersonRowView: View {
                 name: name,
                 type: type,
                 profilePhotoRemoteId: profilePhotoRemoteId,
+                crop: crop,
                 size: avatarSize
             )
 

@@ -23,6 +23,7 @@ struct RPCMethodTests {
     func personProcNames() {
         #expect(RPCMethod.addPerson.rawValue == "AddPerson")
         #expect(RPCMethod.updatePerson.rawValue == "UpdatePerson")
+        #expect(RPCMethod.setProfilePhoto.rawValue == "SetProfilePhoto")
         #expect(RPCMethod.getFamilyTimeline.rawValue == "GetFamilyTimeline")
     }
 

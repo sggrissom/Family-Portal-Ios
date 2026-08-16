@@ -11,6 +11,15 @@ final class Person {
     var birthday: Date? = nil
     var profilePhotoId: Int? = nil
 
+    /// How the profile photo is framed inside the avatar circle: an origin in
+    /// percent plus a zoom factor, matching the backend's `profileCrop*` fields.
+    /// Only the web can edit these; iOS stores them so a crop chosen there is
+    /// rendered the same way here. `nil` means centred at 1× — the server sends
+    /// Go zero values for a photo whose crop was never set.
+    var profileCropX: Double? = nil
+    var profileCropY: Double? = nil
+    var profileCropScale: Double? = nil
+
     var family: Family? = nil
 
     @Relationship(deleteRule: .cascade)

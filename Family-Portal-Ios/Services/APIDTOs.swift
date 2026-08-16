@@ -448,3 +448,19 @@ struct AddPersonResponseDTO: Decodable, Sendable {
 struct UpdatePersonResponseDTO: Decodable, Sendable {
     let person: PersonDTO
 }
+
+/// Crop values are percentages of the image (50/50 is centred) plus a zoom
+/// factor. The server substitutes its own defaults for zeros, but sending them
+/// explicitly keeps what iOS asked for and what comes back on the next pull the
+/// same thing.
+struct SetProfilePhotoRequestDTO: Encodable, Sendable {
+    let personId: Int
+    let photoId: Int
+    let cropX: Double
+    let cropY: Double
+    let cropScale: Double
+}
+
+struct SetProfilePhotoResponseDTO: Decodable, Sendable {
+    let person: PersonDTO
+}

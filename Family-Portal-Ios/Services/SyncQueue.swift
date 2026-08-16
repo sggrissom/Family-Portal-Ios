@@ -5,6 +5,7 @@ import Foundation
 nonisolated enum SyncOperationType: String, Codable, Sendable {
     case createPerson
     case updatePerson
+    case setProfilePhoto
     case createGrowthData
     case createMilestone
     case uploadPhoto
@@ -23,6 +24,8 @@ nonisolated enum SyncOperationType: String, Codable, Sendable {
         switch self {
         case .createPerson, .updatePerson:
             return "a family member"
+        case .setProfilePhoto:
+            return "a profile photo"
         case .createGrowthData, .updateGrowthData, .deleteGrowthData:
             return "a measurement"
         case .createMilestone, .updateMilestone, .deleteMilestone:
@@ -77,6 +80,15 @@ nonisolated struct UpdatePersonPayload: Codable, Sendable {
     let personType: Int
     let gender: Int
     let birthdate: String
+}
+
+/// Keyed by the *person's* local id, like the operation itself; the photo is
+/// carried here because it is the thing being chosen.
+nonisolated struct SetProfilePhotoPayload: Codable, Sendable {
+    let photoLocalId: String
+    let cropX: Double
+    let cropY: Double
+    let cropScale: Double
 }
 
 nonisolated struct CreateGrowthDataPayload: Codable, Sendable {
@@ -230,7 +242,9 @@ actor SyncQueue {
 
     private func mergeOperationIfPossible(_ incoming: PendingOperation) -> Bool {
         switch incoming.type {
-        case .updatePerson, .updateGrowthData, .updateMilestone, .updatePhoto:
+        case .updatePerson, .updateGrowthData, .updateMilestone, .updatePhoto, .setProfilePhoto:
+            // A person has one profile photo, so picking a third while the first
+            // two are still queued should send one request, not three.
             return replaceExistingOperation(of: incoming.type, localId: incoming.localId, with: incoming)
         case .addPeopleToPhoto:
             return mergeAddPeopleToPhoto(incoming)

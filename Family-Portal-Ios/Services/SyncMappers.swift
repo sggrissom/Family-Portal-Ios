@@ -103,7 +103,24 @@ func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
     person.type = intToPersonType(dto.type)
     person.gender = intToGender(dto.gender)
     person.birthday = normalizeBirthdayDate(dto.birthday)
-    person.profilePhotoId = dto.profilePhotoId
+    person.profilePhotoId = nonZero(dto.profilePhotoId)
+    person.profileCropX = nonZero(dto.profileCropX)
+    person.profileCropY = nonZero(dto.profileCropY)
+    person.profileCropScale = nonZero(dto.profileCropScale)
+}
+
+/// The backend marshals these fields as plain Go numbers, so "unset" arrives as
+/// `0` rather than as an absent key. Taken literally, a person with no profile
+/// photo asked every avatar to load photo id 0, and a crop that was never
+/// chosen framed the image at the top-left corner at 0× zoom.
+private func nonZero(_ value: Int?) -> Int? {
+    guard let value, value != 0 else { return nil }
+    return value
+}
+
+private func nonZero(_ value: Double?) -> Double? {
+    guard let value, value != 0 else { return nil }
+    return value
 }
 
 func applyGrowthDataDTO(_ dto: GrowthDataDTO, to growthData: GrowthData) {
@@ -138,8 +155,7 @@ func personFromDTO(_ dto: PersonDTO) -> Person {
         gender: intToGender(dto.gender),
         birthday: normalizeBirthdayDate(dto.birthday)
     )
-    person.remoteId = String(dto.id)
-    person.profilePhotoId = dto.profilePhotoId
+    applyPersonDTO(dto, to: person)
     return person
 }
 

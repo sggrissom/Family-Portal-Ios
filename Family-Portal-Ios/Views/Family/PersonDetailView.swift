@@ -53,12 +53,7 @@ struct PersonDetailView: View {
         if let person {
             ScrollView {
                 VStack(spacing: 24) {
-                    PersonAvatarView(
-                        name: person.name,
-                        type: person.type,
-                        profilePhotoRemoteId: person.profilePhotoId,
-                        size: 100
-                    )
+                    PersonAvatarView(person: person, size: 100)
                         .padding(.top, 20)
 
                     Text(person.name)
@@ -180,6 +175,18 @@ struct PersonDetailView: View {
                                 }
                             }
                             .padding(.top, 4)
+
+                            if allowsManagementActions && !recentPhotos.isEmpty {
+                                NavigationLink(destination: ProfilePhotoPickerView(person: person)) {
+                                    HStack {
+                                        Text("Choose Profile Photo")
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)

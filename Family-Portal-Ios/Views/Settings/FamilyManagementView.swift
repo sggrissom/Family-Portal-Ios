@@ -39,12 +39,7 @@ struct FamilyManagementView: View {
                     Section("Parents") {
                         ForEach(parents, id: \.id) { person in
                             NavigationLink(value: person.id) {
-                                PersonRowView(
-                                    name: person.name,
-                                    type: person.type,
-                                    birthday: person.birthday,
-                                    profilePhotoRemoteId: person.profilePhotoId
-                                )
+                                PersonRowView(person: person)
                             }
                         }
                     }
@@ -54,12 +49,7 @@ struct FamilyManagementView: View {
                     Section("Children") {
                         ForEach(children, id: \.id) { person in
                             NavigationLink(value: person.id) {
-                                PersonRowView(
-                                    name: person.name,
-                                    type: person.type,
-                                    birthday: person.birthday,
-                                    profilePhotoRemoteId: person.profilePhotoId
-                                )
+                                PersonRowView(person: person)
                             }
                         }
                     }

@@ -183,6 +183,8 @@ final class SyncService {
             try await executeCreatePerson(operation)
         case .updatePerson:
             try await executeUpdatePerson(operation)
+        case .setProfilePhoto:
+            try await executeSetProfilePhoto(operation)
         case .createGrowthData:
             try await executeCreateGrowthData(operation)
         case .createMilestone:
@@ -243,6 +245,37 @@ final class SyncService {
             birthdate: payload.birthdate
         )
         let response: UpdatePersonResponseDTO = try await apiClient.callRPC(.updatePerson, payload: request)
+        applyPersonDTO(response.person, to: person)
+        try modelContext.save()
+    }
+
+    private func executeSetProfilePhoto(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(SetProfilePhotoPayload.self, from: operation.payload)
+
+        // Either record being gone locally makes the choice moot; either one
+        // merely lacking a remote id makes it blocked — the same split as the
+        // create operations.
+        guard let person = findPerson(byLocalId: operation.localId),
+              let photo = findPhoto(byLocalId: payload.photoLocalId) else {
+            return
+        }
+
+        guard let personRemoteId = person.remoteId, let personId = Int(personRemoteId) else {
+            throw SyncError.missingRemoteId("Person must be synced before setting a profile photo")
+        }
+
+        guard let photoRemoteId = photo.remoteId, let photoId = Int(photoRemoteId) else {
+            throw SyncError.missingRemoteId("Photo must be uploaded before it can be a profile photo")
+        }
+
+        let request = SetProfilePhotoRequestDTO(
+            personId: personId,
+            photoId: photoId,
+            cropX: payload.cropX,
+            cropY: payload.cropY,
+            cropScale: payload.cropScale
+        )
+        let response: SetProfilePhotoResponseDTO = try await apiClient.callRPC(.setProfilePhoto, payload: request)
         applyPersonDTO(response.person, to: person)
         try modelContext.save()
     }
@@ -554,6 +587,53 @@ final class SyncService {
         )
     }
 
+    /// Points a person's avatar at one of the photos they are tagged in.
+    ///
+    /// The tag is a server-side precondition, not a UI nicety: `SetProfilePhoto`
+    /// (backend/person.go) rejects a photo the person is not associated with,
+    /// and a rejection here costs the operation a retry and eventually discards
+    /// it. Refusing up front turns that into an error the user sees at the tap.
+    func setProfilePhoto(_ photo: Photo, for person: Person) async throws {
+        guard photo.taggedPeople.contains(where: { $0.id == person.id }) else {
+            throw SyncError.personNotInPhoto
+        }
+
+        let photoRemoteId = photo.remoteId.flatMap(Int.init)
+
+        // Re-picking the photo a person already uses keeps the crop chosen for
+        // it — cropping is a web-only editor — instead of snapping the framing
+        // back to centre. Any other photo starts centred at 1×.
+        let keepsExistingCrop = photoRemoteId != nil && photoRemoteId == person.profilePhotoId
+        let cropX = keepsExistingCrop ? (person.profileCropX ?? 50) : 50
+        let cropY = keepsExistingCrop ? (person.profileCropY ?? 50) : 50
+        let cropScale = keepsExistingCrop ? (person.profileCropScale ?? 1) : 1
+
+        let payload = SetProfilePhotoPayload(
+            photoLocalId: photo.id.uuidString,
+            cropX: cropX,
+            cropY: cropY,
+            cropScale: cropScale
+        )
+
+        // Optimistic only once the photo has an id the avatar can load. A photo
+        // still waiting to upload has none, and the avatar catches up when the
+        // operation runs and applies the returned person.
+        if let photoRemoteId {
+            person.profilePhotoId = photoRemoteId
+            person.profileCropX = cropX
+            person.profileCropY = cropY
+            person.profileCropScale = cropScale
+            try modelContext.save()
+        }
+
+        try await enqueueOperation(
+            type: .setProfilePhoto,
+            localId: person.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: dependencyLocalIdForProfilePhoto(photo: photo, person: person)
+        )
+    }
+
     // MARK: - Push: GrowthData
 
     func addGrowthData(_ data: GrowthData, for person: Person) async throws {
@@ -827,6 +907,20 @@ final class SyncService {
         return syncedIds
     }
 
+    /// Both records have to be synced before the server can be told about the
+    /// pairing, but an operation can only name one dependency. The photo goes
+    /// first because it is the one likely to be mid-upload; the person is
+    /// checked on execution and throws `missingRemoteId` if it is still behind.
+    private func dependencyLocalIdForProfilePhoto(photo: Photo, person: Person) -> String? {
+        if photo.remoteId == nil {
+            return photo.id.uuidString
+        }
+        if person.remoteId == nil {
+            return person.id.uuidString
+        }
+        return nil
+    }
+
     private func dependencyLocalIdForTagging(photo: Photo, people: [Person]) -> String? {
         if photo.remoteId == nil {
             return photo.id.uuidString
@@ -961,6 +1055,7 @@ enum SyncError: LocalizedError {
     case missingRemoteId(String)
     case missingImageData
     case missingBirthday
+    case personNotInPhoto
 
     var errorDescription: String? {
         switch self {
@@ -970,6 +1065,8 @@ enum SyncError: LocalizedError {
             return "Photo data is missing and cannot be uploaded"
         case .missingBirthday:
             return "A birthday is required before this person can be saved"
+        case .personNotInPhoto:
+            return "Only someone tagged in a photo can use it as their profile photo"
         }
     }
 }

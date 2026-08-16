@@ -10,12 +10,7 @@ struct TagPeopleView: View {
     var body: some View {
         List(people) { person in
             HStack(spacing: 12) {
-                PersonAvatarView(
-                    name: person.name,
-                    type: person.type,
-                    profilePhotoRemoteId: person.profilePhotoId,
-                    size: 36
-                )
+                PersonAvatarView(person: person, size: 36)
                 Text(person.name)
                 Spacer()
                 Toggle("", isOn: Binding(

@@ -375,12 +375,7 @@ struct TimelineRowView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             if let person = item.person {
-                PersonAvatarView(
-                    name: person.name,
-                    type: person.type,
-                    profilePhotoRemoteId: person.profilePhotoId,
-                    size: 44
-                )
+                PersonAvatarView(person: person, size: 44)
             } else {
                 Circle()
                     .fill(Color.gray.opacity(0.3))

@@ -44,6 +44,7 @@ struct PhotoDetailView: View {
 
 private struct PhotoDetailContent: View {
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
     @Bindable var photo: Photo
     @Binding var showDeleteConfirmation: Bool
 
@@ -101,21 +102,16 @@ private struct PhotoDetailContent: View {
                 }
                 .padding(.horizontal)
 
-                if !photo.taggedPeople.isEmpty {
+                if !taggedPeople.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Tagged People")
                             .font(.headline)
                             .padding(.horizontal)
 
                         FlowLayout(spacing: 8) {
-                            ForEach(photo.taggedPeople) { person in
+                            ForEach(taggedPeople) { person in
                                 HStack(spacing: 4) {
-                                    PersonAvatarView(
-                                        name: person.name,
-                                        type: person.type,
-                                        profilePhotoRemoteId: person.profilePhotoId,
-                                        size: 20
-                                    )
+                                    PersonAvatarView(person: person, size: 20)
                                     Text(person.name)
                                         .font(.subheadline)
                                 }
@@ -134,6 +130,28 @@ private struct PhotoDetailContent: View {
                 }
                 .padding(.horizontal)
 
+                // Only people tagged in the photo are offered: the server
+                // refuses a profile photo the person is not associated with.
+                if !taggedPeople.isEmpty {
+                    Menu {
+                        ForEach(taggedPeople) { person in
+                            Button {
+                                setProfilePhoto(for: person)
+                            } label: {
+                                if isProfilePhoto(of: person) {
+                                    Label(person.name, systemImage: "checkmark")
+                                } else {
+                                    Text(person.name)
+                                }
+                            }
+                            .disabled(isProfilePhoto(of: person))
+                        }
+                    } label: {
+                        Label("Use as Profile Photo", systemImage: "person.crop.square")
+                    }
+                    .padding(.horizontal)
+                }
+
                 Button(role: .destructive) {
                     showDeleteConfirmation = true
                 } label: {
@@ -151,6 +169,27 @@ private struct PhotoDetailContent: View {
             if !isEditing { commitEdits() }
         }
         .onDisappear { commitEdits() }
+    }
+
+    /// SwiftData leaves to-many relationships unordered, so both the chips and
+    /// the profile-photo menu would otherwise reshuffle between redraws.
+    private var taggedPeople: [Person] {
+        photo.taggedPeople.sorted { $0.name < $1.name }
+    }
+
+    private func isProfilePhoto(of person: Person) -> Bool {
+        guard let profilePhotoId = person.profilePhotoId else { return false }
+        return photo.remoteId.flatMap(Int.init) == profilePhotoId
+    }
+
+    private func setProfilePhoto(for person: Person) {
+        Task {
+            do {
+                try await syncService?.setProfilePhoto(photo, for: person)
+            } catch {
+                errorPresenter?.report(error, title: "Couldn't Set Profile Photo")
+            }
+        }
     }
 
     /// Queues the edited title/description. Without this the next `pullFamilyData`
