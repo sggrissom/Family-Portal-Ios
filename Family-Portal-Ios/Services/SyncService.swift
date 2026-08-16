@@ -42,11 +42,11 @@ final class SyncService {
         do {
             struct EmptyPayload: Encodable {}
             let timelineResponse: GetFamilyTimelineResponseDTO = try await apiClient.callRPC(
-                "GetFamilyTimeline",
+                .getFamilyTimeline,
                 payload: EmptyPayload()
             )
             let photoResponse: ListFamilyPhotosResponseDTO = try await apiClient.callRPC(
-                "ListFamilyPhotos",
+                .listFamilyPhotos,
                 payload: EmptyPayload()
             )
 
@@ -184,7 +184,7 @@ final class SyncService {
             gender: payload.gender,
             birthdate: payload.birthdate
         )
-        let response: AddPersonResponseDTO = try await apiClient.callRPC("AddPerson", payload: request)
+        let response: AddPersonResponseDTO = try await apiClient.callRPC(.addPerson, payload: request)
         applyPersonDTO(response.person, to: person)
         try modelContext.save()
     }
@@ -205,7 +205,7 @@ final class SyncService {
             gender: payload.gender,
             birthdate: payload.birthdate
         )
-        let response: UpdatePersonResponseDTO = try await apiClient.callRPC("UpdatePerson", payload: request)
+        let response: UpdatePersonResponseDTO = try await apiClient.callRPC(.updatePerson, payload: request)
         applyPersonDTO(response.person, to: person)
         try modelContext.save()
     }
@@ -213,11 +213,24 @@ final class SyncService {
     private func executeCreateGrowthData(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(CreateGrowthDataPayload.self, from: operation.payload)
 
-        guard let growthData = findGrowthData(byLocalId: operation.localId),
-              let person = findPerson(byLocalId: payload.personLocalId),
-              let personRemoteId = person.remoteId,
-              let personId = Int(personRemoteId) else {
+        // Three outcomes that used to be one `return`. The first two are moot
+        // work — the record or its person was deleted locally — and dropping the
+        // operation is right. The third is not: a person who simply has not
+        // synced yet needs this operation kept, because `return` dequeues it as
+        // though it had succeeded and the measurement then sits on the device
+        // forever with no remote id. `missingRemoteId` is retried next pass,
+        // by which time the person's own create has assigned one.
+        guard let growthData = findGrowthData(byLocalId: operation.localId) else {
             return
+        }
+
+        guard let person = findPerson(byLocalId: payload.personLocalId) else {
+            return
+        }
+
+        guard let personRemoteId = person.remoteId,
+              let personId = Int(personRemoteId) else {
+            throw SyncError.missingRemoteId("Person must be synced before adding measurements")
         }
 
         let request = AddGrowthDataRequestDTO(
@@ -228,7 +241,7 @@ final class SyncService {
             inputType: "date",
             measurementDate: payload.measurementDate
         )
-        let response: AddGrowthDataResponseDTO = try await apiClient.callRPC("AddGrowthData", payload: request)
+        let response: AddGrowthDataResponseDTO = try await apiClient.callRPC(.addGrowthData, payload: request)
         applyGrowthDataDTO(response.growthData, to: growthData)
         try modelContext.save()
     }
@@ -236,11 +249,18 @@ final class SyncService {
     private func executeCreateMilestone(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(CreateMilestonePayload.self, from: operation.payload)
 
-        guard let milestone = findMilestone(byLocalId: operation.localId),
-              let person = findPerson(byLocalId: payload.personLocalId),
-              let personRemoteId = person.remoteId,
-              let personId = Int(personRemoteId) else {
+        // Same three-way split as `executeCreateGrowthData`.
+        guard let milestone = findMilestone(byLocalId: operation.localId) else {
             return
+        }
+
+        guard let person = findPerson(byLocalId: payload.personLocalId) else {
+            return
+        }
+
+        guard let personRemoteId = person.remoteId,
+              let personId = Int(personRemoteId) else {
+            throw SyncError.missingRemoteId("Person must be synced before adding milestones")
         }
 
         let request = AddMilestoneRequestDTO(
@@ -250,7 +270,7 @@ final class SyncService {
             inputType: "date",
             milestoneDate: payload.milestoneDate
         )
-        let response: AddMilestoneResponseDTO = try await apiClient.callRPC("AddMilestone", payload: request)
+        let response: AddMilestoneResponseDTO = try await apiClient.callRPC(.addMilestone, payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
         try modelContext.save()
     }
@@ -258,6 +278,10 @@ final class SyncService {
     private func executeUploadPhoto(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(UploadPhotoPayload.self, from: operation.payload)
 
+        // Both misses mean the work is already moot rather than blocked: the
+        // photo was deleted locally, or a previous run of this operation
+        // uploaded it and cleared the bytes below. Dropping the operation is
+        // right in either case.
         guard let photo = findPhoto(byLocalId: operation.localId),
               let imageData = photo.imageData else {
             return
@@ -285,6 +309,14 @@ final class SyncService {
             personIds: personIds
         )
         applyPhotoDTO(response, to: photo)
+
+        // The server holds the bytes now. Keeping the local copy stored a second
+        // full-resolution image for every photo ever taken in the app, in a
+        // store that never shrank, and made the photo permanently exempt from
+        // `removeOrphans` — so a photo deleted elsewhere never left the device.
+        // Display falls back to `RemotePhotoView` on the `remoteId` just set.
+        photo.imageData = nil
+
         try modelContext.save()
     }
 
@@ -307,7 +339,7 @@ final class SyncService {
         }
 
         let request = AddPeopleToPhotoRequestDTO(photoId: photoId, personIds: personIds)
-        let _: SuccessResponseDTO = try await apiClient.callRPC("AddPeopleToPhoto", payload: request)
+        let _: SuccessResponseDTO = try await apiClient.callRPC(.addPeopleToPhoto, payload: request)
         try modelContext.save()
     }
 
@@ -327,7 +359,7 @@ final class SyncService {
         }
 
         let request = RemovePersonFromPhotoRequestDTO(photoId: photoId, personId: personId)
-        let _: SuccessResponseDTO = try await apiClient.callRPC("RemovePersonFromPhoto", payload: request)
+        let _: SuccessResponseDTO = try await apiClient.callRPC(.removePersonFromPhoto, payload: request)
         try modelContext.save()
     }
 
@@ -348,7 +380,7 @@ final class SyncService {
             inputType: "date",
             measurementDate: payload.measurementDate
         )
-        let response: UpdateGrowthDataResponseDTO = try await apiClient.callRPC("UpdateGrowthData", payload: request)
+        let response: UpdateGrowthDataResponseDTO = try await apiClient.callRPC(.updateGrowthData, payload: request)
         applyGrowthDataDTO(response.growthData, to: growthData)
         try modelContext.save()
     }
@@ -369,7 +401,7 @@ final class SyncService {
             inputType: "date",
             milestoneDate: payload.milestoneDate
         )
-        let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC("UpdateMilestone", payload: request)
+        let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC(.updateMilestone, payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
         try modelContext.save()
     }
@@ -390,7 +422,7 @@ final class SyncService {
             inputType: "date",
             photoDate: payload.photoDate
         )
-        let response: UpdatePhotoResponseDTO = try await apiClient.callRPC("UpdatePhoto", payload: request)
+        let response: UpdatePhotoResponseDTO = try await apiClient.callRPC(.updatePhoto, payload: request)
         applyPhotoDTO(response.image, to: photo)
         try modelContext.save()
     }
@@ -400,7 +432,7 @@ final class SyncService {
 
         do {
             let request = DeleteRequestDTO(id: payload.remoteId)
-            let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteGrowthData", payload: request)
+            let _: SuccessResponseDTO = try await apiClient.callRPC(.deleteGrowthData, payload: request)
         } catch let error as APIError {
             if case .server(let statusCode, _) = error, statusCode == 404 {
                 return
@@ -414,7 +446,7 @@ final class SyncService {
 
         do {
             let request = DeleteRequestDTO(id: payload.remoteId)
-            let _: SuccessResponseDTO = try await apiClient.callRPC("DeleteMilestone", payload: request)
+            let _: SuccessResponseDTO = try await apiClient.callRPC(.deleteMilestone, payload: request)
         } catch let error as APIError {
             if case .server(let statusCode, _) = error, statusCode == 404 {
                 return
@@ -428,7 +460,7 @@ final class SyncService {
 
         do {
             let request = DeleteRequestDTO(id: payload.remoteId)
-            let _: SuccessResponseDTO = try await apiClient.callRPC("DeletePhoto", payload: request)
+            let _: SuccessResponseDTO = try await apiClient.callRPC(.deletePhoto, payload: request)
         } catch let error as APIError {
             if case .server(let statusCode, _) = error, statusCode == 404 {
                 return
@@ -440,11 +472,19 @@ final class SyncService {
     // MARK: - Push: Person
 
     func addPerson(_ person: Person) async throws {
+        // Substituting `Date()` here recorded today as the birthday of anyone
+        // added without one, and the value came straight back on the next pull
+        // indistinguishable from a real date. The server requires a birthdate
+        // either way (validateAddPersonRequest in backend/person.go).
+        guard let birthday = person.birthday else {
+            throw SyncError.missingBirthday
+        }
+
         let payload = CreatePersonPayload(
             name: person.name,
             personType: personTypeToInt(person.type),
             gender: genderToInt(person.gender),
-            birthdate: dateToAPIString(person.birthday ?? Date())
+            birthdate: dateToAPIString(birthday)
         )
 
         try await enqueueOperation(
@@ -456,11 +496,15 @@ final class SyncService {
     }
 
     func updatePerson(_ person: Person) async throws {
+        guard let birthday = person.birthday else {
+            throw SyncError.missingBirthday
+        }
+
         let payload = UpdatePersonPayload(
             name: person.name,
             personType: personTypeToInt(person.type),
             gender: genderToInt(person.gender),
-            birthdate: dateToAPIString(person.birthday ?? Date())
+            birthdate: dateToAPIString(birthday)
         )
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
@@ -856,15 +900,18 @@ final class SyncService {
 
     // MARK: - Orphan Removal
 
+    /// Deletes records the server no longer lists. Anything still awaiting its
+    /// first push has no `remoteId` and is skipped by the guard below, which is
+    /// the only protection unsynced local work needs — an extra exemption for
+    /// photos holding local bytes used to sit here, and because those bytes were
+    /// never released after upload it silently pinned every uploaded photo on
+    /// the device for good.
     private func removeOrphans<T: PersistentModel>(_ type: T.Type, seenIds: Set<String>) {
         let descriptor = FetchDescriptor<T>()
         guard let allModels = try? modelContext.fetch(descriptor) else { return }
         for model in allModels {
             guard let remoteId = (model as? RemoteIdentifiable)?.remoteId else { continue }
             if !seenIds.contains(remoteId) {
-                if let photo = model as? Photo, photo.imageData != nil {
-                    continue
-                }
                 modelContext.delete(model)
             }
         }
@@ -876,6 +923,7 @@ final class SyncService {
 enum SyncError: LocalizedError {
     case missingRemoteId(String)
     case missingImageData
+    case missingBirthday
 
     var errorDescription: String? {
         switch self {
@@ -883,6 +931,8 @@ enum SyncError: LocalizedError {
             return message
         case .missingImageData:
             return "Photo data is missing and cannot be uploaded"
+        case .missingBirthday:
+            return "A birthday is required before this person can be saved"
         }
     }
 }

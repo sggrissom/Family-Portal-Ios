@@ -10,7 +10,6 @@ struct EditPersonView: View {
     @State private var name: String
     @State private var type: PersonType
     @State private var gender: Gender
-    @State private var hasBirthday: Bool
     @State private var birthday: Date
     @State private var isSaving = false
 
@@ -19,7 +18,9 @@ struct EditPersonView: View {
         _name = State(initialValue: person.name)
         _type = State(initialValue: person.type)
         _gender = State(initialValue: person.gender)
-        _hasBirthday = State(initialValue: person.birthday != nil)
+        // A person predating the required-birthday change may still have none;
+        // showing today gives the user something concrete to correct rather
+        // than letting the field stay empty and unsyncable.
         _birthday = State(initialValue: person.birthday ?? Date())
     }
 
@@ -48,12 +49,13 @@ struct EditPersonView: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("Birthday") {
-                    Toggle("Add Birthday", isOn: $hasBirthday)
-
-                    if hasBirthday {
-                        DatePicker("Birthday", selection: $birthday, displayedComponents: .date)
-                    }
+                // Required — see AddPersonView.
+                Section {
+                    DatePicker("Birthday", selection: $birthday, displayedComponents: .date)
+                } header: {
+                    Text("Birthday")
+                } footer: {
+                    Text("Used to calculate ages across the app.")
                 }
             }
             .navigationTitle("Edit Person")
@@ -79,7 +81,7 @@ struct EditPersonView: View {
         person.name = name
         person.type = type
         person.gender = gender
-        person.birthday = hasBirthday ? birthday : nil
+        person.birthday = birthday
 
         Task {
             do {

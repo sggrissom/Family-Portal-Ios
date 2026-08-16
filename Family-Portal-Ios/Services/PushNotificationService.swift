@@ -88,7 +88,7 @@ final class PushNotificationService: NSObject {
 
         do {
             let response: RegisterPushDeviceResponseDTO = try await APIClient.shared.callRPC(
-                "RegisterPushDevice",
+                .registerPushDevice,
                 payload: RegisterPushDeviceRequestDTO(
                     token: token,
                     platform: "ios",
@@ -121,7 +121,7 @@ final class PushNotificationService: NSObject {
 
         do {
             let _: UnregisterPushDeviceResponseDTO = try await APIClient.shared.callRPC(
-                "UnregisterPushDevice",
+                .unregisterPushDevice,
                 payload: UnregisterPushDeviceRequestDTO(token: token)
             )
         } catch {

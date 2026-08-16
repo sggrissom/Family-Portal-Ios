@@ -97,7 +97,7 @@ final class AuthService {
 
         do {
             let response: CreateAccountResponseDTO = try await APIClient.shared.callPublicRPC(
-                "CreateAccount",
+                .createAccount,
                 payload: request
             )
 
@@ -128,7 +128,7 @@ final class AuthService {
 
         do {
             let response: RequestPasswordResetResponseDTO = try await APIClient.shared.callPublicRPC(
-                "RequestPasswordReset",
+                .requestPasswordReset,
                 payload: RequestPasswordResetRequestDTO(email: email)
             )
 
@@ -195,7 +195,7 @@ final class AuthService {
         do {
             struct EmptyPayload: Encodable {}
             let response: FamilyInfoResponseDTO = try await APIClient.shared.callRPC(
-                "GetFamilyInfo",
+                .getFamilyInfo,
                 payload: EmptyPayload()
             )
             families = response.families
@@ -218,7 +218,7 @@ final class AuthService {
     func joinFamily(inviteCode: String) async -> String? {
         do {
             let response: JoinFamilyResponseDTO = try await APIClient.shared.callRPC(
-                "JoinFamily",
+                .joinFamily,
                 payload: JoinFamilyRequestDTO(inviteCode: inviteCode)
             )
 

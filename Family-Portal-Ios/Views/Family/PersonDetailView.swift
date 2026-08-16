@@ -253,9 +253,16 @@ struct PersonPhotosView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
+    /// SwiftData does not order to-many relationships, so reading `person.photos`
+    /// straight out left this grid in an arbitrary order while the four-photo
+    /// preview that links here was sorted newest-first.
+    private var photos: [Photo] {
+        person.photos.sorted { $0.photoDate > $1.photoDate }
+    }
+
     var body: some View {
         Group {
-            if person.photos.isEmpty {
+            if photos.isEmpty {
                 ContentUnavailableView(
                     "No Photos",
                     systemImage: "photo.on.rectangle",
@@ -264,7 +271,7 @@ struct PersonPhotosView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 4) {
-                        ForEach(person.photos) { photo in
+                        ForEach(photos) { photo in
                             NavigationLink(destination: PhotoDetailView(photoId: photo.id)) {
                                 PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                             }

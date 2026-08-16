@@ -237,16 +237,16 @@ actor APIClient {
         }
     }
 
-    func callRPC<T: Decodable, Body: Encodable>(_ name: String, payload: Body) async throws -> T {
-        try await request(path: "rpc/\(name)", method: .post, body: payload, requiresAuth: true)
+    func callRPC<T: Decodable, Body: Encodable>(_ proc: RPCMethod, payload: Body) async throws -> T {
+        try await request(path: "rpc/\(proc.rawValue)", method: .post, body: payload, requiresAuth: true)
     }
 
     /// For the procs a signed-out user has to reach: `CreateAccount`,
     /// `RequestPasswordReset`. No token is attached and a 401 is never retried,
     /// because there is no session to refresh.
-    func callPublicRPC<T: Decodable, Body: Encodable>(_ name: String, payload: Body) async throws -> T {
+    func callPublicRPC<T: Decodable, Body: Encodable>(_ proc: RPCMethod, payload: Body) async throws -> T {
         try await request(
-            path: "rpc/\(name)",
+            path: "rpc/\(proc.rawValue)",
             method: .post,
             body: payload,
             requiresAuth: false,
@@ -384,7 +384,29 @@ actor APIClient {
         try? await refreshAccessToken()
     }
 
+    /// Coalesces overlapping refreshes onto one network round-trip.
+    ///
+    /// The server rotates the refresh token on every use, so two refreshes in
+    /// flight at once can each invalidate the other's credential and end a live
+    /// session. Actor isolation alone does not prevent that: `refreshAccessToken`
+    /// suspends on its request, letting the next caller straight through the
+    /// freshness check. A photo grid mounting twenty `RemotePhotoView`s at once
+    /// is exactly that shape.
+    private var refreshTask: Task<Void, Error>?
+
     func refreshAccessToken() async throws {
+        if let refreshTask {
+            return try await refreshTask.value
+        }
+
+        let task = Task { try await self.performRefresh() }
+        refreshTask = task
+        defer { refreshTask = nil }
+
+        return try await task.value
+    }
+
+    private func performRefresh() async throws {
         guard hasRefreshCredential else {
             throw APIError.missingRefreshToken
         }
@@ -620,19 +642,19 @@ actor APIClient {
 extension APIClient {
     func sendMessage(content: String, clientMessageId: String) async throws -> ChatMessageDTO {
         let request = SendMessageRequestDTO(content: content, clientMessageId: clientMessageId)
-        let response: SendMessageResponseDTO = try await callRPC("SendMessage", payload: request)
+        let response: SendMessageResponseDTO = try await callRPC(.sendMessage, payload: request)
         return response.message
     }
 
     func getChatMessages(limit: Int = 50, offset: Int = 0) async throws -> [ChatMessageDTO] {
         let request = GetChatMessagesRequestDTO(limit: limit, offset: offset)
-        let response: GetChatMessagesResponseDTO = try await callRPC("GetChatMessages", payload: request)
+        let response: GetChatMessagesResponseDTO = try await callRPC(.getChatMessages, payload: request)
         return response.messages
     }
 
     func deleteMessage(id: Int) async throws -> Bool {
         let request = DeleteMessageRequestDTO(messageId: id)
-        let response: DeleteMessageResponseDTO = try await callRPC("DeleteMessage", payload: request)
+        let response: DeleteMessageResponseDTO = try await callRPC(.deleteMessage, payload: request)
         return response.success
     }
 }

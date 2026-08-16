@@ -9,7 +9,6 @@ struct AddPersonView: View {
     @State private var name = ""
     @State private var type: PersonType = .parent
     @State private var gender: Gender = .male
-    @State private var hasBirthday = false
     @State private var birthday = Date()
     @State private var isSaving = false
 
@@ -38,12 +37,17 @@ struct AddPersonView: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("Birthday") {
-                    Toggle("Add Birthday", isOn: $hasBirthday)
-
-                    if hasBirthday {
-                        DatePicker("Birthday", selection: $birthday, displayedComponents: .date)
-                    }
+                // Not optional: the server rejects an empty birthdate
+                // (validateAddPersonRequest in backend/person.go) and every age
+                // in the app is derived from it. The picker used to sit behind
+                // an "Add Birthday" toggle, and leaving the toggle off shipped
+                // today's date to the server as the person's birthday.
+                Section {
+                    DatePicker("Birthday", selection: $birthday, displayedComponents: .date)
+                } header: {
+                    Text("Birthday")
+                } footer: {
+                    Text("Used to calculate ages across the app.")
                 }
             }
             .navigationTitle("Add Person")
@@ -70,7 +74,7 @@ struct AddPersonView: View {
             name: name,
             type: type,
             gender: gender,
-            birthday: hasBirthday ? birthday : nil
+            birthday: birthday
         )
         modelContext.insert(person)
 

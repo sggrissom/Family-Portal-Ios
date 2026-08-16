@@ -42,27 +42,58 @@ struct RemotePhotoView: View {
             return
         }
 
-        let token = await APIClient.shared.getAccessToken()
+        // Photos are fetched with the raw token rather than through
+        // `APIClient.request`, so they get neither its proactive refresh nor its
+        // retry-on-401 unless asked for both here. Without the refresh, a session
+        // that crosses the JWT expiry while the app stays foregrounded renders
+        // every photo as a placeholder until the next relaunch.
+        await APIClient.shared.ensureFreshAccessToken()
 
+        var outcome = await fetch(url)
+
+        // A 401 despite the check above means the token went stale inside the
+        // margin. One forced refresh and retry, mirroring `retryOnAuthFailure`.
+        if case .unauthorized = outcome {
+            try? await APIClient.shared.refreshAccessToken()
+            outcome = await fetch(url)
+        }
+
+        switch outcome {
+        case .loaded(let uiImage):
+            image = uiImage
+        case .unauthorized, .failed:
+            hasFailed = true
+        }
+        isLoading = false
+    }
+
+    private enum FetchOutcome {
+        case loaded(UIImage)
+        case unauthorized
+        case failed
+    }
+
+    private func fetch(_ url: URL) async -> FetchOutcome {
         var request = URLRequest(url: url)
-        if let token {
+        if let token = await APIClient.shared.getAccessToken() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode),
-                  let uiImage = UIImage(data: data) else {
-                hasFailed = true
-                isLoading = false
-                return
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return .failed
             }
-            image = uiImage
-            isLoading = false
+            if httpResponse.statusCode == 401 {
+                return .unauthorized
+            }
+            guard (200...299).contains(httpResponse.statusCode),
+                  let uiImage = UIImage(data: data) else {
+                return .failed
+            }
+            return .loaded(uiImage)
         } catch {
-            hasFailed = true
-            isLoading = false
+            return .failed
         }
     }
 }
