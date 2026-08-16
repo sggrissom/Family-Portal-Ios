@@ -339,7 +339,8 @@ final class SyncService {
             description: payload.description,
             category: payload.category,
             inputType: "date",
-            milestoneDate: payload.milestoneDate
+            milestoneDate: payload.milestoneDate,
+            photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds)
         )
         let response: AddMilestoneResponseDTO = try await apiClient.callRPC(.addMilestone, payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -470,7 +471,8 @@ final class SyncService {
             description: payload.description,
             category: payload.category,
             inputType: "date",
-            milestoneDate: payload.milestoneDate
+            milestoneDate: payload.milestoneDate,
+            photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds)
         )
         let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC(.updateMilestone, payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -697,15 +699,20 @@ final class SyncService {
 
     // MARK: - Push: Milestones
 
-    func addMilestone(_ milestone: Milestone, for person: Person) async throws {
+    /// `photos` is the milestone's complete attachment set, or `nil` to say
+    /// nothing about attachments at all — see `UpdateMilestoneRequestDTO`.
+    func addMilestone(_ milestone: Milestone, for person: Person, photos: [Photo]? = nil) async throws {
         let payload = CreateMilestonePayload(
             personLocalId: person.id.uuidString,
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
-            milestoneDate: dateToAPIString(milestone.date)
+            milestoneDate: dateToAPIString(milestone.date),
+            photoLocalIds: photos?.map { $0.id.uuidString }
         )
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
+
+        try applyPhotosOptimistically(photos, to: milestone)
 
         try await enqueueOperation(
             type: .createMilestone,
@@ -715,12 +722,15 @@ final class SyncService {
         )
     }
 
-    func updateMilestone(_ milestone: Milestone) async throws {
+    func updateMilestone(_ milestone: Milestone, photos: [Photo]? = nil) async throws {
         let payload = UpdateMilestonePayload(
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
-            milestoneDate: dateToAPIString(milestone.date)
+            milestoneDate: dateToAPIString(milestone.date),
+            photoLocalIds: photos?.map { $0.id.uuidString }
         )
+
+        try applyPhotosOptimistically(photos, to: milestone)
 
         try await enqueueOperation(
             type: .updateMilestone,
@@ -728,6 +738,19 @@ final class SyncService {
             payload: payload,
             dependsOnLocalId: nil
         )
+    }
+
+    /// The attachment the user just chose, shown before the server confirms it.
+    ///
+    /// Only the photos that already have a remote id can appear: `photoRemoteIds`
+    /// is what `MilestoneRowView` and the detail sheet render from, and there is
+    /// no id to render for a photo still uploading. The operation's own response
+    /// replaces this list with the server's, so a photo omitted here comes back
+    /// as soon as it exists.
+    private func applyPhotosOptimistically(_ photos: [Photo]?, to milestone: Milestone) throws {
+        guard let photos else { return }
+        milestone.photoRemoteIds = photos.compactMap { $0.remoteId.flatMap(Int.init) }
+        try modelContext.save()
     }
 
     func deleteMilestone(_ milestone: Milestone) async throws {
@@ -906,6 +929,30 @@ final class SyncService {
         }
 
         return syncedIds
+    }
+
+    /// Turns the photo local ids carried by a milestone operation into the remote
+    /// ids the request needs.
+    ///
+    /// Three cases. A `nil` list means the operation says nothing about photos,
+    /// and the key has to stay off the wire entirely.
+    /// A photo deleted locally is dropped from the list: the milestone should
+    /// still be written, and a photo that no longer exists cannot be attached to
+    /// anything. A photo that exists but has not uploaded yet throws
+    /// `missingRemoteId`, which parks the operation until the upload assigns one
+    /// rather than quietly attaching fewer photos than the user chose.
+    private func resolvePhotoRemoteIds(_ localIds: [String]?) throws -> [Int]? {
+        guard let localIds else { return nil }
+
+        var remoteIds: [Int] = []
+        for localId in localIds {
+            guard let photo = findPhoto(byLocalId: localId) else { continue }
+            guard let remoteId = photo.remoteId, let id = Int(remoteId) else {
+                throw SyncError.missingRemoteId("Photos must be uploaded before they can be attached to a milestone")
+            }
+            remoteIds.append(id)
+        }
+        return remoteIds
     }
 
     /// Both records have to be synced before the server can be told about the

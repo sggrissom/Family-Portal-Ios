@@ -13,10 +13,15 @@ struct AddMilestoneView: View {
     @State private var descriptionText: String = ""
     @State private var category: MilestoneCategory = .development
     @State private var date: Date = .now
+    @State private var selectedPhotoIds: Set<UUID> = []
     @State private var isSaving = false
 
     private var isValid: Bool {
         !descriptionText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var photoChoices: [Photo] {
+        milestonePhotoChoices(for: nil, person: person, allPhotos: [])
     }
 
     init(personId: UUID) {
@@ -44,6 +49,12 @@ struct AddMilestoneView: View {
                 Section {
                     DateEntryPicker(birthday: person?.birthday, date: $date)
                 }
+
+                MilestonePhotosSection(
+                    photos: photoChoices,
+                    emptyDescription: "Tag \(person?.name ?? "this person") in a photo to attach it to a milestone.",
+                    selection: $selectedPhotoIds
+                )
             }
             .navigationTitle("Add Milestone")
             .navigationBarTitleDisplayMode(.inline)
@@ -70,9 +81,14 @@ struct AddMilestoneView: View {
         milestone.person = person
         modelContext.insert(milestone)
 
+        // Resolved here rather than in the picker so a photo untagged or deleted
+        // while the sheet was open drops out of the selection instead of being
+        // sent as an id the server will reject.
+        let photos = photoChoices.filter { selectedPhotoIds.contains($0.id) }
+
         Task {
             do {
-                try await syncService?.addMilestone(milestone, for: person)
+                try await syncService?.addMilestone(milestone, for: person, photos: photos)
                 dismiss()
             } catch {
                 dismiss()

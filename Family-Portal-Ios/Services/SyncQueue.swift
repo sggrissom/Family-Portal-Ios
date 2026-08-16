@@ -105,6 +105,11 @@ nonisolated struct CreateMilestonePayload: Codable, Sendable {
     let description: String
     let category: String
     let milestoneDate: String
+    /// Local ids, resolved to remote ids when the operation runs: a photo picked
+    /// while it is still uploading has no remote id yet at enqueue time. Optional
+    /// so operations written by a build without this field still decode off disk
+    /// after an upgrade.
+    let photoLocalIds: [String]?
 }
 
 nonisolated struct UploadPhotoPayload: Codable, Sendable {
@@ -133,6 +138,10 @@ nonisolated struct UpdateMilestonePayload: Codable, Sendable {
     let description: String
     let category: String
     let milestoneDate: String
+    /// `nil` leaves the attachments alone, an empty array detaches everything —
+    /// the same distinction the request DTO carries. See `CreateMilestonePayload`
+    /// for why these are local ids.
+    let photoLocalIds: [String]?
 }
 
 nonisolated struct UpdatePhotoPayload: Codable, Sendable {

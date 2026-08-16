@@ -16,7 +16,10 @@ nonisolated enum Fixture {
         gender: Int = 0,
         birthday: String = "2019-08-04T00:00:00Z",
         familyId: Int = 7,
-        profilePhotoId: Int? = nil
+        profilePhotoId: Int? = nil,
+        profileCropX: Double? = nil,
+        profileCropY: Double? = nil,
+        profileCropScale: Double? = nil
     ) -> [String: Any] {
         var person: [String: Any] = [
             "id": id,
@@ -30,6 +33,26 @@ nonisolated enum Fixture {
         if let profilePhotoId {
             person["profilePhotoId"] = profilePhotoId
         }
+        if let profileCropX {
+            person["profileCropX"] = profileCropX
+        }
+        if let profileCropY {
+            person["profileCropY"] = profileCropY
+        }
+        if let profileCropScale {
+            person["profileCropScale"] = profileCropScale
+        }
+        return person
+    }
+
+    /// A person as the backend actually marshals one with no profile photo set:
+    /// Go writes zero values, not absent keys.
+    static func personWithUnsetProfilePhoto(id: Int, name: String = "Rowan") -> [String: Any] {
+        var person = self.person(id: id, name: name)
+        person["profilePhotoId"] = 0
+        person["profileCropX"] = 0
+        person["profileCropY"] = 0
+        person["profileCropScale"] = 0
         return person
     }
 

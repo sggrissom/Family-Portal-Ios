@@ -398,6 +398,8 @@ struct AddMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     let inputType: String        // "date" or "today"
     let milestoneDate: String?   // "yyyy-MM-dd" if inputType="date"
+    /// Photos to attach. `nil` omits the key entirely.
+    let photoIds: [Int]?
 }
 
 struct UpdateMilestoneRequestDTO: Encodable, Sendable {
@@ -406,6 +408,12 @@ struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     let inputType: String
     let milestoneDate: String?
+    /// The complete attachment set, not a delta: `UpdateMilestoneTx`
+    /// (backend/milestone.go) detaches every photo not listed here. The
+    /// distinction that matters is `nil` vs `[]` — Go reads an absent key as
+    /// "leave the attachments alone" and an empty array as "detach them all",
+    /// and `encodeIfPresent` is what keeps those two apart on the wire.
+    let photoIds: [Int]?
 }
 
 struct UpdatePhotoRequestDTO: Encodable, Sendable {

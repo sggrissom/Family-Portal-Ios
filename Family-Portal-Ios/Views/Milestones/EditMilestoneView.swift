@@ -14,6 +14,12 @@ struct EditMilestoneView: View {
     @State private var descriptionText: String
     @State private var category: MilestoneCategory
     @State private var date: Date
+    @State private var selectedPhotoIds: Set<UUID> = []
+    @State private var didSeedSelection = false
+
+    /// Every photo in the store, so an attachment made elsewhere can be matched
+    /// back to a local record — see `milestonePhotoChoices`.
+    @Query private var allPhotos: [Photo]
 
     init(milestone: Milestone) {
         self.milestone = milestone
@@ -24,6 +30,10 @@ struct EditMilestoneView: View {
 
     private var isValid: Bool {
         !descriptionText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var photoChoices: [Photo] {
+        milestonePhotoChoices(for: milestone, person: milestone.person, allPhotos: allPhotos)
     }
 
     var body: some View {
@@ -45,6 +55,27 @@ struct EditMilestoneView: View {
                 Section {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
+
+                MilestonePhotosSection(
+                    photos: photoChoices,
+                    emptyDescription: "Tag \(milestone.person?.name ?? "this person") in a photo to attach it to a milestone.",
+                    selection: $selectedPhotoIds
+                )
+            }
+            // The `@Query` this needs isn't available in `init`, and re-seeding
+            // on the way back from the picker would undo the user's edits.
+            .task {
+                guard !didSeedSelection else { return }
+                didSeedSelection = true
+                let attached = Set(milestone.photoRemoteIds)
+                selectedPhotoIds = Set(
+                    photoChoices
+                        .filter { photo in
+                            guard let remoteId = photo.remoteId.flatMap(Int.init) else { return false }
+                            return attached.contains(remoteId)
+                        }
+                        .map { $0.id }
+                )
             }
             .navigationTitle("Edit Milestone")
             .navigationBarTitleDisplayMode(.inline)
@@ -69,13 +100,20 @@ struct EditMilestoneView: View {
         milestone.category = category
         milestone.date = date
 
+        // `photoIds` is the complete set the milestone should end up with, so an
+        // empty selection detaches everything. Sending it is safe only once the
+        // seed has run — before that, an empty selection means "not loaded yet",
+        // and `nil` leaves the server's attachments untouched — and only because
+        // `photoChoices` includes whatever was already attached.
+        let photos = didSeedSelection ? photoChoices.filter { selectedPhotoIds.contains($0.id) } : nil
+
         // The write is already local and the queue guarantees delivery, so the
         // sheet doesn't wait on the network to close.
         dismiss()
 
         Task { [milestone] in
             do {
-                try await syncService?.updateMilestone(milestone)
+                try await syncService?.updateMilestone(milestone, photos: photos)
             } catch {
                 errorPresenter?.report(error, title: "Couldn't Save Milestone")
             }
