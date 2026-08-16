@@ -192,6 +192,56 @@ struct SyncQueueTests {
         #expect(await queue.count() == 0)
     }
 
+    // MARK: - Blocked cap
+
+    /// The other end of the retry cap. A blocked run means nothing was sent, so
+    /// it must not spend a retry — but "never spends anything" is how an
+    /// operation waiting on a parent that was itself discarded stays in the queue
+    /// for the life of the install.
+    @Test("A blocked operation is discarded eventually, without spending retries")
+    func blockedCapDiscards() async throws {
+        let (queue, _) = Self.scratchQueue()
+
+        let operation = try Self.operation(
+            .createMilestone, localId: "A", payload: ["v": 1], dependsOnLocalId: "person"
+        )
+        await queue.enqueue(operation)
+
+        for _ in 0..<19 {
+            #expect(await queue.markBlocked(operation.id) == nil)
+        }
+        #expect(await queue.count() == 1)
+
+        let stillQueued = try #require(await queue.allOperations().first)
+        #expect(stillQueued.blockedCount == 19)
+        // The server was never asked, so it never said no.
+        #expect(stillQueued.retryCount == 0)
+
+        let discarded = await queue.markBlocked(operation.id)
+        #expect(discarded?.id == operation.id)
+        #expect(await queue.count() == 0)
+    }
+
+    @Test("Coalescing preserves the blocked count already accrued")
+    func coalescingKeepsBlockedCount() async throws {
+        let (queue, _) = Self.scratchQueue()
+
+        let first = try Self.operation(.updatePhoto, localId: "A", payload: ["v": 1], dependsOnLocalId: "A")
+        await queue.enqueue(first)
+        await queue.markBlocked(first.id)
+        await queue.markBlocked(first.id)
+
+        await queue.enqueue(try Self.operation(
+            .updatePhoto, localId: "A", payload: ["v": 2], dependsOnLocalId: "A"
+        ))
+
+        let operations = await queue.allOperations()
+        #expect(operations.count == 1)
+        // Otherwise editing a blocked record resets the clock, and a photo that
+        // is never going to upload keeps its edits queued forever.
+        #expect(operations[0].blockedCount == 2)
+    }
+
     // MARK: - Dependency gating
 
     @Test("An operation waits until the record it depends on has synced")
@@ -204,6 +254,22 @@ struct SyncQueueTests {
 
         #expect(await queue.readyOperations(syncedLocalIds: []).isEmpty)
         #expect(await queue.readyOperations(syncedLocalIds: ["photo"]).count == 1)
+    }
+
+    /// `blockedOperations` has to be the exact complement of `readyOperations`:
+    /// an operation in neither list is one nothing will ever account for.
+    @Test("Blocked operations are everything the ready set leaves out")
+    func blockedOperationsComplementReady() async throws {
+        let (queue, _) = Self.scratchQueue()
+
+        await queue.enqueue(try Self.operation(
+            .updatePhoto, localId: "waiting", payload: ["v": 1], dependsOnLocalId: "photo"
+        ))
+        await queue.enqueue(try Self.operation(.createMilestone, localId: "free", payload: ["v": 1]))
+
+        #expect(await queue.blockedOperations(syncedLocalIds: []).map(\.localId) == ["waiting"])
+        #expect(await queue.readyOperations(syncedLocalIds: []).map(\.localId) == ["free"])
+        #expect(await queue.blockedOperations(syncedLocalIds: ["photo"]).isEmpty)
     }
 
     @Test("Ready operations come back oldest first")
@@ -235,5 +301,35 @@ struct SyncQueueTests {
 
         let second = SyncQueue(defaults: defaults)
         #expect(await second.count() == 1)
+    }
+
+    /// The whole queue is persisted as one array, so an operation written before
+    /// `blockedCount` existed must not merely be skipped — a decode failure takes
+    /// every other pending change on the device with it.
+    @Test("A queue written by a build without blockedCount still loads")
+    func loadsOperationsFromBeforeBlockedCount() async throws {
+        let name = "SyncQueueTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+
+        let stored = [
+            try Self.operation(.createMilestone, localId: "old", payload: ["v": 1]),
+            try Self.operation(.updatePhoto, localId: "alsoOld", payload: ["v": 2])
+        ]
+        // Round-trip through JSON and strip the key, rather than hand-writing the
+        // encoding: `Data` and `Date` have representations the encoder chooses.
+        let encoded = try JSONEncoder().encode(stored)
+        let decoded = try JSONSerialization.jsonObject(with: encoded)
+        var raw = try #require(decoded as? [[String: Any]])
+        for index in raw.indices {
+            raw[index].removeValue(forKey: "blockedCount")
+        }
+        #expect(raw.count == 2)
+        defaults.set(try JSONSerialization.data(withJSONObject: raw), forKey: "com.familyrecord.syncQueue")
+
+        let queue = SyncQueue(defaults: defaults)
+        let loaded = await queue.allOperations()
+        #expect(loaded.map(\.localId) == ["old", "alsoOld"])
+        #expect(loaded.allSatisfy { $0.blockedCount == 0 })
     }
 }

@@ -46,6 +46,12 @@ nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
     let payload: Data
     let createdAt: Date
     var retryCount: Int
+    /// Sync runs this operation sat out because something it needs has not synced
+    /// yet. Counted separately from `retryCount`, which means "the server was
+    /// asked and said no" — nothing was sent here, so these must not spend a
+    /// retry, but they cannot be free either or a permanently blocked operation
+    /// stays in the queue for the life of the install.
+    var blockedCount: Int
     let dependsOnLocalId: String?
 
     init(
@@ -55,6 +61,7 @@ nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
         payload: Data,
         createdAt: Date = Date(),
         retryCount: Int = 0,
+        blockedCount: Int = 0,
         dependsOnLocalId: String? = nil
     ) {
         self.id = id
@@ -63,7 +70,33 @@ nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
         self.payload = payload
         self.createdAt = createdAt
         self.retryCount = retryCount
+        self.blockedCount = blockedCount
         self.dependsOnLocalId = dependsOnLocalId
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, type, localId, payload, createdAt, retryCount, blockedCount, dependsOnLocalId
+    }
+
+    /// Decoded by hand only so a missing `blockedCount` defaults instead of
+    /// throwing. The whole queue is one `[PendingOperation]` blob, so a single
+    /// operation written by an older build failing to decode would take every
+    /// pending change on the device down with it.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        type = try container.decode(SyncOperationType.self, forKey: .type)
+        localId = try container.decode(String.self, forKey: .localId)
+        payload = try container.decode(Data.self, forKey: .payload)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        retryCount = try container.decode(Int.self, forKey: .retryCount)
+        blockedCount = try container.decodeIfPresent(Int.self, forKey: .blockedCount) ?? 0
+        dependsOnLocalId = try container.decodeIfPresent(String.self, forKey: .dependsOnLocalId)
+    }
+
+    func isReady(syncedLocalIds: Set<String>) -> Bool {
+        guard let dependsOnLocalId else { return true }
+        return syncedLocalIds.contains(dependsOnLocalId)
     }
 }
 
@@ -160,6 +193,12 @@ actor SyncQueue {
     private static let storageKey = "com.familyrecord.syncQueue"
     private static let maxRetries = 5
 
+    /// Deliberately much larger than `maxRetries`: a blocked run costs the user
+    /// nothing and the parent it is waiting on gets five tries of its own, so the
+    /// allowance has to outlast that by a wide margin. It is a backstop against
+    /// "never", not a timeout.
+    private static let maxBlockedRuns = 20
+
     private var operations: [PendingOperation]
     private let defaults: UserDefaults
 
@@ -200,12 +239,17 @@ actor SyncQueue {
     }
 
     func readyOperations(syncedLocalIds: Set<String>) -> [PendingOperation] {
-        return operations.filter { op in
-            guard let dependsOn = op.dependsOnLocalId else {
-                return true
-            }
-            return syncedLocalIds.contains(dependsOn)
-        }.sorted { $0.createdAt < $1.createdAt }
+        return operations.filter { $0.isReady(syncedLocalIds: syncedLocalIds) }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// The other half of `readyOperations`: everything the dependency gate held
+    /// back this run. These are never handed to `executeOperation`, so without
+    /// asking for them explicitly a caller has no way to notice that one of them
+    /// is waiting on a parent that is never going to arrive.
+    func blockedOperations(syncedLocalIds: Set<String>) -> [PendingOperation] {
+        return operations.filter { !$0.isReady(syncedLocalIds: syncedLocalIds) }
+            .sorted { $0.createdAt < $1.createdAt }
     }
 
     /// - Returns: the operation if this failure used up its last retry and it was
@@ -229,6 +273,37 @@ actor SyncQueue {
 
         AppLog.queue.error(
             "Discarding \(operation.type.rawValue, privacy: .public) for \(operation.localId, privacy: .public) after \(operation.retryCount) failed attempts"
+        )
+        operations.remove(at: index)
+        saveToStorage()
+        return operation
+    }
+
+    /// Record that a sync run could not run this operation because something it
+    /// depends on has not synced. Nothing was sent, so this is not a retry — but
+    /// an operation whose parent was itself discarded is blocked for good, and
+    /// left alone it would be re-examined on every sync forever while its record
+    /// sits on the device looking merely "not synced yet".
+    ///
+    /// - Returns: the operation if this run used up its allowance and it was
+    ///   dropped, on the same terms as `markFailed`.
+    @discardableResult
+    func markBlocked(_ operationId: UUID) -> PendingOperation? {
+        guard let index = operations.firstIndex(where: { $0.id == operationId }) else {
+            return nil
+        }
+
+        var operation = operations[index]
+        operation.blockedCount += 1
+
+        guard operation.blockedCount >= Self.maxBlockedRuns else {
+            operations[index] = operation
+            saveToStorage()
+            return nil
+        }
+
+        AppLog.queue.error(
+            "Discarding \(operation.type.rawValue, privacy: .public) for \(operation.localId, privacy: .public) after \(operation.blockedCount) runs blocked on unsynced dependencies"
         )
         operations.remove(at: index)
         saveToStorage()
@@ -272,6 +347,7 @@ actor SyncQueue {
 
         var replacement = incoming
         replacement.retryCount = operations[index].retryCount
+        replacement.blockedCount = operations[index].blockedCount
         operations[index] = replacement
         return true
     }
@@ -316,6 +392,7 @@ actor SyncQueue {
                 payload: encodedPayload,
                 createdAt: mergedOperation.createdAt,
                 retryCount: mergedOperation.retryCount,
+                blockedCount: mergedOperation.blockedCount,
                 dependsOnLocalId: mergedOperation.dependsOnLocalId
             )
             operations[existingIndex] = mergedOperation
@@ -335,6 +412,7 @@ actor SyncQueue {
                 payload: encodedPayload,
                 createdAt: incoming.createdAt,
                 retryCount: incoming.retryCount,
+                blockedCount: incoming.blockedCount,
                 dependsOnLocalId: incoming.dependsOnLocalId
             )
             operations.append(adjustedOperation)
@@ -370,6 +448,7 @@ actor SyncQueue {
                         payload: encodedPayload,
                         createdAt: previous.createdAt,
                         retryCount: previous.retryCount,
+                        blockedCount: previous.blockedCount,
                         dependsOnLocalId: previous.dependsOnLocalId
                     )
                 }
@@ -383,6 +462,7 @@ actor SyncQueue {
            existingPayload.personLocalId == incomingPayload.personLocalId {
             var replacement = incoming
             replacement.retryCount = operations[existingIndex].retryCount
+            replacement.blockedCount = operations[existingIndex].blockedCount
             operations[existingIndex] = replacement
             return true
         }

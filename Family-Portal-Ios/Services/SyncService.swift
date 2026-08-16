@@ -137,6 +137,8 @@ final class SyncService {
         let syncedLocalIds = await fetchAllSyncedLocalIds()
         let operations = await syncQueue.readyOperations(syncedLocalIds: syncedLocalIds)
         var discarded: [PendingOperation] = []
+        var accountedFor = Set<UUID>()
+        var wentOffline = false
 
         for operation in operations {
             do {
@@ -144,15 +146,42 @@ final class SyncService {
                 await syncQueue.dequeue(operation.id)
             } catch {
                 if isNetworkError(error) {
+                    wentOffline = true
                     break
                 }
                 if case SyncError.missingRemoteId = error {
+                    // Nothing was sent, so this is not a retry — but it is a run
+                    // this operation could not use, and an operation waiting on a
+                    // parent whose own create was discarded would otherwise wait
+                    // for the life of the install.
+                    accountedFor.insert(operation.id)
+                    if let dropped = await syncQueue.markBlocked(operation.id) {
+                        discarded.append(dropped)
+                    }
                     continue
                 }
                 AppLog.sync.error(
                     "\(operation.type.rawValue, privacy: .public) failed: \(String(describing: error), privacy: .public)"
                 )
+                accountedFor.insert(operation.id)
                 if let dropped = await syncQueue.markFailed(operation.id) {
+                    discarded.append(dropped)
+                }
+            }
+        }
+
+        // Operations the dependency gate held back never reached the loop above,
+        // which is exactly why they need counting here: they are the ones that
+        // can sit in the queue indefinitely without anything ever noticing. The
+        // synced set is re-read because a parent that succeeded moments ago in
+        // this very run unblocks its children, and the snapshot taken at the top
+        // predates that. A run cut short by the network charges nobody: being
+        // offline must not spend an operation's allowance.
+        if !wentOffline {
+            let syncedNow = await fetchAllSyncedLocalIds()
+            let blocked = await syncQueue.blockedOperations(syncedLocalIds: syncedNow)
+            for operation in blocked where !accountedFor.contains(operation.id) {
+                if let dropped = await syncQueue.markBlocked(operation.id) {
                     discarded.append(dropped)
                 }
             }

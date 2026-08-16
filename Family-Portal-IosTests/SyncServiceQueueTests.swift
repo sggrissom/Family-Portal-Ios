@@ -85,6 +85,105 @@ struct SyncServiceQueueTests {
         #expect(operations.first?.retryCount == 0)
     }
 
+    /// The dependency gate holds this one back before `executeOperation` ever
+    /// sees it, so nothing in the run loop can notice it. Left uncounted it would
+    /// be re-examined on every sync until the app is deleted, while the milestone
+    /// sits in the list looking like it is merely waiting its turn.
+    @Test("An operation held back by the dependency gate is eventually given up on")
+    func gateBlockedOperationIsEventuallyDiscarded() async throws {
+        let harness = try TestSync.harness(connected: false)
+
+        // Unsynced, and its own create is not in the queue: the person's create
+        // was discarded after five failures, so nothing will ever give it a
+        // remote id.
+        let person = Person(name: "Rowan", type: .child, gender: .other, birthday: Date())
+        harness.context.insert(person)
+        try harness.context.save()
+
+        let milestone = Milestone(descriptionText: "First steps", category: .development, date: Date())
+        milestone.person = person
+        harness.context.insert(milestone)
+        try harness.context.save()
+
+        try await harness.service.addMilestone(milestone, for: person)
+
+        harness.monitor.isConnected = true
+        for _ in 0..<19 {
+            await harness.service.processQueue()
+        }
+
+        #expect(harness.server.requests(for: "rpc/AddMilestone").isEmpty)
+        #expect(await harness.service.syncQueue.count() == 1)
+        #expect(harness.service.discardedChangeWarning == nil)
+
+        await harness.service.processQueue()
+
+        #expect(await harness.service.syncQueue.count() == 0)
+        #expect(harness.service.pendingOperationCount == 0)
+        let warning = try #require(harness.service.discardedChangeWarning)
+        #expect(warning.contains("milestone"))
+    }
+
+    /// The counterpart to `networkFailureSpendsNoRetry`: a run that stopped
+    /// because the connection dropped is not a run anything was given a chance
+    /// in, so it must not count against the operations it never reached.
+    @Test("A run cut short by the network costs blocked operations nothing")
+    func networkFailureSpendsNoBlockedRun() async throws {
+        let harness = try TestSync.harness(connected: false)
+        harness.server.route("api/upload-photo", respond: .offline())
+
+        let photo = Photo(title: "Beach", descriptionText: "", photoDate: Date(), imageData: Data([0xFF, 0xD8]))
+        harness.context.insert(photo)
+        try harness.context.save()
+
+        try await harness.service.uploadPhoto(photo)
+        // Waits on the upload above, which is about to fail offline.
+        try await harness.service.updatePhoto(photo)
+
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        let operations = await harness.service.syncQueue.allOperations()
+        #expect(operations.count == 2)
+        #expect(operations.allSatisfy { $0.blockedCount == 0 && $0.retryCount == 0 })
+    }
+
+    /// A parent that syncs partway through a run unblocks its children, and the
+    /// synced set the run started from does not know that yet. Charging from the
+    /// stale snapshot would penalise operations that were never actually blocked.
+    @Test("A dependency satisfied during the run costs its children nothing")
+    func dependencySatisfiedMidRunCostsNothing() async throws {
+        let harness = try TestSync.harness(connected: false)
+        harness.server.route("api/upload-photo", respond: .json(["image": Fixture.image(id: 77, title: "Beach")]))
+        harness.server.route("rpc/UpdatePhoto", respond: .status(503, message: "unavailable"))
+
+        let photo = Photo(title: "Beach", descriptionText: "", photoDate: Date(), imageData: Data([0xFF, 0xD8]))
+        harness.context.insert(photo)
+        try harness.context.save()
+
+        try await harness.service.uploadPhoto(photo)
+        try await harness.service.updatePhoto(photo)
+
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        // The edit was not in this run's ready set — the upload had not happened
+        // when that set was taken — but by the end of the run its dependency was
+        // satisfied, so it is waiting its turn, not stuck.
+        #expect(photo.remoteId == "77")
+        #expect(harness.server.requests(for: "rpc/UpdatePhoto").isEmpty)
+
+        let operations = await harness.service.syncQueue.allOperations()
+        #expect(operations.count == 1)
+        #expect(operations.first?.type == .updatePhoto)
+        #expect(operations.first?.blockedCount == 0)
+        #expect(operations.first?.retryCount == 0)
+
+        // And the next run does reach it.
+        await harness.service.processQueue()
+        #expect(harness.server.requests(for: "rpc/UpdatePhoto").count == 1)
+    }
+
     // MARK: - Photo upload
 
     @Test("A confirmed upload adopts the remote id and releases the local bytes")
