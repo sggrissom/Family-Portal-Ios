@@ -47,8 +47,8 @@ final class AuthService {
             )
 
             if response.success, let token = response.token, let auth = response.auth {
-                await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
-                currentUser = auth
+                await APIClient.shared.setAccessToken(token)
+                setCurrentUser(auth)
             } else {
                 errorMessage = response.error ?? "Login failed."
             }
@@ -105,9 +105,9 @@ final class AuthService {
                 return response.error ?? "Could not create your account."
             }
 
-            await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
+            await APIClient.shared.setAccessToken(token)
             errorMessage = nil
-            currentUser = auth
+            setCurrentUser(auth)
             return nil
         } catch let error as APIError {
             return error.errorDescription
@@ -161,8 +161,8 @@ final class AuthService {
             )
 
             if response.success, let token = response.token, let auth = response.auth {
-                await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
-                currentUser = auth
+                await APIClient.shared.setAccessToken(token)
+                setCurrentUser(auth)
             } else {
                 errorMessage = response.error ?? "Google sign-in failed."
             }
@@ -227,7 +227,7 @@ final class AuthService {
             }
 
             if let auth = response.auth {
-                currentUser = auth
+                setCurrentUser(auth)
             }
             return await loadFamilyInfo()
         } catch let error as APIError {
@@ -257,14 +257,26 @@ final class AuthService {
         // Sign out of Google as well
         googleSignInService.signOut()
 
-        await APIClient.shared.clearTokens()
-        currentUser = nil
-        families = []
+        await endSession()
     }
 
     @MainActor
     func restoreSession() async {
         defer { hasCheckedStoredSession = true }
+
+        // Registered here because this is the first thing the app does with the
+        // API, so no request can outrun it.
+        let onSessionExpired: @MainActor () async -> Void = { [weak self] in
+            guard let self else { return }
+            self.endSessionLocally()
+        }
+        await APIClient.shared.setSessionExpiredHandler(onSessionExpired)
+
+        guard await APIClient.shared.hasRefreshCredential else {
+            // Nothing to refresh with: a fresh install, or a real sign-out.
+            endSessionLocally()
+            return
+        }
 
         do {
             struct EmptyBody: Encodable {}
@@ -276,14 +288,60 @@ final class AuthService {
                 retryOnAuthFailure: false
             )
             if response.success, let token = response.token {
-                await APIClient.shared.setTokens(accessToken: token, refreshToken: nil)
-                currentUser = response.auth
+                await APIClient.shared.setAccessToken(token)
+                setCurrentUser(response.auth ?? Self.cachedUser())
             } else {
-                await APIClient.shared.clearTokens()
+                await endSession()
             }
+        } catch APIError.unauthorized {
+            // The refresh token is expired, revoked, or was reused. This is the
+            // only launch-time failure that should cost the user their session.
+            await endSession()
         } catch {
-            await APIClient.shared.clearTokens()
+            // No network on launch, a DNS hiccup, a 502 — none of which say
+            // anything about whether the session is still good. Keep the tokens
+            // and carry on with the identity from last time; the next request
+            // refreshes for real, and a genuinely dead session gets caught by
+            // the 401 handling there.
+            setCurrentUser(Self.cachedUser())
         }
+    }
+
+    /// Forgets the session locally. The tokens are already gone by the time the
+    /// API client calls this, so there is nothing to revoke server-side.
+    @MainActor
+    private func endSessionLocally() {
+        setCurrentUser(nil)
+        families = []
+    }
+
+    @MainActor
+    private func endSession() async {
+        await APIClient.shared.clearTokens()
+        endSessionLocally()
+    }
+
+    // MARK: - Cached identity
+
+    /// The last known signed-in user, so a launch without connectivity can show
+    /// the app instead of a sign-in screen the user cannot get past offline.
+    /// Nothing here is a credential — the tokens live in the keychain.
+    private static let cachedUserKey = "com.familyrecord.cachedAuthUser"
+
+    @MainActor
+    private func setCurrentUser(_ user: AuthResponseDTO?) {
+        currentUser = user
+
+        guard let user, let data = try? JSONEncoder().encode(user) else {
+            UserDefaults.standard.removeObject(forKey: Self.cachedUserKey)
+            return
+        }
+        UserDefaults.standard.set(data, forKey: Self.cachedUserKey)
+    }
+
+    private static func cachedUser() -> AuthResponseDTO? {
+        guard let data = UserDefaults.standard.data(forKey: cachedUserKey) else { return nil }
+        return try? JSONDecoder().decode(AuthResponseDTO.self, from: data)
     }
 
     // MARK: - Google Sign-In URL Handling

@@ -108,6 +108,12 @@ actor APIClient {
     private let session: URLSession
     private let clientId: String
 
+    /// Called when the server rejects the refresh token outright, which is the
+    /// one failure the app cannot recover from without the user. Set by
+    /// `AuthService` so a dead session collapses back to the sign-in screen
+    /// instead of leaving every request failing.
+    private var onSessionExpired: (@MainActor () async -> Void)?
+
     private nonisolated static let defaultURL = URL(string: AppConstants.defaultServerURL)!
 
     init(baseURL: URL? = nil, session: URLSession = .shared) {
@@ -117,7 +123,14 @@ actor APIClient {
         clientId = UUID().uuidString
 
         let loadedAccessToken = Self.loadToken(forKey: Self.keychainAccessToken)
-        let loadedRefreshToken = Self.loadToken(forKey: Self.keychainRefreshToken)
+        // Builds before the refresh token was kept properly dropped it from the
+        // keychain at login, so an install may only have it in the cookie jar.
+        // Adopting it here upgrades those sessions instead of signing them out.
+        let storedRefreshToken = Self.loadToken(forKey: Self.keychainRefreshToken)
+        let loadedRefreshToken = storedRefreshToken ?? Self.refreshCookie(for: initialBaseURL)?.value
+        if storedRefreshToken == nil, let loadedRefreshToken {
+            Self.storeToken(loadedRefreshToken, key: Self.keychainRefreshToken)
+        }
         accessToken = loadedAccessToken
         refreshToken = loadedRefreshToken
 
@@ -126,12 +139,40 @@ actor APIClient {
         Self.syncCookiesNonisolated(baseURL: self.baseURL, accessToken: loadedAccessToken, refreshToken: loadedRefreshToken)
     }
 
-    func setTokens(accessToken: String?, refreshToken: String?) {
+    func setSessionExpiredHandler(_ handler: (@MainActor () async -> Void)?) {
+        onSessionExpired = handler
+    }
+
+    /// Private on purpose: callers outside the client only ever have the JWT
+    /// from a response body, and passing `nil` for the refresh token here
+    /// silently throws away a live session. Use `setAccessToken` instead.
+    private func setTokens(accessToken: String?, refreshToken: String?) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         Self.storeToken(accessToken, key: Self.keychainAccessToken)
         Self.storeToken(refreshToken, key: Self.keychainRefreshToken)
         syncCookies()
+    }
+
+    /// Banks a newly issued JWT while leaving the refresh token alone.
+    ///
+    /// Login, sign-up and refresh all return the JWT in their response body but
+    /// the refresh token only in a `Set-Cookie` header, which `captureTokens`
+    /// has already banked by the time a caller gets here. Routing those callers
+    /// through `setTokens(accessToken:refreshToken: nil)` would erase the
+    /// refresh token they just received and cap the session at the JWT's 24
+    /// hours — which is exactly what used to happen.
+    func setAccessToken(_ token: String?) {
+        accessToken = token
+        Self.storeToken(token, key: Self.keychainAccessToken)
+        syncCookies()
+    }
+
+    /// Whether there is anything to refresh with. The cookie jar is consulted
+    /// as well as the keychain because the server only ever hands the refresh
+    /// token over as a cookie.
+    var hasRefreshCredential: Bool {
+        refreshToken != nil || Self.refreshCookie(for: baseURL) != nil
     }
 
     func clearTokens() {
@@ -326,8 +367,25 @@ actor APIClient {
         }
     }
 
+    /// Refreshes the JWT if it is missing, expired, or about to expire.
+    ///
+    /// The 401 retry in `request` covers most of this, but the WebSocket and
+    /// the photo loader take `getAccessToken()` and use it directly, so they
+    /// need a token that is already good. An app resumed after more than a day
+    /// in the background has an expired one.
+    func ensureFreshAccessToken(margin: TimeInterval = 5 * 60) async {
+        guard hasRefreshCredential else { return }
+
+        if let accessToken, let expiry = Self.jwtExpiry(accessToken),
+           expiry.timeIntervalSinceNow > margin {
+            return
+        }
+
+        try? await refreshAccessToken()
+    }
+
     func refreshAccessToken() async throws {
-        guard refreshToken != nil else {
+        guard hasRefreshCredential else {
             throw APIError.missingRefreshToken
         }
 
@@ -353,6 +411,13 @@ actor APIClient {
 
             guard (200...299).contains(httpResponse.statusCode) else {
                 let message = String(data: data, encoding: .utf8)
+                // A 401 here is the server saying the refresh token is expired,
+                // unknown, or revoked — the session is over. Any other status is
+                // a server-side problem the stored token may well outlive, so
+                // it must not cost the user their sign-in.
+                if httpResponse.statusCode == 401 {
+                    await endSession()
+                }
                 throw APIError.refreshFailed(message)
             }
 
@@ -364,14 +429,53 @@ actor APIClient {
             }
 
             guard refreshResponse.success, let token = refreshResponse.token else {
+                await endSession()
                 throw APIError.refreshFailed(refreshResponse.error)
             }
 
-            setTokens(accessToken: token, refreshToken: refreshToken)
+            // `captureTokens` has already stored the rotated refresh token that
+            // came back with this response; only the JWT is left to bank.
+            setAccessToken(token)
         } catch let error as APIError {
             throw error
         } catch {
             throw APIError.network(error)
+        }
+    }
+
+    /// Drops the local session and lets `AuthService` return to the sign-in
+    /// screen. Only called when the server has rejected the refresh token.
+    private func endSession() async {
+        clearTokens()
+        if let onSessionExpired {
+            await onSessionExpired()
+        }
+    }
+
+    /// Reads the `exp` claim without verifying the signature — the server does
+    /// that. This only decides when to ask for a new token.
+    nonisolated static func jwtExpiry(_ token: String) -> Date? {
+        let segments = token.split(separator: ".")
+        guard segments.count == 3 else { return nil }
+
+        var payload = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while payload.count % 4 != 0 {
+            payload.append("=")
+        }
+
+        guard let data = Data(base64Encoded: payload),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let exp = object["exp"] as? Double else {
+            return nil
+        }
+        return Date(timeIntervalSince1970: exp)
+    }
+
+    nonisolated private static func refreshCookie(for baseURL: URL) -> HTTPCookie? {
+        HTTPCookieStorage.shared.cookies(for: baseURL)?.first {
+            $0.name == "refreshToken" && !$0.value.isEmpty
         }
     }
 
@@ -403,12 +507,24 @@ actor APIClient {
         var updatedAccessToken: String?
         var updatedRefreshToken: String?
 
-        for cookie in cookies {
+        for cookie in cookies where !cookie.value.isEmpty {
+            // An empty value is the server expiring the cookie (logout, or a
+            // rejected refresh). Those paths call `clearTokens` themselves;
+            // storing the empty string here would only fake a credential.
             if cookie.name == "authToken" {
                 updatedAccessToken = cookie.value
             } else if cookie.name == "refreshToken" {
                 updatedRefreshToken = cookie.value
             }
+        }
+
+        // The server rotates the refresh token on every refresh, and losing a
+        // rotation ends the session — so fall back to the jar URLSession has
+        // already filled in rather than trusting this parse of the combined
+        // `Set-Cookie` header. Absence is ignored: only `clearTokens` forgets.
+        if updatedRefreshToken == nil, let jarToken = Self.refreshCookie(for: baseURL)?.value,
+           jarToken != refreshToken {
+            updatedRefreshToken = jarToken
         }
 
         if updatedAccessToken != nil || updatedRefreshToken != nil {

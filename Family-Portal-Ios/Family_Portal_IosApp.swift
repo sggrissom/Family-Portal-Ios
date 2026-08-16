@@ -68,9 +68,10 @@ struct Family_Portal_IosApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
                         Task {
-                            if authService.isAuthenticated {
-                                await syncService.performFullSync()
-                            }
+                            guard authService.isAuthenticated else { return }
+                            await APIClient.shared.ensureFreshAccessToken()
+                            guard authService.isAuthenticated else { return }
+                            await syncService.performFullSync()
                         }
                     }
                 }
