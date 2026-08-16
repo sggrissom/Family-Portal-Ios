@@ -4,6 +4,7 @@ import SwiftData
 struct EditPersonView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     let person: Person
 
@@ -86,10 +87,11 @@ struct EditPersonView: View {
         Task {
             do {
                 try await syncService?.updatePerson(person)
+                dismiss()
             } catch {
-                print("Failed to sync person update: \(error)")
+                dismiss()
+                errorPresenter?.report(error, title: "Couldn't Save Changes")
             }
-            dismiss()
         }
     }
 }

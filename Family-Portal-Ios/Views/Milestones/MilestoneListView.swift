@@ -4,6 +4,7 @@ import SwiftData
 struct MilestoneListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     @Query private var people: [Person]
     private var person: Person? { people.first }
@@ -108,7 +109,7 @@ struct MilestoneListView: View {
                 do {
                     try await syncService?.deleteMilestone(milestone)
                 } catch {
-                    print("Failed to sync delete milestone: \(error)")
+                    errorPresenter?.report(error, title: "Couldn't Delete Milestone")
                 }
             }
         }

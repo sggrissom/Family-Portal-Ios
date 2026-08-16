@@ -5,6 +5,7 @@ import Charts
 struct MeasurementListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     @Query private var people: [Person]
     private var person: Person? { people.first }
@@ -94,7 +95,7 @@ struct MeasurementListView: View {
                 do {
                     try await syncService?.deleteGrowthData(measurement)
                 } catch {
-                    print("Failed to sync delete growth data: \(error)")
+                    errorPresenter?.report(error, title: "Couldn't Delete Measurement")
                 }
             }
         }

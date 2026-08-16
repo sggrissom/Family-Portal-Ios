@@ -5,6 +5,7 @@ struct AddMilestoneView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     @Query private var people: [Person]
     private var person: Person? { people.first }
@@ -72,10 +73,11 @@ struct AddMilestoneView: View {
         Task {
             do {
                 try await syncService?.addMilestone(milestone, for: person)
+                dismiss()
             } catch {
-                print("Failed to sync milestone: \(error)")
+                dismiss()
+                errorPresenter?.report(error, title: "Couldn't Save Milestone")
             }
-            dismiss()
         }
     }
 }

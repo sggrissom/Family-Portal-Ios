@@ -180,11 +180,15 @@ struct SyncQueueTests {
         await queue.enqueue(operation)
 
         for _ in 0..<4 {
-            await queue.markFailed(operation.id)
+            // Nothing is returned while the operation is still retryable.
+            #expect(await queue.markFailed(operation.id) == nil)
         }
         #expect(await queue.count() == 1)
 
-        await queue.markFailed(operation.id)
+        // The last failure hands the operation back, which is how the user gets
+        // told a change was thrown away rather than merely delayed.
+        let discarded = await queue.markFailed(operation.id)
+        #expect(discarded?.id == operation.id)
         #expect(await queue.count() == 0)
     }
 

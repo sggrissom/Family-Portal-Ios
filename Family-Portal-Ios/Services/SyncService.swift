@@ -14,11 +14,24 @@ final class SyncService {
     var syncError: String?
     var pendingOperationCount: Int = 0
 
-    init(modelContext: ModelContext, apiClient: APIClient, networkMonitor: NetworkMonitor) {
+    /// Set when the queue gives up on an operation for good. Kept apart from
+    /// `syncError`, which every pull clears: a connection that came back fixes a
+    /// sync error, but nothing brings back a change that was dropped, so this
+    /// stays until the user acknowledges it.
+    private(set) var discardedChangeWarning: String?
+
+    /// `syncQueue` is injectable so tests can drive `processQueue` against a
+    /// scratch queue instead of the shared one in `UserDefaults.standard`.
+    init(
+        modelContext: ModelContext,
+        apiClient: APIClient,
+        networkMonitor: NetworkMonitor,
+        syncQueue: SyncQueue = SyncQueue()
+    ) {
         self.modelContext = modelContext
         self.apiClient = apiClient
         self.networkMonitor = networkMonitor
-        self.syncQueue = SyncQueue()
+        self.syncQueue = syncQueue
 
         Task {
             await updatePendingCount()
@@ -108,6 +121,7 @@ final class SyncService {
             try modelContext.save()
             lastSyncDate = Date()
         } catch {
+            AppLog.sync.error("Pull failed: \(String(describing: error), privacy: .public)")
             syncError = error.localizedDescription
         }
 
@@ -121,6 +135,7 @@ final class SyncService {
 
         let syncedLocalIds = await fetchAllSyncedLocalIds()
         let operations = await syncQueue.readyOperations(syncedLocalIds: syncedLocalIds)
+        var discarded: [PendingOperation] = []
 
         for operation in operations {
             do {
@@ -133,11 +148,33 @@ final class SyncService {
                 if case SyncError.missingRemoteId = error {
                     continue
                 }
-                await syncQueue.markFailed(operation.id)
+                AppLog.sync.error(
+                    "\(operation.type.rawValue, privacy: .public) failed: \(String(describing: error), privacy: .public)"
+                )
+                if let dropped = await syncQueue.markFailed(operation.id) {
+                    discarded.append(dropped)
+                }
             }
         }
 
+        // Losing an operation is the one sync outcome the user cannot infer from
+        // the pending count going down, so it gets said out loud.
+        if !discarded.isEmpty {
+            discardedChangeWarning = Self.discardedChangeMessage(for: discarded)
+        }
+
         await updatePendingCount()
+    }
+
+    func acknowledgeDiscardedChanges() {
+        discardedChangeWarning = nil
+    }
+
+    private static func discardedChangeMessage(for operations: [PendingOperation]) -> String {
+        if operations.count == 1, let only = operations.first {
+            return "A change to \(only.type.subjectDescription) couldn't be saved to the server and was dropped."
+        }
+        return "\(operations.count) changes couldn't be saved to the server and were dropped."
     }
 
     private func executeOperation(_ operation: PendingOperation) async throws {

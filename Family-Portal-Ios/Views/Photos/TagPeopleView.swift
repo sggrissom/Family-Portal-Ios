@@ -5,6 +5,7 @@ struct TagPeopleView: View {
     @Bindable var photo: Photo
     @Query(sort: \Person.name) private var people: [Person]
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     var body: some View {
         List(people) { person in
@@ -20,13 +21,19 @@ struct TagPeopleView: View {
                 Toggle("", isOn: Binding(
                     get: { photo.taggedPeople.contains(where: { $0.id == person.id }) },
                     set: { isTagged in
+                        // The toggle is applied locally first and the queue
+                        // delivers it, so an error here means nothing was queued
+                        // at all. Undoing the local change keeps the switch
+                        // honest instead of letting the next pull revert it
+                        // silently, minutes later.
                         if isTagged {
                             photo.taggedPeople.append(person)
                             Task {
                                 do {
                                     try await syncService?.addPeopleToPhoto(photo, people: [person])
                                 } catch {
-                                    print("Failed to sync add person to photo: \(error)")
+                                    photo.taggedPeople.removeAll(where: { $0.id == person.id })
+                                    errorPresenter?.report(error, title: "Couldn't Tag \(person.name)")
                                 }
                             }
                         } else {
@@ -35,7 +42,8 @@ struct TagPeopleView: View {
                                 do {
                                     try await syncService?.removePersonFromPhoto(photo, person: person)
                                 } catch {
-                                    print("Failed to sync remove person from photo: \(error)")
+                                    photo.taggedPeople.append(person)
+                                    errorPresenter?.report(error, title: "Couldn't Untag \(person.name)")
                                 }
                             }
                         }

@@ -38,6 +38,7 @@ struct Family_Portal_IosApp: App {
     let container: ModelContainer
     @State private var authService = AuthService()
     @State private var mobileVersionService = MobileVersionService()
+    @State private var errorPresenter = ErrorPresenter()
     @State private var networkMonitor: NetworkMonitor
     @State private var syncService: SyncService
     @State private var chatService: ChatService?
@@ -57,6 +58,11 @@ struct Family_Portal_IosApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // Ordered before `.environment(errorPresenter)` on purpose: the
+                // modifier reads the presenter from its own environment, and a
+                // value injected later in the chain wraps everything earlier.
+                .appErrorAlert()
+                .environment(errorPresenter)
                 .environment(authService)
                 .environment(mobileVersionService)
                 .environment(networkMonitor)

@@ -16,6 +16,21 @@ nonisolated enum SyncOperationType: String, Codable, Sendable {
     case deleteGrowthData
     case deleteMilestone
     case deletePhoto
+
+    /// What the record is called in the app's own language, for the one message
+    /// the user sees when an operation is dropped.
+    var subjectDescription: String {
+        switch self {
+        case .createPerson, .updatePerson:
+            return "a family member"
+        case .createGrowthData, .updateGrowthData, .deleteGrowthData:
+            return "a measurement"
+        case .createMilestone, .updateMilestone, .deleteMilestone:
+            return "a milestone"
+        case .uploadPhoto, .updatePhoto, .deletePhoto, .addPeopleToPhoto, .removePersonFromPhoto:
+            return "a photo"
+        }
+    }
 }
 
 // MARK: - Pending Operation
@@ -140,7 +155,7 @@ actor SyncQueue {
         do {
             return try JSONDecoder().decode([PendingOperation].self, from: data)
         } catch {
-            print("[SyncQueue] Failed to load from storage: \(error)")
+            AppLog.queue.error("Failed to load queue from storage: \(String(describing: error), privacy: .public)")
             return []
         }
     }
@@ -171,22 +186,31 @@ actor SyncQueue {
         }.sorted { $0.createdAt < $1.createdAt }
     }
 
-    func markFailed(_ operationId: UUID) {
+    /// - Returns: the operation if this failure used up its last retry and it was
+    ///   dropped. Discarding is the one queue event the user has to hear about —
+    ///   it is the moment a local change stops being "not synced yet" and becomes
+    ///   "never syncing" — so the caller needs to know it happened.
+    @discardableResult
+    func markFailed(_ operationId: UUID) -> PendingOperation? {
         guard let index = operations.firstIndex(where: { $0.id == operationId }) else {
-            return
+            return nil
         }
 
         var operation = operations[index]
         operation.retryCount += 1
 
-        if operation.retryCount >= Self.maxRetries {
-            print("[SyncQueue] Operation \(operationId) exceeded max retries, discarding")
-            operations.remove(at: index)
-        } else {
+        guard operation.retryCount >= Self.maxRetries else {
             operations[index] = operation
+            saveToStorage()
+            return nil
         }
 
+        AppLog.queue.error(
+            "Discarding \(operation.type.rawValue, privacy: .public) for \(operation.localId, privacy: .public) after \(operation.retryCount) failed attempts"
+        )
+        operations.remove(at: index)
         saveToStorage()
+        return operation
     }
 
     func allOperations() -> [PendingOperation] {
@@ -347,7 +371,7 @@ actor SyncQueue {
             let data = try JSONEncoder().encode(operations)
             defaults.set(data, forKey: Self.storageKey)
         } catch {
-            print("[SyncQueue] Failed to save to storage: \(error)")
+            AppLog.queue.error("Failed to save queue to storage: \(String(describing: error), privacy: .public)")
         }
     }
 }

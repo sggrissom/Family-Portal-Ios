@@ -7,6 +7,7 @@ import SwiftData
 struct EditMilestoneView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     let milestone: Milestone
 
@@ -76,7 +77,7 @@ struct EditMilestoneView: View {
             do {
                 try await syncService?.updateMilestone(milestone)
             } catch {
-                print("Failed to sync milestone update: \(error)")
+                errorPresenter?.report(error, title: "Couldn't Save Milestone")
             }
         }
     }

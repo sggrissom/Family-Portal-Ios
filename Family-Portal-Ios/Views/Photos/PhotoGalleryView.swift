@@ -6,11 +6,10 @@ import PhotosUI
 struct PhotoGalleryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
     @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
     @State private var selectedItem: PhotosPickerItem?
     @State private var isLoading = false
-    @State private var uploadError: Error?
-    @State private var showUploadError = false
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
@@ -67,6 +66,13 @@ struct PhotoGalleryView: View {
                     }
                     guard let data = try? await newItem.loadTransferable(type: Data.self),
                           UIImage(data: data) != nil else {
+                        // An iCloud photo that never downloaded, or a format
+                        // UIImage won't open. Silence here looked like a tap
+                        // that did nothing at all.
+                        errorPresenter?.report(
+                            message: "That photo couldn't be read. If it's stored in iCloud, open it in Photos first and try again.",
+                            title: "Couldn't Add Photo"
+                        )
                         return
                     }
                     let photo = Photo(
@@ -80,16 +86,9 @@ struct PhotoGalleryView: View {
                     do {
                         try await syncService?.uploadPhoto(photo)
                     } catch {
-                        print("Failed to upload photo: \(error)")
-                        uploadError = error
-                        showUploadError = true
+                        errorPresenter?.report(error, title: "Couldn't Add Photo")
                     }
                 }
-            }
-            .alert("Upload Failed", isPresented: $showUploadError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(uploadError?.localizedDescription ?? "An unknown error occurred while uploading the photo.")
             }
         }
     }

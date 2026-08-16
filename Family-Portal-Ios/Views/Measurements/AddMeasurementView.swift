@@ -5,6 +5,7 @@ struct AddMeasurementView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     @Query private var people: [Person]
     private var person: Person? { people.first }
@@ -80,10 +81,11 @@ struct AddMeasurementView: View {
         Task {
             do {
                 try await syncService?.addGrowthData(measurement, for: person)
+                dismiss()
             } catch {
-                print("Failed to sync growth data: \(error)")
+                dismiss()
+                errorPresenter?.report(error, title: "Couldn't Save Measurement")
             }
-            dismiss()
         }
     }
 }

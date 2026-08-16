@@ -10,7 +10,13 @@ final class NetworkMonitor {
 
     private var wasConnected: Bool = true
 
-    init() {
+    /// - Parameter startMonitoring: pass `false` to leave `isConnected` under the
+    ///   caller's control. Tests need a connectivity state that stays put; a live
+    ///   `NWPathMonitor` overwrites whatever they set as soon as the simulator's
+    ///   path settles.
+    init(startMonitoring: Bool = true) {
+        guard startMonitoring else { return }
+
         monitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
                 guard let self else { return }

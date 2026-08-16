@@ -254,7 +254,7 @@ actor ChatWebSocketService {
                 }
             }
         } catch {
-            print("[WebSocket] Failed to decode message: \(error)")
+            AppLog.chat.error("Failed to decode socket message: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -333,7 +333,7 @@ actor ChatWebSocketService {
 
                 let timeSinceLastMessage = Date().timeIntervalSince(await self.lastMessageTime)
                 if timeSinceLastMessage > Self.watchdogTimeout {
-                    print("[WebSocket] Watchdog triggered - connection stale")
+                    AppLog.chat.notice("Watchdog fired: no socket traffic in \(Int(timeSinceLastMessage))s, reconnecting")
                     await self.handleDisconnection()
                 }
             }
@@ -352,7 +352,7 @@ actor ChatWebSocketService {
             guard let text = String(data: data, encoding: .utf8) else { return }
             try await task.send(.string(text))
         } catch {
-            print("[WebSocket] Send failed: \(error)")
+            AppLog.chat.error("Socket send failed: \(String(describing: error), privacy: .public)")
         }
     }
 }

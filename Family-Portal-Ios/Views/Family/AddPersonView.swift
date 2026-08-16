@@ -5,6 +5,7 @@ struct AddPersonView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     @State private var name = ""
     @State private var type: PersonType = .parent
@@ -81,11 +82,13 @@ struct AddPersonView: View {
         Task {
             do {
                 try await syncService?.addPerson(person)
+                dismiss()
             } catch {
-                // Person is saved locally, sync will retry later
-                print("Failed to sync person: \(error)")
+                // Not a network failure — `addPerson` only queues, so getting
+                // here means the person can never be pushed as entered.
+                dismiss()
+                errorPresenter?.report(error, title: "Couldn't Save Person")
             }
-            dismiss()
         }
     }
 }

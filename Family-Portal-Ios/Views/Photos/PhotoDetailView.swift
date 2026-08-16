@@ -5,6 +5,7 @@ struct PhotoDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
     @Query private var photos: [Photo]
     @State private var showDeleteConfirmation = false
 
@@ -25,10 +26,11 @@ struct PhotoDetailView: View {
                         Task {
                             do {
                                 try await syncService?.deletePhoto(photo)
+                                dismiss()
                             } catch {
-                                print("Failed to sync delete photo: \(error)")
+                                dismiss()
+                                errorPresenter?.report(error, title: "Couldn't Delete Photo")
                             }
-                            dismiss()
                         }
                     }
                 } message: {

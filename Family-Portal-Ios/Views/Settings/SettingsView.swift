@@ -68,6 +68,23 @@ struct SettingsView: View {
                         lastSyncDate: syncService?.lastSyncDate
                     )
 
+                    // Survives the next successful sync on purpose: the pending
+                    // count dropping back to zero otherwise reads as "all saved"
+                    // when an operation was in fact thrown away.
+                    if let syncService, let warning = syncService.discardedChangeWarning {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(warning, systemImage: "exclamationmark.triangle.fill")
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+
+                            Button("Dismiss") {
+                                syncService.acknowledgeDiscardedChanges()
+                            }
+                            .font(.footnote)
+                        }
+                        .padding(.vertical, 4)
+                    }
+
                     Button {
                         Task {
                             await syncService?.performFullSync()

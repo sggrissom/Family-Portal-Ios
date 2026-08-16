@@ -52,7 +52,7 @@ final class MobileVersionService {
             // operator who hasn't configured a policy yet — none of those are
             // reasons to block someone from their own family's data.
             status = .unknown
-            print("[MobileVersion] Check failed: \(error)")
+            AppLog.version.error("Version check failed: \(String(describing: error), privacy: .public)")
         }
     }
 }
