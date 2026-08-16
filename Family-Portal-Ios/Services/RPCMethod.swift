@@ -64,6 +64,13 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
 
     case listTags = "ListTags"
 
+    /// Applying tags is registered from the record's own file rather than
+    /// tags.go — `UpdatePhotoTags` in backend/photos.go, `UpdateMilestoneTags`
+    /// in backend/milestone.go — but both are whole-set writes over the same
+    /// vocabulary, so they are grouped with it here.
+    case updatePhotoTags = "UpdatePhotoTags"
+    case updateMilestoneTags = "UpdateMilestoneTags"
+
     // MARK: - Chat (backend/chat.go)
 
     case sendMessage = "SendMessage"

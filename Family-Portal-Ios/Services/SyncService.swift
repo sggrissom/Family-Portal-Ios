@@ -267,6 +267,10 @@ final class SyncService {
             try await executeUpdateMilestone(operation)
         case .updatePhoto:
             try await executeUpdatePhoto(operation)
+        case .updatePhotoTags:
+            try await executeUpdatePhotoTags(operation)
+        case .updateMilestoneTags:
+            try await executeUpdateMilestoneTags(operation)
         case .deleteGrowthData:
             try await executeDeleteGrowthData(operation)
         case .deleteMilestone:
@@ -563,6 +567,43 @@ final class SyncService {
         let response: UpdatePhotoResponseDTO = try await apiClient.callRPC(.updatePhoto, payload: request)
         applyPhotoDTO(response.image, to: photo)
         try modelContext.save()
+    }
+
+    /// Both tag writes answer with an empty body, so there is nothing to apply
+    /// afterwards: the record already carries the set the user chose, written
+    /// when the operation was enqueued.
+    ///
+    /// A photo deleted locally makes the write moot and the operation is dropped;
+    /// one merely waiting on its upload is parked, the same split every other
+    /// operation makes.
+    private func executeUpdatePhotoTags(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(UpdateTagsPayload.self, from: operation.payload)
+
+        guard let photo = findPhoto(byLocalId: operation.localId) else {
+            return
+        }
+
+        guard let remoteId = photo.remoteId, let id = Int(remoteId) else {
+            throw SyncError.missingRemoteId("Photo must be uploaded before its tags can be saved")
+        }
+
+        let request = UpdatePhotoTagsRequestDTO(photoId: id, tagIds: payload.tagRemoteIds)
+        let _: EmptyResponseDTO = try await apiClient.callRPC(.updatePhotoTags, payload: request)
+    }
+
+    private func executeUpdateMilestoneTags(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(UpdateTagsPayload.self, from: operation.payload)
+
+        guard let milestone = findMilestone(byLocalId: operation.localId) else {
+            return
+        }
+
+        guard let remoteId = milestone.remoteId, let id = Int(remoteId) else {
+            throw SyncError.missingRemoteId("Milestone must be synced before its tags can be saved")
+        }
+
+        let request = UpdateMilestoneTagsRequestDTO(milestoneId: id, tagIds: payload.tagRemoteIds)
+        let _: EmptyResponseDTO = try await apiClient.callRPC(.updateMilestoneTags, payload: request)
     }
 
     private func executeDeleteGrowthData(_ operation: PendingOperation) async throws {
@@ -925,6 +966,51 @@ final class SyncService {
             payload: payload,
             dependsOnLocalId: dependsOnLocalId
         )
+    }
+
+    // MARK: - Push: Tags
+
+    /// Replaces the tags on a photo with `tagRemoteIds`.
+    ///
+    /// The set is complete, not a delta — `UpdatePhotoTags` detaches every tag it
+    /// is not sent — so the caller passes the record's whole new set, *including
+    /// any id this device cannot resolve to a `FamilyTag` yet*. Dropping those
+    /// would silently untag a photo whenever the web created a tag since the last
+    /// pull, which is exactly the window in which an unresolvable id exists.
+    ///
+    /// The local write happens after the enqueue, not before: a failure to queue
+    /// means the change will never reach the server, and leaving the record
+    /// showing it would be a lie the user only discovers at the next pull. There
+    /// is nothing to undo this way.
+    func updatePhotoTags(_ photo: Photo, tagRemoteIds: [Int]) async throws {
+        try await enqueueOperation(
+            type: .updatePhotoTags,
+            localId: photo.id.uuidString,
+            payload: UpdateTagsPayload(tagRemoteIds: tagRemoteIds),
+            // A photo tagged before its upload has flushed has no id to tag yet.
+            dependsOnLocalId: photo.remoteId == nil ? photo.id.uuidString : nil
+        )
+
+        photo.tagRemoteIds = tagRemoteIds
+        try modelContext.save()
+    }
+
+    /// The milestone half of `updatePhotoTags(_:tagRemoteIds:)`.
+    ///
+    /// No dependency is declared, because milestones are not in the set
+    /// `fetchAllSyncedLocalIds` builds — naming one would block the operation for
+    /// good. An unsynced milestone is caught at execution instead, which parks it
+    /// on a blocked run until its own create assigns a remote id.
+    func updateMilestoneTags(_ milestone: Milestone, tagRemoteIds: [Int]) async throws {
+        try await enqueueOperation(
+            type: .updateMilestoneTags,
+            localId: milestone.id.uuidString,
+            payload: UpdateTagsPayload(tagRemoteIds: tagRemoteIds),
+            dependsOnLocalId: nil
+        )
+
+        milestone.tagRemoteIds = tagRemoteIds
+        try modelContext.save()
     }
 
     // MARK: - Queue Helpers

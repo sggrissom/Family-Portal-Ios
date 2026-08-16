@@ -133,10 +133,20 @@ private struct PhotoDetailContent: View {
                 // Below the people and their Manage link, not between them:
                 // "tagged people" and "tags" are separate things that share a
                 // word, and interleaving them reads as one broken section.
-                // Applied on the web; shown here. `TagChipsView` draws nothing
-                // when the photo has no tags, or none this device knows yet.
+                // `TagChipsView` draws nothing when the photo has no tags, or
+                // none this device knows yet.
                 TagChipsView(tagRemoteIds: photo.tagRemoteIds, title: "Tags")
                     .padding(.horizontal)
+
+                NavigationLink {
+                    TagPickerView(tagRemoteIds: photo.tagRemoteIds) { tagRemoteIds in
+                        guard let syncService else { return }
+                        try await syncService.updatePhotoTags(photo, tagRemoteIds: tagRemoteIds)
+                    }
+                } label: {
+                    Label("Edit Tags", systemImage: "tag")
+                }
+                .padding(.horizontal)
 
                 // Only people tagged in the photo are offered: the server
                 // refuses a profile photo the person is not associated with.

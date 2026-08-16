@@ -67,9 +67,14 @@ struct RPCMethodTests {
         #expect(RPCMethod.removePersonFromPhoto.rawValue == "RemovePersonFromPhotoProc")
     }
 
+    /// The two writes are registered from the record's own file — photos.go and
+    /// milestone.go — rather than tags.go, so their names were read off those
+    /// `RegisterProc` calls and not from the tag registrations next to `ListTags`.
     @Test("Tag proc names match the backend")
     func tagProcNames() {
         #expect(RPCMethod.listTags.rawValue == "ListTags")
+        #expect(RPCMethod.updatePhotoTags.rawValue == "UpdatePhotoTags")
+        #expect(RPCMethod.updateMilestoneTags.rawValue == "UpdateMilestoneTags")
     }
 
     @Test("Chat proc names match the backend")

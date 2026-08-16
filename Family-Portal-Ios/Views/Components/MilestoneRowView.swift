@@ -64,6 +64,7 @@ struct MilestoneRowView: View {
 private struct MilestoneDetailSheetView: View {
     let milestone: Milestone
     @Environment(\.dismiss) private var dismiss
+    @Environment(SyncService.self) private var syncService: SyncService?
     @State private var isEditing = false
 
     var body: some View {
@@ -83,7 +84,19 @@ private struct MilestoneDetailSheetView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    TagChipsView(tagRemoteIds: milestone.tagRemoteIds)
+                    // Given a heading because the line above already shows the
+                    // milestone's *category* behind a tag glyph — two different
+                    // things one word apart, which a label keeps separate.
+                    TagChipsView(tagRemoteIds: milestone.tagRemoteIds, title: "Tags")
+
+                    NavigationLink {
+                        TagPickerView(tagRemoteIds: milestone.tagRemoteIds) { tagRemoteIds in
+                            guard let syncService else { return }
+                            try await syncService.updateMilestoneTags(milestone, tagRemoteIds: tagRemoteIds)
+                        }
+                    } label: {
+                        Label("Edit Tags", systemImage: "tag")
+                    }
 
                     if !milestone.photoRemoteIds.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {

@@ -34,7 +34,10 @@ struct SyncQueueTests {
 
     @Test(
         "A second update to the same record replaces the first",
-        arguments: [SyncOperationType.updatePerson, .updateGrowthData, .updateMilestone, .updatePhoto]
+        arguments: [
+            SyncOperationType.updatePerson, .updateGrowthData, .updateMilestone, .updatePhoto,
+            .updatePhotoTags, .updateMilestoneTags
+        ]
     )
     func updatesCoalesce(type: SyncOperationType) async throws {
         let (queue, _) = Self.scratchQueue()

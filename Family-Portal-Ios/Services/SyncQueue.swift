@@ -15,6 +15,8 @@ nonisolated enum SyncOperationType: String, Codable, Sendable {
     case updateGrowthData
     case updateMilestone
     case updatePhoto
+    case updatePhotoTags
+    case updateMilestoneTags
     case deleteGrowthData
     case deleteMilestone
     case deletePhoto
@@ -31,6 +33,8 @@ nonisolated enum SyncOperationType: String, Codable, Sendable {
             return "a measurement"
         case .createMilestone, .updateMilestone, .deleteMilestone:
             return "a milestone"
+        case .updatePhotoTags, .updateMilestoneTags:
+            return "a set of tags"
         case .uploadPhoto, .updatePhoto, .deletePhoto, .addPeopleToPhoto, .removePersonFromPhoto:
             return "a photo"
         }
@@ -183,6 +187,18 @@ nonisolated struct UpdatePhotoPayload: Codable, Sendable {
     let photoDate: String
 }
 
+/// The record's complete tag set, for both `updatePhotoTags` and
+/// `updateMilestoneTags` — the operation's own type says which record it belongs
+/// to, and the request body is the same shape either way.
+///
+/// These are *remote* ids, unlike the photo ids a milestone operation carries.
+/// A tag exists only because a pull produced it: iOS creates none, so there is
+/// no id here that the server has yet to assign, and nothing to resolve at
+/// execution.
+nonisolated struct UpdateTagsPayload: Codable, Sendable {
+    let tagRemoteIds: [Int]
+}
+
 nonisolated struct DeletePayload: Codable, Sendable {
     let remoteId: Int
 }
@@ -327,9 +343,13 @@ actor SyncQueue {
 
     private func mergeOperationIfPossible(_ incoming: PendingOperation) -> Bool {
         switch incoming.type {
-        case .updatePerson, .updateGrowthData, .updateMilestone, .updatePhoto, .setProfilePhoto:
+        case .updatePerson, .updateGrowthData, .updateMilestone, .updatePhoto, .setProfilePhoto,
+             .updatePhotoTags, .updateMilestoneTags:
             // A person has one profile photo, so picking a third while the first
-            // two are still queued should send one request, not three.
+            // two are still queued should send one request, not three. Tag sets
+            // merge for a stronger reason: each toggle in the picker enqueues the
+            // whole set, so a user choosing four tags offline would otherwise
+            // queue four requests of which only the last says anything true.
             return replaceExistingOperation(of: incoming.type, localId: incoming.localId, with: incoming)
         case .addPeopleToPhoto:
             return mergeAddPeopleToPhoto(incoming)

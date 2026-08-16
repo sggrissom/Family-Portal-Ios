@@ -625,6 +625,30 @@ struct RemovePersonFromPhotoRequestDTO: Encodable, Sendable {
     let personId: Int
 }
 
+/// The complete tag set for a photo, not a delta: `UpdatePhotoTags`
+/// (backend/photos.go) detaches every tag not listed and attaches every tag that
+/// is. Unlike `photoIds` on a milestone there is no absent-vs-empty distinction
+/// to preserve — the proc's only job is this field, and Go normalizes a missing
+/// or null `tagIds` to `[]`, so an empty array is the honest way to say "no
+/// tags".
+struct UpdatePhotoTagsRequestDTO: Encodable, Sendable {
+    let photoId: Int
+    let tagIds: [Int]
+}
+
+/// The milestone half of `UpdatePhotoTagsRequestDTO`, against
+/// `UpdateMilestoneTags` in backend/milestone.go.
+struct UpdateMilestoneTagsRequestDTO: Encodable, Sendable {
+    let milestoneId: Int
+    let tagIds: [Int]
+}
+
+/// A proc whose Go response type has no fields at all, which marshals as the
+/// literal body `{}`. Decoding `SuccessResponseDTO` against one of those would
+/// throw on the missing `success` key and turn every successful write into a
+/// retry.
+struct EmptyResponseDTO: Decodable, Sendable {}
+
 struct AddPersonResponseDTO: Decodable, Sendable {
     let person: PersonDTO
     let growthData: [GrowthDataDTO]
