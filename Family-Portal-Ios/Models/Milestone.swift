@@ -9,6 +9,8 @@ final class Milestone {
     var category: MilestoneCategory
     var date: Date
     var photoRemoteIds: [Int] = []
+    /// Ids of the `FamilyTag`s on this milestone; see `Photo.tagRemoteIds`.
+    var tagRemoteIds: [Int] = []
 
     var person: Person?
 

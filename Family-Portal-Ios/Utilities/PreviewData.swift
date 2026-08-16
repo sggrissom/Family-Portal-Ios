@@ -4,7 +4,7 @@ import SwiftData
 @MainActor
 enum PreviewData {
     static let container: ModelContainer = {
-        let schema = Schema([Family.self, Person.self, GrowthData.self, Milestone.self, Photo.self, User.self])
+        let schema = Schema([Family.self, Person.self, GrowthData.self, Milestone.self, Photo.self, User.self, FamilyTag.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [config])
 

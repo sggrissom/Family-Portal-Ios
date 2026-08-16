@@ -137,6 +137,7 @@ func applyMilestoneDTO(_ dto: MilestoneDTO, to milestone: Milestone) {
     milestone.category = MilestoneCategory(rawValue: dto.category) ?? .other
     milestone.date = dto.milestoneDate
     milestone.photoRemoteIds = dto.photoIds
+    milestone.tagRemoteIds = dto.tagIds
 }
 
 func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
@@ -144,6 +145,14 @@ func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
     photo.title = dto.title
     photo.descriptionText = dto.descriptionText
     photo.photoDate = dto.photoDate
+    photo.tagRemoteIds = dto.tagIds
+}
+
+func applyTagDTO(_ dto: TagDTO, to tag: FamilyTag) {
+    tag.remoteId = String(dto.id)
+    tag.name = dto.name
+    tag.colorHex = dto.color
+    tag.familyId = dto.familyId
 }
 
 // MARK: - DTO → New Model Constructors
@@ -178,6 +187,7 @@ func milestoneFromDTO(_ dto: MilestoneDTO) -> Milestone {
     )
     milestone.remoteId = String(dto.id)
     milestone.photoRemoteIds = dto.photoIds
+    milestone.tagRemoteIds = dto.tagIds
     return milestone
 }
 
@@ -188,5 +198,6 @@ func photoFromDTO(_ dto: ImageDTO) -> Photo {
         photoDate: dto.photoDate
     )
     photo.remoteId = String(dto.id)
+    photo.tagRemoteIds = dto.tagIds
     return photo
 }

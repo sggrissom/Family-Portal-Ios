@@ -60,6 +60,10 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     /// (backend/photos.go:440), so the proc is `RemovePersonFromPhotoProc`.
     case removePersonFromPhoto = "RemovePersonFromPhotoProc"
 
+    // MARK: - Tags (backend/tags.go)
+
+    case listTags = "ListTags"
+
     // MARK: - Chat (backend/chat.go)
 
     case sendMessage = "SendMessage"

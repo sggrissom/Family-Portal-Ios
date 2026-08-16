@@ -13,6 +13,12 @@ final class Photo {
     var descriptionText: String
     var photoDate: Date
 
+    /// Ids of the `FamilyTag`s on this photo, as `ListFamilyPhotos` and
+    /// `GetFamilyTimeline` report them. Ids rather than a relationship because
+    /// the server owns the pairing and both sides arrive from separate calls;
+    /// `TagChipsView` resolves them.
+    var tagRemoteIds: [Int] = []
+
     @Relationship(inverse: \Person.photos)
     var taggedPeople: [Person]
 

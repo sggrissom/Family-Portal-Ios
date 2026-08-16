@@ -77,6 +77,8 @@ nonisolated enum Fixture {
         ]
     }
 
+    /// `tagIds` defaults to absent rather than `[]` because that is what Go
+    /// marshals for a milestone with no tags — the field carries `omitempty`.
     static func milestone(
         id: Int,
         personId: Int,
@@ -84,9 +86,10 @@ nonisolated enum Fixture {
         category: String = "development",
         milestoneDate: String = "2026-01-05T00:00:00Z",
         familyId: Int = 7,
-        photoIds: [Int] = []
+        photoIds: [Int] = [],
+        tagIds: [Int]? = nil
     ) -> [String: Any] {
-        [
+        var milestone: [String: Any] = [
             "id": id,
             "personId": personId,
             "familyId": familyId,
@@ -96,6 +99,10 @@ nonisolated enum Fixture {
             "createdAt": milestoneDate,
             "photoIds": photoIds
         ]
+        if let tagIds {
+            milestone["tagIds"] = tagIds
+        }
+        return milestone
     }
 
     static func image(
@@ -103,9 +110,10 @@ nonisolated enum Fixture {
         title: String = "Beach",
         description: String = "",
         photoDate: String = "2026-01-05T00:00:00Z",
-        familyId: Int = 7
+        familyId: Int = 7,
+        tagIds: [Int]? = nil
     ) -> [String: Any] {
-        [
+        var image: [String: Any] = [
             "id": id,
             "familyId": familyId,
             "ownerUserId": 1,
@@ -121,6 +129,31 @@ nonisolated enum Fixture {
             "createdAt": photoDate,
             "status": 0
         ]
+        if let tagIds {
+            image["tagIds"] = tagIds
+        }
+        return image
+    }
+
+    // MARK: - Tags
+
+    static func tag(
+        id: Int,
+        name: String = "Holiday",
+        color: String = "#4A90D9",
+        familyId: Int = 7
+    ) -> [String: Any] {
+        [
+            "id": id,
+            "familyId": familyId,
+            "name": name,
+            "color": color,
+            "createdAt": "2025-11-02T09:00:00Z"
+        ]
+    }
+
+    static func tags(_ tags: [[String: Any]]) -> [String: Any] {
+        ["tags": tags]
     }
 
     static func timelineItem(
@@ -201,7 +234,8 @@ nonisolated enum TestStore {
             Milestone.self,
             Photo.self,
             User.self,
-            ChatMessage.self
+            ChatMessage.self,
+            FamilyTag.self
         ])
         let container = try ModelContainer(
             for: schema,

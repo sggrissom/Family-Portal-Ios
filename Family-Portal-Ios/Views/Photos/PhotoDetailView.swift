@@ -130,6 +130,14 @@ private struct PhotoDetailContent: View {
                 }
                 .padding(.horizontal)
 
+                // Below the people and their Manage link, not between them:
+                // "tagged people" and "tags" are separate things that share a
+                // word, and interleaving them reads as one broken section.
+                // Applied on the web; shown here. `TagChipsView` draws nothing
+                // when the photo has no tags, or none this device knows yet.
+                TagChipsView(tagRemoteIds: photo.tagRemoteIds, title: "Tags")
+                    .padding(.horizontal)
+
                 // Only people tagged in the photo are offered: the server
                 // refuses a profile photo the person is not associated with.
                 if !taggedPeople.isEmpty {

@@ -67,6 +67,11 @@ struct RPCMethodTests {
         #expect(RPCMethod.removePersonFromPhoto.rawValue == "RemovePersonFromPhotoProc")
     }
 
+    @Test("Tag proc names match the backend")
+    func tagProcNames() {
+        #expect(RPCMethod.listTags.rawValue == "ListTags")
+    }
+
     @Test("Chat proc names match the backend")
     func chatProcNames() {
         #expect(RPCMethod.sendMessage.rawValue == "SendMessage")

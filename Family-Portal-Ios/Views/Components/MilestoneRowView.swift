@@ -83,6 +83,8 @@ private struct MilestoneDetailSheetView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    TagChipsView(tagRemoteIds: milestone.tagRemoteIds)
+
                     if !milestone.photoRemoteIds.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {

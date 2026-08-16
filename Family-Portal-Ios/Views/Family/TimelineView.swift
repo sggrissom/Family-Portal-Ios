@@ -426,9 +426,9 @@ struct TimelineRowView: View {
 
 #Preview {
     TimelineView()
-        .modelContainer(for: [Person.self, GrowthData.self, Milestone.self, Photo.self], inMemory: true)
+        .modelContainer(for: [Person.self, GrowthData.self, Milestone.self, Photo.self, FamilyTag.self], inMemory: true)
         .environment(SyncService(
-            modelContext: ModelContext(try! ModelContainer(for: Person.self, GrowthData.self, Milestone.self, Photo.self)),
+            modelContext: ModelContext(try! ModelContainer(for: Person.self, GrowthData.self, Milestone.self, Photo.self, FamilyTag.self)),
             apiClient: APIClient(),
             networkMonitor: NetworkMonitor()
         ))

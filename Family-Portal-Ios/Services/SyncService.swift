@@ -119,6 +119,8 @@ final class SyncService {
             removeOrphans(Milestone.self, seenIds: seenMilestoneIds)
             removeOrphans(Photo.self, seenIds: seenPhotoIds)
 
+            await pullTags()
+
             try modelContext.save()
             lastSyncDate = Date()
         } catch {
@@ -127,6 +129,40 @@ final class SyncService {
         }
 
         isSyncing = false
+    }
+
+    /// Refreshes the family's tag vocabulary, the thing `Photo.tagRemoteIds` and
+    /// `Milestone.tagRemoteIds` are resolved against.
+    ///
+    /// Failures are swallowed rather than aborting the pull. Tags are a label on
+    /// records the pull has already stored: a `ListTags` that 500s should cost
+    /// the user their pills, not their people, photos and milestones. Orphan
+    /// removal stays inside the success path for the same reason — a list that
+    /// never arrived is not evidence that the family has no tags, and deleting
+    /// on that basis would blank every pill until the next successful sync.
+    ///
+    /// The caller's `modelContext.save()` persists what this writes.
+    private func pullTags() async {
+        do {
+            // `ListTagsRequest` is an empty struct, but vbeam still unmarshals a
+            // body, so the call sends `{}` like the other argument-less procs.
+            struct EmptyPayload: Encodable {}
+            let response: ListTagsResponseDTO = try await apiClient.callRPC(
+                .listTags,
+                payload: EmptyPayload()
+            )
+
+            var seenTagIds = Set<String>()
+            for tagDTO in response.tags {
+                let remoteId = String(tagDTO.id)
+                seenTagIds.insert(remoteId)
+                applyTagDTO(tagDTO, to: findOrCreateTag(remoteId: remoteId))
+            }
+
+            removeOrphans(FamilyTag.self, seenIds: seenTagIds)
+        } catch {
+            AppLog.sync.error("Tag pull failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     // MARK: - Queue Processing
@@ -1106,6 +1142,20 @@ final class SyncService {
         return photo
     }
 
+    private func findOrCreateTag(remoteId: String) -> FamilyTag {
+        var descriptor = FetchDescriptor<FamilyTag>(
+            predicate: #Predicate { $0.remoteId == remoteId }
+        )
+        descriptor.fetchLimit = 1
+        if let existing = try? modelContext.fetch(descriptor).first {
+            return existing
+        }
+        let tag = FamilyTag(name: "", colorHex: "", familyId: 0)
+        tag.remoteId = remoteId
+        modelContext.insert(tag)
+        return tag
+    }
+
     // MARK: - Orphan Removal
 
     /// Deletes records the server no longer lists. Anything still awaiting its
@@ -1156,3 +1206,4 @@ extension Person: RemoteIdentifiable {}
 extension GrowthData: RemoteIdentifiable {}
 extension Milestone: RemoteIdentifiable {}
 extension Photo: RemoteIdentifiable {}
+extension FamilyTag: RemoteIdentifiable {}

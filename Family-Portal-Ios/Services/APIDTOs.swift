@@ -332,11 +332,19 @@ struct MilestoneDTO: Codable, Sendable {
     let milestoneDate: Date
     let createdAt: Date
     let photoIds: [Int]
+    /// Tags on this milestone. `TagIds` carries `omitempty` (backend/milestone.go),
+    /// so a milestone with no tags omits the key rather than sending `[]` —
+    /// absent and empty are the same thing on the way *in*, unlike `photoIds` on
+    /// the way out. Every response the app applies populates it
+    /// (`AddMilestone`, `UpdateMilestone`, `GetFamilyTimeline`), so taking an
+    /// absent key as "no tags" cannot wipe tags the server still holds.
+    let tagIds: [Int]
 
     enum CodingKeys: String, CodingKey {
         case id, personId, familyId, category, milestoneDate, createdAt
         case descriptionText = "description"
         case photoIds
+        case tagIds
     }
 
     init(from decoder: Decoder) throws {
@@ -349,6 +357,7 @@ struct MilestoneDTO: Codable, Sendable {
         milestoneDate = try c.decode(Date.self, forKey: .milestoneDate)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         photoIds = try c.decodeIfPresent([Int].self, forKey: .photoIds) ?? []
+        tagIds = try c.decodeIfPresent([Int].self, forKey: .tagIds) ?? []
     }
 }
 
@@ -367,6 +376,11 @@ struct ImageDTO: Codable, Sendable {
     let photoDate: Date
     let createdAt: Date
     let status: Int
+    /// Tags on this photo — the same `omitempty` reading as `MilestoneDTO.tagIds`.
+    /// `AddPhoto` sets it explicitly to empty for a fresh upload, and `UpdatePhoto`,
+    /// `ListFamilyPhotos` and `GetFamilyTimeline` all fill it in, so no response
+    /// the app applies leaves the local list guessing.
+    let tagIds: [Int]
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -383,6 +397,66 @@ struct ImageDTO: Codable, Sendable {
         case photoDate
         case createdAt
         case status
+        case tagIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(Int.self, forKey: .id)
+        familyId = try c.decode(Int.self, forKey: .familyId)
+        ownerUserId = try c.decode(Int.self, forKey: .ownerUserId)
+        originalFilename = try c.decode(String.self, forKey: .originalFilename)
+        mimeType = try c.decode(String.self, forKey: .mimeType)
+        fileSize = try c.decode(Int.self, forKey: .fileSize)
+        width = try c.decode(Int.self, forKey: .width)
+        height = try c.decode(Int.self, forKey: .height)
+        filePath = try c.decode(String.self, forKey: .filePath)
+        title = try c.decode(String.self, forKey: .title)
+        descriptionText = try c.decode(String.self, forKey: .descriptionText)
+        photoDate = try c.decode(Date.self, forKey: .photoDate)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        status = try c.decode(Int.self, forKey: .status)
+        tagIds = try c.decodeIfPresent([Int].self, forKey: .tagIds) ?? []
+    }
+}
+
+/// `Tag` in backend/tags.go.
+///
+/// `createdAt` is deliberately not decoded: `ListTags` has already sorted the
+/// list by name, nothing in the app shows a tag's age, and a field nothing reads
+/// is one more way for the whole list to fail to decode.
+struct TagDTO: Codable, Sendable {
+    let id: Int
+    let familyId: Int
+    let name: String
+    /// A hex string such as `#4A90D9`. `CreateTag` never validates it, so this
+    /// can be empty — `TagColor` falls back rather than refusing to draw.
+    let color: String
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(Int.self, forKey: .id)
+        familyId = try c.decode(Int.self, forKey: .familyId)
+        name = try c.decode(String.self, forKey: .name)
+        color = try c.decodeIfPresent(String.self, forKey: .color) ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, familyId, name, color
+    }
+}
+
+struct ListTagsResponseDTO: Codable, Sendable {
+    let tags: [TagDTO]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // A nil Go slice marshals as null.
+        tags = try container.decodeIfPresent([TagDTO].self, forKey: .tags) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case tags
     }
 }
 
