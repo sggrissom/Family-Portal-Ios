@@ -119,6 +119,20 @@ struct FamilyInfoDTO: Codable, Sendable, Identifiable {
     let role: Int
     let isPrimary: Bool
 
+    init(id: Int, name: String, inviteCode: String, role: Int, isPrimary: Bool) {
+        self.id = id
+        self.name = name
+        self.inviteCode = inviteCode
+        self.role = role
+        self.isPrimary = isPrimary
+    }
+
+    /// `RotateInviteCode` answers with the new code and nothing else about the
+    /// family, so the rest of the row is carried over rather than re-fetched.
+    func withInviteCode(_ inviteCode: String) -> FamilyInfoDTO {
+        FamilyInfoDTO(id: id, name: name, inviteCode: inviteCode, role: role, isPrimary: isPrimary)
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(Int.self, forKey: .id)
@@ -157,6 +171,109 @@ struct JoinFamilyResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let auth: AuthResponseDTO?
+}
+
+// MARK: - Membership (backend/membership_procs.go)
+
+/// `FamilyMemberView` — one *account* with access to a family, as opposed to a
+/// `PersonDTO`, which is somebody the family keeps records about.
+///
+/// `joinedAt` is deliberately not decoded: it exists to order the list, the
+/// server has already applied that order, and a field nothing reads is one more
+/// way for the whole list to fail to decode.
+struct FamilyMemberDTO: Codable, Sendable, Identifiable {
+    let userId: Int
+    let name: String
+    let email: String
+    /// `AccessLevel`, the same integer scale as `FamilyInfoDTO.role`.
+    let role: Int
+    /// The one member who may remove others.
+    let isOwner: Bool
+    /// The caller, who leaves rather than being removed.
+    let isSelf: Bool
+
+    var id: Int { userId }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userId = try container.decode(Int.self, forKey: .userId)
+        name = try container.decode(String.self, forKey: .name)
+        email = try container.decode(String.self, forKey: .email)
+        role = try container.decodeIfPresent(Int.self, forKey: .role) ?? 0
+        isOwner = try container.decodeIfPresent(Bool.self, forKey: .isOwner) ?? false
+        isSelf = try container.decodeIfPresent(Bool.self, forKey: .isSelf) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case userId, name, email, role, isOwner, isSelf
+    }
+}
+
+/// `ListFamilyMembersRequest` / `FamilyIdRequest`. A zero `familyId` means the
+/// caller's primary family, which is the fallback the Go side applies.
+struct FamilyIdRequestDTO: Codable, Sendable {
+    let familyId: Int
+}
+
+struct ListFamilyMembersResponseDTO: Codable, Sendable {
+    let familyId: Int
+    let members: [FamilyMemberDTO]
+    /// Sent so the UI doesn't have to re-derive who may remove whom.
+    let callerIsOwner: Bool
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
+        // A nil Go slice marshals as null.
+        members = try container.decodeIfPresent([FamilyMemberDTO].self, forKey: .members) ?? []
+        callerIsOwner = try container.decodeIfPresent(Bool.self, forKey: .callerIsOwner) ?? false
+    }
+}
+
+/// `LeaveFamilyResponse`. `auth` is a Go *struct*, and `omitempty` has no effect
+/// on those, so a refusal still carries a zero-valued one — see
+/// `FamilyMembershipService.leaveFamily` for why the id is checked.
+struct LeaveFamilyResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+    let auth: AuthResponseDTO?
+}
+
+struct RemoveFamilyMemberRequestDTO: Codable, Sendable {
+    let familyId: Int
+    let userId: Int
+}
+
+/// `RemoveFamilyMemberResponse`. The remaining members come back with the
+/// success, so a removal needs no follow-up list call.
+struct RemoveFamilyMemberResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+    let members: [FamilyMemberDTO]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        success = try container.decode(Bool.self, forKey: .success)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+        members = try container.decodeIfPresent([FamilyMemberDTO].self, forKey: .members) ?? []
+    }
+}
+
+/// `RotateInviteCodeResponse`. `familyId` and `inviteCode` carry `omitempty`, so
+/// a refusal omits them entirely rather than sending zero and "".
+struct RotateInviteCodeResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+    let familyId: Int
+    let inviteCode: String
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        success = try container.decode(Bool.self, forKey: .success)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+        familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
+        inviteCode = try container.decodeIfPresent(String.self, forKey: .inviteCode) ?? ""
+    }
 }
 
 /// `RegisterPushDeviceRequest` in backend/push_notifications.go. The server

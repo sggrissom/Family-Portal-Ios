@@ -22,6 +22,13 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case getFamilyInfo = "GetFamilyInfo"
     case joinFamily = "JoinFamily"
 
+    // MARK: - Membership (backend/membership_procs.go)
+
+    case listFamilyMembers = "ListFamilyMembers"
+    case leaveFamily = "LeaveFamily"
+    case removeFamilyMember = "RemoveFamilyMember"
+    case rotateInviteCode = "RotateInviteCode"
+
     // MARK: - People (backend/person.go)
 
     case addPerson = "AddPerson"

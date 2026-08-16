@@ -237,6 +237,35 @@ final class AuthService {
         }
     }
 
+    /// The user is no longer in this family (`FamilyMembershipService.leaveFamily`).
+    /// Which family is primary may have moved with it, so the server's refreshed
+    /// identity is adopted and the list re-read.
+    ///
+    /// The local list is trimmed *first* and put back if the re-read fails:
+    /// `loadFamilyInfo` empties `families` on any error, which would turn a
+    /// successful leave into "You aren't part of a family yet."
+    @MainActor
+    func applyLeftFamily(_ familyId: Int, auth: AuthResponseDTO?) async {
+        if let auth {
+            setCurrentUser(auth)
+        }
+
+        let remaining = families.filter { $0.id != familyId }
+        families = remaining
+
+        if await loadFamilyInfo() != nil {
+            families = remaining
+        }
+    }
+
+    /// Records a rotated invite code without a round trip: `RotateInviteCode`
+    /// returns the new code, and it is the same value `GetFamilyInfo` would.
+    @MainActor
+    func applyRotatedInviteCode(_ inviteCode: String, forFamily familyId: Int) {
+        guard let index = families.firstIndex(where: { $0.id == familyId }) else { return }
+        families[index] = families[index].withInviteCode(inviteCode)
+    }
+
     @MainActor
     func logout() async {
         await onWillLogout?()
