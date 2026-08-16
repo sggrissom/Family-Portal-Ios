@@ -23,16 +23,16 @@
 
 /* Begin PBXFileReference section */
 		33AA0001AAAA0000BBBB0002 /* Family-Portal-IosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Family-Portal-IosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Family-Portal-Ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		33BC6D542F2326CE00A38756 /* Family Record.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Family Record.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		33BC6D732F2326CF00A38756 /* Exceptions for "Family-Portal-Ios" folder in "Family-Portal-Ios" target */ = {
+		33BC6D732F2326CF00A38756 /* Exceptions for "Family-Portal-Ios" folder in "Family Record" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 33BC6D532F2326CE00A38756 /* Family-Portal-Ios */;
+			target = 33BC6D532F2326CE00A38756 /* Family Record */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -45,7 +45,7 @@
 		33BC6D562F2326CE00A38756 /* Family-Portal-Ios */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				33BC6D732F2326CF00A38756 /* Exceptions for "Family-Portal-Ios" folder in "Family-Portal-Ios" target */,
+				33BC6D732F2326CF00A38756 /* Exceptions for "Family-Portal-Ios" folder in "Family Record" target */,
 			);
 			path = "Family-Portal-Ios";
 			sourceTree = "<group>";
@@ -84,7 +84,7 @@
 		33BC6D552F2326CE00A38756 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */,
+				33BC6D542F2326CE00A38756 /* Family Record.app */,
 				33AA0001AAAA0000BBBB0002 /* Family-Portal-IosTests.xctest */,
 			);
 			name = Products;
@@ -116,9 +116,9 @@
 			productReference = 33AA0001AAAA0000BBBB0002 /* Family-Portal-IosTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		33BC6D532F2326CE00A38756 /* Family-Portal-Ios */ = {
+		33BC6D532F2326CE00A38756 /* Family Record */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 33BC6D5F2F2326CF00A38756 /* Build configuration list for PBXNativeTarget "Family-Portal-Ios" */;
+			buildConfigurationList = 33BC6D5F2F2326CF00A38756 /* Build configuration list for PBXNativeTarget "Family Record" */;
 			buildPhases = (
 				33BC6D502F2326CE00A38756 /* Sources */,
 				33BC6D512F2326CE00A38756 /* Frameworks */,
@@ -131,13 +131,13 @@
 			fileSystemSynchronizedGroups = (
 				33BC6D562F2326CE00A38756 /* Family-Portal-Ios */,
 			);
-			name = "Family-Portal-Ios";
+			name = "Family Record";
 			packageProductDependencies = (
 				33BC6D712F2326CF00A38756 /* GoogleSignIn */,
 				33BC6D722F2326CF00A38756 /* GoogleSignInSwift */,
 			);
 			productName = "Family-Portal-Ios";
-			productReference = 33BC6D542F2326CE00A38756 /* Family-Portal-Ios.app */;
+			productReference = 33BC6D542F2326CE00A38756 /* Family Record.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -176,7 +176,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				33BC6D532F2326CE00A38756 /* Family-Portal-Ios */,
+				33BC6D532F2326CE00A38756 /* Family Record */,
 				33AA0001AAAA0000BBBB0001 /* Family-Portal-IosTests */,
 			);
 		};
@@ -219,7 +219,7 @@
 /* Begin PBXTargetDependency section */
 		33AA0001AAAA0000BBBB000A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 33BC6D532F2326CE00A38756 /* Family-Portal-Ios */;
+			target = 33BC6D532F2326CE00A38756 /* Family Record */;
 			targetProxy = 33AA0001AAAA0000BBBB000B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -242,7 +242,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Family-Portal-Ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Family-Portal-Ios";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Family Record.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Family Record";
 			};
 			name = Debug;
 		};
@@ -263,7 +263,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Family-Portal-Ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Family-Portal-Ios";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Family Record.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Family Record";
 			};
 			name = Release;
 		};
@@ -409,6 +409,7 @@
 				);
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios;
+				PRODUCT_MODULE_NAME = Family_Portal_Ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -443,6 +444,7 @@
 				);
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios;
+				PRODUCT_MODULE_NAME = Family_Portal_Ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -475,7 +477,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		33BC6D5F2F2326CF00A38756 /* Build configuration list for PBXNativeTarget "Family-Portal-Ios" */ = {
+		33BC6D5F2F2326CF00A38756 /* Build configuration list for PBXNativeTarget "Family Record" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				33BC6D602F2326CF00A38756 /* Debug */,

@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 enum MobileVersionStatus: Sendable, Equatable {
     /// The check hasn't completed yet, or it failed. Treated as "let them in":
