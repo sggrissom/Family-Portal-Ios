@@ -81,11 +81,17 @@ struct RPCMethodTests {
 
     /// vbeam builds the request path itself, so a name carrying whitespace or a
     /// slash would produce a URL that 404s rather than a dispatch failure.
-    @Test("Proc names are bare identifiers", arguments: RPCMethod.allCases)
-    func procNamesAreBareIdentifiers(method: RPCMethod) {
-        let name = method.rawValue
-        #expect(!name.contains("/"))
-        #expect(!name.contains(" "))
-        #expect(name.first?.isUppercase == true)
+    ///
+    /// Written as a loop rather than `@Test(arguments:)` because the argument
+    /// expression lives in a macro attribute, where the `@testable` import
+    /// doesn't make the app module's internal `RPCMethod` visible.
+    @Test("Proc names are bare identifiers")
+    func procNamesAreBareIdentifiers() {
+        for method in RPCMethod.allCases {
+            let name = method.rawValue
+            #expect(!name.contains("/"), "\(name) contains a slash")
+            #expect(!name.contains(" "), "\(name) contains whitespace")
+            #expect(name.first?.isUppercase == true, "\(name) is not capitalized")
+        }
     }
 }
