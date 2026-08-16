@@ -33,6 +33,12 @@ struct ChatView: View {
             // Connection status banner
             ConnectionStatusView(state: chatService.connectionState)
 
+            // A failure loading or sending is otherwise invisible: the pull ends,
+            // nothing new appears, and the thread looks like it has no history.
+            ChatErrorBanner(message: chatService.error) {
+                chatService.error = nil
+            }
+
             // Messages
             MessagesListView(
                 messages: chatService.messages,
@@ -46,8 +52,11 @@ struct ChatView: View {
                     retryMessage(message, chatService: chatService)
                 },
                 scrollProxy: $scrollProxy,
-                onMessagesCountChange: { scrollToBottom(animated: true) },
-                onDismissKeyboard: { isInputFocused = false }
+                onLatestMessageChange: { scrollToBottom(animated: true) },
+                onDismissKeyboard: { isInputFocused = false },
+                hasMoreHistory: chatService.hasMoreHistory,
+                isLoadingOlder: chatService.isLoadingOlder,
+                onLoadOlder: { await chatService.loadOlderMessages() }
             )
 
             // Typing indicator
@@ -84,8 +93,11 @@ struct ChatView: View {
         let onDelete: (_ message: ChatMessage) -> Void
         let onRetry: (_ message: ChatMessage) -> Void
         @Binding var scrollProxy: ScrollViewProxy?
-        let onMessagesCountChange: () -> Void
+        let onLatestMessageChange: () -> Void
         var onDismissKeyboard: (() -> Void)?
+        let hasMoreHistory: Bool
+        let isLoadingOlder: Bool
+        let onLoadOlder: () async -> Void
 
         private var groupedMessages: [(date: Date, messages: [ChatMessage])] {
             let grouped = Dictionary(grouping: messages) {
@@ -100,6 +112,8 @@ struct ChatView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 8) {
+                        historyHeader
+
                         ForEach(groupedMessages, id: \.date) { group in
                             DateSeparatorView(date: group.date)
 
@@ -119,10 +133,70 @@ struct ChatView: View {
                     .onTapGesture { onDismissKeyboard?() }
                 }
                 .scrollDismissesKeyboard(.interactively)
+                // A conversation opens at its live end.
+                .defaultScrollAnchor(.bottom, for: .initialOffset)
+                // Older messages arrive above what the user is reading. Anchoring
+                // size changes to the bottom keeps the thread still while the page
+                // is inserted, instead of sliding it down by a screenful.
+                .defaultScrollAnchor(.bottom, for: .sizeChanges)
+                .refreshable { await onLoadOlder() }
                 .onAppear { scrollProxy = proxy }
-                .onChange(of: messages.count) { _, _ in
-                    onMessagesCountChange()
+                // Keyed on the newest message rather than the count: loading
+                // history also changes the count, and following it to the bottom
+                // would undo the pull the user just made.
+                .onChange(of: messages.last?.id) { _, _ in
+                    onLatestMessageChange()
                 }
+            }
+        }
+
+        @ViewBuilder
+        private var historyHeader: some View {
+            if isLoadingOlder {
+                ProgressView()
+                    .padding(.vertical, 8)
+            } else if !hasMoreHistory && !messages.isEmpty {
+                Text("Beginning of conversation")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            }
+        }
+    }
+
+    /// Chat's own errors stay on the chat screen rather than going through
+    /// `ErrorPresenter`: they are per-conversation, and unlike the sheets that
+    /// report through the app-scoped alert, this view is still on screen to show
+    /// them.
+    private struct ChatErrorBanner: View {
+        let message: String?
+        let onDismiss: () -> Void
+
+        var body: some View {
+            if let message {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+
+                    Text(message)
+                        .font(.caption)
+                        .lineLimit(2)
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption)
+                    }
+                    .accessibilityLabel("Dismiss error")
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+                .background(.red)
             }
         }
     }

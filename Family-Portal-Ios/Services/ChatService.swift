@@ -10,6 +10,11 @@ final class ChatService: ChatWebSocketDelegate {
     var onlineUsers: Set<Int> = []
     var typingUsers: [Int: String] = [:] // userId -> userName
     var isLoading = false
+    var isLoadingOlder = false
+    /// Turns false the first time a page comes back short, and never turns back
+    /// on: a page that did not fill means the conversation's first message is on
+    /// screen, and everything written after it is newer, not older.
+    var hasMoreHistory = true
     var error: String?
 
     // MARK: - Dependencies
@@ -24,6 +29,22 @@ final class ChatService: ChatWebSocketDelegate {
     private var typingDebounceTask: Task<Void, Never>?
     private var lastTypingSent: Date?
     private static let typingDebounceInterval: TimeInterval = 1.0
+
+    /// One page of history. `GetChatMessages` caps a page at 200; 50 keeps the
+    /// first paint cheap and makes each pull a small request.
+    nonisolated static let pageSize = 50
+
+    /// Where the next page of history starts, counted in messages the server has
+    /// already handed over.
+    ///
+    /// Deliberately not `messages.count`. The list also holds messages this
+    /// device sent and messages the socket delivered live, and the server's
+    /// offset counts only its own ordering — so counting the whole list would
+    /// step *over* history that was never fetched. Messages written while the
+    /// user reads slide the window the other way, which makes the next page
+    /// overlap what is already on screen; `merge` dedups that, and an overlap is
+    /// the safe direction to be wrong in.
+    private var historyOffset = 0
 
     // MARK: - Initialization
 
@@ -69,36 +90,113 @@ final class ChatService: ChatWebSocketDelegate {
 
     // MARK: - Messages
 
-    func loadMessages(limit: Int = 50, offset: Int = 0) async {
+    /// Loads the newest page. `GetChatMessages` counts its window back from the
+    /// most recent message, so offset 0 is the live end of the conversation.
+    func loadMessages() async {
         guard !isLoading else { return }
         isLoading = true
         error = nil
 
-        do {
-            let dtos = try await apiClient.getChatMessages(limit: limit, offset: offset)
-
-            for dto in dtos {
-                // Skip duplicates
-                let remoteIdStr = String(dto.id)
-                if messages.contains(where: { $0.remoteId == remoteIdStr }) {
-                    continue
-                }
-                if !dto.clientMessageId.isEmpty, sentClientMessageIds.contains(dto.clientMessageId) {
-                    continue
-                }
-
-                let message = ChatMessage.fromDTO(dto)
-                modelContext.insert(message)
-                messages.append(message)
+        if let page = await fetchPage(offset: 0) {
+            // Never rewind: coming back to the tab after paging through history
+            // must not re-fetch pages the user already pulled, or the next pull
+            // would appear to do nothing until it caught back up.
+            historyOffset = max(historyOffset, page.received)
+            if page.received < Self.pageSize {
+                hasMoreHistory = false
             }
-
-            sortMessages()
-            try modelContext.save()
-        } catch {
-            self.error = error.localizedDescription
         }
 
         isLoading = false
+    }
+
+    /// Loads the page before the oldest one fetched so far, for the pull at the
+    /// top of the thread.
+    func loadOlderMessages() async {
+        guard hasMoreHistory, !isLoadingOlder, !isLoading else { return }
+        isLoadingOlder = true
+        error = nil
+
+        // A pull should either put older messages on screen or reach the start of
+        // the conversation. A page can come back entirely known — the store keeps
+        // every message this device has ever seen, while `historyOffset` starts
+        // each session at zero — so a page of pure duplicates is a page to step
+        // past, not a result. Capped so a long local history cannot turn one pull
+        // into an unbounded run of requests.
+        //
+        // Seeding the offset from the local message count would skip the walk,
+        // but only by assuming the store holds an unbroken run of the newest
+        // messages. A device that missed a month of chat holds an old run
+        // instead, and starting there would leave a hole in the middle of the
+        // thread that nothing later fills in.
+        var pagesFetched = 0
+        while pagesFetched < Self.maxPagesPerPull {
+            guard let page = await fetchPage(offset: historyOffset) else { break }
+            pagesFetched += 1
+            historyOffset += page.received
+
+            if page.received < Self.pageSize {
+                hasMoreHistory = false
+                break
+            }
+            if page.added > 0 {
+                break
+            }
+        }
+
+        isLoadingOlder = false
+    }
+
+    /// How much already-known history one pull will walk past looking for
+    /// something new.
+    private static let maxPagesPerPull = 5
+
+    private struct PageResult {
+        /// What the server sent, duplicates included — this is what moves the
+        /// offset, since the offset counts the server's ordering and not ours.
+        let received: Int
+        /// What was actually new to this device, which is what the user sees.
+        let added: Int
+    }
+
+    /// Fetches one page and merges it. Returns nil when the request failed, which
+    /// is the one case that must not move `historyOffset`.
+    private func fetchPage(offset: Int) async -> PageResult? {
+        do {
+            let dtos = try await apiClient.getChatMessages(limit: Self.pageSize, offset: offset)
+            let added = merge(dtos)
+            try modelContext.save()
+            return PageResult(received: dtos.count, added: added)
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Inserts everything in `dtos` this device does not already hold, and
+    /// answers with how many that was.
+    @discardableResult
+    private func merge(_ dtos: [ChatMessageDTO]) -> Int {
+        var added = 0
+
+        for dto in dtos {
+            // Skip duplicates
+            let remoteIdStr = String(dto.id)
+            if messages.contains(where: { $0.remoteId == remoteIdStr }) {
+                continue
+            }
+            if !dto.clientMessageId.isEmpty, sentClientMessageIds.contains(dto.clientMessageId) {
+                continue
+            }
+
+            let message = ChatMessage.fromDTO(dto)
+            modelContext.insert(message)
+            messages.append(message)
+            added += 1
+        }
+
+        sortMessages()
+        return added
     }
 
     func sendMessage(_ content: String) async {

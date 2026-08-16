@@ -77,7 +77,12 @@ struct SendMessageResponseDTO: Sendable {
 extension SendMessageResponseDTO: Codable {}
 
 struct GetChatMessagesRequestDTO: Encodable, Sendable {
+    /// Capped at 200 by `GetChatMessages`; anything outside 1...200 falls back to
+    /// the server's default of 100.
     let limit: Int
+    /// Counted back from the *newest* message, not forward from the first, so
+    /// offset 0 is the live end of the conversation and each further page is
+    /// older. A page still arrives oldest-first within itself.
     let offset: Int
 }
 

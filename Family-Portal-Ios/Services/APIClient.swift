@@ -646,7 +646,10 @@ extension APIClient {
         return response.message
     }
 
-    func getChatMessages(limit: Int = 50, offset: Int = 0) async throws -> [ChatMessageDTO] {
+    /// No defaults: the page size is `ChatService.pageSize` and the offset is the
+    /// paging cursor, so a default here would be a second copy of a number that
+    /// has to agree with the one the caller keeps.
+    func getChatMessages(limit: Int, offset: Int) async throws -> [ChatMessageDTO] {
         let request = GetChatMessagesRequestDTO(limit: limit, offset: offset)
         let response: GetChatMessagesResponseDTO = try await callRPC(.getChatMessages, payload: request)
         return response.messages
