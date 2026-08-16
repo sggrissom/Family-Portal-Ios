@@ -213,6 +213,87 @@ struct SyncServiceQueueTests {
         #expect(await harness.service.syncQueue.count() == 0)
     }
 
+    // MARK: - Overlapping runs
+
+    /// `@MainActor` is not mutual exclusion. Every operation suspends on its
+    /// request, and an operation is only dequeued once it has *succeeded*, so a
+    /// second run entering during that gap reads the same ready set and sends the
+    /// same request again. Picking twenty photos at once enqueues twenty
+    /// operations back to back, each starting its own run, which turns this from
+    /// a race into the ordinary case — and for an upload, a duplicate request is
+    /// a duplicate photo on the server.
+    @Test("Overlapping queue runs send each operation once")
+    func overlappingRunsSendEachOperationOnce() async throws {
+        let harness = try TestSync.harness(connected: false)
+        harness.server.route("api/upload-photo", respond: .json(["image": Fixture.image(id: 77, title: "Beach")]))
+
+        let photo = Photo(title: "Beach", descriptionText: "", photoDate: Date(), imageData: Data([0xFF, 0xD8]))
+        harness.context.insert(photo)
+        try harness.context.save()
+
+        try await harness.service.uploadPhoto(photo)
+
+        harness.monitor.isConnected = true
+        async let first: Void = harness.service.processQueue()
+        async let second: Void = harness.service.processQueue()
+        _ = await (first, second)
+
+        #expect(harness.server.requests(for: "api/upload-photo").count == 1)
+        #expect(await harness.service.syncQueue.count() == 0)
+    }
+
+    /// The other half of the guard: a caller turned away mid-run must not simply
+    /// drop its work. The run in flight has already taken its snapshot of the
+    /// queue, so an operation enqueued behind it would sit there until the next
+    /// sync — which for a photo picked seconds ago is indistinguishable from the
+    /// app ignoring it.
+    @Test("Work enqueued during a run is picked up by that run")
+    func workEnqueuedMidRunIsPickedUp() async throws {
+        let harness = try TestSync.harness(connected: false)
+
+        // The upload is held open so the second enqueue lands while the run is
+        // genuinely in flight. Both semaphores are waited on off the main actor:
+        // the handler runs on a `URLSession` thread, never on the one the run is
+        // suspended on.
+        let arrived = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        harness.server.route("api/upload-photo") { _ in
+            arrived.signal()
+            release.wait()
+            return .json(["image": Fixture.image(id: 77, title: "Beach")])
+        }
+        harness.server.route("rpc/UpdatePhoto", respond: .json(["image": Fixture.image(id: 77, title: "Sunset")]))
+
+        let photo = Photo(title: "Beach", descriptionText: "", photoDate: Date(), imageData: Data([0xFF, 0xD8]))
+        harness.context.insert(photo)
+        try harness.context.save()
+
+        try await harness.service.uploadPhoto(photo)
+
+        harness.monitor.isConnected = true
+        async let run: Void = harness.service.processQueue()
+
+        await Task.detached { arrived.wait() }.value
+        photo.title = "Sunset"
+        try harness.context.save()
+        try await harness.service.updatePhoto(photo)
+
+        release.signal()
+        await run
+
+        // Nothing else asks the queue to run: whether the edit reaches the server
+        // is entirely down to the run that was already going round again. The
+        // wait is for the dequeue that follows the request, which lands a couple
+        // of hops after the request is recorded.
+        var settled = false
+        for _ in 0..<200 where !settled {
+            let stillQueued = await harness.service.syncQueue.count()
+            settled = stillQueued == 0 && !harness.server.requests(for: "rpc/UpdatePhoto").isEmpty
+            if !settled { await Task.yield() }
+        }
+        #expect(settled)
+    }
+
     // MARK: - Discarding
 
     @Test("An operation that keeps failing is discarded, and the loss is reported")

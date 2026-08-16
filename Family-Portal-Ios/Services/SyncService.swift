@@ -167,9 +167,38 @@ final class SyncService {
 
     // MARK: - Queue Processing
 
+    /// A run is in flight. `@MainActor` is not mutual exclusion: `processQueue`
+    /// suspends on every request, and a second run entering during that gap reads
+    /// the same `readyOperations` — an operation is only dequeued *after* it
+    /// succeeds — and sends it a second time. Picking 20 photos at once enqueues
+    /// 20 operations back to back, each kicking off its own run, so what used to
+    /// be a rare race becomes duplicate uploads by default.
+    @ObservationIgnored private var isProcessingQueue = false
+
+    /// Work arrived while a run was in flight. The run in progress may already
+    /// have taken its snapshot, so returning early would strand whatever was just
+    /// enqueued until the next sync; instead the current run goes round again.
+    @ObservationIgnored private var queueRunRequested = false
+
     func processQueue() async {
         guard networkMonitor.isConnected else { return }
 
+        // Set before the first suspension point, so a caller arriving mid-run
+        // always sees it.
+        if isProcessingQueue {
+            queueRunRequested = true
+            return
+        }
+        isProcessingQueue = true
+        defer { isProcessingQueue = false }
+
+        repeat {
+            queueRunRequested = false
+            await runQueueOnce()
+        } while queueRunRequested && networkMonitor.isConnected
+    }
+
+    private func runQueueOnce() async {
         let syncedLocalIds = await fetchAllSyncedLocalIds()
         let operations = await syncQueue.readyOperations(syncedLocalIds: syncedLocalIds)
         var discarded: [PendingOperation] = []
