@@ -130,6 +130,22 @@ final class PushNotificationService: NSObject {
 
         UIApplication.shared.unregisterForRemoteNotifications()
     }
+
+    /// The server stamps `badge: 1` on every push and never sends a corrected
+    /// count, so APNs alone can only ever raise the badge. Nothing takes it back
+    /// down unless the app does — which is why a single test push left the icon
+    /// badged for good.
+    func clearBadge() async {
+        let center = UNUserNotificationCenter.current()
+        do {
+            try await center.setBadgeCount(0)
+        } catch {
+            Self.logger.error("Clearing badge failed: \(error.localizedDescription, privacy: .public)")
+        }
+        // Delivered notifications outlive the badge otherwise, leaving the same
+        // stale test push sitting in Notification Center.
+        center.removeAllDeliveredNotifications()
+    }
 }
 
 extension PushNotificationService: UNUserNotificationCenterDelegate {
@@ -139,6 +155,19 @@ extension PushNotificationService: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        // `.badge` is deliberately absent: the user is already looking at the
+        // app, and a badge applied now would survive until the next foreground
+        // transition — which never comes, because the app is foreground.
+        await clearBadge()
+        return [.banner, .sound]
+    }
+
+    /// Tapping a notification is the user acknowledging it, so the badge goes
+    /// even if the app was launched straight into this handler.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        await clearBadge()
     }
 }

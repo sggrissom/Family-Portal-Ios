@@ -74,6 +74,10 @@ struct Family_Portal_IosApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
                         Task {
+                            // Ahead of the auth guard: opening the app is what
+                            // retires the badge, whether or not the session
+                            // survived.
+                            await PushNotificationService.shared.clearBadge()
                             guard authService.isAuthenticated else { return }
                             await APIClient.shared.ensureFreshAccessToken()
                             guard authService.isAuthenticated else { return }
@@ -101,6 +105,10 @@ struct Family_Portal_IosApp: App {
 
     @MainActor
     private func setupServices() async {
+        // A cold launch from a tapped notification never crosses a scenePhase
+        // change, so the .active handler alone would leave the badge standing.
+        await PushNotificationService.shared.clearBadge()
+
         networkMonitor.onConnectivityRestored = { [weak syncService] in
             Task { @MainActor in
                 if self.authService.isAuthenticated {
