@@ -16,6 +16,9 @@ final class ChatService: ChatWebSocketDelegate {
     /// screen, and everything written after it is newer, not older.
     var hasMoreHistory = true
     var error: String?
+    /// Kept out of the primary navigation until there is something that needs
+    /// attention. The Settings tab and chat row both surface this count.
+    private(set) var unreadCount = 0
 
     // MARK: - Dependencies
     private let modelContext: ModelContext
@@ -28,6 +31,7 @@ final class ChatService: ChatWebSocketDelegate {
     private var sentClientMessageIds: Set<String> = []
     private var typingDebounceTask: Task<Void, Never>?
     private var lastTypingSent: Date?
+    private var isViewingChat = false
     private static let typingDebounceInterval: TimeInterval = 1.0
 
     /// One page of history. `GetChatMessages` caps a page at 200; 50 keeps the
@@ -70,12 +74,14 @@ final class ChatService: ChatWebSocketDelegate {
     // MARK: - Lifecycle
 
     func onAppear() async {
+        isViewingChat = true
+        unreadCount = 0
         await connect()
         await loadMessages()
     }
 
     func onDisappear() async {
-        await disconnect()
+        isViewingChat = false
     }
 
     // MARK: - Connection
@@ -363,6 +369,10 @@ final class ChatService: ChatWebSocketDelegate {
         messages.append(message)
         sortMessages()
         try? modelContext.save()
+
+        if !isViewingChat, dto.userId != currentUserId {
+            unreadCount += 1
+        }
 
         // Clear typing indicator for this user
         typingUsers.removeValue(forKey: dto.userId)

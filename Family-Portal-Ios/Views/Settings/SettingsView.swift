@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(NetworkMonitor.self) private var networkMonitor
     @Environment(MobileVersionService.self) private var mobileVersionService
+    @Environment(ChatService.self) private var chatService: ChatService?
     @State private var showLogoutConfirmation = false
 
     var body: some View {
@@ -99,6 +100,24 @@ struct SettingsView: View {
                 }
 
                 Section("Family") {
+                    NavigationLink {
+                        ChatView()
+                    } label: {
+                        HStack {
+                            Label("Family Chat", systemImage: "bubble.left.and.bubble.right")
+                            Spacer()
+                            if let unreadCount = chatService?.unreadCount, unreadCount > 0 {
+                                Text(unreadCount, format: .number)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(.tint, in: Capsule())
+                                    .accessibilityLabel("\(unreadCount) unread messages")
+                            }
+                        }
+                    }
+
                     NavigationLink("Manage Family") {
                         FamilyManagementView()
                     }

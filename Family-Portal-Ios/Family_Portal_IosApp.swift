@@ -154,11 +154,17 @@ struct Family_Portal_IosApp: App {
     @MainActor
     private func initializeChatService() async {
         guard let user = authService.currentUser else { return }
-        chatService = await ChatService(
+        let service = await ChatService(
             modelContext: container.mainContext,
             apiClient: APIClient.shared,
             currentUserId: user.id,
             currentUserName: user.name
         )
+        chatService = service
+        // Chat is deliberately no longer a main tab. Keep its lightweight
+        // socket alive so an incoming message can make the tucked-away entry
+        // visible with an unread badge.
+        await service.connect()
+        await service.loadMessages()
     }
 }
