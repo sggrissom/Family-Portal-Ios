@@ -18,6 +18,14 @@ final class AuthService {
     /// happens to trigger the sign-out.
     @MainActor var onWillLogout: (@MainActor () async -> Void)?
 
+    /// Runs when the data already on this device cannot be vouched for as the
+    /// signing-in account's, before the new identity is published. The app
+    /// erases the local store here, so no screen ever renders the previous
+    /// account's records — see `LocalAccountOwner`.
+    @MainActor var onUnownedLocalData: (@MainActor (LocalDataResetScope) async -> Void)?
+
+    private let accountOwner = LocalAccountOwner()
+
     var isAuthenticated: Bool {
         currentUser != nil
     }
@@ -48,7 +56,7 @@ final class AuthService {
 
             if response.success, let token = response.token, let auth = response.auth {
                 await APIClient.shared.setAccessToken(token)
-                setCurrentUser(auth)
+                await adoptSession(auth)
             } else {
                 errorMessage = response.error ?? "Login failed."
             }
@@ -107,7 +115,7 @@ final class AuthService {
 
             await APIClient.shared.setAccessToken(token)
             errorMessage = nil
-            setCurrentUser(auth)
+            await adoptSession(auth)
             return nil
         } catch let error as APIError {
             return error.errorDescription
@@ -162,7 +170,7 @@ final class AuthService {
 
             if response.success, let token = response.token, let auth = response.auth {
                 await APIClient.shared.setAccessToken(token)
-                setCurrentUser(auth)
+                await adoptSession(auth)
             } else {
                 errorMessage = response.error ?? "Google sign-in failed."
             }
@@ -318,7 +326,7 @@ final class AuthService {
             )
             if response.success, let token = response.token {
                 await APIClient.shared.setAccessToken(token)
-                setCurrentUser(response.auth ?? Self.cachedUser())
+                await adoptSession(response.auth ?? Self.cachedUser())
             } else {
                 await endSession()
             }
@@ -332,8 +340,37 @@ final class AuthService {
             // and carry on with the identity from last time; the next request
             // refreshes for real, and a genuinely dead session gets caught by
             // the 401 handling there.
-            setCurrentUser(Self.cachedUser())
+            await adoptSession(Self.cachedUser())
         }
+    }
+
+    /// Publishes a freshly authenticated identity, erasing what is on the device
+    /// first when it belongs to a different account.
+    ///
+    /// The erase is awaited before `currentUser` is set so the app can never
+    /// render a tab against the previous account's records: nothing is
+    /// authenticated until this returns.
+    ///
+    /// A sign-out deliberately leaves the recorded owner alone. The same user
+    /// signing back in keeps everything they had, including work still queued
+    /// for upload.
+    @MainActor
+    private func adoptSession(_ auth: AuthResponseDTO?) async {
+        guard let auth else {
+            setCurrentUser(nil)
+            return
+        }
+
+        if accountOwner.holdsDataForAnotherAccount(than: auth.id) {
+            await onUnownedLocalData?(.everything)
+        } else if !accountOwner.hasRecordedOwner {
+            // First run of a build that keeps this record. The store may already
+            // hold an earlier account's chat, put there before anything tracked
+            // whose it was, and no sync will ever clear it.
+            await onUnownedLocalData?(.chatOnly)
+        }
+        accountOwner.record(userId: auth.id)
+        setCurrentUser(auth)
     }
 
     /// Forgets the session locally. The tokens are already gone by the time the

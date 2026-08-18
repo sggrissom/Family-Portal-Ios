@@ -123,6 +123,18 @@ struct Family_Portal_IosApp: App {
             await PushNotificationService.shared.unregisterForPushNotifications()
         }
 
+        // A second account signing in on this device would otherwise inherit the
+        // first one's store. The chat service is dropped first because it holds
+        // the messages about to be deleted.
+        authService.onUnownedLocalData = { scope in
+            self.chatService = nil
+            await LocalDataReset.erase(
+                scope,
+                context: self.container.mainContext,
+                syncQueue: self.syncService.syncQueue
+            )
+        }
+
         // Runs alongside session restore rather than before it: the check must
         // never delay a signed-in user, and an unsupported build is gated by
         // ContentView regardless of how the restore turns out.
