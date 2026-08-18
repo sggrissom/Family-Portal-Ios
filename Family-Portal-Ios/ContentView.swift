@@ -11,6 +11,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(AuthService.self) private var authService
     @Environment(MobileVersionService.self) private var mobileVersionService
+    @Environment(ChatService.self) private var chatService: ChatService?
 
     var body: some View {
         // The version gate sits outside the auth gate on purpose: the policy
@@ -51,11 +52,6 @@ struct ContentView: View {
                     Label("Timeline", systemImage: "clock.fill")
                 }
 
-            ChatView()
-                .tabItem {
-                    Label("Chat", systemImage: "bubble.left.and.bubble.right.fill")
-                }
-
             PhotoGalleryView()
                 .tabItem {
                     Label("Photos", systemImage: "photo.on.rectangle")
@@ -65,6 +61,7 @@ struct ContentView: View {
                 .tabItem {
                     Label("Settings", systemImage: "gear")
                 }
+                .badge(chatService?.unreadCount ?? 0)
         }
     }
 }
