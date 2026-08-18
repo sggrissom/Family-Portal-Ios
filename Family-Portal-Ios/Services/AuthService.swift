@@ -427,6 +427,6 @@ struct InitialPerson {
 
 // MARK: - Additional DTOs
 
-struct LogoutResponseDTO: Codable {
+nonisolated struct LogoutResponseDTO: Codable {
     let success: Bool
 }

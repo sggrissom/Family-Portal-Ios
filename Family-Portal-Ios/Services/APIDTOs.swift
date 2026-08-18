@@ -1,6 +1,6 @@
 @preconcurrency import Foundation
 
-struct AuthResponseDTO: Sendable {
+nonisolated struct AuthResponseDTO: Sendable {
     let id: Int
     let name: String
     let email: String
@@ -32,7 +32,7 @@ struct AuthResponseDTO: Sendable {
 
 extension AuthResponseDTO: Codable {}
 
-struct LoginResponseDTO: Codable, Sendable {
+nonisolated struct LoginResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let token: String?
@@ -43,7 +43,7 @@ struct LoginResponseDTO: Codable, Sendable {
 /// new family; a matching invite code joins an existing one. The initial-person
 /// fields seed the family with its first member and are skipped entirely when
 /// `initialPersonBirthdate` is empty.
-struct CreateAccountRequestDTO: Codable, Sendable {
+nonisolated struct CreateAccountRequestDTO: Codable, Sendable {
     let name: String
     let email: String
     let password: String
@@ -54,7 +54,7 @@ struct CreateAccountRequestDTO: Codable, Sendable {
     let initialPersonBirthdate: String
 }
 
-struct CreateAccountResponseDTO: Codable, Sendable {
+nonisolated struct CreateAccountResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let token: String?
@@ -63,16 +63,16 @@ struct CreateAccountResponseDTO: Codable, Sendable {
 
 /// `RequestPasswordResetRequest` in backend/password_reset.go. The response is
 /// deliberately identical for known and unknown addresses.
-struct RequestPasswordResetRequestDTO: Codable, Sendable {
+nonisolated struct RequestPasswordResetRequestDTO: Codable, Sendable {
     let email: String
 }
 
-struct RequestPasswordResetResponseDTO: Codable, Sendable {
+nonisolated struct RequestPasswordResetResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
 }
 
-struct RefreshResponseDTO: Sendable {
+nonisolated struct RefreshResponseDTO: Sendable {
     let success: Bool
     let error: String?
     let token: String?
@@ -112,7 +112,7 @@ nonisolated struct MobileVersionPolicyDTO: Codable, Sendable {
 
 /// `FamilyInfo` in backend/users.go — one family the signed-in user belongs to,
 /// and what they may do in it.
-struct FamilyInfoDTO: Codable, Sendable, Identifiable {
+nonisolated struct FamilyInfoDTO: Codable, Sendable, Identifiable {
     let id: Int
     let name: String
     let inviteCode: String
@@ -145,7 +145,7 @@ struct FamilyInfoDTO: Codable, Sendable, Identifiable {
 
 /// `FamilyInfoResponse`. The top-level fields describe the primary family and
 /// predate multi-family membership; `families` is the full list.
-struct FamilyInfoResponseDTO: Codable, Sendable {
+nonisolated struct FamilyInfoResponseDTO: Codable, Sendable {
     let id: Int
     let name: String
     let inviteCode: String
@@ -163,11 +163,11 @@ struct FamilyInfoResponseDTO: Codable, Sendable {
 
 /// `JoinFamilyRequest` / `JoinFamilyResponse` in backend/users.go. Joining adds
 /// a family rather than moving between them: the primary family is left alone.
-struct JoinFamilyRequestDTO: Codable, Sendable {
+nonisolated struct JoinFamilyRequestDTO: Codable, Sendable {
     let inviteCode: String
 }
 
-struct JoinFamilyResponseDTO: Codable, Sendable {
+nonisolated struct JoinFamilyResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let auth: AuthResponseDTO?
@@ -181,7 +181,7 @@ struct JoinFamilyResponseDTO: Codable, Sendable {
 /// `joinedAt` is deliberately not decoded: it exists to order the list, the
 /// server has already applied that order, and a field nothing reads is one more
 /// way for the whole list to fail to decode.
-struct FamilyMemberDTO: Codable, Sendable, Identifiable {
+nonisolated struct FamilyMemberDTO: Codable, Sendable, Identifiable {
     let userId: Int
     let name: String
     let email: String
@@ -211,11 +211,11 @@ struct FamilyMemberDTO: Codable, Sendable, Identifiable {
 
 /// `ListFamilyMembersRequest` / `FamilyIdRequest`. A zero `familyId` means the
 /// caller's primary family, which is the fallback the Go side applies.
-struct FamilyIdRequestDTO: Codable, Sendable {
+nonisolated struct FamilyIdRequestDTO: Codable, Sendable {
     let familyId: Int
 }
 
-struct ListFamilyMembersResponseDTO: Codable, Sendable {
+nonisolated struct ListFamilyMembersResponseDTO: Codable, Sendable {
     let familyId: Int
     let members: [FamilyMemberDTO]
     /// Sent so the UI doesn't have to re-derive who may remove whom.
@@ -233,20 +233,20 @@ struct ListFamilyMembersResponseDTO: Codable, Sendable {
 /// `LeaveFamilyResponse`. `auth` is a Go *struct*, and `omitempty` has no effect
 /// on those, so a refusal still carries a zero-valued one — see
 /// `FamilyMembershipService.leaveFamily` for why the id is checked.
-struct LeaveFamilyResponseDTO: Codable, Sendable {
+nonisolated struct LeaveFamilyResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let auth: AuthResponseDTO?
 }
 
-struct RemoveFamilyMemberRequestDTO: Codable, Sendable {
+nonisolated struct RemoveFamilyMemberRequestDTO: Codable, Sendable {
     let familyId: Int
     let userId: Int
 }
 
 /// `RemoveFamilyMemberResponse`. The remaining members come back with the
 /// success, so a removal needs no follow-up list call.
-struct RemoveFamilyMemberResponseDTO: Codable, Sendable {
+nonisolated struct RemoveFamilyMemberResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let members: [FamilyMemberDTO]
@@ -261,7 +261,7 @@ struct RemoveFamilyMemberResponseDTO: Codable, Sendable {
 
 /// `RotateInviteCodeResponse`. `familyId` and `inviteCode` carry `omitempty`, so
 /// a refusal omits them entirely rather than sending zero and "".
-struct RotateInviteCodeResponseDTO: Codable, Sendable {
+nonisolated struct RotateInviteCodeResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let familyId: Int
@@ -279,26 +279,26 @@ struct RotateInviteCodeResponseDTO: Codable, Sendable {
 /// `RegisterPushDeviceRequest` in backend/push_notifications.go. The server
 /// validates `platform`, `environment`, and `bundleId` against its own APNs
 /// configuration and rejects anything that doesn't match.
-struct RegisterPushDeviceRequestDTO: Codable, Sendable {
+nonisolated struct RegisterPushDeviceRequestDTO: Codable, Sendable {
     let token: String
     let platform: String
     let environment: String
     let bundleId: String
 }
 
-struct RegisterPushDeviceResponseDTO: Codable, Sendable {
+nonisolated struct RegisterPushDeviceResponseDTO: Codable, Sendable {
     let success: Bool
 }
 
-struct UnregisterPushDeviceRequestDTO: Codable, Sendable {
+nonisolated struct UnregisterPushDeviceRequestDTO: Codable, Sendable {
     let token: String
 }
 
-struct UnregisterPushDeviceResponseDTO: Codable, Sendable {
+nonisolated struct UnregisterPushDeviceResponseDTO: Codable, Sendable {
     let success: Bool
 }
 
-struct PersonDTO: Codable, Sendable {
+nonisolated struct PersonDTO: Codable, Sendable {
     let id: Int
     let familyId: Int
     let name: String
@@ -312,7 +312,7 @@ struct PersonDTO: Codable, Sendable {
     let profileCropScale: Double?
 }
 
-struct GrowthDataDTO: Codable, Sendable {
+nonisolated struct GrowthDataDTO: Codable, Sendable {
     let id: Int
     let personId: Int
     let familyId: Int
@@ -323,7 +323,7 @@ struct GrowthDataDTO: Codable, Sendable {
     let createdAt: Date
 }
 
-struct MilestoneDTO: Codable, Sendable {
+nonisolated struct MilestoneDTO: Codable, Sendable {
     let id: Int
     let personId: Int
     let familyId: Int
@@ -361,7 +361,7 @@ struct MilestoneDTO: Codable, Sendable {
     }
 }
 
-struct ImageDTO: Codable, Sendable {
+nonisolated struct ImageDTO: Codable, Sendable {
     let id: Int
     let familyId: Int
     let ownerUserId: Int
@@ -425,7 +425,7 @@ struct ImageDTO: Codable, Sendable {
 /// `createdAt` is deliberately not decoded: `ListTags` has already sorted the
 /// list by name, nothing in the app shows a tag's age, and a field nothing reads
 /// is one more way for the whole list to fail to decode.
-struct TagDTO: Codable, Sendable {
+nonisolated struct TagDTO: Codable, Sendable {
     let id: Int
     let familyId: Int
     let name: String
@@ -446,7 +446,7 @@ struct TagDTO: Codable, Sendable {
     }
 }
 
-struct ListTagsResponseDTO: Codable, Sendable {
+nonisolated struct ListTagsResponseDTO: Codable, Sendable {
     let tags: [TagDTO]
 
     init(from decoder: Decoder) throws {
@@ -460,12 +460,12 @@ struct ListTagsResponseDTO: Codable, Sendable {
     }
 }
 
-struct PhotoWithPeopleDTO: Codable, Sendable {
+nonisolated struct PhotoWithPeopleDTO: Codable, Sendable {
     let image: ImageDTO
     let people: [PersonDTO]
 }
 
-struct GetPersonResponseDTO: Codable, Sendable {
+nonisolated struct GetPersonResponseDTO: Codable, Sendable {
     let person: PersonDTO?
     let growthData: [GrowthDataDTO]
     let milestones: [MilestoneDTO]
@@ -480,44 +480,44 @@ struct GetPersonResponseDTO: Codable, Sendable {
     }
 }
 
-struct ListPeopleResponseDTO: Codable, Sendable {
+nonisolated struct ListPeopleResponseDTO: Codable, Sendable {
     let people: [PersonDTO]
 }
 
-struct AddGrowthDataResponseDTO: Codable, Sendable {
+nonisolated struct AddGrowthDataResponseDTO: Codable, Sendable {
     let growthData: GrowthDataDTO
 }
 
-struct UpdateGrowthDataResponseDTO: Codable, Sendable {
+nonisolated struct UpdateGrowthDataResponseDTO: Codable, Sendable {
     let growthData: GrowthDataDTO
 }
 
-struct AddMilestoneResponseDTO: Codable, Sendable {
+nonisolated struct AddMilestoneResponseDTO: Codable, Sendable {
     let milestone: MilestoneDTO
 }
 
-struct UpdateMilestoneResponseDTO: Codable, Sendable {
+nonisolated struct UpdateMilestoneResponseDTO: Codable, Sendable {
     let milestone: MilestoneDTO
 }
 
-struct AddPhotoResponseDTO: Codable, Sendable {
+nonisolated struct AddPhotoResponseDTO: Codable, Sendable {
     let image: ImageDTO
 }
 
-struct UpdatePhotoResponseDTO: Codable, Sendable {
+nonisolated struct UpdatePhotoResponseDTO: Codable, Sendable {
     let image: ImageDTO
 }
 
-struct GetPhotoResponseDTO: Codable, Sendable {
+nonisolated struct GetPhotoResponseDTO: Codable, Sendable {
     let image: ImageDTO
     let people: [PersonDTO]
 }
 
-struct ListFamilyPhotosResponseDTO: Codable, Sendable {
+nonisolated struct ListFamilyPhotosResponseDTO: Codable, Sendable {
     let photos: [PhotoWithPeopleDTO]
 }
 
-struct FamilyTimelineItemDTO: Codable, Sendable {
+nonisolated struct FamilyTimelineItemDTO: Codable, Sendable {
     let person: PersonDTO
     let growthData: [GrowthDataDTO]
     let milestones: [MilestoneDTO]
@@ -532,24 +532,24 @@ struct FamilyTimelineItemDTO: Codable, Sendable {
     }
 }
 
-struct GetFamilyTimelineResponseDTO: Codable, Sendable {
+nonisolated struct GetFamilyTimelineResponseDTO: Codable, Sendable {
     let people: [FamilyTimelineItemDTO]
 }
 
 // MARK: - Request DTOs
 
-struct GoogleTokenLoginRequestDTO: Encodable, Sendable {
+nonisolated struct GoogleTokenLoginRequestDTO: Encodable, Sendable {
     let idToken: String
 }
 
-struct AddPersonRequestDTO: Encodable, Sendable {
+nonisolated struct AddPersonRequestDTO: Encodable, Sendable {
     let name: String
     let personType: Int
     let gender: Int
     let birthdate: String  // "yyyy-MM-dd"
 }
 
-struct UpdatePersonRequestDTO: Encodable, Sendable {
+nonisolated struct UpdatePersonRequestDTO: Encodable, Sendable {
     let id: Int
     let name: String
     let personType: Int
@@ -557,7 +557,7 @@ struct UpdatePersonRequestDTO: Encodable, Sendable {
     let birthdate: String  // "yyyy-MM-dd"
 }
 
-struct AddGrowthDataRequestDTO: Encodable, Sendable {
+nonisolated struct AddGrowthDataRequestDTO: Encodable, Sendable {
     let personId: Int
     let measurementType: String  // "height" or "weight"
     let value: Double
@@ -566,7 +566,7 @@ struct AddGrowthDataRequestDTO: Encodable, Sendable {
     let measurementDate: String? // "yyyy-MM-dd" if inputType="date"
 }
 
-struct UpdateGrowthDataRequestDTO: Encodable, Sendable {
+nonisolated struct UpdateGrowthDataRequestDTO: Encodable, Sendable {
     let id: Int
     let measurementType: String
     let value: Double
@@ -575,15 +575,15 @@ struct UpdateGrowthDataRequestDTO: Encodable, Sendable {
     let measurementDate: String?
 }
 
-struct DeleteRequestDTO: Encodable, Sendable {
+nonisolated struct DeleteRequestDTO: Encodable, Sendable {
     let id: Int
 }
 
-struct SuccessResponseDTO: Decodable, Sendable {
+nonisolated struct SuccessResponseDTO: Decodable, Sendable {
     let success: Bool
 }
 
-struct AddMilestoneRequestDTO: Encodable, Sendable {
+nonisolated struct AddMilestoneRequestDTO: Encodable, Sendable {
     let personId: Int
     let description: String
     let category: String
@@ -593,7 +593,7 @@ struct AddMilestoneRequestDTO: Encodable, Sendable {
     let photoIds: [Int]?
 }
 
-struct UpdateMilestoneRequestDTO: Encodable, Sendable {
+nonisolated struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let id: Int
     let description: String
     let category: String
@@ -607,7 +607,7 @@ struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let photoIds: [Int]?
 }
 
-struct UpdatePhotoRequestDTO: Encodable, Sendable {
+nonisolated struct UpdatePhotoRequestDTO: Encodable, Sendable {
     let id: Int
     let title: String
     let description: String
@@ -615,12 +615,12 @@ struct UpdatePhotoRequestDTO: Encodable, Sendable {
     let photoDate: String?
 }
 
-struct AddPeopleToPhotoRequestDTO: Encodable, Sendable {
+nonisolated struct AddPeopleToPhotoRequestDTO: Encodable, Sendable {
     let photoId: Int
     let personIds: [Int]
 }
 
-struct RemovePersonFromPhotoRequestDTO: Encodable, Sendable {
+nonisolated struct RemovePersonFromPhotoRequestDTO: Encodable, Sendable {
     let photoId: Int
     let personId: Int
 }
@@ -631,14 +631,14 @@ struct RemovePersonFromPhotoRequestDTO: Encodable, Sendable {
 /// to preserve — the proc's only job is this field, and Go normalizes a missing
 /// or null `tagIds` to `[]`, so an empty array is the honest way to say "no
 /// tags".
-struct UpdatePhotoTagsRequestDTO: Encodable, Sendable {
+nonisolated struct UpdatePhotoTagsRequestDTO: Encodable, Sendable {
     let photoId: Int
     let tagIds: [Int]
 }
 
 /// The milestone half of `UpdatePhotoTagsRequestDTO`, against
 /// `UpdateMilestoneTags` in backend/milestone.go.
-struct UpdateMilestoneTagsRequestDTO: Encodable, Sendable {
+nonisolated struct UpdateMilestoneTagsRequestDTO: Encodable, Sendable {
     let milestoneId: Int
     let tagIds: [Int]
 }
@@ -647,9 +647,9 @@ struct UpdateMilestoneTagsRequestDTO: Encodable, Sendable {
 /// literal body `{}`. Decoding `SuccessResponseDTO` against one of those would
 /// throw on the missing `success` key and turn every successful write into a
 /// retry.
-struct EmptyResponseDTO: Decodable, Sendable {}
+nonisolated struct EmptyResponseDTO: Decodable, Sendable {}
 
-struct AddPersonResponseDTO: Decodable, Sendable {
+nonisolated struct AddPersonResponseDTO: Decodable, Sendable {
     let person: PersonDTO
     let growthData: [GrowthDataDTO]
     let milestones: [MilestoneDTO]
@@ -668,7 +668,7 @@ struct AddPersonResponseDTO: Decodable, Sendable {
     }
 }
 
-struct UpdatePersonResponseDTO: Decodable, Sendable {
+nonisolated struct UpdatePersonResponseDTO: Decodable, Sendable {
     let person: PersonDTO
 }
 
@@ -676,7 +676,7 @@ struct UpdatePersonResponseDTO: Decodable, Sendable {
 /// factor. The server substitutes its own defaults for zeros, but sending them
 /// explicitly keeps what iOS asked for and what comes back on the next pull the
 /// same thing.
-struct SetProfilePhotoRequestDTO: Encodable, Sendable {
+nonisolated struct SetProfilePhotoRequestDTO: Encodable, Sendable {
     let personId: Int
     let photoId: Int
     let cropX: Double
@@ -684,6 +684,6 @@ struct SetProfilePhotoRequestDTO: Encodable, Sendable {
     let cropScale: Double
 }
 
-struct SetProfilePhotoResponseDTO: Decodable, Sendable {
+nonisolated struct SetProfilePhotoResponseDTO: Decodable, Sendable {
     let person: PersonDTO
 }

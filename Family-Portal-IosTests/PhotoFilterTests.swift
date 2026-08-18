@@ -13,7 +13,7 @@ import Testing
 @Suite("Photo filter")
 struct PhotoFilterTests {
 
-    private static func makeDate(_ year: Int, _ month: Int, _ day: Int, hour: Int = 12) -> Date {
+    private nonisolated static func makeDate(_ year: Int, _ month: Int, _ day: Int, hour: Int = 12) -> Date {
         Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
     }
 

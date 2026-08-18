@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Chat Message DTOs
 
-struct ChatMessageDTO: Sendable {
+nonisolated struct ChatMessageDTO: Sendable {
     let id: Int
     let familyId: Int
     let userId: Int
@@ -51,12 +51,12 @@ extension ChatMessageDTO: Codable {}
 
 // MARK: - Request/Response DTOs
 
-struct SendMessageRequestDTO: Encodable, Sendable {
+nonisolated struct SendMessageRequestDTO: Encodable, Sendable {
     let content: String
     let clientMessageId: String
 }
 
-struct SendMessageResponseDTO: Sendable {
+nonisolated struct SendMessageResponseDTO: Sendable {
     let message: ChatMessageDTO
 
     nonisolated init(from decoder: Decoder) throws {
@@ -76,7 +76,7 @@ struct SendMessageResponseDTO: Sendable {
 
 extension SendMessageResponseDTO: Codable {}
 
-struct GetChatMessagesRequestDTO: Encodable, Sendable {
+nonisolated struct GetChatMessagesRequestDTO: Encodable, Sendable {
     /// Capped at 200 by `GetChatMessages`; anything outside 1...200 falls back to
     /// the server's default of 100.
     let limit: Int
@@ -86,7 +86,7 @@ struct GetChatMessagesRequestDTO: Encodable, Sendable {
     let offset: Int
 }
 
-struct GetChatMessagesResponseDTO: Sendable {
+nonisolated struct GetChatMessagesResponseDTO: Sendable {
     let messages: [ChatMessageDTO]
 
     nonisolated init(from decoder: Decoder) throws {
@@ -106,7 +106,7 @@ struct GetChatMessagesResponseDTO: Sendable {
 
 extension GetChatMessagesResponseDTO: Codable {}
 
-struct DeleteMessageRequestDTO: Encodable, Sendable {
+nonisolated struct DeleteMessageRequestDTO: Encodable, Sendable {
     let messageId: Int
 
     // backend/chat.go `DeleteMessageRequest` reads `id`.
@@ -115,7 +115,7 @@ struct DeleteMessageRequestDTO: Encodable, Sendable {
     }
 }
 
-struct DeleteMessageResponseDTO: Sendable {
+nonisolated struct DeleteMessageResponseDTO: Sendable {
     let success: Bool
 
     nonisolated init(from decoder: Decoder) throws {

@@ -273,7 +273,7 @@ struct SyncServiceQueueTests {
         harness.monitor.isConnected = true
         async let run: Void = harness.service.processQueue()
 
-        await Task.detached { arrived.wait() }.value
+        await Task.detached { blockUntilSignalled(arrived) }.value
         photo.title = "Sunset"
         try harness.context.save()
         try await harness.service.updatePhoto(photo)
@@ -405,4 +405,13 @@ struct SyncServiceQueueTests {
         #expect(try harness.context.fetch(FetchDescriptor<Photo>()).isEmpty)
         #expect(await harness.service.syncQueue.count() == 0)
     }
+}
+
+/// `DispatchSemaphore.wait()` is `noasync`, and rightly so — blocking a
+/// cooperative-pool thread is how a test deadlocks itself. Here the block is the
+/// point: the detached task exists only to park a thread that is not the one the
+/// run under test is suspended on. Routing the call through a synchronous
+/// function is the sanctioned way to say that deliberately.
+private nonisolated func blockUntilSignalled(_ semaphore: DispatchSemaphore) {
+    semaphore.wait()
 }

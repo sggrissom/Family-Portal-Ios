@@ -142,11 +142,11 @@ struct PhotoFilter: Equatable {
         return parts.joined(separator: ", ")
     }
 
-    private static func startOfDay(_ date: Date) -> Date {
+    private nonisolated static func startOfDay(_ date: Date) -> Date {
         Calendar.current.startOfDay(for: date)
     }
 
-    private static func endOfDay(_ date: Date) -> Date {
+    private nonisolated static func endOfDay(_ date: Date) -> Date {
         let start = Calendar.current.startOfDay(for: date)
         // Not `startOfDay + 86400 - 1`: days are not all 86400 seconds long where
         // daylight saving applies.
@@ -156,7 +156,7 @@ struct PhotoFilter: Equatable {
         return next.addingTimeInterval(-0.001)
     }
 
-    private static func shortDate(_ date: Date) -> String {
+    private nonisolated static func shortDate(_ date: Date) -> String {
         date.formatted(.dateTime.month(.abbreviated).day())
     }
 }
