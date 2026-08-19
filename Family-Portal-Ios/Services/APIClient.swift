@@ -22,6 +22,9 @@ enum APIError: LocalizedError {
         case .decoding(let error):
             return "Failed to decode server response: \(error.localizedDescription)"
         case .server(let statusCode, let message):
+            if let sentence = APIError.procSentence(statusCode: statusCode, message: message) {
+                return sentence
+            }
             if let message, !message.isEmpty {
                 return "Server error (\(statusCode)): \(message)"
             }
@@ -36,6 +39,35 @@ enum APIError: LocalizedError {
             }
             return "Could not refresh session."
         }
+    }
+
+    /// A rejected proc's own words, when the body is one.
+    ///
+    /// `vbeam.RespondError` writes `w.WriteHeader(400)` and then
+    /// `fmt.Fprintf(w, err.Error())` — no JSON, no `success: false` — so the
+    /// body of a 400 *is* the error. Activities is the first feature whose
+    /// backend returns strings meant for a user rather than for a log
+    /// ("That entry is not in the same season as this competition",
+    /// "A rank must be 1 or greater, and no greater than the field size"), and
+    /// wrapping those in `Server error (400): …` buries the only useful part of
+    /// the alert behind a status code the reader can do nothing with.
+    ///
+    /// The guards keep this to bodies that really are a sentence. A 400 can also
+    /// carry an HTML error page from something in front of the app, or a JSON
+    /// envelope from a handler that is not a proc, and neither of those is worth
+    /// showing verbatim — those fall back to the generic wording.
+    static func procSentence(statusCode: Int, message: String?) -> String? {
+        guard statusCode == 400, let message else { return nil }
+
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed.count <= 200,
+              !trimmed.contains("\n"),
+              let first = trimmed.first,
+              first != "<", first != "{", first != "[" else {
+            return nil
+        }
+        return trimmed
     }
 }
 
@@ -241,6 +273,15 @@ actor APIClient {
         try await request(path: "rpc/\(proc.rawValue)", method: .post, body: payload, requiresAuth: true)
     }
 
+    /// The raw response body of a proc, for a caller that needs to both decode
+    /// it and keep it. `ActivityService` writes exactly these bytes to its
+    /// snapshot cache, so a field this build ignores is still there for the
+    /// build that reads it — and its response types never need to be
+    /// `Encodable`.
+    func callRPCData<Body: Encodable>(_ proc: RPCMethod, payload: Body) async throws -> Data {
+        try await requestData(path: "rpc/\(proc.rawValue)", method: .post, body: payload, requiresAuth: true)
+    }
+
     /// For the procs a signed-out user has to reach: `CreateAccount`,
     /// `RequestPasswordReset`. No token is attached and a 401 is never retried,
     /// because there is no session to refresh.
@@ -261,6 +302,31 @@ actor APIClient {
         requiresAuth: Bool = true,
         retryOnAuthFailure: Bool = true
     ) async throws -> T {
+        let data = try await requestData(
+            path: path,
+            method: method,
+            body: body,
+            requiresAuth: requiresAuth,
+            retryOnAuthFailure: retryOnAuthFailure
+        )
+        do {
+            return try Self.decode(T.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
+
+    /// Everything `request` does except decode. Split out so a caller that wants
+    /// the bytes and a caller that wants a type share one code path — the auth
+    /// headers, the token capture, the 401 refresh-and-retry, and the error
+    /// mapping are the parts that must not drift apart.
+    func requestData<Body: Encodable>(
+        path: String,
+        method: HTTPMethod = .post,
+        body: Body? = nil,
+        requiresAuth: Bool = true,
+        retryOnAuthFailure: Bool = true
+    ) async throws -> Data {
         guard let url = makeURL(for: path) else {
             throw APIError.invalidURL
         }
@@ -290,7 +356,7 @@ actor APIClient {
 
             if httpResponse.statusCode == 401, retryOnAuthFailure, requiresAuth {
                 try await refreshAccessToken()
-                return try await request(path: path, method: method, body: body, requiresAuth: requiresAuth, retryOnAuthFailure: false)
+                return try await requestData(path: path, method: method, body: body, requiresAuth: requiresAuth, retryOnAuthFailure: false)
             }
 
             guard (200...299).contains(httpResponse.statusCode) else {
@@ -305,11 +371,7 @@ actor APIClient {
                 throw APIError.invalidResponse
             }
 
-            do {
-                return try Self.decode(T.self, from: data)
-            } catch {
-                throw APIError.decoding(error)
-            }
+            return data
         } catch let error as APIError {
             throw error
         } catch {

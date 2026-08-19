@@ -39,6 +39,7 @@ struct Family_Portal_IosApp: App {
     @State private var authService = AuthService()
     @State private var mobileVersionService = MobileVersionService()
     @State private var errorPresenter = ErrorPresenter()
+    @State private var activityService = ActivityService()
     @State private var networkMonitor: NetworkMonitor
     @State private var syncService: SyncService
     @State private var chatService: ChatService?
@@ -67,6 +68,7 @@ struct Family_Portal_IosApp: App {
                 .environment(mobileVersionService)
                 .environment(networkMonitor)
                 .environment(syncService)
+                .environment(activityService)
                 .environment(chatService)
                 .task {
                     await setupServices()

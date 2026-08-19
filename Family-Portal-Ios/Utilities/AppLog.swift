@@ -26,6 +26,9 @@ nonisolated enum AppLog {
     /// The pre-auth version gate.
     static let version = Logger(subsystem: subsystem, category: "version")
 
+    /// `ActivityService`, its reads, and the snapshot cache under it.
+    static let activities = Logger(subsystem: subsystem, category: "activities")
+
     /// Failures a view caught and handed to `ErrorPresenter`.
     static let ui = Logger(subsystem: subsystem, category: "ui")
 }

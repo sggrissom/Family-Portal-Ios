@@ -119,6 +119,31 @@ struct PersonDetailView: View {
                     }
                     .padding(.horizontal)
 
+                    // Activities
+                    //
+                    // Only when the person has a remote id: a person created
+                    // offline has no server record yet, and `GetPersonSeason`
+                    // is addressed by server id. There is nothing to show for
+                    // someone the server has never heard of.
+                    if let personRemoteId = person.remoteId.flatMap(Int.init) {
+                        GroupBox("Activities") {
+                            NavigationLink(
+                                destination: PersonSeasonView(personId: personRemoteId, personName: person.name)
+                            ) {
+                                HStack {
+                                    Label("This Season", systemImage: "trophy")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 4)
+                        }
+                        .padding(.horizontal)
+                    }
+
                     // Recent Milestones Section
                     GroupBox("Recent Milestones") {
                         VStack(alignment: .leading, spacing: 8) {

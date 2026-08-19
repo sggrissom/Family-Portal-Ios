@@ -90,6 +90,57 @@ struct RPCMethodTests {
         #expect(RPCMethod.unregisterPushDevice.rawValue == "UnregisterPushDevice")
     }
 
+    /// All 26 activities procs, read off the four `RegisterProc` blocks
+    /// (`RegisterActivityMethods`, `RegisterActivityResultMethods`,
+    /// `RegisterActivityViewMethods`, `RegisterActivityPhotoMethods`) rather
+    /// than off the generated TypeScript. Every one matches its Go function name
+    /// exactly — there is no `…Proc` suffix anywhere in this feature — so the
+    /// `RemovePersonFromPhotoProc` trap does not recur here.
+    @Test("Activity structure proc names match the backend")
+    func activityStructureProcNames() {
+        #expect(RPCMethod.listActivities.rawValue == "ListActivities")
+        #expect(RPCMethod.createActivity.rawValue == "CreateActivity")
+        #expect(RPCMethod.updateActivity.rawValue == "UpdateActivity")
+        #expect(RPCMethod.deleteActivity.rawValue == "DeleteActivity")
+
+        #expect(RPCMethod.listSeasons.rawValue == "ListSeasons")
+        #expect(RPCMethod.createSeason.rawValue == "CreateSeason")
+        #expect(RPCMethod.updateSeason.rawValue == "UpdateSeason")
+        #expect(RPCMethod.deleteSeason.rawValue == "DeleteSeason")
+
+        #expect(RPCMethod.createEvent.rawValue == "CreateEvent")
+        #expect(RPCMethod.updateEvent.rawValue == "UpdateEvent")
+        #expect(RPCMethod.deleteEvent.rawValue == "DeleteEvent")
+
+        #expect(RPCMethod.createEntry.rawValue == "CreateEntry")
+        #expect(RPCMethod.updateEntry.rawValue == "UpdateEntry")
+        #expect(RPCMethod.deleteEntry.rawValue == "DeleteEntry")
+        #expect(RPCMethod.setEntryRoster.rawValue == "SetEntryRoster")
+    }
+
+    @Test("Appearance and result proc names match the backend")
+    func activityResultProcNames() {
+        #expect(RPCMethod.createAppearance.rawValue == "CreateAppearance")
+        #expect(RPCMethod.updateAppearance.rawValue == "UpdateAppearance")
+        #expect(RPCMethod.deleteAppearance.rawValue == "DeleteAppearance")
+        #expect(RPCMethod.setAppearanceResults.rawValue == "SetAppearanceResults")
+    }
+
+    @Test("Activity aggregate read proc names match the backend")
+    func activityViewProcNames() {
+        #expect(RPCMethod.getSeasonOverview.rawValue == "GetSeasonOverview")
+        #expect(RPCMethod.getEventDetail.rawValue == "GetEventDetail")
+        #expect(RPCMethod.getEntryHistory.rawValue == "GetEntryHistory")
+        #expect(RPCMethod.getPersonSeason.rawValue == "GetPersonSeason")
+        #expect(RPCMethod.listActivityVocabulary.rawValue == "ListActivityVocabulary")
+    }
+
+    @Test("Activity photo proc names match the backend")
+    func activityPhotoProcNames() {
+        #expect(RPCMethod.setAppearancePhotos.rawValue == "SetAppearancePhotos")
+        #expect(RPCMethod.setEventPhotos.rawValue == "SetEventPhotos")
+    }
+
     @Test("Every proc name is distinct and non-empty")
     func procNamesAreDistinct() {
         let names = RPCMethod.allCases.map(\.rawValue)
