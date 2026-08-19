@@ -71,15 +71,26 @@ enum LocalDataReset {
     /// no identity of its own, so an unsent photo left over from the last
     /// account would be pushed under the new account's session, into the new
     /// account's family.
+    /// `activityCache` is injectable for the same reason `syncQueue` is: a test
+    /// must be able to prove the sweep happens without erasing the real app's
+    /// cache directory.
     static func erase(
         _ scope: LocalDataResetScope,
         context: ModelContext,
-        syncQueue: SyncQueue
+        syncQueue: SyncQueue,
+        activityCache: ActivitySnapshotCache = .shared
     ) async {
         delete(ChatMessage.self, from: context)
 
         if scope == .everything {
             await syncQueue.clearAll()
+
+            // Activities live on disk as cached response bodies rather than in
+            // SwiftData, so none of the deletes below reach them and no pull
+            // reconciles them — `GetFamilyTimeline` does not carry activities.
+            // Without this sweep a device that changes hands shows the previous
+            // account's season.
+            await activityCache.removeAll()
 
             // Every type is swept explicitly rather than leaning on `Family`'s
             // cascade: the pull creates people, photos and tags without ever

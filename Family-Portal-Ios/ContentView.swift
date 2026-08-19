@@ -57,6 +57,11 @@ struct ContentView: View {
                     Label("Photos", systemImage: "photo.on.rectangle")
                 }
 
+            ActivitiesRootView()
+                .tabItem {
+                    Label("Activities", systemImage: "trophy")
+                }
+
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")
@@ -70,5 +75,6 @@ struct ContentView: View {
     ContentView()
         .environment(AuthService())
         .environment(MobileVersionService())
+        .environment(ActivityService())
         .modelContainer(for: Person.self, inMemory: true)
 }

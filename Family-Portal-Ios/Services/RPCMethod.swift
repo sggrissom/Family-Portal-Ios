@@ -81,4 +81,52 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
 
     case registerPushDevice = "RegisterPushDevice"
     case unregisterPushDevice = "UnregisterPushDevice"
+
+    // MARK: - Activities: structure (backend/activity_procs.go)
+    //
+    // Every activities proc is registered under its own Go function name —
+    // there is no `…Proc` suffix anywhere in `RegisterActivityMethods`,
+    // `RegisterActivityResultMethods`, `RegisterActivityViewMethods` or
+    // `RegisterActivityPhotoMethods` — so the `RemovePersonFromPhotoProc` trap
+    // does not recur here. These were read off the four `RegisterProc` blocks
+    // rather than off the generated TypeScript.
+
+    case listActivities = "ListActivities"
+    case createActivity = "CreateActivity"
+    case updateActivity = "UpdateActivity"
+    case deleteActivity = "DeleteActivity"
+
+    case listSeasons = "ListSeasons"
+    case createSeason = "CreateSeason"
+    case updateSeason = "UpdateSeason"
+    case deleteSeason = "DeleteSeason"
+
+    case createEvent = "CreateEvent"
+    case updateEvent = "UpdateEvent"
+    case deleteEvent = "DeleteEvent"
+
+    case createEntry = "CreateEntry"
+    case updateEntry = "UpdateEntry"
+    case deleteEntry = "DeleteEntry"
+    case setEntryRoster = "SetEntryRoster"
+
+    // MARK: - Activities: appearances and results (backend/activity_results.go)
+
+    case createAppearance = "CreateAppearance"
+    case updateAppearance = "UpdateAppearance"
+    case deleteAppearance = "DeleteAppearance"
+    case setAppearanceResults = "SetAppearanceResults"
+
+    // MARK: - Activities: aggregate reads (backend/activity_views.go)
+
+    case getSeasonOverview = "GetSeasonOverview"
+    case getEventDetail = "GetEventDetail"
+    case getEntryHistory = "GetEntryHistory"
+    case getPersonSeason = "GetPersonSeason"
+    case listActivityVocabulary = "ListActivityVocabulary"
+
+    // MARK: - Activities: photos (backend/activity_photos.go)
+
+    case setAppearancePhotos = "SetAppearancePhotos"
+    case setEventPhotos = "SetEventPhotos"
 }
