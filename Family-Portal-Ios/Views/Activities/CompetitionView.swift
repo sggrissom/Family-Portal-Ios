@@ -2,10 +2,15 @@ import SwiftUI
 import SwiftData
 
 /// One competition, as it happened: every performance in order, plus the
-/// weekend's own photos.
+/// weekend's own photos — and, on the day, where they get entered.
 ///
-/// `GetEventDetail` is one walk of the by-event index, so this is a single call
-/// no matter how many routines danced.
+/// `GetEventDetail` is one walk of the by-event index, so the read is a single
+/// call no matter how many routines danced. The season overview alongside it is
+/// only for *writing*: it is the one payload that carries the season's whole
+/// entry list (which routine to file) and the activity id (which vocabulary to
+/// autocomplete from), neither of which the event detail has. It is cached like
+/// every other read, and usually already warm from the screen the user came
+/// through.
 struct CompetitionView: View {
     let eventId: Int
     /// For the title before the payload lands.
@@ -15,6 +20,38 @@ struct CompetitionView: View {
     @Query private var people: [Person]
 
     @State private var state = ActivityScreenState<GetEventDetailResponseDTO>()
+    @State private var seasonState = ActivityScreenState<GetSeasonOverviewResponseDTO>()
+
+    /// One sheet slot rather than four `.sheet` modifiers stacked on one view.
+    /// SwiftUI presents a single sheet per view, so several `isPresented`
+    /// bindings on the same node race each other and the loser silently never
+    /// appears.
+    private enum AppearanceSheet: Identifiable {
+        case add
+        case edit(AppearanceDetailDTO)
+        case results(AppearanceDetailDTO)
+        case photos(AppearanceDetailDTO)
+
+        var id: String {
+            switch self {
+            case .add: return "add"
+            case .edit(let detail): return "edit-\(detail.id)"
+            case .results(let detail): return "results-\(detail.id)"
+            case .photos(let detail): return "photos-\(detail.id)"
+            }
+        }
+    }
+
+    @State private var sheet: AppearanceSheet?
+
+    private var labels: ActivityLabels {
+        ActivityLabels.forKind(state.value?.season.kind ?? ActivityKind.generic)
+    }
+
+    /// Writing needs the season. Until it lands there is nothing to file a
+    /// performance *as*, so the affordance is off rather than presenting a
+    /// picker with nothing in it.
+    private var canWrite: Bool { seasonState.value != nil }
 
     var body: some View {
         ActivityScreen(state: state, read: { service.eventDetail(eventId: eventId) }) { response in
@@ -22,6 +59,65 @@ struct CompetitionView: View {
         }
         .navigationTitle(state.value?.event.name ?? eventName)
         .navigationBarTitleDisplayMode(.inline)
+        // Keyed on the season id so it fires once the event detail names it, and
+        // again only if it somehow changes.
+        .task(id: state.value?.season.id) {
+            guard let seasonId = state.value?.season.id else { return }
+            await seasonState.load(service.seasonOverview(seasonId: seasonId))
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    sheet = .add
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .disabled(!canWrite)
+                .accessibilityLabel("Add \(labels.appearance)")
+            }
+        }
+        .sheet(item: $sheet) { presented in
+            switch presented {
+            case .add:
+                AddAppearanceView(
+                    eventId: eventId,
+                    entries: seasonState.value?.entries ?? [],
+                    labels: labels,
+                    onSaved: { await state.reload() }
+                )
+            case .edit(let detail):
+                EditAppearanceView(
+                    appearance: detail.appearance,
+                    entryName: detail.entry.name,
+                    labels: labels,
+                    onSaved: { await state.reload() }
+                )
+            case .results(let detail):
+                ResultsEditorView(
+                    appearanceId: detail.appearance.id,
+                    entryName: detail.entry.name,
+                    roster: roster(forEntry: detail.entry.id),
+                    activityId: seasonState.value?.activity.id,
+                    initialResults: detail.results,
+                    labels: labels,
+                    onSaved: { await state.reload() }
+                )
+            case .photos(let detail):
+                AppearancePhotoPickerView(
+                    appearanceId: detail.appearance.id,
+                    attachedPhotoIds: detail.photoIds,
+                    labels: labels,
+                    onSaved: { await state.reload() }
+                )
+            }
+        }
+    }
+
+    /// The entry's roster, for narrowing a result to one person. Empty when the
+    /// season has not loaded — the person picker simply does not appear, and the
+    /// server still checks the rule either way.
+    private func roster(forEntry entryId: Int) -> [Int] {
+        seasonState.value?.entries.first { $0.entry.id == entryId }?.personIds ?? []
     }
 
     @ViewBuilder
@@ -43,18 +139,7 @@ struct CompetitionView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(response.appearances) { detail in
-                            NavigationLink {
-                                RoutineView(entryId: detail.entry.id, entryName: detail.entry.name)
-                            } label: {
-                                AppearanceDetailRow(
-                                    detail: detail,
-                                    people: people,
-                                    title: .entry,
-                                    showsChevron: true
-                                )
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
+                            appearanceRow(detail, people: people)
 
                             if detail.id != response.appearances.last?.id {
                                 Divider()
@@ -67,6 +152,51 @@ struct CompetitionView: View {
             }
         }
         .padding(.horizontal)
+    }
+
+    /// The row leads to the routine's history; everything you do *to* the
+    /// performance is behind the menu. A `ScrollView` has no swipe actions to
+    /// hang them off, and competition day wants them one tap deep rather than
+    /// behind a mode switch.
+    private func appearanceRow(_ detail: AppearanceDetailDTO, people: ActivityPeople) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            NavigationLink {
+                RoutineView(entryId: detail.entry.id, entryName: detail.entry.name)
+            } label: {
+                AppearanceDetailRow(
+                    detail: detail,
+                    people: people,
+                    title: .entry,
+                    showsChevron: true
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Menu {
+                Button {
+                    sheet = .results(detail)
+                } label: {
+                    Label(detail.results.isEmpty ? "Add Results" : "Edit Results", systemImage: "list.number")
+                }
+                Button {
+                    sheet = .photos(detail)
+                } label: {
+                    Label("Photos", systemImage: "photo.on.rectangle")
+                }
+                Button {
+                    sheet = .edit(detail)
+                } label: {
+                    Label("Edit \(labels.appearance)", systemImage: "pencil")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+            }
+            .accessibilityLabel("Actions for \(detail.entry.name)")
+        }
     }
 
     private func header(_ response: GetEventDetailResponseDTO, labels: ActivityLabels) -> some View {

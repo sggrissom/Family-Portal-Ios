@@ -122,6 +122,105 @@ final class ActivityService {
         )
     }
 
+    // MARK: - Writes
+    //
+    // Online only, and never queued. `CreateAppearance` refuses an entry from a
+    // different season than the event; `SetAppearanceResults` refuses a result
+    // naming someone off the roster, a placement whose rank exceeds its field,
+    // and a set larger than the appearance can hold. Those are refusals the
+    // device cannot predict, and a queued write replayed hours later would
+    // report a success that never happened.
+    //
+    // None of these touch the snapshot cache. The screen that wrote reloads
+    // itself, which rewrites its own entry; other screens keep the payload they
+    // last saw until they refresh. That is the deliberate trade: dropping their
+    // caches would leave a phone at a venue with *nothing* on the routine screen
+    // rather than something slightly behind, and the stale note already says
+    // which it is.
+
+    // Text is clamped here rather than at each call site. Over-length text is
+    // silently *truncated* on write, not refused, so what a caller sends and
+    // what the record ends up holding have to be the same thing — and a rule
+    // enforced in one place is one a new form cannot forget.
+
+    /// Files a routine at a competition. Both parents are checked against each
+    /// other server-side — an entry from another season is `ErrEntryNotInSeason`
+    /// — and two appearances of the same entry at the same event are allowed on
+    /// purpose: a routine that dances its category and again in the overall
+    /// round is two performances with two sets of results.
+    func createAppearance(
+        eventId: Int,
+        entryId: Int,
+        occurredAt: Date?,
+        notes: String
+    ) async throws -> AppearanceViewDTO {
+        let response: AppearanceResponseDTO = try await apiClient.callRPC(
+            .createAppearance,
+            payload: CreateAppearanceRequestDTO(
+                eventId: eventId,
+                entryId: entryId,
+                occurredAt: ServerDateFormat.requestString(occurredAt),
+                notes: ActivityFieldLimit.notes.clamp(notes)
+            )
+        )
+        return response.appearance
+    }
+
+    /// Only the date and the notes. Which routine performed at which competition
+    /// is the record's identity, not a field on it.
+    ///
+    /// `occurredAt: nil` **clears** the date rather than leaving it alone, so
+    /// the caller must pass what it is currently showing.
+    func updateAppearance(
+        id: Int,
+        occurredAt: Date?,
+        notes: String
+    ) async throws -> AppearanceViewDTO {
+        let response: AppearanceResponseDTO = try await apiClient.callRPC(
+            .updateAppearance,
+            payload: UpdateAppearanceRequestDTO(
+                id: id,
+                occurredAt: ServerDateFormat.requestString(occurredAt),
+                notes: ActivityFieldLimit.notes.clamp(notes)
+            )
+        )
+        return response.appearance
+    }
+
+    /// Takes the performance's results and photo attachments with it.
+    func deleteAppearance(id: Int) async throws {
+        let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
+            .deleteAppearance,
+            payload: AppearanceIdRequestDTO(id: id)
+        )
+    }
+
+    /// Replaces the whole results sheet. `results` must be every row the
+    /// appearance should end up with — the server deletes what it holds and
+    /// writes these in array order, which is where `sortOrder` comes from.
+    func setAppearanceResults(
+        appearanceId: Int,
+        results: [ResultInputDTO]
+    ) async throws -> AppearanceViewDTO {
+        let response: AppearanceResponseDTO = try await apiClient.callRPC(
+            .setAppearanceResults,
+            payload: SetAppearanceResultsRequestDTO(appearanceId: appearanceId, results: results)
+        )
+        return response.appearance
+    }
+
+    /// Replaces the whole attachment set, over *remote* photo ids.
+    func setAppearancePhotos(
+        appearanceId: Int,
+        photoIds: [Int]
+    ) async throws -> AppearanceViewDTO {
+        let response: AppearanceResponseDTO = try await apiClient.callRPC(
+            .setAppearancePhotos,
+            payload: SetAppearancePhotosRequestDTO(appearanceId: appearanceId, photoIds: photoIds)
+        )
+        return response.appearance
+    }
+
     // MARK: - Internals
 
     /// Decode before caching, never after: a payload this build cannot read is
