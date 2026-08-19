@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import OSLog
 
 /// The results sheet for one performance, edited as a list and saved as one
 /// array.

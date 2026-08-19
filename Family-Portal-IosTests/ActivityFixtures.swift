@@ -10,7 +10,7 @@ import Foundation
 /// season's dates, and "no placement" is normal for an adjudication — so a
 /// fixture that had to opt into them would let a decoder that mishandles them
 /// pass every test.
-extension Fixture {
+nonisolated extension Fixture {
 
     /// What a non-pointer `time.Time` marshals to when nothing was ever set.
     static let unsetDate = "0001-01-01T00:00:00Z"
@@ -304,7 +304,7 @@ extension Fixture {
 
 // MARK: - Write responses
 
-extension Fixture {
+nonisolated extension Fixture {
 
     /// What `CreateAppearance`, `UpdateAppearance`, `SetAppearanceResults` and
     /// `SetAppearancePhotos` all answer with: the appearance, its results and

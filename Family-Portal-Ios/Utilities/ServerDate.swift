@@ -1,6 +1,6 @@
 import Foundation
 
-extension Date {
+nonisolated extension Date {
 
     /// Whether this is Go's zero `time.Time` rather than a date anybody meant.
     ///

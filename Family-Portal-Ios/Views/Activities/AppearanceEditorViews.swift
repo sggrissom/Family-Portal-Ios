@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import OSLog
 
 /// Files a routine at a competition — the first half of competition day.
 ///
