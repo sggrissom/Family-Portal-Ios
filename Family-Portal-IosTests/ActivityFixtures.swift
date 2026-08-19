@@ -301,3 +301,23 @@ extension Fixture {
         (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
     }
 }
+
+// MARK: - Write responses
+
+extension Fixture {
+
+    /// What `CreateAppearance`, `UpdateAppearance`, `SetAppearanceResults` and
+    /// `SetAppearancePhotos` all answer with: the appearance, its results and
+    /// its photo ids, built inside the write transaction.
+    static func appearanceResponse(
+        _ appearance: [String: Any],
+        results: [[String: Any]] = [],
+        photoIds: [Int] = []
+    ) -> [String: Any] {
+        ["appearance": appearanceView(appearance, results: results, photoIds: photoIds)]
+    }
+
+    static func activityDeleteSuccess() -> [String: Any] {
+        ["success": true]
+    }
+}

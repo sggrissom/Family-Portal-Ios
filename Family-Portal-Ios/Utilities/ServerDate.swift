@@ -31,3 +31,35 @@ extension Date {
     /// 1900-01-01T00:00:00Z.
     private static let serverZeroCutoff = Date(timeIntervalSince1970: -2_208_988_800)
 }
+
+/// The one date format the activities write procs accept.
+///
+/// `parseActivityDate` (backend/activity_procs.go) reads `YYYY-MM-DD` and
+/// nothing else, and answers "Dates must be in YYYY-MM-DD format" for anything
+/// else. The calendar and locale are pinned because the format is numeric and
+/// fixed: a device on a Japanese calendar would otherwise send an era year the
+/// server cannot parse, and a locale with non-Western digits would send digits
+/// it cannot read either.
+nonisolated enum ServerDateFormat {
+
+    /// `nil` in, `nil` out, and that is meaningful: an absent key on a write
+    /// **clears** the date rather than leaving it alone (see the write requests
+    /// in `ActivityDTOs`). A screen showing no date means "unknown", which is
+    /// exactly what clearing it says.
+    static func requestString(_ date: Date?) -> String? {
+        guard let date = date?.serverDate else { return nil }
+
+        // Built per call rather than cached in a `static let`. A `DateFormatter`
+        // is not `Sendable`, and this one has to read the device's *current*
+        // time zone: a `DatePicker` hands back midnight local, so formatting in
+        // a zone fixed at launch would move a competition to the day before —
+        // and a competition weekend is exactly when a phone changes zone. This
+        // is a save path, called once per write, so building one costs nothing.
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+}
