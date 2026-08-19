@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// Names one cached read: the proc plus the arguments that distinguish it.
 ///
