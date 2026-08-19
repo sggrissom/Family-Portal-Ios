@@ -430,3 +430,84 @@ nonisolated struct ListActivityVocabularyResponseDTO: Decodable, Sendable {
         hosts = try container.decodeList(String.self, forKey: .hosts)
     }
 }
+
+// MARK: - Write requests
+//
+// Trap #5, and it is the one that loses data quietly: request dates are
+// `*string` in `YYYY-MM-DD`, and **nil clears**. `UpdateAppearance` and
+// `UpdateSeason` assign whatever `parseActivityDate` returns unconditionally, so
+// omitting the key does *not* mean "leave it alone" — it means "set it to
+// unknown". An editor must always send the value it is currently showing.
+//
+// Swift's synthesized encoding uses `encodeIfPresent` for an `Optional`
+// property, so `nil` here omits the key, which is exactly the clear. That is the
+// intended behaviour and not an accident: `ActivityDateText.request` turns the
+// screen's `Date?` into this field, and a screen that has no date genuinely
+// means "unknown".
+
+nonisolated struct CreateAppearanceRequestDTO: Encodable, Sendable {
+    let eventId: Int
+    let entryId: Int
+    /// `YYYY-MM-DD`; absent means "sometime that weekend", which is a normal
+    /// state for a competition schedule rather than missing information.
+    let occurredAt: String?
+    let notes: String
+}
+
+/// Deliberately cannot move an appearance to a different event or entry: which
+/// routine performed at which competition is the identity of the record, not a
+/// field on it. A misfiled one is deleted and re-entered, which also makes it
+/// obvious that its results went with it.
+nonisolated struct UpdateAppearanceRequestDTO: Encodable, Sendable {
+    let id: Int
+    let occurredAt: String?
+    let notes: String
+}
+
+nonisolated struct AppearanceIdRequestDTO: Encodable, Sendable {
+    let id: Int
+}
+
+/// A `Result` without the fields the server owns.
+///
+/// There is no sort order: position in the array *is* the order, so reordering a
+/// results sheet is a reordered array rather than a second field to keep in
+/// sync. The optional numbers are `encodeIfPresent` for the same reason they are
+/// `decodeIfPresent` coming back — a `0` rank is not "no rank", it is a rank the
+/// server refuses.
+nonisolated struct ResultInputDTO: Encodable, Sendable {
+    let kind: String
+    let label: String
+    let rank: Int?
+    let outOf: Int?
+    let category: String
+    let score: Double?
+    let personId: Int?
+    let notes: String
+}
+
+/// Replaces the whole set. Results arrive together off one sheet and are entered
+/// together, so replace-all is the honest shape — and it means a save must carry
+/// every row the appearance should end up with, never just the changed ones.
+nonisolated struct SetAppearanceResultsRequestDTO: Encodable, Sendable {
+    let appearanceId: Int
+    let results: [ResultInputDTO]
+}
+
+/// Also a whole-set write, over *remote* photo ids. A photo still uploading has
+/// no remote id and cannot be attached; since this path is online-only there is
+/// nothing to resolve later.
+nonisolated struct SetAppearancePhotosRequestDTO: Encodable, Sendable {
+    let appearanceId: Int
+    let photoIds: [Int]
+}
+
+// MARK: - Write responses
+
+nonisolated struct AppearanceResponseDTO: Decodable, Sendable {
+    let appearance: AppearanceViewDTO
+}
+
+nonisolated struct ActivityDeleteResponseDTO: Decodable, Sendable {
+    let success: Bool
+}
