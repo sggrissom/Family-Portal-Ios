@@ -220,6 +220,240 @@ final class ActivityService {
         return response.appearance
     }
 
+    // MARK: - Structure writes
+    //
+    // The annual setup half: creating the program, naming the season, entering
+    // the routines and their rosters in September. Deliberately last and
+    // deliberately plain — this is keyboard work that happens once a year, and
+    // the phone only has to be able to do it, not be good at it.
+    //
+    // Names are required and trimmed to 200; every other text field is free by
+    // design, because competitions do not agree on what a division or a level is
+    // called and normalizing here would lose the distinction.
+
+    func createActivity(familyId: Int = 0, name: String, kind: String) async throws -> ActivityDTO {
+        let response: ActivityRecordResponseDTO = try await apiClient.callRPC(
+            .createActivity,
+            payload: CreateActivityRequestDTO(
+                familyId: familyId,
+                name: ActivityFieldLimit.name.clamp(name),
+                kind: kind
+            )
+        )
+        return response.activity
+    }
+
+    func updateActivity(id: Int, name: String, kind: String) async throws -> ActivityDTO {
+        let response: ActivityRecordResponseDTO = try await apiClient.callRPC(
+            .updateActivity,
+            payload: UpdateActivityRequestDTO(
+                id: id,
+                name: ActivityFieldLimit.name.clamp(name),
+                kind: kind
+            )
+        )
+        return response.activity
+    }
+
+    /// Cascades through every season under the activity, and each of those
+    /// through its competitions, routines, performances and results.
+    func deleteActivity(id: Int) async throws {
+        let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
+            .deleteActivity,
+            payload: ActivityRecordIdRequestDTO(id: id)
+        )
+    }
+
+    func createSeason(
+        activityId: Int,
+        name: String,
+        startDate: Date?,
+        endDate: Date?,
+        notes: String
+    ) async throws -> SeasonDTO {
+        let response: SeasonResponseDTO = try await apiClient.callRPC(
+            .createSeason,
+            payload: CreateSeasonRequestDTO(
+                activityId: activityId,
+                name: ActivityFieldLimit.name.clamp(name),
+                startDate: ServerDateFormat.requestString(startDate),
+                endDate: ServerDateFormat.requestString(endDate),
+                notes: ActivityFieldLimit.notes.clamp(notes)
+            )
+        )
+        return response.season
+    }
+
+    /// Both dates are always sent. `UpdateSeason` assigns whatever
+    /// `parseActivityDate` returns unconditionally, so omitting one does not
+    /// leave it alone — it clears it.
+    func updateSeason(
+        id: Int,
+        name: String,
+        startDate: Date?,
+        endDate: Date?,
+        notes: String
+    ) async throws -> SeasonDTO {
+        let response: SeasonResponseDTO = try await apiClient.callRPC(
+            .updateSeason,
+            payload: UpdateSeasonRequestDTO(
+                id: id,
+                name: ActivityFieldLimit.name.clamp(name),
+                startDate: ServerDateFormat.requestString(startDate),
+                endDate: ServerDateFormat.requestString(endDate),
+                notes: ActivityFieldLimit.notes.clamp(notes)
+            )
+        )
+        return response.season
+    }
+
+    /// Cascades through every competition, routine, performance and result in
+    /// the season.
+    func deleteSeason(id: Int) async throws {
+        let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
+            .deleteSeason,
+            payload: ActivityRecordIdRequestDTO(id: id)
+        )
+    }
+
+    func createEvent(
+        seasonId: Int,
+        name: String,
+        host: String,
+        location: String,
+        startDate: Date?,
+        endDate: Date?,
+        notes: String
+    ) async throws -> ActivityEventDTO {
+        let response: ActivityEventResponseDTO = try await apiClient.callRPC(
+            .createEvent,
+            payload: CreateActivityEventRequestDTO(
+                seasonId: seasonId,
+                name: ActivityFieldLimit.name.clamp(name),
+                host: ActivityFieldLimit.label.clamp(host),
+                location: ActivityFieldLimit.name.clamp(location),
+                startDate: ServerDateFormat.requestString(startDate),
+                endDate: ServerDateFormat.requestString(endDate),
+                notes: ActivityFieldLimit.notes.clamp(notes)
+            )
+        )
+        return response.event
+    }
+
+    func updateEvent(
+        id: Int,
+        name: String,
+        host: String,
+        location: String,
+        startDate: Date?,
+        endDate: Date?,
+        notes: String
+    ) async throws -> ActivityEventDTO {
+        let response: ActivityEventResponseDTO = try await apiClient.callRPC(
+            .updateEvent,
+            payload: UpdateActivityEventRequestDTO(
+                id: id,
+                name: ActivityFieldLimit.name.clamp(name),
+                host: ActivityFieldLimit.label.clamp(host),
+                location: ActivityFieldLimit.name.clamp(location),
+                startDate: ServerDateFormat.requestString(startDate),
+                endDate: ServerDateFormat.requestString(endDate),
+                notes: ActivityFieldLimit.notes.clamp(notes)
+            )
+        )
+        return response.event
+    }
+
+    /// Cascades through every performance at the competition, and its own
+    /// photos.
+    func deleteEvent(id: Int) async throws {
+        let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
+            .deleteEvent,
+            payload: ActivityRecordIdRequestDTO(id: id)
+        )
+    }
+
+    func createEntry(
+        seasonId: Int,
+        name: String,
+        format: String,
+        style: String,
+        division: String,
+        level: String,
+        notes: String,
+        personIds: [Int]
+    ) async throws -> EntryViewDTO {
+        let response: ActivityEntryResponseDTO = try await apiClient.callRPC(
+            .createEntry,
+            payload: CreateActivityEntryRequestDTO(
+                seasonId: seasonId,
+                name: ActivityFieldLimit.name.clamp(name),
+                format: ActivityFieldLimit.label.clamp(format),
+                style: ActivityFieldLimit.label.clamp(style),
+                division: ActivityFieldLimit.label.clamp(division),
+                level: ActivityFieldLimit.label.clamp(level),
+                notes: ActivityFieldLimit.notes.clamp(notes),
+                personIds: personIds
+            )
+        )
+        return response.entry
+    }
+
+    /// The roster is not on this call — `setEntryRoster` owns it, and sending
+    /// half a roster by accident is exactly what splitting them prevents.
+    func updateEntry(
+        id: Int,
+        name: String,
+        format: String,
+        style: String,
+        division: String,
+        level: String,
+        notes: String
+    ) async throws -> EntryViewDTO {
+        let response: ActivityEntryResponseDTO = try await apiClient.callRPC(
+            .updateEntry,
+            payload: UpdateActivityEntryRequestDTO(
+                id: id,
+                name: ActivityFieldLimit.name.clamp(name),
+                format: ActivityFieldLimit.label.clamp(format),
+                style: ActivityFieldLimit.label.clamp(style),
+                division: ActivityFieldLimit.label.clamp(division),
+                level: ActivityFieldLimit.label.clamp(level),
+                notes: ActivityFieldLimit.notes.clamp(notes)
+            )
+        )
+        return response.entry
+    }
+
+    /// Replaces the whole roster. Every person must already be on the owning
+    /// family's roster: a routine can hold children from two households, but
+    /// only because the other household shared them in — this proc is not a
+    /// second way to reach a person.
+    func setEntryRoster(entryId: Int, personIds: [Int]) async throws -> EntryViewDTO {
+        let response: ActivityEntryResponseDTO = try await apiClient.callRPC(
+            .setEntryRoster,
+            payload: SetEntryRosterRequestDTO(entryId: entryId, personIds: personIds)
+        )
+        return response.entry
+    }
+
+    /// Cascades through every performance of the routine.
+    func deleteEntry(id: Int) async throws {
+        let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
+            .deleteEntry,
+            payload: ActivityRecordIdRequestDTO(id: id)
+        )
+    }
+
+    /// The competition's own photos, as a whole set over remote ids.
+    func setEventPhotos(eventId: Int, photoIds: [Int]) async throws -> [Int] {
+        let response: SetEventPhotosResponseDTO = try await apiClient.callRPC(
+            .setEventPhotos,
+            payload: SetEventPhotosRequestDTO(eventId: eventId, photoIds: photoIds)
+        )
+        return response.photoIds
+    }
+
     // MARK: - Internals
 
     /// Decode before caching, never after: a payload this build cannot read is

@@ -321,3 +321,28 @@ extension Fixture {
         ["success": true]
     }
 }
+
+// MARK: - Structure write responses
+
+extension Fixture {
+
+    static func activityResponse(_ activity: [String: Any]) -> [String: Any] {
+        ["activity": activity]
+    }
+
+    static func seasonResponse(_ season: [String: Any]) -> [String: Any] {
+        ["season": season]
+    }
+
+    static func activityEventResponse(_ event: [String: Any]) -> [String: Any] {
+        ["event": event]
+    }
+
+    static func activityEntryResponse(_ entry: [String: Any], personIds: [Int] = []) -> [String: Any] {
+        ["entry": entryView(entry, personIds: personIds)]
+    }
+
+    static func eventPhotosResponse(eventId: Int, photoIds: [Int]) -> [String: Any] {
+        ["eventId": eventId, "photoIds": photoIds]
+    }
+}

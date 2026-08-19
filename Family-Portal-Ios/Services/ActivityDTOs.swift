@@ -511,3 +511,143 @@ nonisolated struct AppearanceResponseDTO: Decodable, Sendable {
 nonisolated struct ActivityDeleteResponseDTO: Decodable, Sendable {
     let success: Bool
 }
+
+// MARK: - Structure write requests
+//
+// The annual setup half: the program, its seasons, the competitions in a season,
+// the routines in a season, and who is in a routine. Trap #5 applies to every
+// date here too — `UpdateSeason` and `UpdateEvent` assign `parseActivityDate`'s
+// result unconditionally, so an editor sends what it is showing or the date is
+// cleared.
+
+/// One id, which is the whole request for `DeleteActivity`, `DeleteSeason`,
+/// `DeleteEvent` and `DeleteEntry`.
+///
+/// One Swift type for four Go types because all four marshal to `{"id": n}` and
+/// nothing distinguishes them on the wire. `RPCMethod` is what says which record
+/// is being deleted, and that is checked by its own tests.
+nonisolated struct ActivityRecordIdRequestDTO: Encodable, Sendable {
+    let id: Int
+}
+
+nonisolated struct CreateActivityRequestDTO: Encodable, Sendable {
+    /// Zero means the caller's primary family. This and `ListActivities` are the
+    /// only activities requests that carry one.
+    let familyId: Int
+    let name: String
+    /// Normalized server-side by `normalizeActivityKind`: anything unrecognized
+    /// becomes generic rather than failing the write, since kind drives wording
+    /// and nothing else.
+    let kind: String
+}
+
+nonisolated struct UpdateActivityRequestDTO: Encodable, Sendable {
+    let id: Int
+    let name: String
+    let kind: String
+}
+
+nonisolated struct ActivityRecordResponseDTO: Decodable, Sendable {
+    let activity: ActivityDTO
+}
+
+nonisolated struct CreateSeasonRequestDTO: Encodable, Sendable {
+    let activityId: Int
+    let name: String
+    let startDate: String?
+    let endDate: String?
+    let notes: String
+}
+
+nonisolated struct UpdateSeasonRequestDTO: Encodable, Sendable {
+    let id: Int
+    let name: String
+    let startDate: String?
+    let endDate: String?
+    let notes: String
+}
+
+nonisolated struct SeasonResponseDTO: Decodable, Sendable {
+    let season: SeasonDTO
+}
+
+nonisolated struct CreateActivityEventRequestDTO: Encodable, Sendable {
+    let seasonId: Int
+    let name: String
+    let host: String
+    let location: String
+    let startDate: String?
+    let endDate: String?
+    let notes: String
+}
+
+nonisolated struct UpdateActivityEventRequestDTO: Encodable, Sendable {
+    let id: Int
+    let name: String
+    let host: String
+    let location: String
+    let startDate: String?
+    let endDate: String?
+    let notes: String
+}
+
+nonisolated struct ActivityEventResponseDTO: Decodable, Sendable {
+    let event: ActivityEventDTO
+}
+
+nonisolated struct CreateActivityEntryRequestDTO: Encodable, Sendable {
+    let seasonId: Int
+    let name: String
+    let format: String
+    let style: String
+    let division: String
+    let level: String
+    let notes: String
+    /// Sets the roster as part of the create. Absent leaves it empty; the Go
+    /// side only calls `setEntryRosterTx` when the key is present, so `nil` and
+    /// `[]` are the same thing here — unlike on `UpdateMilestone`, where they
+    /// mean opposite things.
+    let personIds: [Int]?
+}
+
+/// The roster is deliberately not on the update: `SetEntryRoster` owns it.
+nonisolated struct UpdateActivityEntryRequestDTO: Encodable, Sendable {
+    let id: Int
+    let name: String
+    let format: String
+    let style: String
+    let division: String
+    let level: String
+    let notes: String
+}
+
+/// Replaces the roster wholesale. Rosters are small and always edited as a set —
+/// nobody adds one dancer to a routine in isolation.
+nonisolated struct SetEntryRosterRequestDTO: Encodable, Sendable {
+    let entryId: Int
+    let personIds: [Int]
+}
+
+nonisolated struct ActivityEntryResponseDTO: Decodable, Sendable {
+    let entry: EntryViewDTO
+}
+
+/// The competition's own photos — the weekend shots that are not of any one
+/// routine. Whole-set, like every other `Set…` proc in this feature.
+nonisolated struct SetEventPhotosRequestDTO: Encodable, Sendable {
+    let eventId: Int
+    let photoIds: [Int]
+}
+
+nonisolated struct SetEventPhotosResponseDTO: Decodable, Sendable {
+    let eventId: Int
+    let photoIds: [Int]
+
+    private enum CodingKeys: String, CodingKey { case eventId, photoIds }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        eventId = try container.decodeIfPresent(Int.self, forKey: .eventId) ?? 0
+        photoIds = try container.decodeIfPresent([Int].self, forKey: .photoIds) ?? []
+    }
+}

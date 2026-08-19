@@ -10,27 +10,43 @@ struct ActivitiesRootView: View {
     @Environment(ActivityService.self) private var service
 
     @State private var state = ActivityScreenState<ListActivitiesResponseDTO>()
+    @State private var isAddingActivity = false
 
     var body: some View {
         NavigationStack {
             ActivityScreen(state: state, read: { service.activities() }) { response in
                 if response.activities.isEmpty {
-                    ContentUnavailableView(
-                        "No Activities",
-                        systemImage: "trophy",
-                        description: Text("Seasons, competitions and routines are set up on the web. Once a program exists, it shows up here.")
-                    )
+                    ContentUnavailableView {
+                        Label("No Activities", systemImage: "trophy")
+                    } description: {
+                        Text("An activity is a program the family is in — dance, soccer, swim. Its seasons, competitions and routines hang off it.")
+                    } actions: {
+                        Button("New Activity") { isAddingActivity = true }
+                    }
                     .padding(.top, 40)
                 } else {
                     VStack(spacing: 16) {
                         ForEach(response.activities) { activity in
-                            ActivitySeasonsSection(activity: activity)
+                            ActivitySeasonsSection(activity: activity, onChanged: { await state.reload() })
                         }
                     }
                     .padding(.horizontal)
                 }
             }
             .navigationTitle("Activities")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isAddingActivity = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("New Activity")
+                }
+            }
+            .sheet(isPresented: $isAddingActivity) {
+                ActivityEditorView(onSaved: { await state.reload() })
+            }
         }
     }
 }
@@ -42,10 +58,28 @@ struct ActivitiesRootView: View {
 /// says so under that program instead of blanking the tab.
 private struct ActivitySeasonsSection: View {
     let activity: ActivityDTO
+    /// The activity list itself has to reload when a program is renamed or
+    /// deleted, which is the parent's business, not this section's.
+    let onChanged: @MainActor () async -> Void
 
     @Environment(ActivityService.self) private var service
 
     @State private var state = ActivityScreenState<ListSeasonsResponseDTO>()
+    @State private var sheet: Sheet?
+
+    private enum Sheet: Identifiable {
+        case editActivity
+        case addSeason
+        case editSeason(SeasonDTO)
+
+        var id: String {
+            switch self {
+            case .editActivity: return "activity"
+            case .addSeason: return "season-new"
+            case .editSeason(let season): return "season-\(season.id)"
+            }
+        }
+    }
 
     private var labels: ActivityLabels { .forKind(activity.kind) }
 
@@ -59,12 +93,7 @@ private struct ActivitySeasonsSection: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(seasons) { season in
-                            NavigationLink {
-                                SeasonView(seasonId: season.id, seasonName: season.name)
-                            } label: {
-                                seasonRow(season)
-                            }
-                            .buttonStyle(.plain)
+                            seasonRow(season)
                         }
                     }
                 } else if let error = state.error {
@@ -75,6 +104,14 @@ private struct ActivitySeasonsSection: View {
                     ProgressView()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                Button {
+                    sheet = .addSeason
+                } label: {
+                    Label("Add Season", systemImage: "plus.circle")
+                        .font(.subheadline)
+                }
+                .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
@@ -85,30 +122,72 @@ private struct ActivitySeasonsSection: View {
                 Text(ActivityKind.displayName(activity.kind))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button {
+                    sheet = .editActivity
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel("Edit \(activity.name)")
             }
         }
         .task { await state.load(service.seasons(activityId: activity.id)) }
+        .sheet(item: $sheet) { presented in
+            switch presented {
+            case .editActivity:
+                ActivityEditorView(existing: activity, onSaved: {
+                    // A renamed or deleted program changes the list above as
+                    // well as the seasons below it.
+                    await onChanged()
+                    await state.reload()
+                })
+            case .addSeason:
+                SeasonEditorView(activityId: activity.id, onSaved: { await state.reload() })
+            case .editSeason(let season):
+                SeasonEditorView(
+                    activityId: activity.id,
+                    existing: season,
+                    onSaved: { await state.reload() }
+                )
+            }
+        }
     }
 
     private func seasonRow(_ season: SeasonDTO) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(season.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                if let dates = ActivityDateText.range(from: season.startDate, to: season.endDate) {
-                    Text(dates)
+            NavigationLink {
+                SeasonView(seasonId: season.id, seasonName: season.name)
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(season.name)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        if let dates = ActivityDateText.range(from: season.startDate, to: season.endDate) {
+                            Text(dates)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                .contentShape(Rectangle())
+                .accessibilityLabel("\(season.name), \(labels.eventPlural.lowercased()) and \(labels.entryPlural.lowercased())")
             }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+
+            Button {
+                sheet = .editSeason(season)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Edit \(season.name)")
         }
-        .contentShape(Rectangle())
         .padding(.vertical, 6)
-        .accessibilityLabel("\(season.name), \(labels.eventPlural.lowercased()) and \(labels.entryPlural.lowercased())")
     }
 }

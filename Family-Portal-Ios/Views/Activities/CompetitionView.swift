@@ -31,6 +31,9 @@ struct CompetitionView: View {
         case edit(AppearanceDetailDTO)
         case results(AppearanceDetailDTO)
         case photos(AppearanceDetailDTO)
+        /// The competition itself, and the weekend's own photos.
+        case editEvent
+        case eventPhotos
 
         var id: String {
             switch self {
@@ -38,11 +41,17 @@ struct CompetitionView: View {
             case .edit(let detail): return "edit-\(detail.id)"
             case .results(let detail): return "results-\(detail.id)"
             case .photos(let detail): return "photos-\(detail.id)"
+            case .editEvent: return "event"
+            case .eventPhotos: return "event-photos"
             }
         }
     }
 
     @State private var sheet: AppearanceSheet?
+
+    /// A deleted competition leaves nothing to show, so the screen goes rather
+    /// than reloading into a 404.
+    @Environment(\.dismiss) private var dismiss
 
     private var labels: ActivityLabels {
         ActivityLabels.forKind(state.value?.season.kind ?? ActivityKind.generic)
@@ -67,13 +76,29 @@ struct CompetitionView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    sheet = .add
+                Menu {
+                    Button {
+                        sheet = .add
+                    } label: {
+                        Label("Add \(labels.appearance)", systemImage: "plus")
+                    }
+                    .disabled(!canWrite)
+
+                    Button {
+                        sheet = .eventPhotos
+                    } label: {
+                        Label("\(labels.event) Photos", systemImage: "photo.on.rectangle")
+                    }
+                    Button {
+                        sheet = .editEvent
+                    } label: {
+                        Label("Edit \(labels.event)", systemImage: "pencil")
+                    }
                 } label: {
-                    Image(systemName: "plus")
+                    Image(systemName: "ellipsis.circle")
                 }
-                .disabled(!canWrite)
-                .accessibilityLabel("Add \(labels.appearance)")
+                .disabled(state.value == nil)
+                .accessibilityLabel("\(labels.event) actions")
             }
         }
         .sheet(item: $sheet) { presented in
@@ -102,11 +127,41 @@ struct CompetitionView: View {
                     labels: labels,
                     onSaved: { await state.reload() }
                 )
+            case .editEvent:
+                if let response = state.value {
+                    CompetitionEditorView(
+                        seasonId: response.season.id,
+                        existing: response.event,
+                        labels: labels,
+                        hostSuggestions: [],
+                        onSaved: { await state.reload() },
+                        onDeleted: { dismiss() }
+                    )
+                }
+            case .eventPhotos:
+                if let response = state.value {
+                    // The competition's *own* photos — the venue, the group in
+                    // the lobby. A routine's photos travel with its performance,
+                    // which is the other picker.
+                    ActivityPhotoPickerView(
+                        attachedPhotoIds: response.photoIds,
+                        subject: labels.event.lowercased(),
+                        save: { photoIds in
+                            _ = try await service.setEventPhotos(eventId: response.event.id, photoIds: photoIds)
+                        },
+                        onSaved: { await state.reload() }
+                    )
+                }
             case .photos(let detail):
-                AppearancePhotoPickerView(
-                    appearanceId: detail.appearance.id,
+                ActivityPhotoPickerView(
                     attachedPhotoIds: detail.photoIds,
-                    labels: labels,
+                    subject: labels.appearance.lowercased(),
+                    save: { photoIds in
+                        _ = try await service.setAppearancePhotos(
+                            appearanceId: detail.appearance.id,
+                            photoIds: photoIds
+                        )
+                    },
                     onSaved: { await state.reload() }
                 )
             }

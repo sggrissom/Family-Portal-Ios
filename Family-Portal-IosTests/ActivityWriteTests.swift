@@ -160,15 +160,15 @@ struct ActivityWriteTests {
         #expect(body["occurredAt"] == nil)
     }
 
-    /// `AppearanceDateField` is what keeps the toggle and the picked day
+    /// `ActivityDateField` is what keeps the toggle and the picked day
     /// together, so a form cannot send one while meaning the other.
     @Test("The date field reads a server zero as not set")
     func dateFieldReadsServerZero() {
-        let unset = AppearanceDateField(Date(timeIntervalSince1970: -62_135_596_800))
+        let unset = ActivityDateField(Date(timeIntervalSince1970: -62_135_596_800))
         #expect(unset.isSet == false)
         #expect(unset.date == nil)
 
-        var known = AppearanceDateField(Self.day(year: 2026, month: 3, day: 14))
+        var known = ActivityDateField(Self.day(year: 2026, month: 3, day: 14))
         #expect(known.isSet)
         #expect(known.date != nil)
 
