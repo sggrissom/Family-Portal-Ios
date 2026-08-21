@@ -31,6 +31,7 @@ struct MessageInputView: View {
                     .foregroundStyle(canSend ? Color.accentColor : Color.secondary)
             }
             .disabled(!canSend)
+            .accessibilityLabel("Send message")
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

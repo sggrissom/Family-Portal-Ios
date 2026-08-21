@@ -78,6 +78,9 @@ struct MeasurementListView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                // A bare glyph has no accessible name; VoiceOver announces the
+                // symbol, which is "plus" and says nothing about what it adds.
+                .accessibilityLabel("Add measurement")
             }
         }
         .sheet(isPresented: $showingAddMeasurement) {

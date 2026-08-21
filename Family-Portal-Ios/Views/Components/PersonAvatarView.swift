@@ -76,6 +76,20 @@ struct PersonAvatarView: View {
     }
 
     var body: some View {
+        avatar
+            // Decorative, and hidden rather than labelled.
+            //
+            // Left alone it is a `Text` of the initials, so VoiceOver spells
+            // them: "Ada Doe" becomes "A, D". Labelling it with the name is not
+            // the fix either — every place this appears already shows the name
+            // in text right beside it, so a labelled avatar makes each row read
+            // "Ada, Ada, Child, Age 3". The picture adds nothing a screen
+            // reader can use that the row does not already say.
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var avatar: some View {
         if let profilePhotoRemoteId {
             ZStack {
                 initialsView

@@ -48,6 +48,8 @@ struct ConnectionStatusView: View {
             } else {
                 Image(systemName: "wifi.slash")
                     .font(.caption)
+                    // The banner's own text says it; the glyph is decoration.
+                    .accessibilityHidden(true)
             }
 
             Text(text)

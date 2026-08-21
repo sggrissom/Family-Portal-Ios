@@ -43,6 +43,11 @@ struct MilestoneRowView: View {
                 Image(systemName: "photo.on.rectangle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityLabel(
+                        milestone.photoRemoteIds.count == 1
+                            ? "1 photo"
+                            : "\(milestone.photoRemoteIds.count) photos"
+                    )
             }
 
             Spacer()

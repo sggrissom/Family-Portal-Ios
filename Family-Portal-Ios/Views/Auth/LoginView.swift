@@ -14,6 +14,7 @@ struct LoginView: View {
                         Image(systemName: "house.fill")
                             .font(.system(size: 48))
                             .foregroundStyle(.tint)
+                            .accessibilityHidden(true)
                         Text(AppConstants.appName)
                             .font(.title2.bold())
                     }
