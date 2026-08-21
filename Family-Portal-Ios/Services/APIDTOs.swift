@@ -7,37 +7,6 @@ nonisolated struct AuthResponseDTO: Sendable {
     let isAdmin: Bool
     let familyId: Int?
 
-    /// Written out because the custom decoder below suppresses the synthesized
-    /// one, and because `isPregnancy` should not have to be spelled at every
-    /// call site that does not care about it.
-    nonisolated init(
-        id: Int,
-        familyId: Int,
-        name: String,
-        type: Int,
-        gender: Int,
-        birthday: Date,
-        age: String,
-        isPregnancy: Bool = false,
-        profilePhotoId: Int? = nil,
-        profileCropX: Double? = nil,
-        profileCropY: Double? = nil,
-        profileCropScale: Double? = nil
-    ) {
-        self.id = id
-        self.familyId = familyId
-        self.name = name
-        self.type = type
-        self.gender = gender
-        self.birthday = birthday
-        self.age = age
-        self.isPregnancy = isPregnancy
-        self.profilePhotoId = profilePhotoId
-        self.profileCropX = profileCropX
-        self.profileCropY = profileCropY
-        self.profileCropScale = profileCropScale
-    }
-
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(Int.self, forKey: .id)
@@ -353,6 +322,37 @@ nonisolated struct PersonDTO: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, familyId, name, type, gender, birthday, age, isPregnancy
         case profilePhotoId, profileCropX, profileCropY, profileCropScale
+    }
+
+    /// Written out because the custom decoder below suppresses the synthesized
+    /// one, and because `isPregnancy` should not have to be spelled at every
+    /// call site that does not care about it.
+    nonisolated init(
+        id: Int,
+        familyId: Int,
+        name: String,
+        type: Int,
+        gender: Int,
+        birthday: Date,
+        age: String,
+        isPregnancy: Bool = false,
+        profilePhotoId: Int? = nil,
+        profileCropX: Double? = nil,
+        profileCropY: Double? = nil,
+        profileCropScale: Double? = nil
+    ) {
+        self.id = id
+        self.familyId = familyId
+        self.name = name
+        self.type = type
+        self.gender = gender
+        self.birthday = birthday
+        self.age = age
+        self.isPregnancy = isPregnancy
+        self.profilePhotoId = profilePhotoId
+        self.profileCropX = profileCropX
+        self.profileCropY = profileCropY
+        self.profileCropScale = profileCropScale
     }
 
     nonisolated init(from decoder: Decoder) throws {
