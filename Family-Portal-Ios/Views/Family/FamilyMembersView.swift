@@ -4,27 +4,6 @@ import SwiftData
 struct FamilyMembersView: View {
     @Query(sort: \Person.name) private var people: [Person]
 
-    private var parents: [Person] {
-        people.filter { $0.type == .parent }
-    }
-
-    private var children: [Person] {
-        people
-            .filter { $0.type == .child }
-            .sorted { left, right in
-                switch (left.birthday, right.birthday) {
-                case let (leftBirthday?, rightBirthday?):
-                    return leftBirthday < rightBirthday
-                case (nil, nil):
-                    return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
-                case (nil, _?):
-                    return false
-                case (_?, nil):
-                    return true
-                }
-            }
-    }
-
     var body: some View {
         NavigationStack {
             Group {
@@ -36,25 +15,7 @@ struct FamilyMembersView: View {
                     )
                 } else {
                     List {
-                        if !parents.isEmpty {
-                            Section("Parents") {
-                                ForEach(parents, id: \.id) { person in
-                                    NavigationLink(value: person.id) {
-                                        PersonRowView(person: person)
-                                    }
-                                }
-                            }
-                        }
-
-                        if !children.isEmpty {
-                            Section("Children") {
-                                ForEach(children, id: \.id) { person in
-                                    NavigationLink(value: person.id) {
-                                        PersonRowView(person: person)
-                                    }
-                                }
-                            }
-                        }
+                        FamilyRosterSections(people: people)
                     }
                 }
             }
