@@ -47,9 +47,24 @@ struct PhotoImageCacheTests {
         )
     }
 
+    /// An unsigned token carrying only `exp`, which is the one claim
+    /// `ensureFreshAccessToken` reads. A token with no readable expiry is
+    /// treated as expired and refreshed before every fetch, which would put a
+    /// proactive refresh in front of each case below and obscure what they are
+    /// actually about.
+    private nonisolated static func jwt(expiringIn interval: TimeInterval) -> String {
+        let claims: [String: Any] = ["exp": Date().addingTimeInterval(interval).timeIntervalSince1970]
+        let payload = (try? JSONSerialization.data(withJSONObject: claims)) ?? Data()
+        let encoded = payload.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "header.\(encoded).signature"
+    }
+
     private static func cache(_ server: FakeHTTPServer) async -> PhotoImageCache {
         let client = server.apiClient()
-        await client.setAccessToken("test-jwt")
+        await client.setAccessToken(Self.jwt(expiringIn: 60 * 60))
         // The fake server's session is ephemeral and has no URLCache, so nothing
         // here touches the app's real cache directory.
         return PhotoImageCache(apiClient: client, session: server.session())
@@ -227,6 +242,9 @@ struct PhotoImageCacheTests {
             Issue.record("the photo should load after a refresh")
             return
         }
+        // Exactly one refresh, and exactly one replay. The token was fresh
+        // enough that `ensureFreshAccessToken` had nothing to do, so both of
+        // these are the 401 path and nothing else.
         #expect(server.requests(for: "api/refresh").count == 1)
         #expect(server.requests(for: "api/photo/5/thumb").count == 2)
     }
