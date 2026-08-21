@@ -69,6 +69,37 @@ enum MeasurementConversion {
         return candidates.first?.unit ?? type.defaultUnit
     }
 
+    /// One measurement reduced to a common unit: what a chart plots.
+    struct Normalized: Identifiable, Equatable {
+        let id: UUID
+        let date: Date
+        let value: Double
+    }
+
+    /// Every record of one type, oldest first, converted to `unit`.
+    ///
+    /// This is the whole of the fix for a chart drawn from mixed units, and it
+    /// lives here rather than in the view so it can be tested: a series with
+    /// some heights in inches and some in centimetres is not a labelling
+    /// problem, it is a line that climbs from 34 to 86 and draws a growth spurt
+    /// that never happened.
+    static func normalized(
+        _ records: [GrowthData],
+        type: MeasurementType,
+        to unit: MeasurementUnit
+    ) -> [Normalized] {
+        records
+            .filter { $0.measurementType == type }
+            .sorted { $0.date < $1.date }
+            .map { record in
+                Normalized(
+                    id: record.id,
+                    date: record.date,
+                    value: convert(record.value, from: record.unit, to: unit)
+                )
+            }
+    }
+
     /// Short form for an axis label or a chip.
     static func abbreviation(_ unit: MeasurementUnit) -> String {
         unitToString(unit)
