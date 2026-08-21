@@ -1,13 +1,38 @@
 import SwiftUI
 
+/// A photo the server holds, by id.
+///
+/// The fetching, caching and 401 retry all live in `PhotoImageCache`; what is
+/// left here is the two things the view has to decide: whether it can render
+/// immediately, and what to do while a freshly uploaded photo is still being
+/// processed.
 struct RemotePhotoView: View {
     let remoteId: Int
     let size: PhotoSizeVariant
     let contentMode: ContentMode
 
+    /// How long to wait between asks while the server is still generating the
+    /// photo's variants, and how many times to ask.
+    ///
+    /// Processing is fast when it works, so the first look-again is quick and
+    /// the gap widens from there. It stops rather than polling forever: a job
+    /// that has not finished in about a minute has failed in a way this view
+    /// cannot fix, and a screenful of thumbnails each polling on a timer is a
+    /// worse problem than a photo the user can fix by pulling to refresh.
+    private static let processingRetryDelays: [Duration] = [
+        .seconds(2), .seconds(3), .seconds(5), .seconds(8), .seconds(13), .seconds(21),
+    ]
+
     @State private var image: UIImage?
-    @State private var isLoading = true
-    @State private var hasFailed = false
+    @State private var phase: Phase = .loading
+
+    private enum Phase {
+        case loading
+        /// The server has the photo but has not finished making this variant.
+        case processing
+        case ready
+        case unavailable
+    }
 
     init(remoteId: Int, size: PhotoSizeVariant, contentMode: ContentMode = .fill) {
         self.remoteId = remoteId
@@ -21,79 +46,61 @@ struct RemotePhotoView: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
-            } else if isLoading {
-                ProgressView()
+                    .accessibilityLabel("Photo")
             } else {
-                Image(systemName: "photo")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
+                switch phase {
+                case .loading:
+                    ProgressView()
+                case .processing:
+                    placeholder(systemName: "clock", label: "Photo still processing")
+                case .ready, .unavailable:
+                    placeholder(systemName: "photo", label: "Photo unavailable")
+                }
             }
         }
-        .task {
-            await loadImage()
+        .task(id: "\(remoteId)-\(size.rawValue)") {
+            await load()
         }
     }
 
-    private func loadImage() async {
-        let service = PhotoSyncService()
-        guard let url = await service.photoURL(remoteId: remoteId, size: size) else {
-            isLoading = false
-            hasFailed = true
+    private func placeholder(systemName: String, label: String) -> some View {
+        Image(systemName: systemName)
+            .font(.title2)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel(label)
+    }
+
+    private func load() async {
+        // A thumbnail already in memory renders in the first layout pass
+        // instead of flashing a spinner on every scroll back.
+        if let cached = PhotoImageCache.shared.cachedImage(remoteId: remoteId, size: size) {
+            image = cached
+            phase = .ready
             return
         }
 
-        // Photos are fetched with the raw token rather than through
-        // `APIClient.request`, so they get neither its proactive refresh nor its
-        // retry-on-401 unless asked for both here. Without the refresh, a session
-        // that crosses the JWT expiry while the app stays foregrounded renders
-        // every photo as a placeholder until the next relaunch.
-        await APIClient.shared.ensureFreshAccessToken()
+        image = nil
+        phase = .loading
 
-        var outcome = await fetch(url)
-
-        // A 401 despite the check above means the token went stale inside the
-        // margin. One forced refresh and retry, mirroring `retryOnAuthFailure`.
-        if case .unauthorized = outcome {
-            try? await APIClient.shared.refreshAccessToken()
-            outcome = await fetch(url)
-        }
-
-        switch outcome {
-        case .loaded(let uiImage):
-            image = uiImage
-        case .unauthorized, .failed:
-            hasFailed = true
-        }
-        isLoading = false
-    }
-
-    private enum FetchOutcome {
-        case loaded(UIImage)
-        case unauthorized
-        case failed
-    }
-
-    private func fetch(_ url: URL) async -> FetchOutcome {
-        var request = URLRequest(url: url)
-        if let token = await APIClient.shared.getAccessToken() {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                return .failed
+        for attempt in 0...Self.processingRetryDelays.count {
+            switch await PhotoImageCache.shared.image(remoteId: remoteId, size: size) {
+            case .image(let loaded):
+                image = loaded
+                phase = .ready
+                return
+            case .unavailable:
+                phase = .unavailable
+                return
+            case .processing:
+                phase = .processing
+                guard attempt < Self.processingRetryDelays.count else { return }
+                do {
+                    try await Task.sleep(for: Self.processingRetryDelays[attempt])
+                } catch {
+                    // The view went away, or `task(id:)` restarted us.
+                    return
+                }
             }
-            if httpResponse.statusCode == 401 {
-                return .unauthorized
-            }
-            guard (200...299).contains(httpResponse.statusCode),
-                  let uiImage = UIImage(data: data) else {
-                return .failed
-            }
-            return .loaded(uiImage)
-        } catch {
-            return .failed
         }
     }
 }

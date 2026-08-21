@@ -164,7 +164,8 @@ struct ActivitySnapshotCacheTests {
             .everything,
             context: try TestStore.makeContext(),
             syncQueue: TestStore.makeQueue(),
-            activityCache: cache
+            activityCache: cache,
+            photoCache: PhotoImageCache(session: URLSession(configuration: .ephemeral))
         )
 
         let afterReset = await cache.load(GetPersonSeasonResponseDTO.self, key: key)
@@ -186,7 +187,8 @@ struct ActivitySnapshotCacheTests {
             .chatOnly,
             context: try TestStore.makeContext(),
             syncQueue: TestStore.makeQueue(),
-            activityCache: cache
+            activityCache: cache,
+            photoCache: PhotoImageCache(session: URLSession(configuration: .ephemeral))
         )
 
         let survivor = await cache.load(GetPersonSeasonResponseDTO.self, key: key)
