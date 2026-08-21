@@ -17,8 +17,8 @@ struct PersonDetailView: View {
     }
 
     private var age: String? {
-        guard let birthday = person?.birthday else { return nil }
-        return AgeCalculator.age(from: birthday)
+        guard let person, let birthday = person.birthday else { return nil }
+        return AgeCalculator.age(from: birthday, isPregnancy: person.isPregnancy)
     }
 
     private var latestHeight: GrowthData? {

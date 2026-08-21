@@ -9,6 +9,10 @@ final class Person {
     var type: PersonType
     var gender: Gender
     var birthday: Date? = nil
+    /// True while `birthday` is a due date rather than a birth date, which is
+    /// what makes the age read in weeks. Defaulted so an existing store migrates
+    /// without one.
+    var isPregnancy: Bool = false
     var profilePhotoId: Int? = nil
 
     /// How the profile photo is framed inside the avatar circle: an origin in
@@ -38,6 +42,7 @@ final class Person {
         type: PersonType,
         gender: Gender,
         birthday: Date? = nil,
+        isPregnancy: Bool = false,
         profilePhotoId: Int? = nil,
         family: Family? = nil,
         growthData: [GrowthData] = [],
@@ -50,6 +55,7 @@ final class Person {
         self.type = type
         self.gender = gender
         self.birthday = birthday
+        self.isPregnancy = isPregnancy
         self.profilePhotoId = profilePhotoId
         self.family = family
         self.growthData = growthData
