@@ -103,6 +103,7 @@ func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
     person.type = intToPersonType(dto.type)
     person.gender = intToGender(dto.gender)
     person.birthday = normalizeBirthdayDate(dto.birthday)
+    person.isPregnancy = dto.isPregnancy
     person.profilePhotoId = nonZero(dto.profilePhotoId)
     person.profileCropX = nonZero(dto.profileCropX)
     person.profileCropY = nonZero(dto.profileCropY)

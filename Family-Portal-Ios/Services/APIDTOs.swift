@@ -305,11 +305,73 @@ nonisolated struct PersonDTO: Codable, Sendable {
     let type: Int
     let gender: Int
     let birthday: Date
+    /// The server's own rendering of the age. Not used — `AgeCalculator`
+    /// computes the same string locally, because this one goes stale the moment
+    /// a birthday passes and a person created offline has none at all. Decoded
+    /// rather than dropped so a test can hold the two side by side.
     let age: String
+    /// True while `birthday` is a due date rather than a birth date. It decides
+    /// whether the age is weeks or months, and it keeps deciding after the due
+    /// date passes — an overdue baby is 41 weeks, not a day old.
+    let isPregnancy: Bool
     let profilePhotoId: Int?
     let profileCropX: Double?
     let profileCropY: Double?
     let profileCropScale: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id, familyId, name, type, gender, birthday, age, isPregnancy
+        case profilePhotoId, profileCropX, profileCropY, profileCropScale
+    }
+
+    /// Written out because the custom decoder below suppresses the synthesized
+    /// one, and because `isPregnancy` should not have to be spelled at every
+    /// call site that does not care about it.
+    nonisolated init(
+        id: Int,
+        familyId: Int,
+        name: String,
+        type: Int,
+        gender: Int,
+        birthday: Date,
+        age: String,
+        isPregnancy: Bool = false,
+        profilePhotoId: Int? = nil,
+        profileCropX: Double? = nil,
+        profileCropY: Double? = nil,
+        profileCropScale: Double? = nil
+    ) {
+        self.id = id
+        self.familyId = familyId
+        self.name = name
+        self.type = type
+        self.gender = gender
+        self.birthday = birthday
+        self.age = age
+        self.isPregnancy = isPregnancy
+        self.profilePhotoId = profilePhotoId
+        self.profileCropX = profileCropX
+        self.profileCropY = profileCropY
+        self.profileCropScale = profileCropScale
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        familyId = try container.decode(Int.self, forKey: .familyId)
+        name = try container.decode(String.self, forKey: .name)
+        type = try container.decode(Int.self, forKey: .type)
+        gender = try container.decode(Int.self, forKey: .gender)
+        birthday = try container.decode(Date.self, forKey: .birthday)
+        age = try container.decodeIfPresent(String.self, forKey: .age) ?? ""
+        // `decodeIfPresent` so a response from a server that predates the field
+        // reads as "not a pregnancy" rather than failing to decode at all.
+        isPregnancy = try container.decodeIfPresent(Bool.self, forKey: .isPregnancy) ?? false
+        profilePhotoId = try container.decodeIfPresent(Int.self, forKey: .profilePhotoId)
+        profileCropX = try container.decodeIfPresent(Double.self, forKey: .profileCropX)
+        profileCropY = try container.decodeIfPresent(Double.self, forKey: .profileCropY)
+        profileCropScale = try container.decodeIfPresent(Double.self, forKey: .profileCropScale)
+    }
 }
 
 nonisolated struct GrowthDataDTO: Codable, Sendable {
