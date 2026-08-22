@@ -52,6 +52,7 @@ struct PhotoGalleryView: View {
                         ) {
                             Image(systemName: "plus")
                         }
+                        .accessibilityLabel("Add photos")
                     }
                 }
                 .sheet(isPresented: $isFilterPresented) {

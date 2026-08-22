@@ -122,6 +122,7 @@ struct SeasonView: View {
             }
             Spacer()
             Image(systemName: "chevron.right")
+                .accessibilityHidden(true)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -170,6 +171,7 @@ struct SeasonView: View {
             }
             Spacer()
             Image(systemName: "chevron.right")
+                .accessibilityHidden(true)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

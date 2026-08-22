@@ -25,7 +25,11 @@ struct SyncStatusView: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            // The text next to it says the same thing in words, so the icon is
+            // decoration here — unlike in `SyncStatusBadge` below, where it is
+            // the only thing carrying the state.
             stateIcon
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(stateText)
@@ -137,6 +141,22 @@ struct SyncStatusBadge: View {
                     .clipShape(Capsule())
                     .offset(x: 8, y: -6)
             }
+        }
+        // Nothing here is text, so without a label the whole badge is a shape
+        // of a particular colour and no more. The count is part of the state,
+        // not a decoration on it.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sync status")
+        .accessibilityValue(badgeDescription)
+    }
+
+    private var badgeDescription: String {
+        switch state {
+        case .offline: return "Offline"
+        case .syncing: return "Syncing"
+        case .error: return "Sync error"
+        case .pending: return "\(pendingCount) waiting to sync"
+        case .synced: return "Synced"
         }
     }
 

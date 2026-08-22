@@ -108,6 +108,7 @@ struct PersonDetailView: View {
                                     Text("See All Measurements")
                                     Spacer()
                                     Image(systemName: "chevron.right")
+                                        .accessibilityHidden(true)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -134,6 +135,7 @@ struct PersonDetailView: View {
                                     Label("This Season", systemImage: "trophy")
                                     Spacer()
                                     Image(systemName: "chevron.right")
+                                        .accessibilityHidden(true)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -162,6 +164,7 @@ struct PersonDetailView: View {
                                     Text("See All Milestones")
                                     Spacer()
                                     Image(systemName: "chevron.right")
+                                        .accessibilityHidden(true)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -195,6 +198,7 @@ struct PersonDetailView: View {
                                     Text("See All Photos")
                                     Spacer()
                                     Image(systemName: "chevron.right")
+                                        .accessibilityHidden(true)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -207,6 +211,7 @@ struct PersonDetailView: View {
                                         Text("Choose Profile Photo")
                                         Spacer()
                                         Image(systemName: "chevron.right")
+                                            .accessibilityHidden(true)
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }

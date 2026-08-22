@@ -24,6 +24,7 @@ struct SettingsView: View {
                             Image(systemName: "person.circle.fill")
                                 .font(.title)
                                 .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(user.name)
                                     .font(.headline)
@@ -42,6 +43,7 @@ struct SettingsView: View {
                             Image(systemName: "person.circle")
                                 .font(.title)
                                 .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                             Text("Not signed in")
                                 .foregroundStyle(.secondary)
                         }
