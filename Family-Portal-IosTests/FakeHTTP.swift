@@ -82,6 +82,11 @@ nonisolated final class FakeHTTPServer: @unchecked Sendable {
     func session() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FakeURLProtocol.self]
+        // No HTTP cache. A test that routes a sequence of responses is asserting
+        // about what reached the server, and a cached 200 answering the second
+        // request would make that assertion mean something else.
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: configuration)
     }
 
