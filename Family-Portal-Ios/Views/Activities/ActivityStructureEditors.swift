@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import OSLog
 
 // The annual setup half: the program, its seasons, the competitions in a season,
 // the routines in a season, and who is in a routine.
