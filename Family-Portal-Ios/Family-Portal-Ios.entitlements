@@ -7,5 +7,24 @@
 	     only for DEBUG builds. -->
 	<key>aps-environment</key>
 	<string>development</string>
+
+	<!-- What makes a familyrecord.app link — including the `destination` every
+	     push payload carries — open this app instead of Safari.
+
+	     iOS fetches https://familyrecord.app/.well-known/apple-app-site-association
+	     and honors only the paths it names; the server builds that file from
+	     IOS_APP_ID and refuses to publish one without it, so the association is
+	     absent rather than wrong until the app id is configured there. The path
+	     list in backend/universal_links.go and the one in Utilities/DeepLink.swift
+	     are the same list.
+
+	     `webcredentials` lets the sign-in screen offer the password already
+	     saved for the website, which is the most common reason a new tester
+	     stalls at a login form. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:familyrecord.app</string>
+		<string>webcredentials:familyrecord.app</string>
+	</array>
 </dict>
 </plist>

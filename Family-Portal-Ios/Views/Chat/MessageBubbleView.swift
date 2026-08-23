@@ -27,6 +27,10 @@ struct MessageBubbleView: View {
                             Image(systemName: "exclamationmark.circle.fill")
                                 .foregroundStyle(.red)
                         }
+                        // Colour is the only thing that said this failed. Nobody
+                        // relying on VoiceOver — or on a screen in sunlight —
+                        // could tell this from any other message.
+                        .accessibilityLabel("Message failed to send. Retry")
                     }
 
                     Text(message.content)

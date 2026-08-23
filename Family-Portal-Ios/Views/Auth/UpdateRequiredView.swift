@@ -10,6 +10,7 @@ struct UpdateRequiredView: View {
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "arrow.down.circle.fill")
+                .accessibilityHidden(true)
                 .font(.system(size: 56))
                 .foregroundStyle(.tint)
 

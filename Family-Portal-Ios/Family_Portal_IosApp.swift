@@ -40,6 +40,7 @@ struct Family_Portal_IosApp: App {
     @State private var mobileVersionService = MobileVersionService()
     @State private var errorPresenter = ErrorPresenter()
     @State private var activityService = ActivityService()
+    @State private var deepLinkRouter = DeepLinkRouter()
     @State private var networkMonitor: NetworkMonitor
     @State private var syncService: SyncService
     @State private var chatService: ChatService?
@@ -69,6 +70,7 @@ struct Family_Portal_IosApp: App {
                 .environment(networkMonitor)
                 .environment(syncService)
                 .environment(activityService)
+                .environment(deepLinkRouter)
                 .environment(chatService)
                 .task {
                     await setupServices()
@@ -99,7 +101,18 @@ struct Family_Portal_IosApp: App {
                     }
                 }
                 .onOpenURL { url in
-                    _ = authService.handleGoogleSignInURL(url)
+                    // Google's callback comes back on a custom scheme and has
+                    // nothing to do with routing, so it gets first refusal.
+                    if authService.handleGoogleSignInURL(url) { return }
+                    deepLinkRouter.open(url: url)
+                }
+                // A universal link arrives as a user activity rather than
+                // through `onOpenURL`, and both paths have to work: the same
+                // https URL opens the app from Safari, from Messages, and from
+                // a tapped notification's destination.
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    guard let url = activity.webpageURL else { return }
+                    deepLinkRouter.open(url: url)
                 }
         }
         .modelContainer(container)
@@ -107,6 +120,11 @@ struct Family_Portal_IosApp: App {
 
     @MainActor
     private func setupServices() async {
+        // Before the badge clear below, which is also the notification-tap
+        // handler: a cold launch from a tapped notification runs that handler
+        // early, and it needs somewhere to put the destination.
+        PushNotificationService.shared.router = deepLinkRouter
+
         // A cold launch from a tapped notification never crosses a scenePhase
         // change, so the .active handler alone would leave the badge standing.
         await PushNotificationService.shared.clearBadge()
@@ -135,6 +153,9 @@ struct Family_Portal_IosApp: App {
                 context: self.container.mainContext,
                 syncQueue: self.syncService.syncQueue
             )
+            // Whatever the previous account's notification asked for is not
+            // this account's to open.
+            self.deepLinkRouter.clear()
         }
 
         // Runs alongside session restore rather than before it: the check must

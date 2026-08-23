@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// One activities read, in the two halves a screen needs it in: what is already
 /// on disk, and what the server says now.

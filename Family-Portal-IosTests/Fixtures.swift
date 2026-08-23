@@ -227,16 +227,9 @@ nonisolated enum Fixture {
 nonisolated enum TestStore {
 
     static func makeContext() throws -> ModelContext {
-        let schema = Schema([
-            Family.self,
-            Person.self,
-            GrowthData.self,
-            Milestone.self,
-            Photo.self,
-            User.self,
-            ChatMessage.self,
-            FamilyTag.self
-        ])
+        // The app's own schema, so a model added later is in the tests' store
+        // too rather than absent until something crashes.
+        let schema = DataStore.makeSchema()
         let container = try ModelContainer(
             for: schema,
             configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]

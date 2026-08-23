@@ -12,6 +12,12 @@ import Testing
 @Suite("Local data reset")
 struct LocalDataResetTests {
 
+    /// A cache with nowhere on disk to write, so a test never clears the app's
+    /// real photo cache — the same reason `makeQueue` gets its own defaults.
+    private static func scratchPhotoCache() -> PhotoImageCache {
+        PhotoImageCache(session: URLSession(configuration: .ephemeral))
+    }
+
     private static func scratchDefaults() -> UserDefaults {
         let name = "LocalDataResetTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
@@ -95,7 +101,12 @@ struct LocalDataResetTests {
         context.insert(User(name: "Ada", email: "ada@example.com"))
         try context.save()
 
-        await LocalDataReset.erase(.everything, context: context, syncQueue: TestStore.makeQueue())
+        await LocalDataReset.erase(
+            .everything,
+            context: context,
+            syncQueue: TestStore.makeQueue(),
+            photoCache: Self.scratchPhotoCache()
+        )
 
         let families = try context.fetchCount(FetchDescriptor<Family>())
         let people = try context.fetchCount(FetchDescriptor<Person>())
@@ -132,7 +143,12 @@ struct LocalDataResetTests {
         let queuedBefore = await queue.count()
         #expect(queuedBefore == 1)
 
-        await LocalDataReset.erase(.everything, context: context, syncQueue: queue)
+        await LocalDataReset.erase(
+            .everything,
+            context: context,
+            syncQueue: queue,
+            photoCache: Self.scratchPhotoCache()
+        )
 
         let queuedAfter = await queue.count()
         #expect(queuedAfter == 0)
@@ -163,7 +179,12 @@ struct LocalDataResetTests {
         ))
         try context.save()
 
-        await LocalDataReset.erase(.chatOnly, context: context, syncQueue: queue)
+        await LocalDataReset.erase(
+            .chatOnly,
+            context: context,
+            syncQueue: queue,
+            photoCache: Self.scratchPhotoCache()
+        )
 
         let messages = try context.fetchCount(FetchDescriptor<ChatMessage>())
         let people = try context.fetchCount(FetchDescriptor<Person>())

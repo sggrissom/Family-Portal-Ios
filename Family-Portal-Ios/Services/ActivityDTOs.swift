@@ -42,7 +42,7 @@ import Foundation
 
 private extension KeyedDecodingContainer {
     /// Trap #3: a list the server omitted, or sent as `null`, is an empty list.
-    func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
+    nonisolated func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
         try decodeIfPresent([T].self, forKey: key) ?? []
     }
 }

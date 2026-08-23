@@ -9,9 +9,49 @@ claims below are cited to a file in that repo.
 
 ---
 
+## Status — 21 August 2026
+
+Every item now carries a status line under its heading. The original analysis is
+left as written: it is the record of what the bug *was*, and several of them were
+only findable once.
+
+**All of P0 is done**, and all of P1 except one deliberate deferral. What is left:
+
+| | Item | Why it is still here |
+| --- | --- | --- |
+| §18 | `IPHONEOS_DEPLOYMENT_TARGET = 26.0` | Admits one major version. Fine for a family beta; a decision before a public listing. |
+| §22 | No metadata at upload | **By decision** — import stays a batch, and everything it would have collected is editable afterwards. |
+| §29 | No family switcher | **By decision** — v1 scopes to the primary family, which is the server's own `familyId: 0` convention. |
+| §33 | `SyncQueue` in `UserDefaults` | Smaller than it was: photo bytes no longer travel in the queue. Worth moving, not urgent. |
+| §36 | `TimelineView` filters in memory | Invisible at family scale. |
+| §40 | Age string never compared to the server's | Genuinely unverified, and the only open item that could surface as a user-visible disagreement. |
+
+Two things arrived that this plan did not name, because the backend grew them
+after it was written:
+
+- **Activities.** Read, score and set up a dance season from the phone. Its own
+  plan is `activities-plan.md`; phases 1–3 have landed. Phase 4, offline
+  writes, was optional from the start and is not built — activity writes stay
+  online because their refusals are ones a device cannot predict.
+- **Deep links.** Every push payload carries a `destination` naming the web
+  route for its content, and the server publishes an app-site association
+  claiming exactly the paths this app has a screen for. Both halves are wired:
+  a tapped notification and a followed `familyrecord.app` link open the same
+  screen.
+
+What is *not* in this repository and still blocks a submission: real-device push
+testing in both APNs environments, `IOS_APP_ID` being set on the server so the
+association file is published at all, and the App Store listing itself. The
+contract the app is built against is written down in
+`../Family-Portal/docs/mobile-api.md`.
+
+---
+
 ## P0 — Correctness bugs that break shipped features
 
 ### 1. Chat message decoding uses the wrong key names (silently)
+
+> **Done.** `ChatMessageDTO` decodes camelCase.
 
 `Services/ChatDTOs.swift` decodes `ChatMessageDTO` with snake_case keys
 (`family_id`, `user_id`, `user_name`, `created_at`, `client_message_id`).
@@ -39,6 +79,8 @@ change in the app.
 
 ### 2. `DeleteMessage` sends the wrong parameter name
 
+> **Done.** `DeleteMessageRequestDTO` maps `messageId` to `id`.
+
 `DeleteMessageRequestDTO` encodes `message_id`; `backend/chat.go`
 `DeleteMessageRequest` reads `id`. The server always receives `id: 0`, so no
 delete ever lands. The client deletes locally and swallows the failure
@@ -47,12 +89,16 @@ next device/pull.
 
 ### 3. `SendMessage` sends `client_message_id`, server reads `clientMessageId`
 
+> **Done.** The key is `clientMessageId`, and the fuzzy content match is back to being a safety net rather than the mechanism.
+
 `backend/chat.go` `SendMessageRequest.ClientMessageId` is `json:"clientMessageId"`.
 The server therefore persists an empty client id and broadcasts it back empty,
 which is exactly the case the fragile fallback in `didReceiveMessage` exists to
 paper over. Fix the key and the fallback becomes a true safety net.
 
 ### 4. WebSocket protocol names don't match the server
+
+> **Done.** `WSMessageType` and the payload keys are the server's, including `user_online` / `user_offline`, which had no case at all.
 
 `backend/websocket_chat.go` defines:
 
@@ -76,6 +122,8 @@ declares `user_id`/`user_name`/`is_typing`/`message_id`.
 
 ### 5. WebSocket date decoding will still fail after #1–#4
 
+> **Done.** `ChatWebSocketService` decodes through `APIClient.decode`, so there is one tolerant decoder rather than two.
+
 `ChatWebSocketService.handleIncomingMessage` uses
 `decoder.dateDecodingStrategy = .iso8601`, which rejects fractional seconds. Go
 `time.Time` marshals RFC3339 with nanoseconds. Reuse the tolerant custom
@@ -83,6 +131,8 @@ strategy already written in `APIClient.sharedDecoder` (fractional → plain ISO 
 date-only) rather than maintaining two decoders.
 
 ### 6. Photo title/description edits are silently discarded
+
+> **Done.** `SyncOperationType.updatePhoto` exists and the editor commits through it.
 
 `PhotoDetailView` binds `TextField`s straight to `@Bindable photo.title` /
 `photo.descriptionText`, and nothing enqueues a sync operation — there is no
@@ -95,6 +145,8 @@ The backend proc exists: `UpdatePhoto` in `backend/photos.go`. Add
 commit (not on every keystroke).
 
 ### 7. Deleting a person does nothing durable
+
+> **Done — by removing the affordance.** The backend still has no `DeletePerson`, so the button is gone rather than pretending; the reasoning is written down at the toolbar in `PersonDetailView`.
 
 `PersonDetailView` and `FamilyManagementView` call `modelContext.delete(person)`
 directly. There is no `deletePerson` sync operation — and no `DeletePerson` proc
@@ -110,6 +162,8 @@ Doing neither ships a button that appears to work and then undoes itself.
 
 ### 8. Queued deletes read a deleted SwiftData object
 
+> **Done.** The local and remote ids are captured before the delete.
+
 `SyncService.deleteGrowthData` / `deleteMilestone` / `deletePhoto` all do:
 
 ```swift
@@ -123,6 +177,8 @@ Capture `let localId = data.id.uuidString` (and the remote id) before the delete
 
 ### 9. Photo library access without a usage description
 
+> **Done — by dropping `PHAsset`.** The capture date is read from the picked data's EXIF, so the app never needs photo-library authorization at all. Better than adding the usage string.
+
 `PhotoGalleryView.photoDate(from:)` calls `PHAsset.fetchAssets(withLocalIdentifiers:)`.
 That is PhotoKit, not the sandboxed picker, and it requires photo-library
 authorization — but `Info.plist` has no `NSPhotoLibraryUsageDescription`. Add
@@ -130,6 +186,8 @@ the key (and request authorization, or drop to the picker's own metadata) before
 submission; missing usage strings are both a crash risk and a review rejection.
 
 ### 10. Verify the refresh-token lifecycle end to end
+
+> **Done.** The token the server issues is captured and kept; `APIClientRefreshTests` pins the 401 retry, the proactive refresh, and the single decision that ends a session. The server now also accepts the refresh token in the request body, so a native client no longer depends on `URLSession`'s cookie jar (`Family-Portal#86`).
 
 `AuthService.login` calls `setTokens(accessToken: token, refreshToken: nil)` —
 the refresh token is only ever obtained opportunistically from a `Set-Cookie`
@@ -144,12 +202,16 @@ re-entering credentials. Worth an explicit test against
 
 ### 11. There is no auth gate
 
+> **Done.** `ContentView` gates on `authService.isAuthenticated`, behind the version gate.
+
 `ContentView` renders all five tabs unconditionally. Signed out, a first-time
 user sees three empty tabs, a Chat tab wired to a nil `ChatService`, and a
 sign-in link buried in Settings. Present `LoginView` as a `fullScreenCover` (or
 switch the root view) on `!authService.isAuthenticated`.
 
 ### 12. A new user cannot start on iOS at all
+
+> **Done.** `CreateAccountView` and `ForgotPasswordView`.
 
 The backend has `CreateAccount` (`backend/users.go`) and
 `RequestPasswordReset` / `ValidatePasswordResetToken` / `ResetPassword`
@@ -159,6 +221,8 @@ table stakes for a standalone App Store listing.
 
 ### 13. No family create/join flow
 
+> **Done.** `FamilyInfoView` and `FamilyMembershipView`, with invite codes.
+
 `backend/users.go` exposes `GetFamilyInfo` and `JoinFamily` (invite code). The
 iOS `Family` model even has an `inviteCode` field — but `Family` is never
 inserted, synced, or read by any code path outside `PreviewData`. A user who
@@ -166,6 +230,8 @@ signs in without a family sees an empty app and no route forward. Same for
 `Models/User.swift`, which is dead.
 
 ### 14. Wire up the mobile version gate the backend already built for this app
+
+> **Done.** Checked at launch, ahead of auth; `UpdateRequiredView` blocks on `update_required`.
 
 `backend/mobile_version.go` ships `GET /api/mobile-version?platform=ios&appVersion=x.y.z`
 (deliberately pre-auth, cached 300s) plus a `CheckMobileVersion` proc, returning
@@ -177,6 +243,8 @@ Note: it rejects anything that isn't strict `major.minor.patch` — see #15.
 
 ### 15. Version numbers are wrong in two places
 
+> **Done.** `MARKETING_VERSION = 1.0.0`, and Settings reads `CFBundleShortVersionString` + `CFBundleVersion` through `AppConstants.displayVersion`.
+
 - `MARKETING_VERSION = 1.0` in `project.pbxproj` — not valid semver, so the
   version endpoint above returns HTTP 400. Set `1.0.0`.
 - `SettingsView` hardcodes `Text("1.0.0")`. Read
@@ -184,6 +252,8 @@ Note: it rejects anything that isn't strict `major.minor.patch` — see #15.
   never drift.
 
 ### 16. No push notifications
+
+> **Done.** Registration after login, deregistration before logout, and — since `Family-Portal-Ios#54` — a tapped notification opens the screen its `destination` names.
 
 `backend/push_notifications.go` exposes `RegisterPushDevice` /
 `UnregisterPushDevice` (APNs token, platform, sandbox/production environment,
@@ -195,11 +265,15 @@ on logout.
 
 ### 17. Missing privacy manifest
 
+> **Done.** `PrivacyInfo.xcprivacy`, and the privacy policy is linked from Settings.
+
 No `PrivacyInfo.xcprivacy` in the target. The app uses `UserDefaults`
 (`SyncQueue.storageKey`), which is a declared-reason API. Required for App Store
 submission. Also add the privacy-policy link the listing will need.
 
 ### 18. Bundle identifier and deployment target
+
+> **Mostly done.** The bundle id is `com.familyrecord.ios`, matching the keychain namespace, and iPad is dropped (`TARGETED_DEVICE_FAMILY = 1`) rather than claimed and unbuilt. **Open:** `IPHONEOS_DEPLOYMENT_TARGET = 26.0` still admits only one major version. Fine for a family beta; decide before a public listing.
 
 - `PRODUCT_BUNDLE_IDENTIFIER = grissom.Family-Portal-Ios` — not reverse-DNS, and
   inconsistent with the `com.familyrecord.*` keychain namespace. It is immutable
@@ -210,6 +284,8 @@ submission. Also add the privacy-policy link the listing will need.
   phone-shaped `TabView` with no split-view layout. Either adapt or drop iPad.
 
 ### 19. No tests, and CI only builds
+
+> **Done.** 33 test files, and CI runs `build test` against a simulator.
 
 There is no test target in the project, and `.github/workflows/build.yml` runs a
 Debug simulator build with no `test` action. The website repo has a `_test.go`
@@ -233,12 +309,16 @@ Then add `-destination 'platform=iOS Simulator,name=iPhone 17' test` to CI.
 
 ### 20. No edit for milestones or measurements
 
+> **Done.** `EditMeasurementView` and `EditMilestoneView`.
+
 `SyncService.updateGrowthData` and `updateMilestone` are fully implemented and
 unreachable — there is no edit UI. The website has `milestones/edit-milestone.tsx`
 and `growth/GrowthForm.tsx`. Add edit sheets from `MeasurementListView` and
 `MilestoneListView`.
 
 ### 21. No "today" / "age" date entry
+
+> **Done.** `DateEntryPicker`. Note what the contract doc says about the third option: never send `inputType: "today"` — the server evaluates it against its own clock in its own zone, so a phone at 8pm can file a record under tomorrow.
 
 `backend/growth.go` and `backend/milestone.go` accept
 `inputType: "today" | "date" | "age"` with `ageYears`/`ageMonths`. iOS hardcodes
@@ -248,12 +328,16 @@ years.
 
 ### 22. Photo upload collects no metadata
 
+> **Open, by decision.** Import stays a batch: pick many, upload immediately, edit after. A post-pick sheet per photo is the wrong shape for forty holiday photos out of iCloud, and everything it would have collected is now editable afterwards — title and description in `PhotoDetailView` (§6), people in `TagPeopleView`, tags in the picker. Revisit if testers say otherwise.
+
 `PhotoGalleryView` inserts `Photo(title: "", descriptionText: "", ...)` and
 uploads immediately. The website's `photos/add-photo.tsx` (615 lines) collects
 title, description, date, people, and a crop. At minimum: a post-pick sheet for
 title/description/tagged people before the upload is enqueued.
 
 ### 23. Profile photos are display-only
+
+> **Done.** `ProfilePhotoPickerView` sets one, and the crop is carried rather than dropped.
 
 `PersonDTO` carries `profilePhotoId`, `profileCropX/Y/Scale`; `SyncMappers`
 reads only `profilePhotoId` and drops the crop. `backend/person.go` exposes
@@ -262,12 +346,16 @@ avatar it can never set.
 
 ### 24. Milestone ↔ photo links are synced but invisible
 
+> **Done.** `MilestonePhotoPickerView`, and `AddMilestoneRequestDTO` carries `photoIds`.
+
 `Milestone.photoRemoteIds` is populated by `applyMilestoneDTO` and never
 rendered. `AddMilestoneRequest.PhotoIds` exists on the backend and
 `AddMilestoneRequestDTO` doesn't include it. The most recent commit in this repo
 is literally "add milestone photos" — finish it.
 
 ### 25. Growth chart plots mixed units on one axis
+
+> **Done.** `MeasurementConversion.normalized` converts before anything reaches a mark, and the axis is labelled with the unit it is actually in, with a toggle. The chart opens in whatever the family measured in most recently.
 
 `GrowthChartView` labels the Y axis with `sortedMeasurements.first?.unit` and
 plots raw `value`s. A person with some measurements in `in` and some in `cm`
@@ -280,6 +368,8 @@ neither exists on iOS.
 
 ### 26. No tags
 
+> **Done, and further than read-only.** `FamilyTag`, `TagPickerView`, `TagChipsView`, and editing.
+
 `backend/tags.go` (`ListTags`/`CreateTag`/`UpdateTag`/`DeleteTag`) plus
 `UpdateMilestoneTags` and `UpdatePhotoTags`; the website has a manage-tags page.
 The iOS models have no tag concept at all. Read-only tag display on milestones
@@ -287,11 +377,15 @@ and photos would be a cheap first step.
 
 ### 27. Timeline omits photos
 
+> **Done.** `TimelineItem` has a `.photo` case.
+
 `TimelineView.TimelineItem` is `milestone | growthData`. The website's
 `family-timeline.tsx` includes photos, and `pullFamilyData` already fetches them
 per person. Adding a `.photo` case is small and closes an obvious gap.
 
 ### 28. Photo processing status is ignored
+
+> **Done.** The SVG placeholder is its own outcome rather than a decode failure, is never cached, and is retried on a widening delay.
 
 `servePhotoHandler` serves a placeholder while `image.Status == 1` and 404s on
 `status == 2`; `GetPhotoStatus` exists to poll. `ImageDTO.status` is already
@@ -299,6 +393,8 @@ decoded by iOS and never used — `RemotePhotoView` caches the placeholder resul
 and never retries, so a freshly uploaded photo can stay blank indefinitely.
 
 ### 29. Multi-family is not modeled
+
+> **Partly, by decision.** Membership and family links are exposed (`FamilyMembershipService`, `FamilyInfoView`), and `familyId: 0` means the primary family throughout — which is the convention the server documents. There is still no family switcher, and export/import stays out of scope for a phone.
 
 Recent backend work (`family_link.go`, `membership.go`, `person_family.go`, and
 optional `familyId` on chat/photo/timeline requests) supports belonging to and
@@ -316,11 +412,15 @@ Also unimplemented from the website: export/import
 
 ### 30. `RemotePhotoView` has no cache
 
+> **Done.** `PhotoImageCache`: a `URLCache` honoring the server's `max-age=300` plus ETag revalidation, an `NSCache` of decoded images over it, and one download shared between simultaneous askers. Grids already asked for `.thumb`.
+
 Every appearance issues a fresh authenticated `URLSession` request. Scrolling the
 gallery re-downloads everything, repeatedly. Add a shared `NSCache`/`URLCache`
 layer and confirm grids request `thumb`/`small` rather than larger variants.
 
 ### 31. Local photo blobs are never released
+
+> **Done.** `imageData` is cleared once the upload returns, which also stops the photo being exempt from `removeOrphans`.
 
 `Photo.imageData` holds the full-resolution image via `.externalStorage` and is
 never cleared after a successful upload (`removeOrphans` even skips photos with
@@ -329,17 +429,23 @@ once `remoteId` is set and the server copy is confirmed serving.
 
 ### 32. Chat history is unbounded and unpaginated
 
+> **Done.** `GetChatMessages` is paged with `offset`.
+
 `ChatService.loadMessages` only ever fetches the newest 50; `GetChatMessages`
 supports `offset` and the UI has no "load older". Meanwhile every message ever
 received is retained in SwiftData forever. Add pagination up, and pruning down.
 
 ### 33. `SyncQueue` persistence
 
+> **Open, and smaller than it was.** Photo bytes no longer travel in the queue — they live in SwiftData and are cleared after upload — so what `UserDefaults` holds is now small JSON metadata rather than base64 images. Still a single blob rewritten on every mutation; worth moving, no longer urgent.
+
 The entire pending-operation queue — including base64 payloads — is a single
 JSON blob in `UserDefaults`, rewritten on every mutation. Move it to a file or
 SwiftData store before people accumulate a real backlog offline.
 
 ### 34. Errors are printed, not surfaced
+
+> **Done.** No `print` remains in the app target; `AppLog` categories for diagnostics and `ErrorPresenter` for anything the user acted on.
 
 ~20 `print("Failed to sync ...")` sites across the views swallow real failures.
 `AddMeasurementView`, `AddMilestoneView`, `TagPeopleView`, and `PhotoDetailView`
@@ -348,6 +454,8 @@ inline error where the user acted.
 
 ### 35. Sheet dismissal waits on the network
 
+> **Done by construction.** `enqueueOperation` writes to the queue and kicks the processor off in a detached task, so the `await` a sheet sees is a local write. Nothing waits on the network to dismiss.
+
 `AddMeasurementView.save()` and `AddMilestoneView.save()` `await` the sync call
 before `dismiss()`. On a slow connection the sheet just sits there, even though
 the write already succeeded locally and the queue guarantees delivery. Dismiss
@@ -355,16 +463,22 @@ immediately.
 
 ### 36. `TimelineView` filtering cost
 
+> **Open.** Still three unfiltered `@Query`s merged, sorted and filtered in memory on every keystroke. Invisible at family scale; the first thing to look at if a timeline ever feels slow.
+
 Every keystroke rebuilds and re-sorts the merged milestone+growth array over the
 full dataset. Push person/type/year filters into the `@Query` predicates and
 debounce `searchText`.
 
 ### 37. `PreviewData` omits `ChatMessage`
 
+> **Done.** One `DataStore.makeSchema()` for the app, the previews, and the tests.
+
 `DataStore`'s schema includes `ChatMessage`; `PreviewData.container` does not.
 Any preview touching chat models crashes. Keep the two schemas in one place.
 
 ### 38. Duplicated family-list code
+
+> **Done.** `FamilyRosterSections`, with the ordering rules pinned by tests.
 
 `FamilyMembersView` and `FamilyManagementView` carry byte-identical
 parents/children partition-and-sort logic. Extract it (a `Person` sort
@@ -372,11 +486,15 @@ comparator plus a shared section view).
 
 ### 39. Accessibility pass
 
+> **Done.** Icon-only controls have names; decoration is hidden. The avatar is hidden rather than labelled, because every place it appears already shows the name beside it.
+
 Toolbar buttons are bare `Image(systemName:)` with no label; avatars, photo
 thumbnails, and chart content have no accessibility text. Cheap to fix, visible
 in review, and required for a decent VoiceOver experience.
 
 ### 40. Age string may disagree with the website
+
+> **Open, unverified.** `SyncMappers` still discards `PersonDTO.age` in favour of the local `AgeCalculator`. Nobody has compared the two outputs; until someone does, this is a disagreement waiting to be reported by a user.
 
 `PersonDTO.age` is a server-computed display string that `SyncMappers` discards
 in favor of the local `AgeCalculator`. Confirm the two produce identical text,
@@ -386,6 +504,10 @@ age.
 ---
 
 ## Suggested sequencing
+
+Kept as written, for the record. It was followed, and the ordering held up:
+turning on the test target after P0 and P1 is what stopped the chat wire bugs
+from coming back.
 
 1. **P0 #1–#5** (chat wire protocol) — one focused pass over `ChatDTOs.swift` and
    `ChatWebSocketService`; fixes the most visibly broken feature in the app.

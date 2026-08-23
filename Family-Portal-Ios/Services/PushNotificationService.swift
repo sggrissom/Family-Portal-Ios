@@ -40,6 +40,14 @@ final class PushNotificationService: NSObject {
 
     private var isRegistering = false
 
+    /// Where a tapped notification's destination goes.
+    ///
+    /// Assigned by the app on launch rather than injected, because this is a
+    /// singleton for a reason that has not changed: `AppDelegate` is the only
+    /// place a device token arrives, and `UNUserNotificationCenter` is the only
+    /// place a tap does. Weak, so the router's owner still decides its lifetime.
+    weak var router: DeepLinkRouter?
+
     private override init() {
         super.init()
     }
@@ -164,10 +172,18 @@ extension PushNotificationService: UNUserNotificationCenterDelegate {
 
     /// Tapping a notification is the user acknowledging it, so the badge goes
     /// even if the app was launched straight into this handler.
+    ///
+    /// It is also the only moment the payload's routing half is worth anything.
+    /// Every push carries a `data.destination` that matches the web route for
+    /// the same content; until this read it, tapping a chat notification opened
+    /// whatever screen the app happened to be on.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
         await clearBadge()
+        await MainActor.run {
+            router?.open(pushPayload: response.notification.request.content.userInfo)
+        }
     }
 }

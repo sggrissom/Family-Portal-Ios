@@ -352,6 +352,7 @@ struct AppearanceDetailRow: View {
                         .font(.headline)
                     if showsChevron {
                         Image(systemName: "chevron.right")
+                            .accessibilityHidden(true)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

@@ -133,6 +133,7 @@ struct PersonSeasonView: View {
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right")
+                        .accessibilityHidden(true)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -6,10 +6,17 @@ struct SettingsView: View {
     @Environment(NetworkMonitor.self) private var networkMonitor
     @Environment(MobileVersionService.self) private var mobileVersionService
     @Environment(ChatService.self) private var chatService: ChatService?
+    @Environment(DeepLinkRouter.self) private var deepLinkRouter
     @State private var showLogoutConfirmation = false
+    @State private var path = NavigationPath()
+
+    /// The one destination in this stack a link can name. A route value rather
+    /// than a `Bool`, so pushing it is the same mechanism as any other push and
+    /// the back stack behaves.
+    private struct ChatRoute: Hashable {}
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 Section("Account") {
                     if authService.isAuthenticated, let user = authService.currentUser {
@@ -17,6 +24,7 @@ struct SettingsView: View {
                             Image(systemName: "person.circle.fill")
                                 .font(.title)
                                 .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(user.name)
                                     .font(.headline)
@@ -35,6 +43,7 @@ struct SettingsView: View {
                             Image(systemName: "person.circle")
                                 .font(.title)
                                 .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                             Text("Not signed in")
                                 .foregroundStyle(.secondary)
                         }
@@ -100,9 +109,7 @@ struct SettingsView: View {
                 }
 
                 Section("Family") {
-                    NavigationLink {
-                        ChatView()
-                    } label: {
+                    NavigationLink(value: ChatRoute()) {
                         HStack {
                             Label("Family Chat", systemImage: "bubble.left.and.bubble.right")
                             Spacer()
@@ -155,6 +162,9 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .navigationDestination(for: ChatRoute.self) { _ in
+                ChatView()
+            }
             .confirmationDialog("Sign Out", isPresented: $showLogoutConfirmation) {
                 Button("Sign Out", role: .destructive) {
                     Task {
@@ -164,6 +174,30 @@ struct SettingsView: View {
             } message: {
                 Text("Are you sure you want to sign out?")
             }
+        }
+        // Chat is reached through Settings rather than from a tab of its own,
+        // so a `/chat` notification lands here and has to push the rest of the
+        // way. `.task` covers the cold launch, where this view does not exist
+        // yet when the link arrives.
+        .task { openPendingLink() }
+        .onChange(of: deepLinkRouter.pending) { _, _ in openPendingLink() }
+    }
+
+    private func openPendingLink() {
+        guard let link = deepLinkRouter.claim(where: { $0 == .chat || $0 == .settings }) else {
+            return
+        }
+        switch link {
+        case .chat:
+            // Replacing the path rather than appending: a notification is a
+            // request to be looking at chat, not to be three screens deep with
+            // chat on top of whatever was already open.
+            path = NavigationPath([ChatRoute()])
+        case .settings:
+            // Settings itself is the destination; the tab switch already did it.
+            path = NavigationPath()
+        default:
+            break
         }
     }
 }
