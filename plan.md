@@ -9,22 +9,24 @@ claims below are cited to a file in that repo.
 
 ---
 
-## Status — 21 August 2026
+## Status — 23 August 2026
 
 Every item now carries a status line under its heading. The original analysis is
 left as written: it is the record of what the bug *was*, and several of them were
 only findable once.
 
-**All of P0 is done**, and all of P1 except one deliberate deferral. What is left:
+**Every item in this plan is closed.** Thirty-eight were fixed; two — §22 and §29
+— are closed by decision, and the decision is written down under each of them
+rather than left as an absence.
 
-| | Item | Why it is still here |
+The last four to land:
+
+| | Item | How it closed |
 | --- | --- | --- |
-| §18 | `IPHONEOS_DEPLOYMENT_TARGET = 26.0` | Admits one major version. Fine for a family beta; a decision before a public listing. |
-| §22 | No metadata at upload | **By decision** — import stays a batch, and everything it would have collected is editable afterwards. |
-| §29 | No family switcher | **By decision** — v1 scopes to the primary family, which is the server's own `familyId: 0` convention. |
-| §33 | `SyncQueue` in `UserDefaults` | Smaller than it was: photo bytes no longer travel in the queue. Worth moving, not urgent. |
-| §36 | `TimelineView` filters in memory | Invisible at family scale. |
-| §40 | Age string never compared to the server's | Genuinely unverified, and the only open item that could surface as a user-visible disagreement. |
+| §40 | Age string vs. the server's | The two did **not** agree. `AgeCalculator` used `Calendar.dateComponents`, which clamps "31 March plus one month" to 30 April and calls it a month where the server compares day numbers and calls it none — so every month-end birthday read differently on one day of every month. Due dates were not handled at all. The server's arithmetic is ported and its answers are the tests. |
+| §18 | `IPHONEOS_DEPLOYMENT_TARGET` | Now `18.0`. Nothing in the target needs more: no `@available`, no `#available`, no iOS 26 API anywhere in the source. 18 rather than the 17 the code implies, because the extra major only buys devices nobody will test on. |
+| §33 | `SyncQueue` in `UserDefaults` | Moved to `SyncQueue.json` in Application Support, written atomically, with a one-time migration that adopts whatever an older build left behind — a pending operation is a change the server has never heard about, so dropping it would lose data that exists nowhere else. |
+| §36 | `TimelineView` filters in memory | Person and year pushed into `@Query` predicates via `TimelineResultsView`; search debounced; the year chips memoised instead of recomputed per render. |
 
 Two things arrived that this plan did not name, because the backend grew them
 after it was written:
@@ -39,10 +41,11 @@ after it was written:
   a tapped notification and a followed `familyrecord.app` link open the same
   screen.
 
-What is *not* in this repository and still blocks a submission: real-device push
-testing in both APNs environments, `IOS_APP_ID` being set on the server so the
-association file is published at all, and the App Store listing itself. The
-contract the app is built against is written down in
+What is left before a submission is no longer in this repository. Push has been
+tested on a real device in both APNs environments. Still outstanding: `IOS_APP_ID`
+being set on the server, so the app-site association file is published at all —
+without it the deep links resolve to the website — and the App Store listing
+itself. The contract the app is built against is written down in
 `../Family-Portal/docs/mobile-api.md`.
 
 ---
@@ -273,7 +276,7 @@ submission. Also add the privacy-policy link the listing will need.
 
 ### 18. Bundle identifier and deployment target
 
-> **Mostly done.** The bundle id is `com.familyrecord.ios`, matching the keychain namespace, and iPad is dropped (`TARGETED_DEVICE_FAMILY = 1`) rather than claimed and unbuilt. **Open:** `IPHONEOS_DEPLOYMENT_TARGET = 26.0` still admits only one major version. Fine for a family beta; decide before a public listing.
+> **Done.** The bundle id is `com.familyrecord.ios`, matching the keychain namespace, and iPad is dropped (`TARGETED_DEVICE_FAMILY = 1`) rather than claimed and unbuilt. `IPHONEOS_DEPLOYMENT_TARGET` is `18.0`: there is no `@available`, no `#available` and no iOS 26 API in the target, so the floor the code actually implies is 17 — 18 is one major of headroom over that, and the difference is devices nobody would test on.
 
 - `PRODUCT_BUNDLE_IDENTIFIER = grissom.Family-Portal-Ios` — not reverse-DNS, and
   inconsistent with the `com.familyrecord.*` keychain namespace. It is immutable
@@ -437,7 +440,7 @@ received is retained in SwiftData forever. Add pagination up, and pruning down.
 
 ### 33. `SyncQueue` persistence
 
-> **Open, and smaller than it was.** Photo bytes no longer travel in the queue — they live in SwiftData and are cleared after upload — so what `UserDefaults` holds is now small JSON metadata rather than base64 images. Still a single blob rewritten on every mutation; worth moving, no longer urgent.
+> **Done.** `SyncQueueStore` keeps the queue in Application Support as `SyncQueue.json`, written atomically — a torn write is not one lost operation, it is an array that will not decode. Not SwiftData, the other option named here: the queue is read and written as a whole array, so per-record storage buys nothing and would cost a schema migration on the very container it exists to push. `load()` adopts a queue left in `UserDefaults` by an older build and clears the key, once.
 
 The entire pending-operation queue — including base64 payloads — is a single
 JSON blob in `UserDefaults`, rewritten on every mutation. Move it to a file or
@@ -463,7 +466,7 @@ immediately.
 
 ### 36. `TimelineView` filtering cost
 
-> **Open.** Still three unfiltered `@Query`s merged, sorted and filtered in memory on every keystroke. Invisible at family scale; the first thing to look at if a timeline ever feels slow.
+> **Done.** `TimelineResultsView` builds its `@Query` predicates in `init`, so person and year are the store's work; the merge and sort run over what it returns. Category and measurement type stay in memory — they only ever see records the type filter already singled out — and search, which has to match a person's name across a relationship, is debounced 250ms. The year chips are recomputed when the data changes rather than on every render.
 
 Every keystroke rebuilds and re-sorts the merged milestone+growth array over the
 full dataset. Push person/type/year filters into the `@Query` predicates and
@@ -494,7 +497,7 @@ in review, and required for a decent VoiceOver experience.
 
 ### 40. Age string may disagree with the website
 
-> **Open, unverified.** `SyncMappers` still discards `PersonDTO.age` in favour of the local `AgeCalculator`. Nobody has compared the two outputs; until someone does, this is a disagreement waiting to be reported by a user.
+> **Done — and they disagreed.** `Calendar.dateComponents` resolves "31 March plus one month" by clamping to 30 April and calling it a whole month; the server compares day numbers and calls it none. So every month-end birthday read differently on one day of every month, and a leap-day child was a year old here and eleven months old there. Due dates were not handled at all — the server renders gestational age in weeks. `AgeCalculator` now ports the server's arithmetic, `isPregnancy` travels from the DTO through the model, and the tests are the server's own answers. The app still computes the string rather than adopting `PersonDTO.age`: a stored string goes stale the moment a birthday passes, and a person created offline has no server answer at all.
 
 `PersonDTO.age` is a server-computed display string that `SyncMappers` discards
 in favor of the local `AgeCalculator`. Confirm the two produce identical text,
