@@ -113,7 +113,7 @@ struct ActivityPhotoPickerView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    Button("Save") { commitSelection() }
                         .disabled(isSaving || isOverLimit)
                 }
             }
@@ -172,7 +172,7 @@ struct ActivityPhotoPickerView: View {
         }
     }
 
-    private func save() {
+    private func commitSelection() {
         saveError = nil
         isSaving = true
         let photoIds = selection
