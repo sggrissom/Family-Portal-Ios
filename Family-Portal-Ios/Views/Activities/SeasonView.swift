@@ -18,6 +18,30 @@ struct SeasonView: View {
     @Query private var people: [Person]
 
     @State private var state = ActivityScreenState<GetSeasonOverviewResponseDTO>()
+    @State private var vocabulary = ActivityScreenState<ListActivityVocabularyResponseDTO>()
+    @State private var sheet: Sheet?
+
+    /// One slot, because SwiftUI presents a single sheet per view and several
+    /// bindings on the same node race each other.
+    private enum Sheet: Identifiable {
+        case addEvent
+        case editEvent(ActivityEventDTO)
+        case addEntry
+        case editEntry(EntryViewDTO)
+
+        var id: String {
+            switch self {
+            case .addEvent: return "event-new"
+            case .editEvent(let event): return "event-\(event.id)"
+            case .addEntry: return "entry-new"
+            case .editEntry(let entry): return "entry-\(entry.id)"
+            }
+        }
+    }
+
+    private var labels: ActivityLabels {
+        ActivityLabels.forKind(state.value?.activity.kind ?? ActivityKind.generic)
+    }
 
     var body: some View {
         ActivityScreen(state: state, read: { service.seasonOverview(seasonId: seasonId) }) { response in
@@ -25,6 +49,68 @@ struct SeasonView: View {
         }
         .navigationTitle(state.value?.season.name ?? seasonName)
         .navigationBarTitleDisplayMode(.inline)
+        // Setup forms autocomplete from what this family has already typed, for
+        // the same reason the results editor does: nothing normalizes these
+        // fields at write time, so a season otherwise ends up with "Jazz",
+        // "jazz" and "JAZZ" as three different styles.
+        .task(id: state.value?.activity.id) {
+            guard let activityId = state.value?.activity.id else { return }
+            await vocabulary.load(service.vocabulary(activityId: activityId))
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        sheet = .addEvent
+                    } label: {
+                        Label("Add \(labels.event)", systemImage: "calendar.badge.plus")
+                    }
+                    Button {
+                        sheet = .addEntry
+                    } label: {
+                        Label("Add \(labels.entry)", systemImage: "music.note.list")
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .disabled(state.value == nil)
+                .accessibilityLabel("Add to this season")
+            }
+        }
+        .sheet(item: $sheet) { presented in
+            switch presented {
+            case .addEvent:
+                CompetitionEditorView(
+                    seasonId: seasonId,
+                    labels: labels,
+                    hostSuggestions: vocabulary.value?.hosts ?? [],
+                    onSaved: { await state.reload() }
+                )
+            case .editEvent(let event):
+                CompetitionEditorView(
+                    seasonId: seasonId,
+                    existing: event,
+                    labels: labels,
+                    hostSuggestions: vocabulary.value?.hosts ?? [],
+                    onSaved: { await state.reload() }
+                )
+            case .addEntry:
+                RoutineEditorView(
+                    seasonId: seasonId,
+                    labels: labels,
+                    vocabulary: vocabulary.value,
+                    onSaved: { await state.reload() }
+                )
+            case .editEntry(let entry):
+                RoutineEditorView(
+                    seasonId: seasonId,
+                    existing: entry,
+                    labels: labels,
+                    vocabulary: vocabulary.value,
+                    onSaved: { await state.reload() }
+                )
+            }
+        }
     }
 
     @ViewBuilder
@@ -43,16 +129,20 @@ struct SeasonView: View {
                         emptyLine("No \(labels.eventPlural.lowercased()) in this season yet")
                     } else {
                         ForEach(response.events) { event in
-                            NavigationLink {
-                                CompetitionView(eventId: event.id, eventName: event.name)
-                            } label: {
-                                eventRow(
-                                    event,
-                                    appearanceCount: appearancesByEvent[event.id]?.count ?? 0,
-                                    labels: labels
-                                )
+                            HStack {
+                                NavigationLink {
+                                    CompetitionView(eventId: event.id, eventName: event.name)
+                                } label: {
+                                    eventRow(
+                                        event,
+                                        appearanceCount: appearancesByEvent[event.id]?.count ?? 0,
+                                        labels: labels
+                                    )
+                                }
+                                .buttonStyle(.plain)
+
+                                editButton(for: event.name) { sheet = .editEvent(event) }
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -66,17 +156,21 @@ struct SeasonView: View {
                         emptyLine("No \(labels.entryPlural.lowercased()) in this season yet")
                     } else {
                         ForEach(response.entries) { entryView in
-                            NavigationLink {
-                                RoutineView(entryId: entryView.entry.id, entryName: entryView.entry.name)
-                            } label: {
-                                entryRow(
-                                    entryView,
-                                    appearanceCount: appearancesByEntry[entryView.entry.id]?.count ?? 0,
-                                    labels: labels,
-                                    people: people
-                                )
+                            HStack {
+                                NavigationLink {
+                                    RoutineView(entryId: entryView.entry.id, entryName: entryView.entry.name)
+                                } label: {
+                                    entryRow(
+                                        entryView,
+                                        appearanceCount: appearancesByEntry[entryView.entry.id]?.count ?? 0,
+                                        labels: labels,
+                                        people: people
+                                    )
+                                }
+                                .buttonStyle(.plain)
+
+                                editButton(for: entryView.entry.name) { sheet = .editEntry(entryView) }
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -177,6 +271,15 @@ struct SeasonView: View {
         }
         .contentShape(Rectangle())
         .padding(.vertical, 6)
+    }
+
+    private func editButton(for name: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "ellipsis.circle")
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Edit \(name)")
     }
 
     private func countText(_ count: Int, labels: ActivityLabels) -> String {

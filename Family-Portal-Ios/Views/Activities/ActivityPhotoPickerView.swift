@@ -2,27 +2,36 @@ import SwiftUI
 import SwiftData
 import OSLog
 
-/// Which photos are of this performance.
+/// Which photos are of this performance, or of this competition.
 ///
-/// `SetAppearancePhotos` is a whole-set write over **remote** photo ids, so this
-/// grid has to be able to show everything currently attached — a photo it cannot
-/// show is a photo the next save silently detaches. That is why an attached id
-/// with no local record still gets a tile, rendered straight from the server the
-/// way `TagChipsView` renders a tag id it cannot resolve.
+/// `SetAppearancePhotos` and `SetEventPhotos` are both whole-set writes over
+/// **remote** photo ids, so this grid has to be able to show everything
+/// currently attached — a photo it cannot show is a photo the next save silently
+/// detaches. That is why an attached id with no local record still gets a tile,
+/// rendered straight from the server the way `TagChipsView` renders a tag id it
+/// cannot resolve.
 ///
 /// Selection is by remote id rather than by local id, which is the opposite of
 /// `MilestonePhotoPickerView` and for a reason: milestones are queued, so a
 /// photo still uploading is resolved at execution time and its choice is kept.
 /// This path is online-only — there is nothing to resolve later — so a photo
 /// with no remote id simply cannot be attached yet.
-struct AppearancePhotoPickerView: View {
-    let appearanceId: Int
+///
+/// One view for both writes because the *split* between them is a real one — a
+/// routine's photos travel with its performance, the venue and the lobby belong
+/// to the competition — but the picking is identical, and two copies of this
+/// would drift.
+struct ActivityPhotoPickerView: View {
     let attachedPhotoIds: [Int]
-    let labels: ActivityLabels
+    /// What the subject is called, for the empty state: "performance",
+    /// "competition".
+    let subject: String
+    /// The write. Passed in rather than switched on inside, so this view knows
+    /// nothing about which proc it is feeding.
+    let save: @MainActor ([Int]) async throws -> Void
     let onSaved: @MainActor () async -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(ActivityService.self) private var service
     @Query private var photos: [Photo]
 
     @State private var selection: [Int] = []
@@ -68,7 +77,7 @@ struct AppearancePhotoPickerView: View {
                     ContentUnavailableView(
                         "No Photos Yet",
                         systemImage: "photo.on.rectangle",
-                        description: Text("A photo has to finish uploading before it can be attached to a \(labels.appearance.lowercased()).")
+                        description: Text("A photo has to finish uploading before it can be attached to a \(subject).")
                     )
                 } else {
                     ScrollView {
@@ -104,7 +113,7 @@ struct AppearancePhotoPickerView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    Button("Save") { commitSelection() }
                         .disabled(isSaving || isOverLimit)
                 }
             }
@@ -163,14 +172,14 @@ struct AppearancePhotoPickerView: View {
         }
     }
 
-    private func save() {
+    private func commitSelection() {
         saveError = nil
         isSaving = true
         let photoIds = selection
 
         Task {
             do {
-                _ = try await service.setAppearancePhotos(appearanceId: appearanceId, photoIds: photoIds)
+                try await save(photoIds)
                 await onSaved()
                 dismiss()
             } catch {

@@ -20,7 +20,7 @@ struct AddAppearanceView: View {
     @Query private var people: [Person]
 
     @State private var entryId: Int?
-    @State private var occurredAt = AppearanceDateField()
+    @State private var occurredAt = ActivityDateField()
     @State private var notes = ""
     @State private var saveError: String?
     @State private var isSaving = false
@@ -126,7 +126,7 @@ struct EditAppearanceView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ActivityService.self) private var service
 
-    @State private var occurredAt: AppearanceDateField
+    @State private var occurredAt: ActivityDateField
     @State private var notes: String
     @State private var saveError: String?
     @State private var isSaving = false
@@ -142,7 +142,7 @@ struct EditAppearanceView: View {
         self.entryName = entryName
         self.labels = labels
         self.onSaved = onSaved
-        _occurredAt = State(initialValue: AppearanceDateField(appearance.occurredAt))
+        _occurredAt = State(initialValue: ActivityDateField(appearance.occurredAt))
         _notes = State(initialValue: appearance.notes)
     }
 
@@ -252,7 +252,7 @@ struct EditAppearanceView: View {
 /// both sides falls back to the competition's own date when it sees one. This
 /// keeps the toggle and the picked day together so a form cannot send one
 /// without meaning the other.
-struct AppearanceDateField: Equatable {
+struct ActivityDateField: Equatable {
     var isSet: Bool
     var day: Date
 
@@ -279,7 +279,7 @@ struct AppearanceDateField: Equatable {
 }
 
 struct AppearanceDateSection: View {
-    @Binding var field: AppearanceDateField
+    @Binding var field: ActivityDateField
     let labels: ActivityLabels
 
     var body: some View {

@@ -16,6 +16,14 @@ struct RoutineView: View {
     @Query private var people: [Person]
 
     @State private var state = ActivityScreenState<GetEntryHistoryResponseDTO>()
+    @State private var isEditing = false
+
+    /// A deleted routine leaves nothing to show.
+    @Environment(\.dismiss) private var dismiss
+
+    private var labels: ActivityLabels {
+        ActivityLabels.forKind(state.value?.season.kind ?? ActivityKind.generic)
+    }
 
     var body: some View {
         ActivityScreen(state: state, read: { service.entryHistory(entryId: entryId) }) { response in
@@ -23,6 +31,31 @@ struct RoutineView: View {
         }
         .navigationTitle(state.value?.entry.entry.name ?? entryName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isEditing = true
+                } label: {
+                    Image(systemName: "pencil")
+                }
+                .disabled(state.value == nil)
+                .accessibilityLabel("Edit \(labels.entry)")
+            }
+        }
+        .sheet(isPresented: $isEditing) {
+            if let response = state.value {
+                // `GetEntryHistory` carries a `SeasonSummary`, which has the
+                // season's id — enough for the editor, which only needs it to
+                // create, and this is always an edit.
+                RoutineEditorView(
+                    seasonId: response.season.id,
+                    existing: response.entry,
+                    labels: labels,
+                    onSaved: { await state.reload() },
+                    onDeleted: { dismiss() }
+                )
+            }
+        }
     }
 
     @ViewBuilder
