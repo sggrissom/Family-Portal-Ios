@@ -9,6 +9,27 @@ document does not restate it, it decides what iOS does about it.
 
 ---
 
+## Status — 23 August 2026
+
+**Phases 1, 2 and 3 have landed.** A season entered on the web reads on the phone
+in dance vocabulary and survives airplane mode; a routine can be added to a
+competition and scored from a ballroom; and the whole program tree — activity,
+season, competition, routine, roster, event photos — can be set up from the app.
+The decisions asked for in §9 were taken as recommended: a fifth **Activities**
+tab, phase 3 built last and plainly, and `ActivityEventDTO` over `CompetitionDTO`.
+
+**Phase 4, offline writes, is deliberately not built.** It was optional from the
+start, and §3 says why it should stay that way: every activity write is a
+whole-set replace whose refusals — an entry from the wrong season, a result
+naming someone off the roster, a rank past the size of its field — are ones the
+device cannot predict, so a queued write replayed hours later would report a
+success that never happened. Reads are cached; writes stay online. Revisit only
+if the venue case proves to matter more than that.
+
+Also still out of scope, as written in §2: activity import/export.
+
+---
+
 ## 1. What exists on the server
 
 Nine tables, all family-scoped, in `backend/activity.go`:

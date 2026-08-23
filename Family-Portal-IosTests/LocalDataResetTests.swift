@@ -13,7 +13,7 @@ import Testing
 struct LocalDataResetTests {
 
     /// A cache with nowhere on disk to write, so a test never clears the app's
-    /// real photo cache — the same reason `makeQueue` gets its own defaults.
+    /// real photo cache — the same reason `makeQueue` gets its own queue file.
     private static func scratchPhotoCache() -> PhotoImageCache {
         PhotoImageCache(session: URLSession(configuration: .ephemeral))
     }

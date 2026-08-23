@@ -47,6 +47,13 @@ enum TimelineItem: Identifiable {
 }
 
 struct TimelineView: View {
+    /// The filter chips need every person, and the year chips and the
+    /// nothing-here-at-all state need to know what exists regardless of the
+    /// filters — so these three stay unfiltered. They are not what §36 was about:
+    /// `@Query` refetches when the store changes, not when a view re-renders, so
+    /// a keystroke costs nothing here. What it used to cost was merging and
+    /// re-sorting all three into one array on every render, and that now happens
+    /// in `TimelineResultsView` over a fetch the predicates have already narrowed.
     @Query(sort: \GrowthData.date, order: .reverse) private var growthData: [GrowthData]
     @Query(sort: \Milestone.date, order: .reverse) private var milestones: [Milestone]
     @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
@@ -59,65 +66,28 @@ struct TimelineView: View {
     @State private var selectedMeasurementType: MeasurementType? = nil
     @State private var selectedYear: Int? = nil
     @State private var searchText = ""
+
+    /// What the list is actually filtered by. `searchText` is what the user is
+    /// typing; this trails it — see the debounce in `body`. Every keystroke used
+    /// to rebuild the whole timeline, and on a phone the gap between the two is
+    /// the difference between a list that keeps up and one that stutters.
+    @State private var debouncedSearchText = ""
+
     @State private var cachedPeople: [Person] = []
 
-    private var timelineItems: [TimelineItem] {
-        let milestoneItems = milestones.map { TimelineItem.milestone($0) }
-        let growthItems = growthData.map { TimelineItem.growthData($0) }
-        let photoItems = photos.map { TimelineItem.photo($0) }
-        return (milestoneItems + growthItems + photoItems).sorted { $0.date > $1.date }
-    }
+    /// Recomputed when the data changes rather than on every render, which is
+    /// what it used to be: building this walked all three arrays, and it was
+    /// doing that alongside two more full walks for the merged list.
+    @State private var availableYears: [Int] = []
 
-    private var availableYears: [Int] {
-        let years = Set(timelineItems.map { Calendar.current.component(.year, from: $0.date) })
-        return years.sorted(by: >)
-    }
-
-    private var filteredTimelineItems: [TimelineItem] {
-        timelineItems.filter { item in
-            if let selectedPersonId, !item.people.contains(where: { $0.id == selectedPersonId }) {
-                return false
-            }
-
-            switch selectedItemType {
-            case .all:
-                break
-            case .milestones:
-                guard case .milestone = item else { return false }
-            case .measurements:
-                guard case .growthData = item else { return false }
-            case .photos:
-                guard case .photo = item else { return false }
-            }
-
-            if let selectedYear {
-                let year = Calendar.current.component(.year, from: item.date)
-                if year != selectedYear {
-                    return false
-                }
-            }
-
-            switch item {
-            case .milestone(let milestone):
-                if let selectedMilestoneCategory, milestone.category != selectedMilestoneCategory {
-                    return false
-                }
-            case .growthData(let data):
-                if let selectedMeasurementType, data.measurementType != selectedMeasurementType {
-                    return false
-                }
-            case .photo:
-                break
-            }
-
-            return matchesSearch(item)
-        }
+    private var hasAnyActivity: Bool {
+        !milestones.isEmpty || !growthData.isEmpty || !photos.isEmpty
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if timelineItems.isEmpty {
+                if !hasAnyActivity {
                     ContentUnavailableView(
                         "No activity yet",
                         systemImage: "clock",
@@ -126,17 +96,14 @@ struct TimelineView: View {
                 } else {
                     VStack(spacing: 0) {
                         filterChips
-                        if filteredTimelineItems.isEmpty {
-                            ContentUnavailableView(
-                                "No matching activity",
-                                systemImage: "line.3.horizontal.decrease.circle",
-                                description: Text("Try adjusting your filters.")
-                            )
-                        } else {
-                            List(filteredTimelineItems) { item in
-                                TimelineRowView(item: item)
-                            }
-                        }
+                        TimelineResultsView(
+                            personId: selectedPersonId,
+                            itemType: selectedItemType,
+                            year: selectedYear,
+                            category: selectedMilestoneCategory,
+                            measurementType: selectedMeasurementType,
+                            searchText: debouncedSearchText
+                        )
                     }
                 }
             }
@@ -146,14 +113,30 @@ struct TimelineView: View {
             }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search timeline")
+        // `task(id:)` cancels the pending run on the next keystroke, which is the
+        // whole debounce. Clearing is immediate: a user who has just emptied the
+        // field is asking for their timeline back, not waiting a beat for it.
+        .task(id: searchText) {
+            if searchText.isEmpty {
+                debouncedSearchText = ""
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            debouncedSearchText = searchText
+        }
         .onAppear {
             cachedPeople = people
+            recomputeAvailableYears()
         }
         .onChange(of: people) { _, newValue in
             if !newValue.isEmpty || cachedPeople.isEmpty {
                 cachedPeople = newValue
             }
         }
+        .onChange(of: milestones) { _, _ in recomputeAvailableYears() }
+        .onChange(of: growthData) { _, _ in recomputeAvailableYears() }
+        .onChange(of: photos) { _, _ in recomputeAvailableYears() }
         .onChange(of: selectedItemType) { _, newValue in
             switch newValue {
             case .all:
@@ -170,23 +153,13 @@ struct TimelineView: View {
         }
     }
 
-    private func matchesSearch(_ item: TimelineItem) -> Bool {
-        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedSearch.isEmpty else { return true }
-        var haystacks: [String] = item.people.map(\.name)
-        switch item {
-        case .milestone(let milestone):
-            haystacks.append(milestone.descriptionText)
-            haystacks.append(milestone.category.rawValue)
-        case .growthData(let data):
-            haystacks.append(data.measurementType.rawValue)
-            haystacks.append(data.unit.rawValue)
-            haystacks.append(String(format: "%.1f", data.value))
-        case .photo(let photo):
-            haystacks.append(photo.title)
-            haystacks.append(photo.descriptionText)
-        }
-        return haystacks.contains { $0.localizedCaseInsensitiveContains(trimmedSearch) }
+    private func recomputeAvailableYears() {
+        let calendar = Calendar.current
+        var years: Set<Int> = []
+        for milestone in milestones { years.insert(calendar.component(.year, from: milestone.date)) }
+        for data in growthData { years.insert(calendar.component(.year, from: data.date)) }
+        for photo in photos { years.insert(calendar.component(.year, from: photo.photoDate)) }
+        availableYears = years.sorted(by: >)
     }
 
     @ViewBuilder
@@ -277,11 +250,168 @@ struct TimelineView: View {
     }
 }
 
-private enum TimelineFilterType: CaseIterable {
+/// The list itself, fetched already narrowed.
+///
+/// Its own view rather than a computed property on `TimelineView` because that is
+/// the only way `@Query` takes a predicate that depends on state: the descriptors
+/// are built in `init`, so SwiftUI rebuilds them whenever the filters it is
+/// handed change, and the store — not the phone — does the person and year work.
+///
+/// What stays in memory is what a predicate would buy little for: the category
+/// and measurement filters only ever run over records the type filter has already
+/// singled out, and search has to match a person's name, which is across a
+/// relationship from two of the three types.
+private struct TimelineResultsView: View {
+    @Query private var milestones: [Milestone]
+    @Query private var growthData: [GrowthData]
+    @Query private var photos: [Photo]
+
+    private let category: MilestoneCategory?
+    private let measurementType: MeasurementType?
+    private let searchText: String
+
+    init(
+        personId: UUID?,
+        itemType: TimelineFilterType,
+        year: Int?,
+        category: MilestoneCategory?,
+        measurementType: MeasurementType?,
+        searchText: String
+    ) {
+        self.category = category
+        self.measurementType = measurementType
+        self.searchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Half-open, so a record at midnight on 1 January belongs to exactly one
+        // year — the same answer `Calendar.component(.year:)` gives, which is what
+        // built the chip the user tapped.
+        let bounds = TimelineYear.bounds(year)
+        let start = bounds.start
+        let end = bounds.end
+
+        // Each branch is built outside the macro so every predicate body holds
+        // nothing but concrete comparisons. A single predicate switching on
+        // captured optionals would say the same thing, and give SwiftData far
+        // more to translate.
+        let milestonePredicate: Predicate<Milestone>
+        if !itemType.includes(.milestones) {
+            milestonePredicate = #Predicate<Milestone> { _ in false }
+        } else if let personId {
+            milestonePredicate = #Predicate<Milestone> { $0.person?.id == personId && $0.date >= start && $0.date < end }
+        } else {
+            milestonePredicate = #Predicate<Milestone> { $0.date >= start && $0.date < end }
+        }
+
+        let growthPredicate: Predicate<GrowthData>
+        if !itemType.includes(.measurements) {
+            growthPredicate = #Predicate<GrowthData> { _ in false }
+        } else if let personId {
+            growthPredicate = #Predicate<GrowthData> { $0.person?.id == personId && $0.date >= start && $0.date < end }
+        } else {
+            growthPredicate = #Predicate<GrowthData> { $0.date >= start && $0.date < end }
+        }
+
+        // A photo can be tagged with several people, so it matches if any of them
+        // is the one being filtered for.
+        let photoPredicate: Predicate<Photo>
+        if !itemType.includes(.photos) {
+            photoPredicate = #Predicate<Photo> { _ in false }
+        } else if let personId {
+            photoPredicate = #Predicate<Photo> { photo in
+                photo.taggedPeople.contains { $0.id == personId }
+                    && photo.photoDate >= start && photo.photoDate < end
+            }
+        } else {
+            photoPredicate = #Predicate<Photo> { $0.photoDate >= start && $0.photoDate < end }
+        }
+
+        _milestones = Query(filter: milestonePredicate, sort: \Milestone.date, order: .reverse)
+        _growthData = Query(filter: growthPredicate, sort: \GrowthData.date, order: .reverse)
+        _photos = Query(filter: photoPredicate, sort: \Photo.photoDate, order: .reverse)
+    }
+
+    private var items: [TimelineItem] {
+        let merged = milestones.map(TimelineItem.milestone)
+            + growthData.map(TimelineItem.growthData)
+            + photos.map(TimelineItem.photo)
+
+        return merged
+            .filter { item in
+                switch item {
+                case .milestone(let milestone):
+                    if let category, milestone.category != category { return false }
+                case .growthData(let data):
+                    if let measurementType, data.measurementType != measurementType { return false }
+                case .photo:
+                    break
+                }
+                return matchesSearch(item)
+            }
+            .sorted { $0.date > $1.date }
+    }
+
+    var body: some View {
+        let visibleItems = items
+        if visibleItems.isEmpty {
+            ContentUnavailableView(
+                "No matching activity",
+                systemImage: "line.3.horizontal.decrease.circle",
+                description: Text("Try adjusting your filters.")
+            )
+        } else {
+            List(visibleItems) { item in
+                TimelineRowView(item: item)
+            }
+        }
+    }
+
+    private func matchesSearch(_ item: TimelineItem) -> Bool {
+        guard !searchText.isEmpty else { return true }
+        var haystacks: [String] = item.people.map(\.name)
+        switch item {
+        case .milestone(let milestone):
+            haystacks.append(milestone.descriptionText)
+            haystacks.append(milestone.category.rawValue)
+        case .growthData(let data):
+            haystacks.append(data.measurementType.rawValue)
+            haystacks.append(data.unit.rawValue)
+            haystacks.append(String(format: "%.1f", data.value))
+        case .photo(let photo):
+            haystacks.append(photo.title)
+            haystacks.append(photo.descriptionText)
+        }
+        return haystacks.contains { $0.localizedCaseInsensitiveContains(searchText) }
+    }
+}
+
+/// The half-open date range one year chip stands for.
+///
+/// Its own type, and not private, because it is what the year predicates are
+/// built from and it has to agree exactly with the `Calendar.component(.year:)`
+/// call that built the chip the user tapped. Half-open on purpose: a record at
+/// midnight on 1 January belongs to one year, not two.
+enum TimelineYear {
+    static func bounds(_ year: Int?, calendar: Calendar = .current) -> (start: Date, end: Date) {
+        guard let year else { return (.distantPast, .distantFuture) }
+        guard let start = calendar.date(from: DateComponents(year: year)),
+              let end = calendar.date(byAdding: .year, value: 1, to: start) else {
+            return (.distantPast, .distantFuture)
+        }
+        return (start, end)
+    }
+}
+
+enum TimelineFilterType: CaseIterable {
     case all
     case milestones
     case measurements
     case photos
+
+    /// Whether a timeline of this filter shows the given kind of record. `.all`
+    /// includes everything; every other case includes only itself.
+    func includes(_ other: TimelineFilterType) -> Bool {
+        self == .all || self == other
+    }
 
     var label: String {
         switch self {
