@@ -53,7 +53,7 @@ actor ActivitySnapshotCache {
     private let fileManager = FileManager.default
 
     /// `directory` is injectable so tests never touch the app's real cache — the
-    /// same reason `SyncQueue` takes a `UserDefaults`.
+    /// same reason `SyncQueueStore` takes a file URL.
     init(directory: URL? = nil) {
         self.directory = directory ?? Self.defaultDirectory()
     }

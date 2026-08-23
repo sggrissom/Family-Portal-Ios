@@ -5,13 +5,26 @@ import Testing
 @Suite("SyncQueue merge and retry")
 struct SyncQueueTests {
 
-    /// A throwaway UserDefaults suite so tests never touch the app's real queue
-    /// and never see each other's writes.
-    static func scratchQueue() -> (SyncQueue, UserDefaults) {
+    /// A throwaway file so tests never touch the app's real queue and never see
+    /// each other's writes.
+    static func scratchFileURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("SyncQueueTests.\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("SyncQueue.json", isDirectory: false)
+    }
+
+    /// A throwaway `UserDefaults` suite, for the one test that still cares about
+    /// the drawer the queue used to live in.
+    static func scratchDefaults() -> UserDefaults {
         let name = "SyncQueueTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
-        return (SyncQueue(defaults: defaults), defaults)
+        return defaults
+    }
+
+    static func scratchQueue() -> (SyncQueue, URL) {
+        let url = scratchFileURL()
+        return (SyncQueue(store: SyncQueueStore(fileURL: url, legacyDefaults: scratchDefaults())), url)
     }
 
     static func operation(
@@ -295,15 +308,70 @@ struct SyncQueueTests {
 
     @Test("A queue reloads what the previous instance persisted")
     func persistsAcrossInstances() async throws {
-        let name = "SyncQueueTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        defaults.removePersistentDomain(forName: name)
+        let store = SyncQueueStore(fileURL: Self.scratchFileURL(), legacyDefaults: Self.scratchDefaults())
 
-        let first = SyncQueue(defaults: defaults)
+        let first = SyncQueue(store: store)
         await first.enqueue(try Self.operation(.createMilestone, localId: "A", payload: ["v": 1]))
 
-        let second = SyncQueue(defaults: defaults)
+        let second = SyncQueue(store: store)
         #expect(await second.count() == 1)
+    }
+
+    /// The queue is written on every mutation while a sync run may be in flight,
+    /// so what is on disk has to be a whole array at every instant.
+    @Test("Clearing the queue leaves a readable empty file, not a missing one")
+    func clearingPersistsAnEmptyQueue() async throws {
+        let url = Self.scratchFileURL()
+        let store = SyncQueueStore(fileURL: url, legacyDefaults: Self.scratchDefaults())
+
+        let first = SyncQueue(store: store)
+        await first.enqueue(try Self.operation(.createMilestone, localId: "A", payload: ["v": 1]))
+        await first.clearAll()
+
+        let data = try #require(try? Data(contentsOf: url))
+        #expect(try JSONDecoder().decode([PendingOperation].self, from: data).isEmpty)
+        #expect(await SyncQueue(store: store).count() == 0)
+    }
+
+    // MARK: - Migration off UserDefaults
+
+    /// The queue used to be one blob in `UserDefaults`. Everything in it is a
+    /// local change the server has never heard about, so an upgrade that did not
+    /// carry it across would lose data that exists nowhere else.
+    @Test("A queue left in UserDefaults by an older build is adopted")
+    func migratesTheLegacyUserDefaultsQueue() async throws {
+        let defaults = Self.scratchDefaults()
+        let stored = [
+            try Self.operation(.createMilestone, localId: "A", payload: ["v": 1]),
+            try Self.operation(.updatePhoto, localId: "B", payload: ["v": 2])
+        ]
+        defaults.set(try JSONEncoder().encode(stored), forKey: "com.familyrecord.syncQueue")
+
+        let url = Self.scratchFileURL()
+        let queue = SyncQueue(store: SyncQueueStore(fileURL: url, legacyDefaults: defaults))
+
+        #expect(await queue.allOperations().map(\.localId) == ["A", "B"])
+        // Written through to the file, and the old drawer emptied, so the
+        // migration cannot run a second time and resurrect operations that have
+        // since synced.
+        #expect(defaults.data(forKey: "com.familyrecord.syncQueue") == nil)
+        let onDisk = try #require(try? Data(contentsOf: url))
+        #expect(try JSONDecoder().decode([PendingOperation].self, from: onDisk).count == 2)
+    }
+
+    @Test("A queue file wins over anything left in UserDefaults")
+    func theFileTakesPrecedenceOverTheLegacyQueue() async throws {
+        let defaults = Self.scratchDefaults()
+        defaults.set(
+            try JSONEncoder().encode([try Self.operation(.createMilestone, localId: "stale", payload: ["v": 1])]),
+            forKey: "com.familyrecord.syncQueue"
+        )
+
+        let url = Self.scratchFileURL()
+        let store = SyncQueueStore(fileURL: url, legacyDefaults: defaults)
+        await SyncQueue(store: store).enqueue(try Self.operation(.createMilestone, localId: "current", payload: ["v": 2]))
+
+        #expect(await SyncQueue(store: store).allOperations().map(\.localId) == ["current"])
     }
 
     /// The whole queue is persisted as one array, so an operation written before
@@ -311,9 +379,7 @@ struct SyncQueueTests {
     /// every other pending change on the device with it.
     @Test("A queue written by a build without blockedCount still loads")
     func loadsOperationsFromBeforeBlockedCount() async throws {
-        let name = "SyncQueueTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        defaults.removePersistentDomain(forName: name)
+        let url = Self.scratchFileURL()
 
         let stored = [
             try Self.operation(.createMilestone, localId: "old", payload: ["v": 1]),
@@ -328,9 +394,13 @@ struct SyncQueueTests {
             raw[index].removeValue(forKey: "blockedCount")
         }
         #expect(raw.count == 2)
-        defaults.set(try JSONSerialization.data(withJSONObject: raw), forKey: "com.familyrecord.syncQueue")
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try JSONSerialization.data(withJSONObject: raw).write(to: url)
 
-        let queue = SyncQueue(defaults: defaults)
+        let queue = SyncQueue(store: SyncQueueStore(fileURL: url, legacyDefaults: Self.scratchDefaults()))
         let loaded = await queue.allOperations()
         #expect(loaded.map(\.localId) == ["old", "alsoOld"])
         #expect(loaded.allSatisfy { $0.blockedCount == 0 })

@@ -22,7 +22,7 @@ final class SyncService {
     private(set) var discardedChangeWarning: String?
 
     /// `syncQueue` is injectable so tests can drive `processQueue` against a
-    /// scratch queue instead of the shared one in `UserDefaults.standard`.
+    /// scratch queue instead of the shared one in Application Support.
     init(
         modelContext: ModelContext,
         apiClient: APIClient,

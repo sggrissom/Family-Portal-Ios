@@ -241,7 +241,10 @@ nonisolated enum TestStore {
         let name = "FamilyPortalTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
-        return SyncQueue(defaults: defaults)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(name, isDirectory: true)
+            .appendingPathComponent("SyncQueue.json", isDirectory: false)
+        return SyncQueue(store: SyncQueueStore(fileURL: url, legacyDefaults: defaults))
     }
 }
 

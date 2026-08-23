@@ -206,7 +206,6 @@ nonisolated struct DeletePayload: Codable, Sendable {
 // MARK: - SyncQueue Actor
 
 actor SyncQueue {
-    private static let storageKey = "com.familyrecord.syncQueue"
     private static let maxRetries = 5
 
     /// Deliberately much larger than `maxRetries`: a blocked run costs the user
@@ -216,25 +215,13 @@ actor SyncQueue {
     private static let maxBlockedRuns = 20
 
     private var operations: [PendingOperation]
-    private let defaults: UserDefaults
+    private let store: SyncQueueStore
 
-    /// `defaults` is injectable so tests can exercise the merge/cancel logic
-    /// against a scratch suite instead of the app's real queue.
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        operations = Self.loadOperationsFromStorage(defaults: defaults)
-    }
-
-    nonisolated private static func loadOperationsFromStorage(defaults: UserDefaults) -> [PendingOperation] {
-        guard let data = defaults.data(forKey: storageKey) else {
-            return []
-        }
-        do {
-            return try JSONDecoder().decode([PendingOperation].self, from: data)
-        } catch {
-            AppLog.queue.error("Failed to load queue from storage: \(String(describing: error), privacy: .public)")
-            return []
-        }
+    /// `store` is injectable so tests can exercise the merge/cancel logic
+    /// against a scratch file instead of the app's real queue.
+    init(store: SyncQueueStore = SyncQueueStore()) {
+        self.store = store
+        operations = store.load()
     }
 
     // MARK: - Queue Management
@@ -491,11 +478,6 @@ actor SyncQueue {
     }
 
     private func saveToStorage() {
-        do {
-            let data = try JSONEncoder().encode(operations)
-            defaults.set(data, forKey: Self.storageKey)
-        } catch {
-            AppLog.queue.error("Failed to save queue to storage: \(String(describing: error), privacy: .public)")
-        }
+        store.save(operations)
     }
 }
