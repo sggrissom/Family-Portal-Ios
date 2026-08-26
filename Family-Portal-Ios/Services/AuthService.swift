@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 @Observable
 final class AuthService {
@@ -23,6 +24,13 @@ final class AuthService {
     /// erases the local store here, so no screen ever renders the previous
     /// account's records — see `LocalAccountOwner`.
     @MainActor var onUnownedLocalData: (@MainActor (LocalDataResetScope) async -> Void)?
+
+    /// Runs after the server has destroyed the account, before the session is
+    /// ended locally. Deletion leaves nothing on the server to reconcile
+    /// against — no pull will ever again say which of these records still
+    /// exist — so the store has to be erased outright rather than healed, which
+    /// is the same sweep a device changing hands gets.
+    @MainActor var onAccountDeleted: (@MainActor () async -> Void)?
 
     private let accountOwner = LocalAccountOwner()
 
@@ -295,6 +303,43 @@ final class AuthService {
         googleSignInService.signOut()
 
         await endSession()
+    }
+
+    /// Destroys the account on the server and erases what it left on this
+    /// device.
+    ///
+    /// - Returns: the reason it did not happen, or `nil` on success.
+    ///
+    /// Unlike `logout`, nothing local happens until the server has confirmed.
+    /// A refused deletion — a wrong password, a mistyped address — has to leave
+    /// the user exactly where they were, still signed in and with their data
+    /// intact, because they are going to correct one field and try again.
+    ///
+    /// `onWillLogout` is deliberately *not* called: it retires this device's
+    /// push registration, which would be a change made on behalf of a deletion
+    /// that may be about to be refused. It is also unnecessary —
+    /// `deleteAccountTx` drops every push token the user has (backend/
+    /// account_deletion.go), so a successful deletion has already done it, for
+    /// every device rather than only this one.
+    @MainActor
+    func deleteAccount(password: String, confirmEmail: String) async -> String? {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            try await APIClient.shared.deleteAccount(password: password, confirmEmail: confirmEmail)
+        } catch {
+            AppLog.auth.error("Account deletion failed: \(String(describing: error), privacy: .public)")
+            return error.localizedDescription
+        }
+
+        // Google's own session outlives ours, so a Google user who did not sign
+        // out of it would be signed straight back in by the next tap.
+        googleSignInService.signOut()
+
+        await onAccountDeleted?()
+        await endSession()
+        return nil
     }
 
     @MainActor

@@ -72,6 +72,23 @@ nonisolated struct RequestPasswordResetResponseDTO: Codable, Sendable {
     let error: String?
 }
 
+/// `DeleteAccountRequest` in backend/account_deletion.go.
+///
+/// `password` is empty for a Google-only account, which has none on file; the
+/// server skips the check in that case and `confirmEmail` carries the whole
+/// weight. Sending an empty password for an account that *does* have one is
+/// refused like any other wrong password, which is the right answer — it is a
+/// user who left the field blank by mistake.
+nonisolated struct DeleteAccountRequestDTO: Codable, Sendable {
+    let password: String
+    let confirmEmail: String
+}
+
+nonisolated struct DeleteAccountResponseDTO: Codable, Sendable {
+    let success: Bool
+    let error: String?
+}
+
 nonisolated struct RefreshResponseDTO: Sendable {
     let success: Bool
     let error: String?

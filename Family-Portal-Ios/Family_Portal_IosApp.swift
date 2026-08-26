@@ -144,18 +144,15 @@ struct Family_Portal_IosApp: App {
         }
 
         // A second account signing in on this device would otherwise inherit the
-        // first one's store. The chat service is dropped first because it holds
-        // the messages about to be deleted.
+        // first one's store.
         authService.onUnownedLocalData = { scope in
-            self.chatService = nil
-            await LocalDataReset.erase(
-                scope,
-                context: self.container.mainContext,
-                syncQueue: self.syncService.syncQueue
-            )
-            // Whatever the previous account's notification asked for is not
-            // this account's to open.
-            self.deepLinkRouter.clear()
+            await self.eraseLocalData(scope)
+        }
+
+        // A deleted account leaves nothing on the server to reconcile against,
+        // so the whole store goes — the same sweep, for a different reason.
+        authService.onAccountDeleted = {
+            await self.eraseLocalData(.everything)
         }
 
         // Runs alongside session restore rather than before it: the check must
@@ -172,6 +169,22 @@ struct Family_Portal_IosApp: App {
             // the server; RegisterPushDevice upserts, so a repeat is cheap.
             await PushNotificationService.shared.registerForPushNotifications()
         }
+    }
+
+    /// Drops everything the outgoing account left on this device.
+    ///
+    /// The chat service goes first because it holds the messages about to be
+    /// deleted, and the deep-link router last because whatever a previous
+    /// account's notification asked for is not the next one's to open.
+    @MainActor
+    private func eraseLocalData(_ scope: LocalDataResetScope) async {
+        chatService = nil
+        await LocalDataReset.erase(
+            scope,
+            context: container.mainContext,
+            syncQueue: syncService.syncQueue
+        )
+        deepLinkRouter.clear()
     }
 
     @MainActor

@@ -169,7 +169,10 @@ struct FamilyMembershipView: View {
                 }
             } else {
                 Section {
-                    Text("You are the only member of this family. To remove it and everything in it, delete your account.")
+                    // Says where, now that there is somewhere: Settings → Delete
+                    // Account is the only route to this, and a user reading
+                    // this sentence is at the bottom of a three-deep stack.
+                    Text("You are the only member of this family. To remove it and everything in it, delete your account from Settings.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }

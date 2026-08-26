@@ -71,6 +71,28 @@ enum APIError: LocalizedError {
     }
 }
 
+/// A refusal from `POST /api/delete-account`, carrying the server's wording.
+///
+/// Its own type rather than an `APIError` case, on the same reasoning as
+/// `MembershipError`: the two refusals it represents — an incorrect password
+/// and a mistyped confirmation address — are instructions to the user rather
+/// than reports about the network, so the view shows the sentence inline next
+/// to the field that produced it instead of raising the app-wide alert.
+enum AccountDeletionError: LocalizedError, Equatable {
+    case refused(String)
+
+    /// Used when the server refuses without a sentence, which the handler does
+    /// not do today — but a proxy answering 400 in its place would.
+    static let fallbackMessage = "Could not delete your account."
+
+    var errorDescription: String? {
+        switch self {
+        case .refused(let message):
+            return message
+        }
+    }
+}
+
 enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
@@ -427,6 +449,57 @@ actor APIClient {
         } catch {
             throw APIError.network(error)
         }
+    }
+
+    /// `POST /api/delete-account` (backend/account_deletion.go). Destroys the
+    /// account: credentials, sessions, refresh tokens, registered devices and
+    /// the user's chat messages, plus any family the deletion leaves empty and
+    /// everything in it.
+    ///
+    /// A plain handler rather than a proc, because it has to clear the session
+    /// cookies it is invalidating — but unlike `checkMobileVersion` it is
+    /// authenticated, so it goes through `requestData` and inherits the auth
+    /// header and the 401 refresh-and-retry rather than hand-rolling them.
+    ///
+    /// Throws `AccountDeletionError.refused` with the server's own sentence for
+    /// a wrong password or a mistyped email. Those are the two things the user
+    /// can fix by typing again, so they must not arrive wrapped in a status
+    /// code — and `APIError.procSentence` declines to unwrap them, because the
+    /// body of this refusal is a JSON envelope rather than a bare sentence.
+    func deleteAccount(password: String, confirmEmail: String) async throws {
+        let payload = DeleteAccountRequestDTO(password: password, confirmEmail: confirmEmail)
+
+        let data: Data
+        do {
+            data = try await requestData(path: "api/delete-account", method: .post, body: payload)
+        } catch APIError.server(let statusCode, let message) where statusCode == 400 {
+            throw AccountDeletionError.refused(Self.deletionRefusal(from: message))
+        }
+
+        let response: DeleteAccountResponseDTO
+        do {
+            response = try Self.decode(DeleteAccountResponseDTO.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+
+        // The handler answers a refusal with 400, so this is belt and braces —
+        // but a `success: false` that returned normally would otherwise be read
+        // as a deleted account and erase the device.
+        guard response.success else {
+            throw AccountDeletionError.refused(response.error ?? AccountDeletionError.fallbackMessage)
+        }
+    }
+
+    /// The `error` out of a `DeleteAccountResponse`, for the 400 path where the
+    /// envelope arrives as an error body rather than a decoded response.
+    private static func deletionRefusal(from message: String?) -> String {
+        guard let message, let data = message.data(using: .utf8),
+              let response = try? decode(DeleteAccountResponseDTO.self, from: data),
+              let error = response.error, !error.isEmpty else {
+            return AccountDeletionError.fallbackMessage
+        }
+        return error
     }
 
     /// Refreshes the JWT if it is missing, expired, or about to expire.

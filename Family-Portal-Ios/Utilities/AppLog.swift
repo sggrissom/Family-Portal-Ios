@@ -29,6 +29,10 @@ nonisolated enum AppLog {
     /// `ActivityService`, its reads, and the snapshot cache under it.
     static let activities = Logger(subsystem: subsystem, category: "activities")
 
+    /// Session lifecycle in `AuthService` — the ends of a session especially,
+    /// since a deleted account leaves nothing behind to ask afterwards.
+    static let auth = Logger(subsystem: subsystem, category: "auth")
+
     /// Failures a view caught and handed to `ErrorPresenter`.
     static let ui = Logger(subsystem: subsystem, category: "ui")
 }

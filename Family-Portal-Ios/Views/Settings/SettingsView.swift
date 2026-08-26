@@ -38,6 +38,16 @@ struct SettingsView: View {
                         Button("Sign Out", role: .destructive) {
                             showLogoutConfirmation = true
                         }
+
+                        // Required of any app that offers account creation
+                        // (App Store Review Guideline 5.1.1(v)), and this one
+                        // does. A push rather than a button, because the
+                        // confirmation it needs — password, and the account's
+                        // own address typed out — does not fit in a dialog.
+                        NavigationLink("Delete Account") {
+                            DeleteAccountView()
+                        }
+                        .foregroundStyle(.red)
                     } else {
                         HStack {
                             Image(systemName: "person.circle")
