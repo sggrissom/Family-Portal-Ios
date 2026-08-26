@@ -2,26 +2,10 @@ import SwiftUI
 import SwiftData
 import OSLog
 
-// The annual setup half: the program, its seasons, the competitions in a season,
-// the routines in a season, and who is in a routine.
-//
-// Deliberately last and deliberately plain. This is keyboard work that happens
-// once in September — the phone has to be *able* to do it, not be good at it —
-// so these are four ordinary forms rather than the shaped flow the results
-// editor gets.
-//
-// What they are not plain about is deletion. Every delete here cascades, and
-// each dialog names exactly what goes with it: `deleteSeasonTx` takes every
-// competition, routine, performance and result under the season, and
-// `deleteActivityTx` takes every season.
+// The annual setup half: the program, its seasons, the competitions in a season, the routines in a season, and who is in a routine.
 
 // MARK: - Shared pieces
 
-/// A write refusal, shown in the form rather than in an alert.
-///
-/// The activities procs answer with sentences meant for a user, and a refusal is
-/// something to fix here — an alert would close over the form and lose what the
-/// user typed. Same reasoning as `ChatErrorBanner`.
 struct ActivityFormError: View {
     let message: String?
 
@@ -36,7 +20,6 @@ struct ActivityFormError: View {
     }
 }
 
-/// A start/end pair, either half of which may genuinely not be known.
 struct ActivityDateRangeSection: View {
     @Binding var start: ActivityDateField
     @Binding var end: ActivityDateField
@@ -60,10 +43,6 @@ struct ActivityDateRangeSection: View {
     }
 }
 
-/// A delete that takes other records with it, and says so before it does.
-///
-/// `cascade` is not boilerplate: a season delete removes a year of results, and
-/// the dialog is the only place the user finds that out before it happens.
 struct ActivityDeleteSection: View {
     let title: String
     let confirmation: String
@@ -91,11 +70,6 @@ struct ActivityDeleteSection: View {
     }
 }
 
-/// A free-text field with the vocabulary this family has already used under it.
-///
-/// The same reason the results editor has one: nothing normalizes these at write
-/// time, so without suggestions a season ends up with "Jazz", "jazz" and "JAZZ"
-/// as three different styles.
 struct ActivityTextField: View {
     let prompt: String
     @Binding var text: String
@@ -106,10 +80,7 @@ struct ActivityTextField: View {
         VStack(alignment: .leading, spacing: 6) {
             TextField(prompt, text: Binding(
                 get: { text },
-                // Capped as typed, because the server truncates past this rather
-                // than refusing — a field that let the user keep going would
-                // quietly keep less than they wrote. `prefix` rather than a trim:
-                // trimming mid-typing eats the space they just pressed.
+                // Capped as typed, because the server truncates past this rather than refusing. `prefix` rather than a trim, which would eat the space just pressed.
                 set: { text = String($0.prefix(limit)) }
             ))
             VocabularySuggestions(suggestions: suggestions, text: $text)
@@ -119,16 +90,9 @@ struct ActivityTextField: View {
 
 // MARK: - Activity
 
-/// The program itself: a name and a kind.
-///
-/// Kind drives vocabulary and nothing else — the schema is identical for dance,
-/// soccer and swim — so changing it is safe, and an unrecognized one is
-/// normalized to generic rather than refused.
 struct ActivityEditorView: View {
     let existing: ActivityDTO?
     let onSaved: @MainActor () async -> Void
-    /// Called instead of `onSaved` when the record is deleted, so a screen that
-    /// was *showing* that record can leave rather than reload a 404.
     let onDeleted: (@MainActor () async -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -207,10 +171,6 @@ struct ActivityEditorView: View {
         Task {
             do {
                 try await work()
-                // A delete reports to `onDeleted` when the caller supplied one:
-                // the screen that opened this may be showing the record that
-                // just went, and reloading it would land on a 404 rather than
-                // going back.
                 if isDelete, let onDeleted {
                     await onDeleted()
                 } else {
@@ -302,8 +262,7 @@ struct SeasonEditorView: View {
 
     private func save() {
         perform {
-            // Both dates always go, whether set or not: an omitted key on
-            // `UpdateSeason` does not leave the date alone, it clears it.
+            // Both dates always go, set or not: an omitted key on `UpdateSeason` clears the date rather than leaving it alone.
             if let existing {
                 _ = try await service.updateSeason(
                     id: existing.id, name: name,
@@ -328,10 +287,6 @@ struct SeasonEditorView: View {
         Task {
             do {
                 try await work()
-                // A delete reports to `onDeleted` when the caller supplied one:
-                // the screen that opened this may be showing the record that
-                // just went, and reloading it would land on a 404 rather than
-                // going back.
                 if isDelete, let onDeleted {
                     await onDeleted()
                 } else {
@@ -353,7 +308,6 @@ struct CompetitionEditorView: View {
     let seasonId: Int
     let existing: ActivityEventDTO?
     let labels: ActivityLabels
-    /// Hosts this family has already used, for autocomplete.
     let hostSuggestions: [String]
     let onSaved: @MainActor () async -> Void
     let onDeleted: (@MainActor () async -> Void)?
@@ -458,10 +412,6 @@ struct CompetitionEditorView: View {
         Task {
             do {
                 try await work()
-                // A delete reports to `onDeleted` when the caller supplied one:
-                // the screen that opened this may be showing the record that
-                // just went, and reloading it would land on a 404 rather than
-                // going back.
                 if isDelete, let onDeleted {
                     await onDeleted()
                 } else {
@@ -479,16 +429,6 @@ struct CompetitionEditorView: View {
 
 // MARK: - Routine
 
-/// A routine, and who is in it.
-///
-/// Format, style, division and level are all free text by design: competitions
-/// do not agree on what a division or a level is called, so the vocabulary comes
-/// from what this family has already typed rather than from a fixed list.
-///
-/// The roster travels with the create (`CreateEntry` takes `personIds`) but is
-/// its own call on edit (`SetEntryRoster`), which is the split the backend draws
-/// and worth keeping: an update that carried a half-built roster would replace a
-/// whole one.
 struct RoutineEditorView: View {
     let seasonId: Int
     let existing: EntryViewDTO?
@@ -590,8 +530,7 @@ struct RoutineEditorView: View {
                     id: existing.entry.id, name: name, format: format,
                     style: style, division: division, level: level, notes: notes
                 )
-                // Two calls on edit because the backend splits them. The roster
-                // goes second: if the details fail, nothing has changed at all.
+                // Two calls on edit because the backend splits them. The roster goes second: if the details fail, nothing has changed at all.
                 if roster != existing.personIds {
                     _ = try await service.setEntryRoster(entryId: existing.entry.id, personIds: roster)
                 }
@@ -615,10 +554,6 @@ struct RoutineEditorView: View {
         Task {
             do {
                 try await work()
-                // A delete reports to `onDeleted` when the caller supplied one:
-                // the screen that opened this may be showing the record that
-                // just went, and reloading it would land on a 404 rather than
-                // going back.
                 if isDelete, let onDeleted {
                     await onDeleted()
                 } else {
@@ -634,12 +569,7 @@ struct RoutineEditorView: View {
     }
 }
 
-/// Who is on a routine.
-///
-/// Only people this device has pulled and that the server knows about: the
-/// roster is written in *server* ids, and `setEntryRosterTx` refuses anyone not
-/// already on the owning family's roster — attaching a person here is not a
-/// second way to reach one.
+/// Who is on a routine. Written in *server* ids, and `setEntryRosterTx` refuses anyone not already on the owning family's roster.
 struct RosterPickerView: View {
     @Binding var selection: [Int]
     let labels: ActivityLabels
@@ -684,10 +614,7 @@ struct RosterPickerView: View {
                 }
             }
 
-            // A roster can hold a child from a linked household this device has
-            // never pulled. Dropping those ids because no local record resolves
-            // them would take that child off the routine on the next save — the
-            // same reason an unresolvable tag id is sent back untouched.
+            // A roster can hold a child from a linked household this device never pulled; dropping ids nothing resolves would take that child off the routine.
             let unresolved = selection.filter { id in !candidates.contains { $0.remoteId == id } }
             if !unresolved.isEmpty {
                 Section {
@@ -712,7 +639,6 @@ struct RosterPickerView: View {
 
 // MARK: - Toolbar
 
-/// Cancel and Save, the same on all four forms.
 @MainActor
 @ToolbarContentBuilder
 func activityFormToolbar(

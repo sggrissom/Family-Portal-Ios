@@ -2,16 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// "How is her season going?" — one kid's routines, their results, the photos.
-///
-/// The headline activities screen and the one this feature exists for on a
-/// phone: read-only, one proc, no navigation tree to walk first.
-///
-/// `GetPersonSeason` resolves through the roster rather than through the family,
-/// which makes it the one activities proc that is always safe to call for any
-/// person the app can see. Everything it links to has to hold that line, which
-/// is why the only destination here is `RoutineView` (`GetEntryHistory`, also
-/// roster-scoped) and not the season or competition views — those are
-/// whole-family reads a linked household cannot reach.
+/// `GetPersonSeason` resolves through the roster rather than the family, so it is safe for any person the app can see. The only destination is `RoutineView`, which holds the same line.
 struct PersonSeasonView: View {
     let personId: Int
     let personName: String
@@ -62,8 +53,7 @@ struct PersonSeasonView: View {
         appearancesByEntry: [Int: [AppearanceDetailDTO]],
         people: ActivityPeople
     ) -> some View {
-        // Read the label pack from the season summary: this response carries no
-        // `Activity`, and the backend added `kind` here for exactly that reason.
+        // The label pack comes off the season summary: this response carries no `Activity`.
         let labels = ActivityLabels.forKind(season.kind)
 
         return GroupBox {
@@ -122,9 +112,7 @@ struct PersonSeasonView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        // Who else is in it. A group routine reached through one
-                        // shared child legitimately names its co-performers —
-                        // that is what a shared routine means.
+                        // Who else is in it. A group routine reached through one shared child legitimately names its co-performers.
                         if let roster = people.rosterText(entryView.personIds) {
                             Text("\(labels.roster): \(roster)")
                                 .font(.caption)

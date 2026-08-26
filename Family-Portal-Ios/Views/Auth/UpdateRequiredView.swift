@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// Shown instead of the whole app when the server reports `update_required`.
-/// Deliberately offers no way past it — that's the point of the status.
+/// Shown instead of the whole app when the server reports `update_required`. Deliberately offers no way past it.
 struct UpdateRequiredView: View {
     @Environment(\.openURL) private var openURL
     let message: String

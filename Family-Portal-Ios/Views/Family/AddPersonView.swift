@@ -38,11 +38,7 @@ struct AddPersonView: View {
                     .pickerStyle(.segmented)
                 }
 
-                // Not optional: the server rejects an empty birthdate
-                // (validateAddPersonRequest in backend/person.go) and every age
-                // in the app is derived from it. The picker used to sit behind
-                // an "Add Birthday" toggle, and leaving the toggle off shipped
-                // today's date to the server as the person's birthday.
+                // Not optional: the server rejects an empty birthdate (validateAddPersonRequest) and every age in the app is derived from it.
                 Section {
                     DatePicker("Birthday", selection: $birthday, displayedComponents: .date)
                 } header: {
@@ -84,8 +80,7 @@ struct AddPersonView: View {
                 try await syncService?.addPerson(person)
                 dismiss()
             } catch {
-                // Not a network failure — `addPerson` only queues, so getting
-                // here means the person can never be pushed as entered.
+                // Not a network failure — `addPerson` only queues, so getting here means the person can never be pushed as entered.
                 dismiss()
                 errorPresenter?.report(error, title: "Couldn't Save Person")
             }

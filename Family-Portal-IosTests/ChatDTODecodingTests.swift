@@ -2,17 +2,9 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// Fixtures below are hand-built to match what Go's `encoding/json` emits for
-/// the structs in `../Family-Portal/backend`: camelCase keys in struct-field
-/// order, and `time.Time` as RFC3339 with nanosecond precision (trailing zeros
-/// trimmed, so both fractional and whole-second forms appear in the wild).
-///
-/// These are the tests that would have caught P0 #1–#5.
 @Suite("Chat DTO decoding")
 struct ChatDTODecodingTests {
 
-    /// Builds an expected instant without going through any date parser, so a
-    /// broken decoder can't agree with a broken expectation.
     static func utc(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -25,12 +17,10 @@ struct ChatDTODecodingTests {
         return calendar.date(from: components)!
     }
 
-    /// 2026-03-15T14:30:00Z, the instant every fixture below encodes.
     static let expectedInstant = utc(2026, 3, 15, 14, 30)
 
     // MARK: - ChatMessage (backend/chat.go)
 
-    /// Exactly what `json.Marshal(ChatMessage{...})` produces.
     static let chatMessageJSON = """
     {
       "id": 412,
@@ -49,14 +39,11 @@ struct ChatDTODecodingTests {
 
         #expect(dto.id == 412)
         #expect(dto.familyId == 7)
-        // userId == 0 was the bug: every bubble aligned as someone else's.
         #expect(dto.userId == 33)
         #expect(dto.userName == "Dana")
         #expect(dto.content == "on my way")
         #expect(dto.clientMessageId == "5C6F0E1A-1E4E-4D6B-9C1B-2A0F5B7D8E90")
 
-        // createdAt defaulting to Date() was the bug that collapsed the whole
-        // history into today.
         #expect(abs(dto.createdAt.timeIntervalSince(Self.expectedInstant)) < 1)
     }
 
@@ -82,7 +69,6 @@ struct ChatDTODecodingTests {
         #expect(abs(dto.createdAt.timeIntervalSince(Self.expectedInstant)) < 1)
     }
 
-    /// The chat fixture with one key deleted.
     static func chatMessageJSON(without key: String) throws -> Data {
         var object = try #require(
             try JSONSerialization.jsonObject(with: Data(chatMessageJSON.utf8)) as? [String: Any]
@@ -131,8 +117,6 @@ struct ChatDTODecodingTests {
             try JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
 
-        // backend/chat.go DeleteMessageRequest reads `id`; sending message_id
-        // meant the server always received id: 0 and no delete ever landed.
         #expect(object["id"] as? Int == 99)
         #expect(object["message_id"] == nil)
     }
@@ -187,7 +171,6 @@ struct ChatDTODecodingTests {
         )
 
         #expect(envelope.payload.messageId == 412)
-        // Previously hardcoded to 0 at the call site.
         #expect(envelope.payload.userId == 33)
     }
 

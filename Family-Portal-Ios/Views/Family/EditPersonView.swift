@@ -19,9 +19,7 @@ struct EditPersonView: View {
         _name = State(initialValue: person.name)
         _type = State(initialValue: person.type)
         _gender = State(initialValue: person.gender)
-        // A person predating the required-birthday change may still have none;
-        // showing today gives the user something concrete to correct rather
-        // than letting the field stay empty and unsyncable.
+        // A person predating the required-birthday change may still have none; showing today gives the user something concrete to correct.
         _birthday = State(initialValue: person.birthday ?? Date())
     }
 
@@ -50,7 +48,6 @@ struct EditPersonView: View {
                     .pickerStyle(.segmented)
                 }
 
-                // Required — see AddPersonView.
                 Section {
                     DatePicker("Birthday", selection: $birthday, displayedComponents: .date)
                 } header: {

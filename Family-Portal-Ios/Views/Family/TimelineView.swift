@@ -28,8 +28,6 @@ enum TimelineItem: Identifiable {
         }
     }
 
-    /// A photo can be tagged with several people, so person filtering matches
-    /// any of them; `person` is only what the row shows.
     var people: [Person] {
         switch self {
         case .milestone(let milestone):
@@ -47,13 +45,6 @@ enum TimelineItem: Identifiable {
 }
 
 struct TimelineView: View {
-    /// The filter chips need every person, and the year chips and the
-    /// nothing-here-at-all state need to know what exists regardless of the
-    /// filters — so these three stay unfiltered. They are not what §36 was about:
-    /// `@Query` refetches when the store changes, not when a view re-renders, so
-    /// a keystroke costs nothing here. What it used to cost was merging and
-    /// re-sorting all three into one array on every render, and that now happens
-    /// in `TimelineResultsView` over a fetch the predicates have already narrowed.
     @Query(sort: \GrowthData.date, order: .reverse) private var growthData: [GrowthData]
     @Query(sort: \Milestone.date, order: .reverse) private var milestones: [Milestone]
     @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
@@ -67,17 +58,10 @@ struct TimelineView: View {
     @State private var selectedYear: Int? = nil
     @State private var searchText = ""
 
-    /// What the list is actually filtered by. `searchText` is what the user is
-    /// typing; this trails it — see the debounce in `body`. Every keystroke used
-    /// to rebuild the whole timeline, and on a phone the gap between the two is
-    /// the difference between a list that keeps up and one that stutters.
     @State private var debouncedSearchText = ""
 
     @State private var cachedPeople: [Person] = []
 
-    /// Recomputed when the data changes rather than on every render, which is
-    /// what it used to be: building this walked all three arrays, and it was
-    /// doing that alongside two more full walks for the merged list.
     @State private var availableYears: [Int] = []
 
     private var hasAnyActivity: Bool {
@@ -113,9 +97,7 @@ struct TimelineView: View {
             }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search timeline")
-        // `task(id:)` cancels the pending run on the next keystroke, which is the
-        // whole debounce. Clearing is immediate: a user who has just emptied the
-        // field is asking for their timeline back, not waiting a beat for it.
+        // `task(id:)` cancels the pending run on the next keystroke, which is the whole debounce. Clearing is immediate.
         .task(id: searchText) {
             if searchText.isEmpty {
                 debouncedSearchText = ""
@@ -250,17 +232,7 @@ struct TimelineView: View {
     }
 }
 
-/// The list itself, fetched already narrowed.
-///
-/// Its own view rather than a computed property on `TimelineView` because that is
-/// the only way `@Query` takes a predicate that depends on state: the descriptors
-/// are built in `init`, so SwiftUI rebuilds them whenever the filters it is
-/// handed change, and the store — not the phone — does the person and year work.
-///
-/// What stays in memory is what a predicate would buy little for: the category
-/// and measurement filters only ever run over records the type filter has already
-/// singled out, and search has to match a person's name, which is across a
-/// relationship from two of the three types.
+/// The list itself, fetched already narrowed. Its own view because that is the only way `@Query` takes a predicate depending on state: the descriptors are built in `init`.
 private struct TimelineResultsView: View {
     @Query private var milestones: [Milestone]
     @Query private var growthData: [GrowthData]
@@ -282,17 +254,12 @@ private struct TimelineResultsView: View {
         self.measurementType = measurementType
         self.searchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Half-open, so a record at midnight on 1 January belongs to exactly one
-        // year — the same answer `Calendar.component(.year:)` gives, which is what
-        // built the chip the user tapped.
+        // Half-open, so a record at midnight on 1 January belongs to exactly one year — the same answer that built the chip the user tapped.
         let bounds = TimelineYear.bounds(year)
         let start = bounds.start
         let end = bounds.end
 
-        // Each branch is built outside the macro so every predicate body holds
-        // nothing but concrete comparisons. A single predicate switching on
-        // captured optionals would say the same thing, and give SwiftData far
-        // more to translate.
+        // Each branch is built outside the macro so every predicate body holds nothing but concrete comparisons.
         let milestonePredicate: Predicate<Milestone>
         if !itemType.includes(.milestones) {
             milestonePredicate = #Predicate<Milestone> { _ in false }
@@ -311,8 +278,6 @@ private struct TimelineResultsView: View {
             growthPredicate = #Predicate<GrowthData> { $0.date >= start && $0.date < end }
         }
 
-        // A photo can be tagged with several people, so it matches if any of them
-        // is the one being filtered for.
         let photoPredicate: Predicate<Photo>
         if !itemType.includes(.photos) {
             photoPredicate = #Predicate<Photo> { _ in false }
@@ -384,12 +349,6 @@ private struct TimelineResultsView: View {
     }
 }
 
-/// The half-open date range one year chip stands for.
-///
-/// Its own type, and not private, because it is what the year predicates are
-/// built from and it has to agree exactly with the `Calendar.component(.year:)`
-/// call that built the chip the user tapped. Half-open on purpose: a record at
-/// midnight on 1 January belongs to one year, not two.
 enum TimelineYear {
     static func bounds(_ year: Int?, calendar: Calendar = .current) -> (start: Date, end: Date) {
         guard let year else { return (.distantPast, .distantFuture) }
@@ -407,8 +366,6 @@ enum TimelineFilterType: CaseIterable {
     case measurements
     case photos
 
-    /// Whether a timeline of this filter shows the given kind of record. `.all`
-    /// includes everything; every other case includes only itself.
     func includes(_ other: TimelineFilterType) -> Bool {
         self == .all || self == other
     }
@@ -482,8 +439,6 @@ struct TimelineRowView: View {
                 : String(format: "%.1f", data.value)
             return "\(data.measurementType.rawValue.capitalized): \(formatted) \(data.unit.rawValue)"
         case .photo(let photo):
-            // Photos are uploaded with no title from the gallery today, so fall
-            // back to something better than an empty row.
             let title = photo.title.trimmingCharacters(in: .whitespacesAndNewlines)
             if !title.isEmpty { return title }
             let description = photo.descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)

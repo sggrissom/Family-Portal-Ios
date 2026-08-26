@@ -1,12 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// Picks a person's avatar from the photos they are tagged in.
-///
-/// That set is the whole eligible set — `SetProfilePhoto` (backend/person.go)
-/// rejects a photo the person is not associated with — so there is nothing to
-/// filter and nothing to explain when a photo is missing beyond "tag them in
-/// it first".
+/// Picks a person's avatar from the photos they are tagged in — `SetProfilePhoto` rejects a photo the person is not associated with, so that set is the whole eligible set.
 struct ProfilePhotoPickerView: View {
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
@@ -16,8 +11,7 @@ struct ProfilePhotoPickerView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 8)]
 
-    /// SwiftData does not order relationships; newest-first matches the preview
-    /// grid on `PersonDetailView` that leads here.
+    /// SwiftData does not order relationships; newest-first matches the preview grid that leads here.
     private var photos: [Photo] {
         person.photos.sorted { $0.photoDate > $1.photoDate }
     }

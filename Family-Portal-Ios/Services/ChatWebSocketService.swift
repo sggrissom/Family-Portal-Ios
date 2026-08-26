@@ -70,7 +70,6 @@ actor ChatWebSocketService {
 
     private func notifyConnectionStateChange() async {
         let state = connectionState
-        // Capture delegate on the actor to avoid crossing isolation
         let delegate = self.delegate
         await MainActor.run {
             delegate?.didChangeConnectionState(state)
@@ -141,17 +140,14 @@ actor ChatWebSocketService {
         var request = URLRequest(url: wsURL)
         request.timeoutInterval = 10
 
-        // Cookies are automatically included via HTTPCookieStorage
 
         webSocketTask = session.webSocketTask(with: request)
         webSocketTask?.resume()
 
-        // Start receiving messages
         receiveTask = Task { [weak self] in
             await self?.receiveLoop()
         }
 
-        // Assume connected after task starts (first message confirms)
         connectionState = .connected
         reconnectAttempt = 0
 
@@ -189,10 +185,8 @@ actor ChatWebSocketService {
     private func handleIncomingMessage(_ text: String) async {
         guard let data = text.data(using: .utf8) else { return }
 
-        // Go marshals time.Time as RFC3339 with fractional seconds, which
-        // JSONDecoder's `.iso8601` strategy rejects; reuse the tolerant decoder.
+        // Go marshals time.Time as RFC3339 with fractional seconds, which `.iso8601` rejects; reuse the tolerant decoder.
         do {
-            // Parse type first
             struct TypeOnly: Decodable { let type: String }
             let typeMessage = try APIClient.decode(TypeOnly.self, from: data)
 
@@ -242,7 +236,6 @@ actor ChatWebSocketService {
                 }
 
             case .heartbeat:
-                // The receive itself already refreshed the watchdog timestamp.
                 break
 
             case .error:
@@ -276,7 +269,6 @@ actor ChatWebSocketService {
         reconnectAttempt += 1
         connectionState = .reconnecting(attempt: reconnectAttempt)
 
-        // Exponential backoff
         let delay = min(
             Self.baseReconnectDelay * pow(2, Double(reconnectAttempt - 1)),
             Self.maxReconnectDelay
@@ -310,9 +302,7 @@ actor ChatWebSocketService {
 
                 guard !Task.isCancelled else { break }
 
-                // The server's readPump times out after 60s of silence and a ping
-                // frame doesn't reset it, so send the protocol-level heartbeat it
-                // understands. Its `heartbeat` reply also feeds the watchdog below.
+                // The server's readPump times out after 60s of silence and a ping frame doesn't reset it, so send the protocol-level heartbeat it understands.
                 await self?.sendHeartbeat()
             }
         }

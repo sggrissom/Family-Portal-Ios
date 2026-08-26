@@ -30,16 +30,13 @@ struct ChatView: View {
     @ViewBuilder
     private func chatContent(chatService: ChatService) -> some View {
         VStack(spacing: 0) {
-            // Connection status banner
             ConnectionStatusView(state: chatService.connectionState)
 
-            // A failure loading or sending is otherwise invisible: the pull ends,
-            // nothing new appears, and the thread looks like it has no history.
+            // A failure loading or sending is otherwise invisible: the pull ends, nothing new appears, and the thread looks like it has no history.
             ChatErrorBanner(message: chatService.error) {
                 chatService.error = nil
             }
 
-            // Messages
             MessagesListView(
                 messages: chatService.messages,
                 isOwnMessage: { userId in
@@ -59,14 +56,12 @@ struct ChatView: View {
                 onLoadOlder: { await chatService.loadOlderMessages() }
             )
 
-            // Typing indicator
             if !chatService.typingUsers.isEmpty {
                 TypingIndicatorView(
                     typingUsers: Array(chatService.typingUsers.values)
                 )
             }
 
-            // Input area
             MessageInputView(
                 text: $messageText,
                 isFocused: $isInputFocused,
@@ -133,17 +128,12 @@ struct ChatView: View {
                     .onTapGesture { onDismissKeyboard?() }
                 }
                 .scrollDismissesKeyboard(.interactively)
-                // A conversation opens at its live end.
                 .defaultScrollAnchor(.bottom, for: .initialOffset)
-                // Older messages arrive above what the user is reading. Anchoring
-                // size changes to the bottom keeps the thread still while the page
-                // is inserted, instead of sliding it down by a screenful.
+                // Older messages arrive above what the user is reading, so anchoring size changes to the bottom keeps the thread still while a page is inserted.
                 .defaultScrollAnchor(.bottom, for: .sizeChanges)
                 .refreshable { await onLoadOlder() }
                 .onAppear { scrollProxy = proxy }
-                // Keyed on the newest message rather than the count: loading
-                // history also changes the count, and following it to the bottom
-                // would undo the pull the user just made.
+                // Keyed on the newest message rather than the count: loading history also changes the count, and following it to the bottom would undo the pull the user just made.
                 .onChange(of: messages.last?.id) { _, _ in
                     onLatestMessageChange()
                 }
@@ -164,10 +154,7 @@ struct ChatView: View {
         }
     }
 
-    /// Chat's own errors stay on the chat screen rather than going through
-    /// `ErrorPresenter`: they are per-conversation, and unlike the sheets that
-    /// report through the app-scoped alert, this view is still on screen to show
-    /// them.
+    /// Chat's own errors stay on the chat screen: they are per-conversation, and this view is still on screen to show them.
     private struct ChatErrorBanner: View {
         let message: String?
         let onDismiss: () -> Void

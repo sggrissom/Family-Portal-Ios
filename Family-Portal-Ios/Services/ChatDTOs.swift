@@ -26,8 +26,7 @@ nonisolated struct ChatMessageDTO: Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(Int.self, forKey: .id)
         familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
-        // Author identity and timestamp drive bubble alignment and date grouping,
-        // so a missing key here has to fail loudly rather than default.
+        // Author identity and timestamp drive bubble alignment and date grouping, so a missing key has to fail loudly rather than default.
         userId = try container.decode(Int.self, forKey: .userId)
         userName = try container.decodeIfPresent(String.self, forKey: .userName) ?? ""
         content = try container.decode(String.self, forKey: .content)
@@ -77,12 +76,8 @@ nonisolated struct SendMessageResponseDTO: Sendable {
 extension SendMessageResponseDTO: Codable {}
 
 nonisolated struct GetChatMessagesRequestDTO: Encodable, Sendable {
-    /// Capped at 200 by `GetChatMessages`; anything outside 1...200 falls back to
-    /// the server's default of 100.
     let limit: Int
-    /// Counted back from the *newest* message, not forward from the first, so
-    /// offset 0 is the live end of the conversation and each further page is
-    /// older. A page still arrives oldest-first within itself.
+    /// Counted back from the *newest* message, so offset 0 is the live end and each further page is older. A page still arrives oldest-first within itself.
     let offset: Int
 }
 
@@ -137,8 +132,7 @@ extension DeleteMessageResponseDTO: Codable {}
 
 // MARK: - WebSocket Message Types
 
-/// Wire values from `backend/websocket_chat.go` (`WSMsgType*`). The server uses
-/// the same value in both directions, so there is no separate outgoing set.
+/// Wire values from `backend/websocket_chat.go`. The server uses the same value in both directions.
 enum WSMessageType: String, Codable, Sendable {
     case newMessage = "new_message"
     case deleteMessage = "delete_message"
@@ -150,9 +144,7 @@ enum WSMessageType: String, Codable, Sendable {
 }
 
 // MARK: - WebSocket Payloads
-//
-// `nonisolated` on the declarations keeps their Codable conformances off the
-// main actor, so `ChatWebSocketService` can decode them from its own actor.
+// `nonisolated` keeps their Codable conformances off the main actor, so `ChatWebSocketService` can decode them from its own actor.
 
 nonisolated struct WSNewMessagePayload: Codable, Sendable {
     let message: ChatMessageDTO
@@ -177,8 +169,7 @@ nonisolated struct WSUserStatusPayload: Codable, Sendable {
 
 // MARK: - WebSocket Outgoing Messages
 
-/// Envelope for the two message types the server accepts from a client
-/// (`user_typing` and `heartbeat`); everything else goes over the REST procs.
+/// Envelope for the two message types the server accepts from a client (`user_typing` and `heartbeat`).
 nonisolated struct WSOutgoingMessage<Payload: Encodable>: Encodable {
     let type: WSMessageType
     let payload: Payload

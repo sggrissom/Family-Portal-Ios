@@ -40,10 +40,7 @@ struct PhotoGalleryView: View {
                         filterButton
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        // `.ordered` numbers the picks, and the selection arrives
-                        // in the order they were made rather than in library
-                        // order — the order the user just built is the one worth
-                        // keeping.
+                        // `.ordered` numbers the picks and delivers them in the order the user made them, not library order.
                         PhotosPicker(
                             selection: $pickedItems,
                             maxSelectionCount: nil,
@@ -101,9 +98,6 @@ struct PhotoGalleryView: View {
 
     @ViewBuilder
     private var noMatchesView: some View {
-        // Two different dead ends: a search that found nothing is the system's
-        // own empty state, while a filter that excludes everything needs the way
-        // back out, since the criteria live behind a sheet the user closed.
         if filter.hasPanelFilters {
             ContentUnavailableView {
                 Label("No Photos Match", systemImage: "line.3.horizontal.decrease.circle")
@@ -139,9 +133,6 @@ struct PhotoGalleryView: View {
         return filter.summary { names[$0] }
     }
 
-    /// What is being shown and why — the web's filter summary, which is on its
-    /// toolbar button. Here the button is an icon, so the criteria go above the
-    /// grid where a short count already had to appear.
     private var countCaption: String {
         let count = "\(visiblePhotos.count) of \(photos.count) photos"
         let summary = filterSummary
@@ -150,19 +141,10 @@ struct PhotoGalleryView: View {
 
     // MARK: - Import
 
-    /// One pass of the picker: how many photos it handed over, and how far the
-    /// app has got through reading them.
-    ///
-    /// Only the *reading and queueing* is counted here. The upload itself belongs
-    /// to `SyncQueue` — which already owns retries, offline and ordering — so a
-    /// finished import means every photo is on screen and in the queue, not that
-    /// every photo is on the server.
     struct ImportProgress {
         var total = 0
         var completed = 0
         var failed = 0
-        /// The first thing that went wrong, kept so a single-photo import can
-        /// still report exactly what happened rather than a count.
         var firstFailure: Error?
 
         var settled: Int { completed + failed }
@@ -172,21 +154,15 @@ struct PhotoGalleryView: View {
     private func importPicked(_ items: [PhotosPickerItem]) {
         guard !items.isEmpty else { return }
 
-        // Clearing the binding re-enters this method with an empty array, which
-        // the guard above absorbs. It has to happen: without it, picking the same
-        // photo twice in a row is not a change and never fires.
+        // Clearing the binding re-enters this method with an empty array, which the guard above absorbs. Without it, picking the same photo twice in a row never fires.
         pickedItems = []
 
-        // A second pick while the first is still reading extends the same run
-        // rather than replacing it, so neither bar nor total goes backwards.
         var progress = importProgress ?? ImportProgress()
         progress.total += items.count
         importProgress = progress
 
         Task {
-            // Sequential on purpose: each item is a full-resolution image, and
-            // twenty of them decoded at once is the kind of memory spike that
-            // gets an app killed mid-import.
+            // Sequential on purpose: twenty full-resolution images decoded at once is the kind of memory spike that gets an app killed mid-import.
             for item in items {
                 do {
                     try await importOne(item)
@@ -229,8 +205,6 @@ struct PhotoGalleryView: View {
 
         guard progress.failed > 0 else { return }
 
-        // One report for the whole run. Reporting per photo would stack a dozen
-        // alerts behind each other for a batch picked out of iCloud.
         if progress.failed == 1, let failure = progress.firstFailure {
             errorPresenter?.report(failure, title: "Couldn't Add Photo")
         } else {
@@ -241,8 +215,6 @@ struct PhotoGalleryView: View {
         }
     }
 
-    /// An iCloud photo that never downloaded, or a format `UIImage` won't open.
-    /// Silence here looked like a tap that did nothing at all.
     private enum ImportFailure: LocalizedError {
         case unreadable
 
@@ -251,9 +223,7 @@ struct PhotoGalleryView: View {
         }
     }
 
-    /// Reads the capture date out of the picked image's own EXIF. Deliberately
-    /// avoids `PHAsset`, which needs photo-library authorization the picker
-    /// itself does not; the backend does the same thing for `inputType: "auto"`.
+    /// Reads the capture date out of the picked image's own EXIF, avoiding `PHAsset`, which needs photo-library authorization the picker itself does not.
     private static func captureDate(from data: Data) -> Date? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
@@ -275,9 +245,6 @@ struct PhotoGalleryView: View {
     }()
 }
 
-/// Progress for the import pass, as an inset above the tab bar rather than the
-/// full-screen overlay this replaced: photos appear in the grid as they are read,
-/// and blocking the screen hid the very thing that shows the import working.
 private struct ImportProgressBar: View {
     let progress: PhotoGalleryView.ImportProgress
 

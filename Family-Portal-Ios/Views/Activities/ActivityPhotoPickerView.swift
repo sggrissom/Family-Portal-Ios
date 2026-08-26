@@ -3,31 +3,11 @@ import SwiftData
 import OSLog
 
 /// Which photos are of this performance, or of this competition.
-///
-/// `SetAppearancePhotos` and `SetEventPhotos` are both whole-set writes over
-/// **remote** photo ids, so this grid has to be able to show everything
-/// currently attached — a photo it cannot show is a photo the next save silently
-/// detaches. That is why an attached id with no local record still gets a tile,
-/// rendered straight from the server the way `TagChipsView` renders a tag id it
-/// cannot resolve.
-///
-/// Selection is by remote id rather than by local id, which is the opposite of
-/// `MilestonePhotoPickerView` and for a reason: milestones are queued, so a
-/// photo still uploading is resolved at execution time and its choice is kept.
-/// This path is online-only — there is nothing to resolve later — so a photo
-/// with no remote id simply cannot be attached yet.
-///
-/// One view for both writes because the *split* between them is a real one — a
-/// routine's photos travel with its performance, the venue and the lobby belong
-/// to the competition — but the picking is identical, and two copies of this
-/// would drift.
+/// `SetAppearancePhotos` and `SetEventPhotos` are whole-set writes over **remote** photo ids, so an attached id with no local record still gets a tile — a photo this grid cannot show is one the next save silently detaches.
+/// Selection is by remote id, unlike `MilestonePhotoPickerView`: this path is online-only, so a photo with no remote id cannot be attached yet.
 struct ActivityPhotoPickerView: View {
     let attachedPhotoIds: [Int]
-    /// What the subject is called, for the empty state: "performance",
-    /// "competition".
     let subject: String
-    /// The write. Passed in rather than switched on inside, so this view knows
-    /// nothing about which proc it is feeding.
     let save: @MainActor ([Int]) async throws -> Void
     let onSaved: @MainActor () async -> Void
 
@@ -41,15 +21,13 @@ struct ActivityPhotoPickerView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 8)]
 
-    /// One tile: a photo this device holds, or an id it does not.
     private struct Choice: Identifiable {
         let remoteId: Int
         let photo: Photo?
         var id: Int { remoteId }
     }
 
-    /// Attached-but-unknown ids come first so they are impossible to miss —
-    /// they are the ones a careless save would drop.
+    /// Attached-but-unknown ids come first — they are the ones a careless save would drop.
     private var choices: [Choice] {
         let local = photos
             .compactMap { photo -> Choice? in
@@ -150,10 +128,7 @@ struct ActivityPhotoPickerView: View {
         }
         .overlay(alignment: .topTrailing) {
             if let position {
-                // The number, not a checkmark: the server writes these joins in
-                // the order they arrive and reads them back that way, so the
-                // order of selection is the order they appear on the
-                // performance.
+                // The number, not a checkmark: the server writes these joins in the order they arrive and reads them back that way.
                 Text("\(position + 1)")
                     .font(.caption.bold())
                     .foregroundStyle(.white)

@@ -1,47 +1,11 @@
 import Foundation
 
 // Wire types for the competitive-activities procs (backend/activity*.go).
-//
-// Four renames the wire does not have, all for the same reason `FamilyTag` is
-// not `Tag`: the short name is taken by something in the standard library or by
-// something the reader will confuse it with.
-//
-//   Go `Result`     → `ActivityResultDTO`   `Result` is a Swift stdlib type, and
-//                                           a bare one in a `throws` context is
-//                                           a genuine misreading hazard.
-//   Go `Event`      → `ActivityEventDTO`    A bare `Event` next to SwiftUI event
-//                                           handling reads badly. Not
-//                                           `CompetitionDTO`: that bakes the
-//                                           dance vocabulary the label pack
-//                                           exists to keep out of the types.
-//   Go `Entry`      → `ActivityEntryDTO`
-//   Go `Appearance` → `AppearanceDTO`
-//
-// Three encoding traps this file answers, all from §4.3 of the plan:
-//
-//   1. Absent dates arrive as year 1, not as null. `StartDate`, `EndDate` and
-//      `OccurredAt` are non-pointer `time.Time`, so "not known yet" — an
-//      explicitly normal state — marshals as "0001-01-01T00:00:00Z". Read every
-//      one of them through `Date.isServerZero` / `Date.serverDate` before
-//      formatting, or the UI prints *Jan 1, 1* where the web prints nothing.
-//   2. Optional numbers are omitted, not null. `rank`, `outOf`, `score` and
-//      `personId` are `*T` with `omitempty`, and the backend packs them through
-//      `packOptionalInt` precisely so "no placement" stays distinguishable from
-//      "1st". They are `Optional` here and must never be defaulted to 0.
-//   3. Collections are decoded as absent-means-empty. Every list-bearing getter
-//      in backend/activity.go returns `[]T{}` rather than a nil slice today, so
-//      none of them marshal as `null` — this is insurance, not a fix, and it is
-//      the cheap direction to be wrong in: an empty list renders as an empty
-//      list, a decode failure takes the whole screen down.
-//
-// Responses are `Decodable` only. The snapshot cache stores the raw response
-// body rather than a re-encoding of these types, so nothing ever needs to
-// serialize one back.
+// Absent dates arrive as year 1 rather than null; read them through `Date.serverDate`.
 
 // MARK: - Decoding helpers
 
 private extension KeyedDecodingContainer {
-    /// Trap #3: a list the server omitted, or sent as `null`, is an empty list.
     nonisolated func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
         try decodeIfPresent([T].self, forKey: key) ?? []
     }
@@ -49,8 +13,6 @@ private extension KeyedDecodingContainer {
 
 // MARK: - Records
 
-/// A program the family participates in: "Dance". `kind` drives vocabulary via
-/// `ActivityLabels` and nothing else.
 nonisolated struct ActivityDTO: Decodable, Sendable, Identifiable {
     let id: Int
     let familyId: Int
@@ -64,32 +26,25 @@ nonisolated struct SeasonDTO: Decodable, Sendable, Identifiable {
     let activityId: Int
     let familyId: Int
     let name: String
-    /// Trap #1.
     let startDate: Date
     let endDate: Date
     let notes: String
     let createdAt: Date
 }
 
-/// Go's `Event`: one competition, game, meet or tournament.
 nonisolated struct ActivityEventDTO: Decodable, Sendable, Identifiable {
     let id: Int
     let seasonId: Int
     let familyId: Int
     let name: String
-    /// Free text: "Nuvo", "Showstopper".
     let host: String
     let location: String
-    /// Trap #1. `endDate` is zero for a single-day event, which is the common case.
     let startDate: Date
     let endDate: Date
     let notes: String
     let createdAt: Date
 }
 
-/// Go's `Entry`: the recurring competitive unit within a season — a routine, a
-/// team, a swim event. Everything but `name` is free text by design; different
-/// competitions do not agree on what a division or a level is called.
 nonisolated struct ActivityEntryDTO: Decodable, Sendable, Identifiable {
     let id: Int
     let seasonId: Int
@@ -103,47 +58,33 @@ nonisolated struct ActivityEntryDTO: Decodable, Sendable, Identifiable {
     let createdAt: Date
 }
 
-/// One entry at one event — the hinge the whole schema turns on.
 nonisolated struct AppearanceDTO: Decodable, Sendable, Identifiable {
     let id: Int
     let eventId: Int
     let entryId: Int
     let familyId: Int
-    /// Trap #1, and zero here is ordinary rather than exceptional: "sometime
-    /// that weekend" is a normal state for a competition schedule, and the
-    /// backend's own ordering falls back to the event's start date when it sees
-    /// one.
     let occurredAt: Date
     let notes: String
     let createdAt: Date
 }
 
-/// Go's `Result`. One flat record with a `kind` discriminator; the fields a
-/// placement uses and the ones a score uses are disjoint.
 nonisolated struct ActivityResultDTO: Decodable, Sendable, Identifiable {
     let id: Int
     let appearanceId: Int
     let familyId: Int
-    /// One of `ActivityResultKind`. Unlike `Activity.kind`, an unrecognized
-    /// value here is not degraded to a default on write — `normalizeResultKind`
-    /// rejects it, because `kind` decides which field carries the meaning.
     let kind: String
     let label: String
-    /// Trap #2: absent means "no placement", never 1st.
+    /// Absent means "no placement", never 1st.
     let rank: Int?
     let outOf: Int?
     let category: String
     let score: Double?
-    /// Narrows an award to one person on the entry's roster.
     let personId: Int?
     let notes: String
-    /// Display order within an appearance, assigned by the server from array
-    /// position — `ResultInput` carries no sort order of its own.
     let sortOrder: Int
     let createdAt: Date
 }
 
-/// The `Result.kind` values (backend/activity.go).
 nonisolated enum ActivityResultKind: String, CaseIterable, Sendable {
     case adjudication
     case placement
@@ -153,12 +94,9 @@ nonisolated enum ActivityResultKind: String, CaseIterable, Sendable {
 
 // MARK: - Views
 
-/// An entry with its roster, which is how every caller wants it: an entry
-/// without its people cannot be rendered or access-checked.
 nonisolated struct EntryViewDTO: Decodable, Sendable, Identifiable {
     let entry: ActivityEntryDTO
-    /// *Server* person ids, like `Milestone.photoRemoteIds` — resolve what the
-    /// local store knows and render the rest as nothing.
+    /// *Server* person ids — resolve what the local store knows, render the rest as nothing.
     let personIds: [Int]
 
     var id: Int { entry.id }
@@ -172,13 +110,9 @@ nonisolated struct EntryViewDTO: Decodable, Sendable, Identifiable {
     }
 }
 
-/// An appearance with its results and photos — the only useful shape, since an
-/// appearance alone says a routine turned up and nothing about how it went.
 nonisolated struct AppearanceViewDTO: Decodable, Sendable, Identifiable {
     let appearance: AppearanceDTO
     let results: [ActivityResultDTO]
-    /// Filtered per caller by `visiblePhotoIds`, so these are ids this session
-    /// can actually load — but not necessarily ones this device has pulled.
     let photoIds: [Int]
 
     var id: Int { appearance.id }
@@ -193,10 +127,6 @@ nonisolated struct AppearanceViewDTO: Decodable, Sendable, Identifiable {
     }
 }
 
-/// One row of either roster-scoped view. It carries both the entry that
-/// performed and the competition it happened at, even though the caller already
-/// knows one of them, so one row component renders a performance wherever it
-/// appears.
 nonisolated struct AppearanceDetailDTO: Decodable, Sendable, Identifiable {
     let appearance: AppearanceDTO
     let results: [ActivityResultDTO]
@@ -220,17 +150,10 @@ nonisolated struct AppearanceDetailDTO: Decodable, Sendable, Identifiable {
     }
 }
 
-/// The parent context a record needs to be readable, and nothing more. These
-/// exist because the roster-scoped views cross a link boundary.
 nonisolated struct SeasonSummaryDTO: Decodable, Sendable, Identifiable {
     let id: Int
     let name: String
-    /// The owning activity's kind, carried here because it is what selects the
-    /// label pack. Read the pack from this wherever the response has no
-    /// `ActivityDTO` — a season that arrives without it renders as "Event",
-    /// which is the one word the label map exists to avoid.
     let kind: String
-    /// Trap #1.
     let startDate: Date
     let endDate: Date
 }
@@ -240,7 +163,6 @@ nonisolated struct EventSummaryDTO: Decodable, Sendable, Identifiable {
     let name: String
     let host: String
     let location: String
-    /// Trap #1.
     let startDate: Date
     let endDate: Date
 }
@@ -248,10 +170,6 @@ nonisolated struct EventSummaryDTO: Decodable, Sendable, Identifiable {
 // MARK: - Requests
 
 nonisolated struct ListActivitiesRequestDTO: Encodable, Sendable {
-    /// Zero means the caller's primary family, matching the Go fallback — the
-    /// same convention `FamilyMembershipService` uses. This and
-    /// `CreateActivity` are the only activities requests that carry a family
-    /// id; everything below activity level is reached by its own id.
     let familyId: Int
 }
 
@@ -273,9 +191,6 @@ nonisolated struct GetEntryHistoryRequestDTO: Encodable, Sendable {
 
 nonisolated struct GetPersonSeasonRequestDTO: Encodable, Sendable {
     let personId: Int
-    /// Zero means every season the person has ever been in. A linked household
-    /// cannot list seasons — those have no person dimension — so requiring one
-    /// would leave it with no way to ask the question at all.
     let seasonId: Int
 }
 
@@ -300,8 +215,6 @@ nonisolated struct ListActivitiesResponseDTO: Decodable, Sendable {
 
 nonisolated struct ListSeasonsResponseDTO: Decodable, Sendable {
     let activityId: Int
-    /// Newest first: a season list is almost always consulted to get at the
-    /// current season.
     let seasons: [SeasonDTO]
 
     private enum CodingKeys: String, CodingKey { case activityId, seasons }
@@ -313,9 +226,6 @@ nonisolated struct ListSeasonsResponseDTO: Decodable, Sendable {
     }
 }
 
-/// Events and entries ship once each and appearances as the bare hinge, rather
-/// than repeating the parents on every row. The client joins on `entryId` and
-/// `eventId`, which it already has — see `SeasonView`.
 nonisolated struct GetSeasonOverviewResponseDTO: Decodable, Sendable {
     let activity: ActivityDTO
     let season: SeasonDTO
@@ -340,8 +250,6 @@ nonisolated struct GetSeasonOverviewResponseDTO: Decodable, Sendable {
 nonisolated struct GetEventDetailResponseDTO: Decodable, Sendable {
     let event: ActivityEventDTO
     let season: SeasonSummaryDTO
-    /// The competition's *own* photos — the weekend shots that are not of any
-    /// one routine. A routine's photos travel with its appearance.
     let photoIds: [Int]
     let appearances: [AppearanceDetailDTO]
 
@@ -375,9 +283,7 @@ nonisolated struct GetEntryHistoryResponseDTO: Decodable, Sendable {
 
 nonisolated struct GetPersonSeasonResponseDTO: Decodable, Sendable {
     let personId: Int
-    /// Echoes the request: zero means every season the person has been in.
     let seasonId: Int
-    /// Only the seasons the returned entries belong to.
     let seasons: [SeasonSummaryDTO]
     let entries: [EntryViewDTO]
     let appearances: [AppearanceDetailDTO]
@@ -396,11 +302,6 @@ nonisolated struct GetPersonSeasonResponseDTO: Decodable, Sendable {
     }
 }
 
-/// One list per free-text field, so a form can autocomplete each one from what
-/// this family has already typed. Not a nicety: adjudication labels are free
-/// text by design and nothing normalizes them at write time, so without
-/// suggestions "High Gold" becomes "high gold" and the season view cannot even
-/// count them, let alone rank them.
 nonisolated struct ListActivityVocabularyResponseDTO: Decodable, Sendable {
     let activityId: Int
     let adjudications: [String]
@@ -432,32 +333,15 @@ nonisolated struct ListActivityVocabularyResponseDTO: Decodable, Sendable {
 }
 
 // MARK: - Write requests
-//
-// Trap #5, and it is the one that loses data quietly: request dates are
-// `*string` in `YYYY-MM-DD`, and **nil clears**. `UpdateAppearance` and
-// `UpdateSeason` assign whatever `parseActivityDate` returns unconditionally, so
-// omitting the key does *not* mean "leave it alone" — it means "set it to
-// unknown". An editor must always send the value it is currently showing.
-//
-// Swift's synthesized encoding uses `encodeIfPresent` for an `Optional`
-// property, so `nil` here omits the key, which is exactly the clear. That is the
-// intended behaviour and not an accident: `ActivityDateText.request` turns the
-// screen's `Date?` into this field, and a screen that has no date genuinely
-// means "unknown".
+// Dates are `YYYY-MM-DD` strings and **nil clears**, so an editor must always send the value it is showing.
 
 nonisolated struct CreateAppearanceRequestDTO: Encodable, Sendable {
     let eventId: Int
     let entryId: Int
-    /// `YYYY-MM-DD`; absent means "sometime that weekend", which is a normal
-    /// state for a competition schedule rather than missing information.
     let occurredAt: String?
     let notes: String
 }
 
-/// Deliberately cannot move an appearance to a different event or entry: which
-/// routine performed at which competition is the identity of the record, not a
-/// field on it. A misfiled one is deleted and re-entered, which also makes it
-/// obvious that its results went with it.
 nonisolated struct UpdateAppearanceRequestDTO: Encodable, Sendable {
     let id: Int
     let occurredAt: String?
@@ -468,13 +352,6 @@ nonisolated struct AppearanceIdRequestDTO: Encodable, Sendable {
     let id: Int
 }
 
-/// A `Result` without the fields the server owns.
-///
-/// There is no sort order: position in the array *is* the order, so reordering a
-/// results sheet is a reordered array rather than a second field to keep in
-/// sync. The optional numbers are `encodeIfPresent` for the same reason they are
-/// `decodeIfPresent` coming back — a `0` rank is not "no rank", it is a rank the
-/// server refuses.
 nonisolated struct ResultInputDTO: Encodable, Sendable {
     let kind: String
     let label: String
@@ -486,17 +363,13 @@ nonisolated struct ResultInputDTO: Encodable, Sendable {
     let notes: String
 }
 
-/// Replaces the whole set. Results arrive together off one sheet and are entered
-/// together, so replace-all is the honest shape — and it means a save must carry
-/// every row the appearance should end up with, never just the changed ones.
+/// Replaces the whole set, so a save must carry every row the appearance should end up with.
 nonisolated struct SetAppearanceResultsRequestDTO: Encodable, Sendable {
     let appearanceId: Int
     let results: [ResultInputDTO]
 }
 
-/// Also a whole-set write, over *remote* photo ids. A photo still uploading has
-/// no remote id and cannot be attached; since this path is online-only there is
-/// nothing to resolve later.
+/// Whole-set write over *remote* photo ids; a photo still uploading cannot be attached.
 nonisolated struct SetAppearancePhotosRequestDTO: Encodable, Sendable {
     let appearanceId: Int
     let photoIds: [Int]
@@ -513,31 +386,14 @@ nonisolated struct ActivityDeleteResponseDTO: Decodable, Sendable {
 }
 
 // MARK: - Structure write requests
-//
-// The annual setup half: the program, its seasons, the competitions in a season,
-// the routines in a season, and who is in a routine. Trap #5 applies to every
-// date here too — `UpdateSeason` and `UpdateEvent` assign `parseActivityDate`'s
-// result unconditionally, so an editor sends what it is showing or the date is
-// cleared.
 
-/// One id, which is the whole request for `DeleteActivity`, `DeleteSeason`,
-/// `DeleteEvent` and `DeleteEntry`.
-///
-/// One Swift type for four Go types because all four marshal to `{"id": n}` and
-/// nothing distinguishes them on the wire. `RPCMethod` is what says which record
-/// is being deleted, and that is checked by its own tests.
 nonisolated struct ActivityRecordIdRequestDTO: Encodable, Sendable {
     let id: Int
 }
 
 nonisolated struct CreateActivityRequestDTO: Encodable, Sendable {
-    /// Zero means the caller's primary family. This and `ListActivities` are the
-    /// only activities requests that carry one.
     let familyId: Int
     let name: String
-    /// Normalized server-side by `normalizeActivityKind`: anything unrecognized
-    /// becomes generic rather than failing the write, since kind drives wording
-    /// and nothing else.
     let kind: String
 }
 
@@ -603,14 +459,10 @@ nonisolated struct CreateActivityEntryRequestDTO: Encodable, Sendable {
     let division: String
     let level: String
     let notes: String
-    /// Sets the roster as part of the create. Absent leaves it empty; the Go
-    /// side only calls `setEntryRosterTx` when the key is present, so `nil` and
-    /// `[]` are the same thing here — unlike on `UpdateMilestone`, where they
-    /// mean opposite things.
+    /// Absent leaves the roster empty; `nil` and `[]` mean the same thing here.
     let personIds: [Int]?
 }
 
-/// The roster is deliberately not on the update: `SetEntryRoster` owns it.
 nonisolated struct UpdateActivityEntryRequestDTO: Encodable, Sendable {
     let id: Int
     let name: String
@@ -621,8 +473,6 @@ nonisolated struct UpdateActivityEntryRequestDTO: Encodable, Sendable {
     let notes: String
 }
 
-/// Replaces the roster wholesale. Rosters are small and always edited as a set —
-/// nobody adds one dancer to a routine in isolation.
 nonisolated struct SetEntryRosterRequestDTO: Encodable, Sendable {
     let entryId: Int
     let personIds: [Int]
@@ -632,8 +482,6 @@ nonisolated struct ActivityEntryResponseDTO: Decodable, Sendable {
     let entry: EntryViewDTO
 }
 
-/// The competition's own photos — the weekend shots that are not of any one
-/// routine. Whole-set, like every other `Set…` proc in this feature.
 nonisolated struct SetEventPhotosRequestDTO: Encodable, Sendable {
     let eventId: Int
     let photoIds: [Int]

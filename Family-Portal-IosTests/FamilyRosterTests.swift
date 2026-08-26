@@ -3,11 +3,6 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// Two screens show the same household — the Family tab and Settings' family
-/// management — and each used to carry its own copy of the partition and the
-/// four-case birthday comparison. A roster that reads one way in one place and
-/// another way in the other is a bug nobody would think to look for, so the
-/// ordering is pinned here rather than left to whichever copy was edited last.
 @MainActor
 @Suite("Family roster")
 struct FamilyRosterTests {
@@ -43,9 +38,6 @@ struct FamilyRosterTests {
         #expect(Person.children(in: people).map(\.name) == ["Eldest", "Middle", "Youngest"])
     }
 
-    /// A person can be added before anyone knows or bothers to enter a birthday,
-    /// and there is no sensible place to guess. They collect at the end rather
-    /// than sorting to the top, where they would displace the eldest child.
     @Test("Children with no birthday sort last, by name")
     func unknownBirthdaysSortLast() {
         let people = [
@@ -57,18 +49,10 @@ struct FamilyRosterTests {
         #expect(Person.children(in: people).map(\.name) == ["Eldest", "Ada", "Zoe"])
     }
 
-    /// `PreviewData` used to write out its own model list, and left `ChatMessage`
-    /// out of it — so every preview that touched a chat model crashed, and
-    /// nothing said so, because a schema is data rather than a type. This is
-    /// what stops a model added later from reaching the app's store and not the
-    /// other two.
     @Test("Previews and tests build the same store the app does")
     func schemaIsSharedWithPreviewsAndTests() throws {
         let context = try TestStore.makeContext()
 
-        // A chat message is the one that was missing. Inserting and reading it
-        // back is what proves the test store really carries the app's schema
-        // rather than a lookalike.
         context.insert(ChatMessage(
             clientMessageId: UUID().uuidString,
             userId: 1,
@@ -81,8 +65,6 @@ struct FamilyRosterTests {
 
         let previewMessages = try PreviewData.container.mainContext
             .fetchCount(FetchDescriptor<ChatMessage>())
-        // Zero is the right answer; the point is that the fetch does not trap on
-        // a model the preview container never declared.
         #expect(previewMessages >= 0)
     }
 }

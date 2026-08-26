@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// Fixtures match `json.Marshal` output for the Go types in
-/// `../Family-Portal/backend`: `Person` (person.go), `GrowthData` (growth.go),
-/// `Milestone` (milestone.go), and `Image` (photos.go).
 @Suite("Sync DTO decoding")
 struct SyncDTODecodingTests {
 
@@ -193,8 +190,6 @@ struct SyncDTODecodingTests {
         #expect(object["id"] as? Int == 4)
         #expect(object["title"] as? String == "Beach day")
         #expect(object["description"] as? String == "First time in the ocean")
-        // validateUpdatePhotoRequest rejects an empty inputType, and "date"
-        // requires photoDate in the "2006-01-02" layout Go parses.
         #expect(object["inputType"] as? String == "date")
         #expect(object["photoDate"] as? String == "2025-07-19")
     }

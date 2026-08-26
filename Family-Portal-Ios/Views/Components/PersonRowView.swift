@@ -4,8 +4,7 @@ struct PersonRowView: View {
     let name: String
     let type: PersonType
     let birthday: Date?
-    /// Travels with `birthday`, which it qualifies: the same date is a due date
-    /// or a birth date depending on it, and the two must not be passed apart.
+    /// Travels with `birthday`, which it qualifies: the same date is a due date or a birth date depending on it.
     let isPregnancy: Bool
     let profilePhotoRemoteId: Int?
     let crop: ProfilePhotoCrop

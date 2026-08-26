@@ -38,15 +38,13 @@ struct PhotoThumbnailView: View {
                     .padding(.vertical, 3)
                     .frame(maxWidth: .infinity)
                     .background(.ultraThinMaterial)
-                    // Drawn over the image, which is already labelled with the
-                    // same words. Left visible it would be announced twice.
+                    // Drawn over the image, which is already labelled with the same words.
                     .accessibilityHidden(true)
             }
         }
         .aspectRatio(1, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        // One element, so a grid reads as a list of photos rather than as a
-        // stack of layers per cell.
+        // One element, so a grid reads as a list of photos rather than a stack of layers per cell.
         .accessibilityElement(children: .combine)
     }
 }

@@ -89,9 +89,7 @@ private struct MilestoneDetailSheetView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    // Given a heading because the line above already shows the
-                    // milestone's *category* behind a tag glyph — two different
-                    // things one word apart, which a label keeps separate.
+                    // Given a heading because the line above already shows the milestone's *category* behind a tag glyph.
                     TagChipsView(tagRemoteIds: milestone.tagRemoteIds, title: "Tags")
 
                     NavigationLink {

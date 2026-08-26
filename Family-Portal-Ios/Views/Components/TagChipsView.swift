@@ -1,26 +1,16 @@
 import SwiftUI
 import SwiftData
 
-/// The tags on a photo or milestone, resolved from the ids the record carries.
-///
-/// Read-only, as the web's viewing surfaces are: tags are created and applied on
-/// the web, and iOS shows what came back. A record stores ids alone, so a tag the
-/// local vocabulary cannot resolve draws nothing at all — the same as
-/// `view-photo.tsx`, which skips an id it has no `Tag` for. That happens whenever
-/// a tag is created between two pulls, and it is why the whole section (heading
-/// included) disappears when nothing resolves rather than leaving an empty
-/// "Tags" header behind.
+/// The tags on a photo or milestone, resolved from the ids the record carries. Read-only, as on the web.
+/// An id the local vocabulary cannot resolve draws nothing, which happens whenever a tag is created between two pulls — so the whole section disappears when nothing resolves rather than leaving an empty header.
 struct TagChipsView: View {
     let tagRemoteIds: [Int]
-    /// A heading drawn above the chips, for surfaces with room for one.
     var title: String?
 
-    /// The whole vocabulary: a family's tag list is short, and filtering it in a
-    /// `#Predicate` against an array of ids isn't something SwiftData can do.
+    /// The whole vocabulary: a family's tag list is short, and SwiftData cannot filter an array of ids in a `#Predicate`.
     @Query private var tags: [FamilyTag]
 
-    /// Kept in the record's own order, which is the order the server reports the
-    /// pairings in and what the web renders.
+    /// Kept in the record's own order, which is what the server reports and the web renders.
     private var resolvedTags: [FamilyTag] {
         var byRemoteId: [Int: FamilyTag] = [:]
         for tag in tags {
@@ -50,10 +40,7 @@ struct TagChipsView: View {
     }
 }
 
-/// One tag: its colour as a dot and an outline, its name in the usual text
-/// colour. The colour is arbitrary and user-chosen, so it is never asked to
-/// carry the label — a pale tag on a light background would be unreadable, and
-/// the same tag has to work in both appearances.
+/// One tag: its colour as a dot and an outline, its name in the usual text colour — a user-chosen colour is never asked to carry the label.
 struct TagChipView: View {
     let tag: FamilyTag
 

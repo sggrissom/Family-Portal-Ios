@@ -1,17 +1,6 @@
 import SwiftUI
 
-/// Account deletion, which App Store Review Guideline 5.1.1(v) requires of any
-/// app that offers account creation — `CreateAccountView` does, so this screen
-/// is not optional.
-///
-/// It wraps `POST /api/delete-account` (backend/account_deletion.go). What goes
-/// and what stays is the backend's decision and this screen only reports it: the
-/// sign-in, the sessions, the registered devices and the user's own chat
-/// messages go; the family's records stay with the family as long as somebody
-/// else is still in it; a family the deletion empties is destroyed with
-/// everything in it. Getting that wording right matters more here than anywhere
-/// else in the app, because it is the last thing the user reads before the only
-/// irreversible action they can take.
+/// Account deletion, required by App Store Review Guideline 5.1.1(v). Wraps `POST /api/delete-account` (backend/account_deletion.go) and only reports what the backend decides goes and stays.
 struct DeleteAccountView: View {
     @Environment(AuthService.self) private var authService
     @Environment(\.dismiss) private var dismiss
@@ -22,9 +11,7 @@ struct DeleteAccountView: View {
     @State private var showFinalConfirmation = false
     @State private var isDeleting = false
 
-    /// The address the typed one has to match. The server compares
-    /// case-insensitively after trimming, and so does `canSubmit` below, so the
-    /// button is never enabled on something the server would then refuse.
+    /// The address the typed one has to match. The server compares case-insensitively after trimming, and so does `canSubmit`.
     private var accountEmail: String {
         authService.currentUser?.email ?? ""
     }
@@ -63,9 +50,7 @@ struct DeleteAccountView: View {
                 SecureField("Password", text: $password)
                     .textContentType(.password)
             } footer: {
-                // A Google-only account has no password on file and the server
-                // skips the check, so an empty field is a real answer here
-                // rather than an incomplete form.
+                // A Google-only account has no password on file and the server skips the check, so an empty field is a real answer here.
                 Text("Leave blank if you sign in with Google.")
             }
 
@@ -79,9 +64,6 @@ struct DeleteAccountView: View {
             } header: {
                 Text("Type your email to confirm")
             } footer: {
-                // In the footer rather than as the field's placeholder: a
-                // placeholder disappears on the first keystroke, which is
-                // exactly when the address needs to still be readable.
                 Text(accountEmail)
                     .font(.callout.monospaced())
             }
@@ -114,9 +96,7 @@ struct DeleteAccountView: View {
         }
         .navigationTitle("Delete Account")
         .navigationBarTitleDisplayMode(.inline)
-        // A push, so there is no interactive dismissal to disable — but the
-        // back button is a way to leave mid-request, and the unstructured task
-        // below would go on deleting the account behind an empty stack.
+        // A push, so there is no interactive dismissal to disable — but the back button would leave the unstructured task below still deleting the account.
         .navigationBarBackButtonHidden(isDeleting)
         .confirmationDialog(
             "Delete your account?",
@@ -143,18 +123,11 @@ struct DeleteAccountView: View {
         )
 
         guard let failure else {
-            // The account is gone and the local store with it. Popping is
-            // mostly belt and braces — `ContentView` gates on
-            // `isAuthenticated`, so the whole tab has already been replaced by
-            // the sign-in screen — but it leaves nothing standing on a stack
-            // rooted in an account that no longer exists.
             dismiss()
             return
         }
 
-        // A refusal leaves the session untouched, so the user stays here and
-        // fixes the field the message names. The password is cleared because
-        // the most likely refusal is a wrong one.
+        // A refusal leaves the session untouched. The password is cleared because the most likely refusal is a wrong one.
         password = ""
         errorMessage = failure
     }

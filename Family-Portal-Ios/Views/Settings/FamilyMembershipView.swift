@@ -1,11 +1,6 @@
 import SwiftUI
 
-/// Who can sign in and see one family, and how somebody stops being able to.
-///
-/// Distinct from `FamilyMembersView` and `FamilyManagementView`, which both list
-/// `Person` records — the family's *people*. This lists user accounts. The two
-/// never line up: a grandparent with a login is a member and may not be a
-/// person, and every child is a person and never a member.
+/// Who can sign in and see one family. Distinct from `FamilyMembersView` and `FamilyManagementView`, which list `Person` records — the family's people, not its accounts.
 struct FamilyMembershipView: View {
     let family: FamilyInfoDTO
 
@@ -23,8 +18,7 @@ struct FamilyMembershipView: View {
 
     private let membership = FamilyMembershipService()
 
-    /// The caller's own membership row. Absent while loading, and also for a
-    /// family the app knows about but the account no longer belongs to.
+    /// The caller's own membership row. Absent while loading, and for a family the account no longer belongs to.
     private var isMember: Bool {
         members.contains { $0.isSelf }
     }
@@ -99,9 +93,7 @@ struct FamilyMembershipView: View {
         }
     }
 
-    /// The removal hint is only shown to somebody who has a member to remove: the
-    /// owner alone in a family can remove nobody, since removing yourself is
-    /// leaving.
+    /// Only shown to somebody who has a member to remove: removing yourself is leaving.
     private var membersFooter: String {
         let shared = "Everyone here can see and edit this family's people, photos, measurements and milestones."
 
@@ -135,8 +127,6 @@ struct FamilyMembershipView: View {
             }
         }
         .swipeActions(edge: .trailing) {
-            // The backend enforces both of these too; showing the action anyway
-            // would only trade a swipe for an error message.
             if callerIsOwner && !member.isSelf {
                 Button("Remove", role: .destructive) {
                     memberToRemove = member
@@ -169,9 +159,6 @@ struct FamilyMembershipView: View {
                 }
             } else {
                 Section {
-                    // Says where, now that there is somewhere: Settings → Delete
-                    // Account is the only route to this, and a user reading
-                    // this sentence is at the bottom of a three-deep stack.
                     Text("You are the only member of this family. To remove it and everything in it, delete your account from Settings.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -213,9 +200,7 @@ struct FamilyMembershipView: View {
             await authService.applyLeftFamily(family.id, auth: auth)
             dismiss()
 
-            // That family's people, photos and history are still on the device.
-            // Only a pull clears them, because it deletes whatever the timeline
-            // no longer lists — and the timeline no longer lists any of it.
+            // That family's people and photos stay on the device until a pull clears them.
             await syncService?.pullFamilyData()
         } catch {
             errorMessage = error.localizedDescription

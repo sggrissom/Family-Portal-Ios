@@ -1,13 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// The families the user belongs to, their invite codes, and the way into
-/// another family. `GetFamilyInfo` and `JoinFamily` have always existed on the
-/// backend and the `inviteCode` was unreachable from the app, so there was no
-/// way to invite anyone or to accept an invitation on iOS.
-///
-/// The membership half lives one level down, in `FamilyMembershipView`; only
-/// rotating the invite code is here, next to the code it replaces.
+/// The families the user belongs to, their invite codes, and the way into another family. The membership half lives one level down, in `FamilyMembershipView`.
 struct FamilyInfoView: View {
     @Environment(AuthService.self) private var authService
     @Environment(SyncService.self) private var syncService: SyncService?
@@ -18,13 +12,11 @@ struct FamilyInfoView: View {
     @State private var isLoading = true
     @State private var isJoining = false
     @State private var rotationTarget: FamilyInfoDTO?
-    /// Keyed by family: with several families on screen, an unlabelled message
-    /// would sit under whichever section the user happens to look at.
+    /// Keyed by family: with several on screen, an unlabelled message would sit under whichever section the user happens to look at.
     @State private var rotationFailure: RotationFailure?
     @State private var isRotating = false
 
     private struct RotationFailure: Identifiable {
-        /// The family the rotation was attempted on.
         let id: Int
         let message: String
     }
@@ -106,9 +98,6 @@ struct FamilyInfoView: View {
                 Label("Share Invitation", systemImage: "square.and.arrow.up")
             }
 
-            // An invite code is a bearer secret that gets pasted into messaging
-            // apps. Being able to retire one without a support request is the
-            // difference between a leak being a shrug and being a migration.
             Button {
                 rotationTarget = family
             } label: {
@@ -180,8 +169,7 @@ struct FamilyInfoView: View {
 
         do {
             let newCode = try await membership.rotateInviteCode(familyId: family.id)
-            // The response is authoritative, so the section re-renders with the
-            // new code without a second round trip to `GetFamilyInfo`.
+            // The response is authoritative, so the section re-renders without a second round trip to `GetFamilyInfo`.
             authService.applyRotatedInviteCode(newCode, forFamily: family.id)
         } catch {
             rotationFailure = RotationFailure(id: family.id, message: error.localizedDescription)

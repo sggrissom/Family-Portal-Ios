@@ -1,26 +1,14 @@
 import Foundation
 
-/// Vocabulary for the activities UI, keyed by `Activity.kind`.
-///
-/// A port of `frontend/pages/activities/labels.ts`. Nothing in `backend/` knows
-/// the word "routine" or "competition" — the schema is deliberately
-/// activity-agnostic (Event, Entry, Appearance) — so this map is the only place
-/// the domain word comes back, and shipping a sport label pack is a second
-/// entry here rather than a second set of screens.
-///
-/// The view layer must never hardcode "Routine" or "Competition". Getting that
-/// wrong is invisible today, because only dance ships, and expensive later.
+/// Vocabulary for the activities UI, keyed by `Activity.kind`. A port of `frontend/pages/activities/labels.ts`.
+/// Nothing in `backend/` knows the word "routine" or "competition", so this map is the only place the domain word comes back. The view layer must never hardcode one.
 nonisolated struct ActivityLabels: Equatable, Sendable {
-    /// A season's competitions / games / meets.
     let event: String
     let eventPlural: String
-    /// The recurring competitive unit: a routine, a team, a swim event.
     let entry: String
     let entryPlural: String
-    /// One entry at one event.
     let appearance: String
     let appearancePlural: String
-    /// What the people on an entry are called collectively.
     let roster: String
 
     static let dance = ActivityLabels(
@@ -53,11 +41,7 @@ nonisolated struct ActivityLabels: Equatable, Sendable {
         roster: "Members"
     )
 
-    /// Unknown kinds fall to generic, which is the same fallback
-    /// `normalizeActivityKind` applies on write — so the default branch is not
-    /// dead code, it is what a record written by an older or newer client
-    /// renders as. Trimming and lowercasing first matches that normalizer
-    /// exactly.
+    /// Unknown kinds fall to generic, the same fallback `normalizeActivityKind` applies on write.
     static func forKind(_ kind: String) -> ActivityLabels {
         switch kind.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case ActivityKind.dance: return .dance
@@ -67,18 +51,14 @@ nonisolated struct ActivityLabels: Equatable, Sendable {
     }
 }
 
-/// The `Activity.kind` values the backend normalizes to
-/// (`normalizeActivityKind`, backend/activity_procs.go).
+/// The `Activity.kind` values the backend normalizes to (`normalizeActivityKind`, backend/activity_procs.go).
 nonisolated enum ActivityKind {
     static let dance = "dance"
     static let sport = "sport"
     static let generic = "generic"
 
-    /// Every kind a picker may offer, in the order the web offers them.
     static let all = [dance, sport, generic]
 
-    /// The kind's own name, for a form that is choosing one — as opposed to
-    /// `ActivityLabels`, which is the vocabulary a chosen kind produces.
     static func displayName(_ kind: String) -> String {
         switch kind.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case dance: return "Dance"

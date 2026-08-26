@@ -3,10 +3,6 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// Tags arrive as ids on photos and milestones plus a separate vocabulary from
-/// `ListTags`, and a chip only draws when both halves line up. These cover the
-/// decoding of each half, the pull that stores them, and the colour string —
-/// which the backend never validates.
 @Suite("Tags")
 struct TagDecodingTests {
 
@@ -25,9 +21,6 @@ struct TagDecodingTests {
         #expect(dto.familyId == 7)
     }
 
-    /// `createdAt` is the one field the DTO deliberately drops. A tag whose
-    /// timestamp is missing or unparseable must not take the family's whole tag
-    /// list down with it.
     @Test("A Tag decodes without createdAt")
     func decodesTagWithoutCreatedAt() throws {
         let json = """
@@ -54,8 +47,6 @@ struct TagDecodingTests {
 
     // MARK: - tagIds on records
 
-    /// `TagIds` carries `omitempty` on both records, so "no tags" reaches the
-    /// phone as an absent key rather than an empty array.
     @Test("A milestone with no tags omits tagIds entirely")
     func milestoneWithoutTagIds() throws {
         let json = try JSONSerialization.data(withJSONObject: Fixture.milestone(id: 77, personId: 12))
@@ -102,9 +93,6 @@ struct TagDecodingTests {
     }
 }
 
-/// The colour is whatever the web's colour input wrote, and nothing on the Go
-/// side checks it, so the parser has to answer for every string that can reach
-/// it rather than only the well-formed ones.
 @Suite("Tag colours")
 struct TagColorTests {
 
@@ -126,7 +114,6 @@ struct TagColorTests {
         #expect(withHash.red == 1)
     }
 
-    /// The same expansion CSS applies, since these strings were written for CSS.
     @Test("A three-digit shorthand expands by doubling each digit")
     func parsesShorthand() throws {
         let short = try #require(TagColor.components(forHex: "#4a9"))
@@ -145,8 +132,6 @@ struct TagColorTests {
         #expect(padded.blue == bare.blue)
     }
 
-    /// Every one of these is a value the backend would happily store, and each
-    /// has to leave the chip drawable rather than crashing or drawing black.
     @Test("Anything that isn't a hex colour is a miss, not a wrong colour")
     func rejectsMalformedValues() {
         #expect(TagColor.components(forHex: "") == nil)
@@ -159,9 +144,6 @@ struct TagColorTests {
     }
 }
 
-/// The pull side: tags are their own list, and unlike people or photos they are
-/// decoration — so the interesting cases are what happens when the list is late,
-/// stale or missing.
 @MainActor
 @Suite("Tag sync")
 struct TagSyncTests {
@@ -193,8 +175,6 @@ struct TagSyncTests {
         #expect(tags.first?.colorHex == "#4A90D9")
         #expect(tags.last?.name == "School")
 
-        // `ListTagsRequest` is an empty struct, but vbeam still expects a JSON
-        // body — a proc called with none fails to unmarshal.
         let requests = harness.server.requests(for: "rpc/ListTags")
         #expect(requests.count == 1)
         #expect(String(data: requests.first?.body ?? Data(), encoding: .utf8) == "{}")
@@ -253,16 +233,12 @@ struct TagSyncTests {
         await harness.service.pullFamilyData()
 
         let milestones = try harness.context.fetch(FetchDescriptor<Milestone>())
-        // Server order, not sorted: it is what the web renders and what the
-        // chips follow.
         #expect(milestones.first?.tagRemoteIds == [9, 3])
 
         let photos = try harness.context.fetch(FetchDescriptor<Photo>())
         #expect(photos.first?.tagRemoteIds == [3])
     }
 
-    /// Tags are a label on records the pull has already stored. A tag list that
-    /// fails should cost the user their pills at worst — never the pull itself.
     @Test("A failing tag list doesn't fail the pull")
     func pullSurvivesTagFailure() async throws {
         let harness = try TestSync.harness()
@@ -279,9 +255,6 @@ struct TagSyncTests {
         #expect(harness.service.lastSyncDate != nil)
     }
 
-    /// A list that never arrived says nothing about which tags still exist.
-    /// Treating the failure as "the family has no tags" would blank every chip
-    /// on the device until the next successful sync.
     @Test("A failing tag list leaves the tags already stored alone")
     func pullKeepsTagsWhenListFails() async throws {
         let harness = try TestSync.harness()

@@ -3,10 +3,6 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// A chat message can arrive three ways — the send that created it, the socket
-/// echo, and the next `loadMessages` page — and each carries a different subset
-/// of the ids the others match on. The dedup rules that reconcile them are the
-/// whole reason a sent message doesn't appear twice.
 @MainActor
 @Suite("ChatService")
 struct ChatServiceTests {
@@ -54,8 +50,6 @@ struct ChatServiceTests {
         #expect(server.allRequests.isEmpty)
     }
 
-    /// The message is already on screen when the send fails, so it has to be
-    /// marked rather than dropped — `retrySendMessage` is the only way back.
     @Test("A failed send is kept and marked, then recovers on retry")
     func failedSendIsMarkedAndRetryable() async throws {
         let server = FakeHTTPServer()
@@ -166,9 +160,6 @@ struct ChatServiceTests {
         #expect(service.isLoading == false)
     }
 
-    /// The local row is gone the moment the user taps delete; if the server never
-    /// agrees, the message comes back on the next pull, so the failure has to be
-    /// visible when it happens.
     @Test("A delete the server rejects is reported")
     func deleteFailureIsReported() async throws {
         let server = FakeHTTPServer()

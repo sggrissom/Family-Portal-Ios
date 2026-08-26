@@ -1,17 +1,9 @@
-//
-//  Family_Portal_IosApp.swift
-//  Family-Portal-Ios
-//
-//  Created by Grissom on 1/22/26.
-//
-
 import SwiftUI
 import SwiftData
 import UIKit
 import GoogleSignIn
 
-/// SwiftUI has no hook for the APNs token, so registration results still have
-/// to arrive through a UIApplicationDelegate.
+/// SwiftUI has no hook for the APNs token, so registration results still arrive through a UIApplicationDelegate.
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
@@ -60,9 +52,7 @@ struct Family_Portal_IosApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                // Ordered before `.environment(errorPresenter)` on purpose: the
-                // modifier reads the presenter from its own environment, and a
-                // value injected later in the chain wraps everything earlier.
+                // Ordered before `.environment(errorPresenter)`: the modifier reads the presenter from its own environment, and a value injected later wraps everything earlier.
                 .appErrorAlert()
                 .environment(errorPresenter)
                 .environment(authService)
@@ -78,9 +68,6 @@ struct Family_Portal_IosApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
                         Task {
-                            // Ahead of the auth guard: opening the app is what
-                            // retires the badge, whether or not the session
-                            // survived.
                             await PushNotificationService.shared.clearBadge()
                             guard authService.isAuthenticated else { return }
                             await APIClient.shared.ensureFreshAccessToken()
@@ -101,15 +88,9 @@ struct Family_Portal_IosApp: App {
                     }
                 }
                 .onOpenURL { url in
-                    // Google's callback comes back on a custom scheme and has
-                    // nothing to do with routing, so it gets first refusal.
                     if authService.handleGoogleSignInURL(url) { return }
                     deepLinkRouter.open(url: url)
                 }
-                // A universal link arrives as a user activity rather than
-                // through `onOpenURL`, and both paths have to work: the same
-                // https URL opens the app from Safari, from Messages, and from
-                // a tapped notification's destination.
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                     guard let url = activity.webpageURL else { return }
                     deepLinkRouter.open(url: url)
@@ -120,13 +101,9 @@ struct Family_Portal_IosApp: App {
 
     @MainActor
     private func setupServices() async {
-        // Before the badge clear below, which is also the notification-tap
-        // handler: a cold launch from a tapped notification runs that handler
-        // early, and it needs somewhere to put the destination.
         PushNotificationService.shared.router = deepLinkRouter
 
-        // A cold launch from a tapped notification never crosses a scenePhase
-        // change, so the .active handler alone would leave the badge standing.
+        // A cold launch from a tapped notification never crosses a scenePhase change, so the .active handler alone would leave the badge standing.
         await PushNotificationService.shared.clearBadge()
 
         networkMonitor.onConnectivityRestored = { [weak syncService] in
@@ -137,27 +114,20 @@ struct Family_Portal_IosApp: App {
             }
         }
 
-        // Retiring the device token needs a valid session, so it has to happen
-        // before logout clears it — wherever logout is triggered from.
+        // Retiring the device token needs a valid session, so it has to happen before logout clears it.
         authService.onWillLogout = {
             await PushNotificationService.shared.unregisterForPushNotifications()
         }
 
-        // A second account signing in on this device would otherwise inherit the
-        // first one's store.
         authService.onUnownedLocalData = { scope in
             await self.eraseLocalData(scope)
         }
 
-        // A deleted account leaves nothing on the server to reconcile against,
-        // so the whole store goes — the same sweep, for a different reason.
         authService.onAccountDeleted = {
             await self.eraseLocalData(.everything)
         }
 
-        // Runs alongside session restore rather than before it: the check must
-        // never delay a signed-in user, and an unsupported build is gated by
-        // ContentView regardless of how the restore turns out.
+        // Runs alongside session restore rather than before it: the check must never delay a signed-in user.
         async let versionCheck: Void = mobileVersionService.check()
 
         await authService.restoreSession()
@@ -165,17 +135,10 @@ struct Family_Portal_IosApp: App {
         if authService.isAuthenticated {
             await syncService.performFullSync()
             await initializeChatService()
-            // Re-registering every launch is how a rotated APNs token reaches
-            // the server; RegisterPushDevice upserts, so a repeat is cheap.
             await PushNotificationService.shared.registerForPushNotifications()
         }
     }
 
-    /// Drops everything the outgoing account left on this device.
-    ///
-    /// The chat service goes first because it holds the messages about to be
-    /// deleted, and the deep-link router last because whatever a previous
-    /// account's notification asked for is not the next one's to open.
     @MainActor
     private func eraseLocalData(_ scope: LocalDataResetScope) async {
         chatService = nil
@@ -197,9 +160,6 @@ struct Family_Portal_IosApp: App {
             currentUserName: user.name
         )
         chatService = service
-        // Chat is deliberately no longer a main tab. Keep its lightweight
-        // socket alive so an incoming message can make the tucked-away entry
-        // visible with an unread badge.
         await service.connect()
         await service.loadMessages()
     }

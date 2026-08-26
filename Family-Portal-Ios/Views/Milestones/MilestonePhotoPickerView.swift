@@ -1,11 +1,6 @@
 import SwiftUI
 
-/// Chooses which photos a milestone is illustrated with.
-///
-/// Selection is by *local* id: a photo taken on this device and still uploading
-/// has no remote id yet, and dropping it from the selection for that reason would
-/// silently lose the choice. The caller decides which photos are eligible — see
-/// `MilestonePhotosSection`.
+/// Chooses which photos a milestone is illustrated with. Selection is by *local* id, so a photo still uploading does not silently lose its place.
 struct MilestonePhotoPickerView: View {
     let photos: [Photo]
     let emptyDescription: String
@@ -77,8 +72,6 @@ struct MilestonePhotoPickerView: View {
     }
 }
 
-/// The row that leads to the picker, plus a strip of what is currently chosen.
-/// Shared by the add and edit sheets, which otherwise duplicate it exactly.
 struct MilestonePhotosSection: View {
     let photos: [Photo]
     let emptyDescription: String
@@ -126,18 +119,7 @@ struct MilestonePhotosSection: View {
     }
 }
 
-/// The photos a milestone may be illustrated with: the ones its person is tagged
-/// in — the same filter the web's picker applies
-/// (milestones/add-milestone.tsx) — plus anything already attached.
-///
-/// The second half is not cosmetic. `photoIds` on `UpdateMilestone` is the
-/// complete attachment set, so a photo the sheet cannot show is a photo the next
-/// save silently detaches; the backend only requires family access, so an
-/// attachment made on the web to a photo the person was never tagged in is
-/// perfectly legal.
-///
-/// Newest first, like every other photo grid in the app; SwiftData does not order
-/// relationships.
+/// The photos a milestone may be illustrated with: the ones its person is tagged in, plus anything already attached — `photoIds` is the complete attachment set, so a photo the sheet cannot show is one the next save detaches.
 func milestonePhotoChoices(
     for milestone: Milestone?,
     person: Person?,

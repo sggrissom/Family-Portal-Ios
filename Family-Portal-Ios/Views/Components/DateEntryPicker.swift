@@ -1,9 +1,6 @@
 import SwiftUI
 
-/// The three ways the backend lets a date be given for growth data and
-/// milestones — `inputType` is `"today" | "date" | "age"` in backend/growth.go
-/// and backend/milestone.go. Entering "at 14 months" beats scrolling a date
-/// picker back two years on a phone.
+/// The three ways the backend lets a date be given — `inputType` is `"today" | "date" | "age"`.
 enum DateEntryMode: String, CaseIterable, Identifiable {
     case today
     case date
@@ -21,16 +18,9 @@ enum DateEntryMode: String, CaseIterable, Identifiable {
 }
 
 /// Form rows that resolve a date from whichever mode the user picks.
-///
-/// The resolved date is what gets stored and sent, rather than passing
-/// `inputType: "age"` through to the server: the local record needs a concrete
-/// date the moment it's created, and Go's `AddDate` and Foundation's `Calendar`
-/// disagree about month overflow (Jan 31 plus one month is Mar 3 in Go, Feb 28
-/// here). Resolving it in one place keeps the device and the server from
-/// storing different days for the same entry.
+/// The resolved date is stored and sent rather than `inputType: "age"`, because Go's `AddDate` and Foundation's `Calendar` disagree about month overflow.
 struct DateEntryPicker: View {
-    /// The person's birthday. Age entry is hidden when it's unknown, since
-    /// there is nothing to count from.
+    /// The person's birthday. Age entry is hidden when it's unknown.
     let birthday: Date?
     @Binding var date: Date
 
@@ -79,8 +69,7 @@ struct DateEntryPicker: View {
         case .today:
             date = Date()
         case .date:
-            // Leave the date alone: it's whatever the picker last showed, which
-            // is the sensible starting point for editing it.
+            // Leave the date alone: it's whatever the picker last showed.
             break
         case .age:
             guard let birthday else { return }

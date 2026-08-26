@@ -3,11 +3,6 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// Choosing a person's avatar from a photo they are tagged in. Three things here
-/// are only checkable at runtime: the proc's request body (the Go handler rejects
-/// on fields the compiler never sees), the tag precondition (server-side, and
-/// worth five retries if it is discovered there), and the zero-means-unset
-/// decoding that made every avatar ask for photo id 0.
 @MainActor
 @Suite("Profile photo")
 struct ProfilePhotoTests {
@@ -17,8 +12,6 @@ struct ProfilePhotoTests {
         let photo: Photo
     }
 
-    /// A person and a photo the server already knows about, tagged together, so a
-    /// `setProfilePhoto` on them queues with no dependency.
     private static func taggedPair(
         in harness: TestSync.Harness,
         personRemoteId: String? = "12",
@@ -69,8 +62,6 @@ struct ProfilePhotoTests {
         let body = try Self.body(of: try #require(requests.first))
         #expect(body["personId"] as? Int == 12)
         #expect(body["photoId"] as? Int == 77)
-        // The backend reads 0/0 as "use the default", so iOS sends the centre it
-        // means rather than letting the server infer it.
         #expect(body["cropX"] as? Double == 50)
         #expect(body["cropY"] as? Double == 50)
         #expect(body["cropScale"] as? Double == 1)
@@ -83,8 +74,6 @@ struct ProfilePhotoTests {
     func responsePersonIsApplied() async throws {
         let harness = try TestSync.harness(connected: false)
         let pair = try Self.taggedPair(in: harness)
-        // A crop chosen on the web for this same photo: the phone has no editor,
-        // so the server's framing is the only one that can be right.
         harness.server.route("rpc/SetProfilePhoto", respond: .json([
             "person": Fixture.person(id: 12, name: "Rowan", profilePhotoId: 77,
                                      profileCropX: 32, profileCropY: 18, profileCropScale: 2.5)
@@ -101,9 +90,6 @@ struct ProfilePhotoTests {
         #expect(pair.person.profileCropScale == 2.5)
     }
 
-    /// Re-picking the photo a person already uses must not snap the framing back
-    /// to centre — cropping is web-only, so a reset here is unrecoverable on the
-    /// device that caused it.
     @Test("Re-picking the current photo keeps the crop chosen for it")
     func repickingKeepsTheCrop() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -132,9 +118,6 @@ struct ProfilePhotoTests {
 
     // MARK: - Preconditions
 
-    /// `SetProfilePhoto` (backend/person.go) rejects a photo the person is not
-    /// tagged in. Discovering that server-side costs the operation five retries
-    /// and then discards it silently, so the push refuses at the tap instead.
     @Test("Choosing a photo the person is not tagged in is refused without queueing")
     func untaggedPhotoIsRefused() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -155,8 +138,6 @@ struct ProfilePhotoTests {
 
         try await harness.service.setProfilePhoto(pair.photo, for: pair.person)
 
-        // No remote id yet means no avatar to show, so nothing is applied locally
-        // either — the operation catches up when the upload finishes.
         #expect(pair.person.profilePhotoId == nil)
 
         harness.monitor.isConnected = true
@@ -202,8 +183,6 @@ struct ProfilePhotoTests {
 
     // MARK: - Merging
 
-    /// A person has exactly one avatar, so three offline picks are three states of
-    /// one field, not three changes to replay.
     @Test("Picking again while offline replaces the queued choice")
     func repeatedChoicesMergeIntoOne() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -237,9 +216,6 @@ struct ProfilePhotoTests {
 
     // MARK: - Zero means unset
 
-    /// Go marshals an unset int as `0`, not as an absent key. Taken literally,
-    /// every person without a profile photo asked `RemotePhotoView` to load photo
-    /// id 0, and every avatar in a grid did it on each appearance.
     @Test("A zero profile photo id decodes as no profile photo")
     func zeroProfilePhotoIdBecomesNil() async throws {
         let harness = try TestSync.harness()
@@ -278,9 +254,6 @@ struct ProfilePhotoTests {
         #expect(person.profileCropScale == 2.5)
     }
 
-    /// `personFromDTO` used to copy the id by hand and drop the crop entirely, so
-    /// a person met for the first time in a pull was framed differently from the
-    /// same person met again in the next one.
     @Test("A newly created person carries the same crop as an updated one")
     func newPersonGetsTheCrop() {
         let dto = PersonDTO(

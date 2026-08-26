@@ -21,8 +21,6 @@ nonisolated enum SyncOperationType: String, Codable, Sendable {
     case deleteMilestone
     case deletePhoto
 
-    /// What the record is called in the app's own language, for the one message
-    /// the user sees when an operation is dropped.
     var subjectDescription: String {
         switch self {
         case .createPerson, .updatePerson:
@@ -50,11 +48,7 @@ nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
     let payload: Data
     let createdAt: Date
     var retryCount: Int
-    /// Sync runs this operation sat out because something it needs has not synced
-    /// yet. Counted separately from `retryCount`, which means "the server was
-    /// asked and said no" — nothing was sent here, so these must not spend a
-    /// retry, but they cannot be free either or a permanently blocked operation
-    /// stays in the queue for the life of the install.
+    /// Sync runs this operation sat out because a dependency has not synced. Counted apart from `retryCount`, but not free, or a permanently blocked operation stays for the life of the install.
     var blockedCount: Int
     let dependsOnLocalId: String?
 
@@ -82,10 +76,7 @@ nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
         case id, type, localId, payload, createdAt, retryCount, blockedCount, dependsOnLocalId
     }
 
-    /// Decoded by hand only so a missing `blockedCount` defaults instead of
-    /// throwing. The whole queue is one `[PendingOperation]` blob, so a single
-    /// operation written by an older build failing to decode would take every
-    /// pending change on the device down with it.
+    /// Decoded by hand only so a missing `blockedCount` defaults instead of throwing: the queue is one blob, and one undecodable operation would take every pending change with it.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
@@ -120,8 +111,6 @@ nonisolated struct UpdatePersonPayload: Codable, Sendable {
     let birthdate: String
 }
 
-/// Keyed by the *person's* local id, like the operation itself; the photo is
-/// carried here because it is the thing being chosen.
 nonisolated struct SetProfilePhotoPayload: Codable, Sendable {
     let photoLocalId: String
     let cropX: Double
@@ -142,10 +131,7 @@ nonisolated struct CreateMilestonePayload: Codable, Sendable {
     let description: String
     let category: String
     let milestoneDate: String
-    /// Local ids, resolved to remote ids when the operation runs: a photo picked
-    /// while it is still uploading has no remote id yet at enqueue time. Optional
-    /// so operations written by a build without this field still decode off disk
-    /// after an upgrade.
+    /// Local ids, resolved to remote ids when the operation runs. Optional so operations written by a build without this field still decode.
     let photoLocalIds: [String]?
 }
 
@@ -175,9 +161,7 @@ nonisolated struct UpdateMilestonePayload: Codable, Sendable {
     let description: String
     let category: String
     let milestoneDate: String
-    /// `nil` leaves the attachments alone, an empty array detaches everything —
-    /// the same distinction the request DTO carries. See `CreateMilestonePayload`
-    /// for why these are local ids.
+    /// `nil` leaves the attachments alone, an empty array detaches everything. See `CreateMilestonePayload` for why these are local ids.
     let photoLocalIds: [String]?
 }
 
@@ -187,14 +171,7 @@ nonisolated struct UpdatePhotoPayload: Codable, Sendable {
     let photoDate: String
 }
 
-/// The record's complete tag set, for both `updatePhotoTags` and
-/// `updateMilestoneTags` — the operation's own type says which record it belongs
-/// to, and the request body is the same shape either way.
-///
-/// These are *remote* ids, unlike the photo ids a milestone operation carries.
-/// A tag exists only because a pull produced it: iOS creates none, so there is
-/// no id here that the server has yet to assign, and nothing to resolve at
-/// execution.
+/// The record's complete tag set, for both `updatePhotoTags` and `updateMilestoneTags`. These are *remote* ids: iOS creates no tags, so there is nothing to resolve at execution.
 nonisolated struct UpdateTagsPayload: Codable, Sendable {
     let tagRemoteIds: [Int]
 }
@@ -208,17 +185,12 @@ nonisolated struct DeletePayload: Codable, Sendable {
 actor SyncQueue {
     private static let maxRetries = 5
 
-    /// Deliberately much larger than `maxRetries`: a blocked run costs the user
-    /// nothing and the parent it is waiting on gets five tries of its own, so the
-    /// allowance has to outlast that by a wide margin. It is a backstop against
-    /// "never", not a timeout.
+    /// Deliberately much larger than `maxRetries` — a backstop against "never", not a timeout.
     private static let maxBlockedRuns = 20
 
     private var operations: [PendingOperation]
     private let store: SyncQueueStore
 
-    /// `store` is injectable so tests can exercise the merge/cancel logic
-    /// against a scratch file instead of the app's real queue.
     init(store: SyncQueueStore = SyncQueueStore()) {
         self.store = store
         operations = store.load()
@@ -246,19 +218,12 @@ actor SyncQueue {
             .sorted { $0.createdAt < $1.createdAt }
     }
 
-    /// The other half of `readyOperations`: everything the dependency gate held
-    /// back this run. These are never handed to `executeOperation`, so without
-    /// asking for them explicitly a caller has no way to notice that one of them
-    /// is waiting on a parent that is never going to arrive.
     func blockedOperations(syncedLocalIds: Set<String>) -> [PendingOperation] {
         return operations.filter { !$0.isReady(syncedLocalIds: syncedLocalIds) }
             .sorted { $0.createdAt < $1.createdAt }
     }
 
-    /// - Returns: the operation if this failure used up its last retry and it was
-    ///   dropped. Discarding is the one queue event the user has to hear about —
-    ///   it is the moment a local change stops being "not synced yet" and becomes
-    ///   "never syncing" — so the caller needs to know it happened.
+    /// - Returns: the operation if this failure used up its last retry and it was dropped, which the caller has to tell the user about.
     @discardableResult
     func markFailed(_ operationId: UUID) -> PendingOperation? {
         guard let index = operations.firstIndex(where: { $0.id == operationId }) else {
@@ -282,14 +247,8 @@ actor SyncQueue {
         return operation
     }
 
-    /// Record that a sync run could not run this operation because something it
-    /// depends on has not synced. Nothing was sent, so this is not a retry — but
-    /// an operation whose parent was itself discarded is blocked for good, and
-    /// left alone it would be re-examined on every sync forever while its record
-    /// sits on the device looking merely "not synced yet".
-    ///
-    /// - Returns: the operation if this run used up its allowance and it was
-    ///   dropped, on the same terms as `markFailed`.
+    /// Records that a sync run could not run this operation because a dependency has not synced. Not a retry, but not free either: a parent that was itself discarded blocks this one for good.
+    /// - Returns: the operation if this run used up its allowance and it was dropped.
     @discardableResult
     func markBlocked(_ operationId: UUID) -> PendingOperation? {
         guard let index = operations.firstIndex(where: { $0.id == operationId }) else {
@@ -332,11 +291,7 @@ actor SyncQueue {
         switch incoming.type {
         case .updatePerson, .updateGrowthData, .updateMilestone, .updatePhoto, .setProfilePhoto,
              .updatePhotoTags, .updateMilestoneTags:
-            // A person has one profile photo, so picking a third while the first
-            // two are still queued should send one request, not three. Tag sets
-            // merge for a stronger reason: each toggle in the picker enqueues the
-            // whole set, so a user choosing four tags offline would otherwise
-            // queue four requests of which only the last says anything true.
+            // A person has one profile photo, and every tag toggle enqueues the whole set, so merging sends one truthful request instead of several stale ones.
             return replaceExistingOperation(of: incoming.type, localId: incoming.localId, with: incoming)
         case .addPeopleToPhoto:
             return mergeAddPeopleToPhoto(incoming)
@@ -364,7 +319,6 @@ actor SyncQueue {
             return false
         }
 
-        // Cancel out queued removals for the same people on this photo.
         var peopleToAdd = Set(incomingPayload.personLocalIds)
         operations.removeAll { operation in
             guard operation.type == .removePersonFromPhoto,
@@ -434,7 +388,6 @@ actor SyncQueue {
             return false
         }
 
-        // If a matching add is still queued, remove it and drop this operation.
         if let addIndex = operations.lastIndex(where: { $0.type == .addPeopleToPhoto && $0.localId == incoming.localId }),
            let addPayload = try? JSONDecoder().decode(AddPeopleToPhotoPayload.self, from: operations[addIndex].payload) {
             let remainingPeople = addPayload.personLocalIds.filter { $0 != incomingPayload.personLocalId }
@@ -463,7 +416,6 @@ actor SyncQueue {
             }
         }
 
-        // Replace any existing removal for the same person on the same photo.
         if let existingIndex = operations.lastIndex(where: { $0.type == .removePersonFromPhoto && $0.localId == incoming.localId }),
            let existingPayload = try? JSONDecoder().decode(RemovePersonFromPhotoPayload.self, from: operations[existingIndex].payload),
            existingPayload.personLocalId == incomingPayload.personLocalId {

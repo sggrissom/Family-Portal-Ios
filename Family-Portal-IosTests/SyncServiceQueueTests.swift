@@ -3,20 +3,10 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// The push half of sync: what `processQueue` does with an operation it cannot
-/// complete. Getting this wrong is invisible — the queue drains, the pending
-/// count reaches zero, and the change is simply gone — which is exactly how the
-/// dropped-operation bug survived for so long.
-///
-/// Every case enqueues while "offline" and only then brings the network up:
-/// `enqueueOperation` starts a background `processQueue` the moment it is
-/// connected, and that run would race the one the test is asserting on.
 @MainActor
 @Suite("SyncService queue execution")
 struct SyncServiceQueueTests {
 
-    /// A person the server already knows about, so operations that hang off one
-    /// are queued without a dependency.
     private static func syncedPerson(in harness: TestSync.Harness, remoteId: String = "12") throws -> Person {
         let person = Person(name: "Rowan", type: .child, gender: .other, birthday: Date())
         person.remoteId = remoteId
@@ -52,10 +42,6 @@ struct SyncServiceQueueTests {
 
     // MARK: - Work that is merely blocked is kept
 
-    /// The three-way split in `executeCreateGrowthData`: a *missing* record is
-    /// moot, but a record whose person has no remote id yet is only blocked. This
-    /// used to `return`, which dequeued it as a success and stranded the
-    /// measurement on the device with no remote id, forever.
     @Test("An operation blocked on an unsynced parent stays queued")
     func unsyncedParentKeepsOperation() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -68,8 +54,6 @@ struct SyncServiceQueueTests {
 
         try await harness.service.addGrowthData(measurement, for: person)
 
-        // The person's own create was discarded after this was queued, so it is
-        // back to having no remote id.
         person.remoteId = nil
         try harness.context.save()
 
@@ -80,22 +64,13 @@ struct SyncServiceQueueTests {
 
         let operations = await harness.service.syncQueue.allOperations()
         #expect(operations.count == 1)
-        // Blocked is not failed: burning a retry here would discard the
-        // measurement after five passes through the queue.
         #expect(operations.first?.retryCount == 0)
     }
 
-    /// The dependency gate holds this one back before `executeOperation` ever
-    /// sees it, so nothing in the run loop can notice it. Left uncounted it would
-    /// be re-examined on every sync until the app is deleted, while the milestone
-    /// sits in the list looking like it is merely waiting its turn.
     @Test("An operation held back by the dependency gate is eventually given up on")
     func gateBlockedOperationIsEventuallyDiscarded() async throws {
         let harness = try TestSync.harness(connected: false)
 
-        // Unsynced, and its own create is not in the queue: the person's create
-        // was discarded after five failures, so nothing will ever give it a
-        // remote id.
         let person = Person(name: "Rowan", type: .child, gender: .other, birthday: Date())
         harness.context.insert(person)
         try harness.context.save()
@@ -124,9 +99,6 @@ struct SyncServiceQueueTests {
         #expect(warning.contains("milestone"))
     }
 
-    /// The counterpart to `networkFailureSpendsNoRetry`: a run that stopped
-    /// because the connection dropped is not a run anything was given a chance
-    /// in, so it must not count against the operations it never reached.
     @Test("A run cut short by the network costs blocked operations nothing")
     func networkFailureSpendsNoBlockedRun() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -148,9 +120,6 @@ struct SyncServiceQueueTests {
         #expect(operations.allSatisfy { $0.blockedCount == 0 && $0.retryCount == 0 })
     }
 
-    /// A parent that syncs partway through a run unblocks its children, and the
-    /// synced set the run started from does not know that yet. Charging from the
-    /// stale snapshot would penalise operations that were never actually blocked.
     @Test("A dependency satisfied during the run costs its children nothing")
     func dependencySatisfiedMidRunCostsNothing() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -167,9 +136,6 @@ struct SyncServiceQueueTests {
         harness.monitor.isConnected = true
         await harness.service.processQueue()
 
-        // The edit was not in this run's ready set — the upload had not happened
-        // when that set was taken — but by the end of the run its dependency was
-        // satisfied, so it is waiting its turn, not stuck.
         #expect(photo.remoteId == "77")
         #expect(harness.server.requests(for: "rpc/UpdatePhoto").isEmpty)
 
@@ -207,21 +173,13 @@ struct SyncServiceQueueTests {
 
         #expect(harness.server.requests(for: "api/upload-photo").count == 1)
         #expect(photo.remoteId == "77")
-        // The server holds the bytes now. Keeping them stored every photo twice,
-        // and made the photo permanently exempt from orphan removal.
+        // The server holds the bytes now.
         #expect(photo.imageData == nil)
         #expect(await harness.service.syncQueue.count() == 0)
     }
 
     // MARK: - Overlapping runs
 
-    /// `@MainActor` is not mutual exclusion. Every operation suspends on its
-    /// request, and an operation is only dequeued once it has *succeeded*, so a
-    /// second run entering during that gap reads the same ready set and sends the
-    /// same request again. Picking twenty photos at once enqueues twenty
-    /// operations back to back, each starting its own run, which turns this from
-    /// a race into the ordinary case — and for an upload, a duplicate request is
-    /// a duplicate photo on the server.
     @Test("Overlapping queue runs send each operation once")
     func overlappingRunsSendEachOperationOnce() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -242,19 +200,10 @@ struct SyncServiceQueueTests {
         #expect(await harness.service.syncQueue.count() == 0)
     }
 
-    /// The other half of the guard: a caller turned away mid-run must not simply
-    /// drop its work. The run in flight has already taken its snapshot of the
-    /// queue, so an operation enqueued behind it would sit there until the next
-    /// sync — which for a photo picked seconds ago is indistinguishable from the
-    /// app ignoring it.
     @Test("Work enqueued during a run is picked up by that run")
     func workEnqueuedMidRunIsPickedUp() async throws {
         let harness = try TestSync.harness(connected: false)
 
-        // The upload is held open so the second enqueue lands while the run is
-        // genuinely in flight. Both semaphores are waited on off the main actor:
-        // the handler runs on a `URLSession` thread, never on the one the run is
-        // suspended on.
         let arrived = DispatchSemaphore(value: 0)
         let release = DispatchSemaphore(value: 0)
         harness.server.route("api/upload-photo") { _ in
@@ -281,10 +230,6 @@ struct SyncServiceQueueTests {
         release.signal()
         await run
 
-        // Nothing else asks the queue to run: whether the edit reaches the server
-        // is entirely down to the run that was already going round again. The
-        // wait is for the dequeue that follows the request, which lands a couple
-        // of hops after the request is recorded.
         var settled = false
         for _ in 0..<200 where !settled {
             let stillQueued = await harness.service.syncQueue.count()
@@ -318,8 +263,6 @@ struct SyncServiceQueueTests {
         #expect(await harness.service.syncQueue.count() == 0)
         #expect(harness.service.pendingOperationCount == 0)
 
-        // A drained queue and a zero pending count look identical whether the
-        // work succeeded or was thrown away, so the difference has to be said.
         let warning = try #require(harness.service.discardedChangeWarning)
         #expect(warning.contains("milestone"))
 
@@ -349,9 +292,6 @@ struct SyncServiceQueueTests {
         #expect(harness.service.discardedChangeWarning == nil)
     }
 
-    /// Losing the connection halfway through a queue run must not count against
-    /// anything: five sync attempts on a train would otherwise discard work that
-    /// the server never even saw.
     @Test("Losing the connection pauses the queue without spending a retry")
     func networkFailureSpendsNoRetry() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -375,9 +315,6 @@ struct SyncServiceQueueTests {
 
     // MARK: - Preconditions
 
-    /// A person with no birthday cannot exist server-side, so the push refuses
-    /// rather than substituting today's date — which used to come straight back
-    /// on the next pull, indistinguishable from a real birthday.
     @Test("Pushing a person with no birthday fails instead of inventing one")
     func missingBirthdayIsRefused() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -407,11 +344,6 @@ struct SyncServiceQueueTests {
     }
 }
 
-/// `DispatchSemaphore.wait()` is `noasync`, and rightly so — blocking a
-/// cooperative-pool thread is how a test deadlocks itself. Here the block is the
-/// point: the detached task exists only to park a thread that is not the one the
-/// run under test is suspended on. Routing the call through a synchronous
-/// function is the sanctioned way to say that deliberately.
 private nonisolated func blockUntilSignalled(_ semaphore: DispatchSemaphore) {
     semaphore.wait()
 }

@@ -10,9 +10,7 @@ struct SettingsView: View {
     @State private var showLogoutConfirmation = false
     @State private var path = NavigationPath()
 
-    /// The one destination in this stack a link can name. A route value rather
-    /// than a `Bool`, so pushing it is the same mechanism as any other push and
-    /// the back stack behaves.
+    /// The one destination in this stack a link can name. A route value rather than a `Bool`, so the back stack behaves.
     private struct ChatRoute: Hashable {}
 
     var body: some View {
@@ -39,11 +37,7 @@ struct SettingsView: View {
                             showLogoutConfirmation = true
                         }
 
-                        // Required of any app that offers account creation
-                        // (App Store Review Guideline 5.1.1(v)), and this one
-                        // does. A push rather than a button, because the
-                        // confirmation it needs — password, and the account's
-                        // own address typed out — does not fit in a dialog.
+                        // Required of any app that offers account creation (App Store Review Guideline 5.1.1(v)).
                         NavigationLink("Delete Account") {
                             DeleteAccountView()
                         }
@@ -88,9 +82,7 @@ struct SettingsView: View {
                         lastSyncDate: syncService?.lastSyncDate
                     )
 
-                    // Survives the next successful sync on purpose: the pending
-                    // count dropping back to zero otherwise reads as "all saved"
-                    // when an operation was in fact thrown away.
+                    // Survives the next successful sync on purpose: the pending count dropping to zero otherwise reads as "all saved".
                     if let syncService, let warning = syncService.discardedChangeWarning {
                         VStack(alignment: .leading, spacing: 8) {
                             Label(warning, systemImage: "exclamationmark.triangle.fill")
@@ -152,8 +144,6 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    // update_required blocks the whole app in ContentView;
-                    // update_available is only worth a nudge.
                     if mobileVersionService.status == .updateAvailable,
                        let updateURL = mobileVersionService.updateURL {
                         Link(destination: updateURL) {
@@ -185,10 +175,7 @@ struct SettingsView: View {
                 Text("Are you sure you want to sign out?")
             }
         }
-        // Chat is reached through Settings rather than from a tab of its own,
-        // so a `/chat` notification lands here and has to push the rest of the
-        // way. `.task` covers the cold launch, where this view does not exist
-        // yet when the link arrives.
+        // Chat is reached through Settings rather than a tab of its own, so a `/chat` notification lands here and pushes the rest of the way. `.task` covers the cold launch.
         .task { openPendingLink() }
         .onChange(of: deepLinkRouter.pending) { _, _ in openPendingLink() }
     }
@@ -199,12 +186,9 @@ struct SettingsView: View {
         }
         switch link {
         case .chat:
-            // Replacing the path rather than appending: a notification is a
-            // request to be looking at chat, not to be three screens deep with
-            // chat on top of whatever was already open.
+            // Replacing the path rather than appending: a notification asks to be looking at chat, not to be three screens deep with chat on top.
             path = NavigationPath([ChatRoute()])
         case .settings:
-            // Settings itself is the destination; the tab switch already did it.
             path = NavigationPath()
         default:
             break

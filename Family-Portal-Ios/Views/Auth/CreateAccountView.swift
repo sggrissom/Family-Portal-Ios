@@ -1,8 +1,6 @@
 import SwiftUI
 
-/// Sign-up, backed by `CreateAccount` in backend/users.go. Without it a new user
-/// has no way onto the app at all — the website was previously the only place to
-/// create an account.
+/// Sign-up, backed by `CreateAccount` in backend/users.go.
 struct CreateAccountView: View {
     @Environment(AuthService.self) private var authService
 
@@ -17,8 +15,7 @@ struct CreateAccountView: View {
     @State private var errorMessage: String?
     @State private var isSubmitting = false
 
-    /// Mirrors `validateCreateAccountRequest`, so the obvious mistakes are
-    /// caught before a round trip.
+    /// Mirrors `validateCreateAccountRequest`, so the obvious mistakes are caught before a round trip.
     private var validationMessage: String? {
         if name.trimmingCharacters(in: .whitespaces).isEmpty {
             return "Name is required"
@@ -136,8 +133,6 @@ struct CreateAccountView: View {
                 ? InitialPerson(name: trimmedName, gender: gender, birthdate: birthdate)
                 : nil
         )
-        // On success the root view swaps to the signed-in tabs, so there is
-        // nothing to dismiss here.
     }
 }
 

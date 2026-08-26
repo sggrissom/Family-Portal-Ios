@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// Activities are read online and cached to disk, rather than living in
-/// SwiftData behind `SyncQueue`. The venue has no signal, and arriving at a
-/// competition to a blank app is the failure the offline story exists to
-/// prevent — but reading stale data is safe in a way that replaying stale writes
-/// is not, so only the reads get this treatment.
 @MainActor
 @Suite("Activity snapshot cache")
 struct ActivitySnapshotCacheTests {
@@ -47,8 +42,6 @@ struct ActivitySnapshotCacheTests {
         #expect(first.isShowingCached == false)
         #expect(first.error == nil)
 
-        // The same screen again, on a device that can no longer reach the
-        // server: it renders, and it says it is showing what it last saw.
         let second = ActivityScreenState<GetSeasonOverviewResponseDTO>()
         await second.load(service.seasonOverview(seasonId: 41))
 
@@ -75,13 +68,9 @@ struct ActivitySnapshotCacheTests {
 
         #expect(state.value?.events.first?.name == "Nuvo Nashville")
         #expect(state.isShowingCached)
-        // Not an alert: an error over data the reader can still see would
-        // interrupt them to tell them something they can already tell.
         #expect(state.error == nil)
     }
 
-    /// The distinction the chat history bug was made of. Offline with nothing
-    /// saved and "this family has none of these" are different screens.
     @Test("A cache miss is not the same as no data")
     func cacheMissIsNotEmpty() async {
         let server = FakeHTTPServer()
@@ -100,8 +89,6 @@ struct ActivitySnapshotCacheTests {
 
     // MARK: - Keys
 
-    /// A key that dropped its arguments would have one season's payload
-    /// answering for another's.
     @Test("Two reads of the same proc keep separate payloads")
     func keysIncludeTheirArguments() async {
         let cache = ActivitySnapshotCache(directory: Self.scratchDirectory())
@@ -129,8 +116,6 @@ struct ActivitySnapshotCacheTests {
         #expect(key.fileName.contains("/") == false)
     }
 
-    /// A payload this build can no longer read is worse than none: it would
-    /// fail on every open until the network happened to be up.
     @Test("An unreadable payload is dropped rather than kept")
     func unreadablePayloadIsDropped() async {
         let cache = ActivitySnapshotCache(directory: Self.scratchDirectory())
@@ -140,7 +125,6 @@ struct ActivitySnapshotCacheTests {
         let unreadable = await cache.load(GetSeasonOverviewResponseDTO.self, key: key)
         #expect(unreadable == nil)
 
-        // And the next good payload lands normally.
         await cache.store(Fixture.data(Self.seasonOverview()), key: key)
         let readable = await cache.load(GetSeasonOverviewResponseDTO.self, key: key)
         #expect(readable != nil)
@@ -148,10 +132,6 @@ struct ActivitySnapshotCacheTests {
 
     // MARK: - Erasing
 
-    /// The same problem `LocalAccountOwner` exists for. Nothing in the pull
-    /// reconciles this cache — `GetFamilyTimeline` does not carry activities —
-    /// so a device that changes hands would otherwise show the previous
-    /// account's season.
     @Test("A full local reset drops every cached read")
     func fullResetClearsTheCache() async throws {
         let cache = ActivitySnapshotCache(directory: Self.scratchDirectory())
@@ -172,11 +152,6 @@ struct ActivitySnapshotCacheTests {
         #expect(afterReset == nil)
     }
 
-    /// `.chatOnly` is for a store that predates any record of who owns it, where
-    /// everything except chat is reconciled by the next pull. Activities are not
-    /// reconciled by a pull, but that scope is not about a change of account —
-    /// it is about a store nothing can vouch for, and the cache is re-fetched on
-    /// open anyway.
     @Test("A chat-only reset leaves the cache alone")
     func chatOnlyResetKeepsTheCache() async throws {
         let cache = ActivitySnapshotCache(directory: Self.scratchDirectory())
@@ -216,8 +191,6 @@ struct ActivitySnapshotCacheTests {
         #expect(body["seasonId"] as? Int == 0)
     }
 
-    /// `familyId: 0` means the caller's primary family, the same convention
-    /// `FamilyMembershipService` uses.
     @Test("Listing activities defaults to the primary family")
     func listActivitiesRequestShape() async throws {
         let server = FakeHTTPServer()

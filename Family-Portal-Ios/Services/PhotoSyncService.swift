@@ -41,14 +41,12 @@ actor PhotoSyncService {
         var body = Data()
         let crlf = "\r\n"
 
-        // File part
         Self.appendString("--\(boundary)\(crlf)", to: &body)
         Self.appendString("Content-Disposition: form-data; name=\"photo\"; filename=\"photo.jpg\"\(crlf)", to: &body)
         Self.appendString("Content-Type: \(mimeType(for: imageData))\(crlf)\(crlf)", to: &body)
         body.append(imageData)
         Self.appendString(crlf, to: &body)
 
-        // Text fields
         Self.appendTextField(to: &body, name: "title", value: title, boundary: boundary)
         Self.appendTextField(to: &body, name: "description", value: description, boundary: boundary)
         Self.appendTextField(to: &body, name: "inputType", value: "date", boundary: boundary)
@@ -62,7 +60,6 @@ actor PhotoSyncService {
             Self.appendTextField(to: &body, name: "personIds", value: personIdsString, boundary: boundary)
         }
 
-        // Closing boundary
         Self.appendString("--\(boundary)--\(crlf)", to: &body)
 
         return body

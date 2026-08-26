@@ -2,9 +2,6 @@ import Foundation
 import SwiftData
 @testable import Family_Portal_Ios
 
-/// JSON bodies shaped like `json.Marshal` output for the Go types in
-/// `../Family-Portal/backend`. Built as dictionaries rather than string literals
-/// so a test can vary one field without restating the whole payload.
 nonisolated enum Fixture {
 
     // MARK: - Sync
@@ -45,8 +42,6 @@ nonisolated enum Fixture {
         return person
     }
 
-    /// A person as the backend actually marshals one with no profile photo set:
-    /// Go writes zero values, not absent keys.
     static func personWithUnsetProfilePhoto(id: Int, name: String = "Rowan") -> [String: Any] {
         var person = self.person(id: id, name: name)
         person["profilePhotoId"] = 0
@@ -77,8 +72,6 @@ nonisolated enum Fixture {
         ]
     }
 
-    /// `tagIds` defaults to absent rather than `[]` because that is what Go
-    /// marshals for a milestone with no tags — the field carries `omitempty`.
     static func milestone(
         id: Int,
         personId: Int,
@@ -200,8 +193,6 @@ nonisolated enum Fixture {
         ]
     }
 
-    /// The same fixture as it arrives over the WebSocket, decoded through the
-    /// app's own decoder so the date handling matches the live path.
     static func chatMessageDTO(
         id: Int,
         userId: Int = 1,
@@ -222,13 +213,9 @@ nonisolated enum Fixture {
     }
 }
 
-/// A private store per test: SwiftData in memory, and a `SyncQueue` on a scratch
-/// `UserDefaults` suite so nothing reaches the queue the app itself uses.
 nonisolated enum TestStore {
 
     static func makeContext() throws -> ModelContext {
-        // The app's own schema, so a model added later is in the tests' store
-        // too rather than absent until something crashes.
         let schema = DataStore.makeSchema()
         let container = try ModelContainer(
             for: schema,
@@ -248,7 +235,6 @@ nonisolated enum TestStore {
     }
 }
 
-/// A `SyncService` wired to a fake backend, its own store and its own queue.
 @MainActor
 enum TestSync {
 
@@ -256,7 +242,6 @@ enum TestSync {
         let server: FakeHTTPServer
         let service: SyncService
         let context: ModelContext
-        /// Held so the monitor stays fixed where the test put it.
         let monitor: NetworkMonitor
     }
 

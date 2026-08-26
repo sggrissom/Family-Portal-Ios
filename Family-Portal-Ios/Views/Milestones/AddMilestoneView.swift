@@ -81,9 +81,7 @@ struct AddMilestoneView: View {
         milestone.person = person
         modelContext.insert(milestone)
 
-        // Resolved here rather than in the picker so a photo untagged or deleted
-        // while the sheet was open drops out of the selection instead of being
-        // sent as an id the server will reject.
+        // Resolved here rather than in the picker, so a photo untagged or deleted while the sheet was open drops out instead of being sent as an id the server rejects.
         let photos = photoChoices.filter { selectedPhotoIds.contains($0.id) }
 
         Task {

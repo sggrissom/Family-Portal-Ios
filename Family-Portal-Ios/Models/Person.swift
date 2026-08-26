@@ -9,17 +9,11 @@ final class Person {
     var type: PersonType
     var gender: Gender
     var birthday: Date? = nil
-    /// True while `birthday` is a due date rather than a birth date, which is
-    /// what makes the age read in weeks. Defaulted so an existing store migrates
-    /// without one.
+    /// True while `birthday` is a due date rather than a birth date, which is what makes the age read in weeks.
     var isPregnancy: Bool = false
     var profilePhotoId: Int? = nil
 
-    /// How the profile photo is framed inside the avatar circle: an origin in
-    /// percent plus a zoom factor, matching the backend's `profileCrop*` fields.
-    /// Only the web can edit these; iOS stores them so a crop chosen there is
-    /// rendered the same way here. `nil` means centred at 1× — the server sends
-    /// Go zero values for a photo whose crop was never set.
+    /// How the profile photo is framed inside the avatar circle. Editable only on the web; `nil` means centred at 1×, and the server sends Go zero values for a crop that was never set.
     var profileCropX: Double? = nil
     var profileCropY: Double? = nil
     var profileCropScale: Double? = nil

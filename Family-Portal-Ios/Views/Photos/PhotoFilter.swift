@@ -1,36 +1,18 @@
 import Foundation
 
-/// What the gallery is currently showing, as a value: which people a photo must
-/// be tagged with, which tags it must carry, the date window it must fall in, and
-/// free text matched against its title and description.
-///
-/// The three panel filters mirror `frontend/hooks/usePhotoFilter.ts`: choices
-/// *within* a category are OR (any selected person, any selected tag), and the
-/// categories AND together. Search is the one thing the web has no equivalent
-/// for; it is here because a phone-sized grid runs out of scroll long before a
-/// desktop one does.
-///
-/// A value type rather than state on the view so the whole rule is testable
-/// without a `View` — filtering is the part of this screen that can be wrong in a
-/// way nobody notices, since a photo wrongly excluded simply isn't there.
+/// What the gallery is currently showing, as a value. Within a category the choices are OR; the categories AND together.
 struct PhotoFilter: Equatable {
 
-    /// Local ids, not remote ones: a person created on this device and still
-    /// syncing has no remote id, and their photos are exactly the ones most
-    /// likely to be looked at right now.
+    /// Local ids, not remote ones: a person created on this device and still syncing has no remote id.
     var personLocalIds: Set<UUID> = []
 
-    /// Remote ids, because that is what a `Photo` carries — the tag vocabulary is
-    /// the server's, and `Photo.tagRemoteIds` never holds anything local.
+    /// Remote ids, because that is what a `Photo` carries.
     var tagRemoteIds: Set<Int> = []
 
     var dateFrom: Date?
     var dateTo: Date?
     var searchText: String = ""
 
-    /// Everything the filter sheet controls. Kept apart from `isActive` because
-    /// the sheet's toolbar button reflects this and not the search field, which
-    /// has its own visible state in the search bar.
     var hasPanelFilters: Bool {
         !personLocalIds.isEmpty || !tagRemoteIds.isEmpty || dateFrom != nil || dateTo != nil
     }
@@ -50,11 +32,7 @@ struct PhotoFilter: Equatable {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// The range actually applied. A `to` of the 3rd means "through the end of the
-    /// 3rd" — a photo dated that day carries a time and would otherwise fall
-    /// outside a window that names its own date — and a range entered backwards is
-    /// swapped rather than matching nothing, both as `normalizeDateRange` does on
-    /// the web.
+    /// A `to` of the 3rd means through the end of the 3rd, and a range entered backwards is swapped rather than matching nothing.
     var normalizedDateRange: (from: Date?, to: Date?) {
         guard let dateFrom else {
             return (nil, dateTo.map(Self.endOfDay))
@@ -71,8 +49,6 @@ struct PhotoFilter: Equatable {
     func apply(to photos: [Photo]) -> [Photo] {
         guard isActive else { return photos }
 
-        // Normalised once rather than per photo: both ends go through `Calendar`,
-        // and a gallery is the one list here with no upper bound on length.
         let range = normalizedDateRange
         let search = trimmedSearch
         return photos.filter { matches($0, range: range, search: search) }
@@ -99,8 +75,7 @@ struct PhotoFilter: Equatable {
         }
 
         if !search.isEmpty {
-            // `localizedStandardContains` is the Finder-style comparison:
-            // case- and diacritic-insensitive, so "jose" finds "José".
+            // `localizedStandardContains` is the Finder-style comparison: case- and diacritic-insensitive, so "jose" finds "José".
             guard photo.title.localizedStandardContains(search)
                     || photo.descriptionText.localizedStandardContains(search) else {
                 return false
@@ -110,14 +85,10 @@ struct PhotoFilter: Equatable {
         return true
     }
 
-    /// Names the active panel filters for the toolbar button, in the web's
-    /// wording. Search is left out — the search bar is already showing it.
     func summary(peopleNames: (UUID) -> String?) -> String {
         var parts: [String] = []
 
         if personLocalIds.count == 1 {
-            // A person deleted between opening the panel and reading this is
-            // still excluding photos, so the summary has to say so somehow.
             parts.append(personLocalIds.first.flatMap(peopleNames) ?? "1 person")
         } else if !personLocalIds.isEmpty {
             parts.append("\(personLocalIds.count) people")
@@ -148,8 +119,7 @@ struct PhotoFilter: Equatable {
 
     private nonisolated static func endOfDay(_ date: Date) -> Date {
         let start = Calendar.current.startOfDay(for: date)
-        // Not `startOfDay + 86400 - 1`: days are not all 86400 seconds long where
-        // daylight saving applies.
+        // Not `startOfDay + 86400 - 1`: days are not all 86400 seconds long where daylight saving applies.
         guard let next = Calendar.current.date(byAdding: .day, value: 1, to: start) else {
             return date
         }

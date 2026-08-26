@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// The sign-up and password-reset wire formats, asserted against the field
-/// names in backend/users.go and backend/password_reset.go. Every one of these
-/// is read with a plain `json:"..."` tag on the Go side, so a mismatched key
-/// silently becomes a zero value rather than an error — the same failure mode
-/// that hid the chat bugs.
 @Suite("Auth DTOs")
 struct AuthDTOTests {
 
@@ -70,8 +65,6 @@ struct AuthDTOTests {
         #expect(dto.error == nil)
     }
 
-    /// `CreateAccount` reports validation failures in-band with HTTP 200, so a
-    /// failed sign-up has to be read off `success`, never the status code.
     @Test("A rejected sign-up decodes its error message")
     func decodesCreateAccountFailure() throws {
         let json = """

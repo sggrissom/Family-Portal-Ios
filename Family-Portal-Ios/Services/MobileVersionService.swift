@@ -2,8 +2,7 @@ import Foundation
 import OSLog
 
 enum MobileVersionStatus: Sendable, Equatable {
-    /// The check hasn't completed yet, or it failed. Treated as "let them in":
-    /// a version endpoint that is down must never lock users out of the app.
+    /// The check hasn't completed yet, or it failed. Treated as "let them in": a version endpoint that is down must never lock users out.
     case unknown
     case ok
     case updateAvailable
@@ -19,8 +18,7 @@ enum MobileVersionStatus: Sendable, Equatable {
     }
 }
 
-/// Wraps `GET /api/mobile-version` (backend/mobile_version.go). The endpoint is
-/// pre-auth by design, so this runs before the sign-in gate.
+/// Wraps `GET /api/mobile-version` (backend/mobile_version.go). Pre-auth by design, so this runs before the sign-in gate.
 @Observable
 @MainActor
 final class MobileVersionService {
@@ -35,8 +33,7 @@ final class MobileVersionService {
         self.apiClient = apiClient
     }
 
-    /// The App Store link the operator configured, falling back to nothing —
-    /// the blocking screen hides its button rather than opening a bad URL.
+    /// The App Store link the operator configured; the blocking screen hides its button rather than opening a bad URL.
     var canOpenUpdateURL: Bool { updateURL != nil }
 
     func check() async {
@@ -49,9 +46,7 @@ final class MobileVersionService {
             latestVersion = policy.latestVersion
             updateURL = policy.updateUrl.isEmpty ? nil : URL(string: policy.updateUrl)
         } catch {
-            // Network failure, a 400 from a malformed MARKETING_VERSION, or an
-            // operator who hasn't configured a policy yet — none of those are
-            // reasons to block someone from their own family's data.
+            // None of these failures are a reason to block someone from their own family's data.
             status = .unknown
             AppLog.version.error("Version check failed: \(String(describing: error), privacy: .public)")
         }

@@ -2,17 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// `POST /api/delete-account` is the one call in the app that cannot be undone
-/// and cannot be retried afterwards, so the two things worth pinning are that a
-/// refusal is reported as a refusal — in the server's words, next to the field
-/// that caused it — and that nothing but a genuine success is ever read as one.
-///
-/// The refusal path is the fiddly half. `vbeam.RespondError` writes bare
-/// sentences, which `APIError.procSentence` unwraps; this handler is not a proc
-/// and answers with a JSON envelope instead, which `procSentence` explicitly
-/// declines to unwrap. Without `deleteAccount` decoding that envelope itself,
-/// "Current password is incorrect" would reach the user as
-/// `Server error (400): {"success":false,"error":"…"}`.
 @Suite("Account deletion")
 struct AccountDeletionTests {
 
@@ -39,9 +28,6 @@ struct AccountDeletionTests {
         let decoded = try JSONSerialization.jsonObject(with: request.body)
         let body = try #require(decoded as? [String: Any])
 
-        // `DeleteAccountRequest` names these fields exactly; the app's default
-        // encoder does not transform key names, and this is the assertion that
-        // notices if that ever changes.
         #expect(body["password"] as? String == "hunter2")
         #expect(body["confirmEmail"] as? String == "ada@example.com")
         #expect(body.count == 2)
@@ -74,8 +60,6 @@ struct AccountDeletionTests {
             )
         }
 
-        // What the user actually reads. The status code and the JSON envelope
-        // are the two things that must not appear in it.
         let sentence = try #require(error?.localizedDescription)
         #expect(sentence == Self.incorrectPassword)
         #expect(!sentence.contains("400"))
@@ -85,7 +69,6 @@ struct AccountDeletionTests {
     @Test("A 400 whose body is not the expected envelope still says something usable")
     func unparseableRefusalFallsBack() async throws {
         let server = FakeHTTPServer()
-        // What a proxy in front of the app answers with, rather than the handler.
         server.route("api/delete-account", respond: .status(400, message: "<html>Bad Request</html>"))
 
         await #expect(throws: AccountDeletionError.refused(AccountDeletionError.fallbackMessage)) {
@@ -96,9 +79,6 @@ struct AccountDeletionTests {
         }
     }
 
-    /// The handler answers refusals with 400, so this shape should never arrive.
-    /// It is pinned because the cost of reading it as a success is erasing a
-    /// device whose account still exists.
     @Test("A 200 carrying success: false is a refusal, not a deletion")
     func unsuccessfulTwoHundredIsARefusal() async throws {
         let server = FakeHTTPServer()
@@ -120,9 +100,6 @@ struct AccountDeletionTests {
         let server = FakeHTTPServer()
         server.route("api/delete-account", respond: .offline())
 
-        // The distinction matters: a refusal tells the user to correct a field,
-        // while this one tells them to try again later. Reading one as the other
-        // would have them retyping a password that was never wrong.
         await #expect(throws: APIError.self) {
             try await server.apiClient().deleteAccount(
                 password: "hunter2",
@@ -148,7 +125,6 @@ struct AccountDeletionTests {
 
     @Test("Decodes DeleteAccountResponse as the backend marshals it")
     func decodesResponse() throws {
-        // `Error` carries `omitempty`, so a success omits the key entirely.
         let success = try APIClient.decode(
             DeleteAccountResponseDTO.self,
             from: Data(#"{"success":true}"#.utf8)
