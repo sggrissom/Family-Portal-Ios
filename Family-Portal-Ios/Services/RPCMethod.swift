@@ -1,18 +1,7 @@
 import Foundation
 
 /// Wire names for the backend's vbeam procs, called as `POST rpc/{rawValue}`.
-///
-/// vbeam derives a proc's name from its *Go function name* at registration
-/// (`vbeam.RegisterProc` → `_LocalProcName`) and dispatches on that exact
-/// string, so nothing on the Swift side can check a name against the server: a
-/// typo compiles cleanly and fails only at runtime. That is how
-/// `removePersonFromPhoto` shipped as `"RemovePersonFromPhoto"` against a
-/// backend registering `RemovePersonFromPhotoProc`, silently reverting every
-/// untag. Collecting the names here makes the whole set auditable against the
-/// Go source in one pass, and `RPCMethodTests` pins the strings.
-///
-/// `nonisolated` so the `APIClient` actor can read these without hopping to the
-/// main actor.
+/// vbeam dispatches on the Go function name it registered, so a typo compiles cleanly and fails only at runtime. Collecting the names here makes them auditable in one pass, and `RPCMethodTests` pins the strings.
 nonisolated enum RPCMethod: String, Sendable, CaseIterable {
 
     // MARK: - Account & family (backend/users.go, backend/password_reset.go)
@@ -55,19 +44,13 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case deletePhoto = "DeletePhoto"
     case addPeopleToPhoto = "AddPeopleToPhoto"
 
-    /// The one registration that does not match its own DTO names: the plain
-    /// `RemovePersonFromPhoto` identifier is taken by a transaction helper
-    /// (backend/photos.go:440), so the proc is `RemovePersonFromPhotoProc`.
+    /// The one registration that does not match its own DTO names: the plain identifier is taken by a transaction helper, so the proc is `RemovePersonFromPhotoProc`.
     case removePersonFromPhoto = "RemovePersonFromPhotoProc"
 
     // MARK: - Tags (backend/tags.go)
 
     case listTags = "ListTags"
 
-    /// Applying tags is registered from the record's own file rather than
-    /// tags.go — `UpdatePhotoTags` in backend/photos.go, `UpdateMilestoneTags`
-    /// in backend/milestone.go — but both are whole-set writes over the same
-    /// vocabulary, so they are grouped with it here.
     case updatePhotoTags = "UpdatePhotoTags"
     case updateMilestoneTags = "UpdateMilestoneTags"
 
@@ -83,13 +66,7 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case unregisterPushDevice = "UnregisterPushDevice"
 
     // MARK: - Activities: structure (backend/activity_procs.go)
-    //
-    // Every activities proc is registered under its own Go function name —
-    // there is no `…Proc` suffix anywhere in `RegisterActivityMethods`,
-    // `RegisterActivityResultMethods`, `RegisterActivityViewMethods` or
-    // `RegisterActivityPhotoMethods` — so the `RemovePersonFromPhotoProc` trap
-    // does not recur here. These were read off the four `RegisterProc` blocks
-    // rather than off the generated TypeScript.
+    // Every activities proc is registered under its own Go function name, with no `…Proc` suffix anywhere, so the `RemovePersonFromPhotoProc` trap does not recur here.
 
     case listActivities = "ListActivities"
     case createActivity = "CreateActivity"

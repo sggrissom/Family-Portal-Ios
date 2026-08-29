@@ -3,12 +3,6 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// The gallery's filter. Worth testing in its own right because a filter that is
-/// wrong shows nothing wrong: a photo it excludes by mistake simply isn't there,
-/// and the user reads that as the photo never having synced.
-///
-/// The rules mirror `frontend/hooks/usePhotoFilter.ts` — OR within a category, AND
-/// across them — plus the search field, which the web has no equivalent for.
 @MainActor
 @Suite("Photo filter")
 struct PhotoFilterTests {
@@ -56,8 +50,6 @@ struct PhotoFilterTests {
         #expect(filter.apply(to: photos).count == 2)
     }
 
-    /// Whitespace is not a search. The search bar reports "no results" for
-    /// anything it cannot match, and a stray space would empty the whole grid.
     @Test("Whitespace-only search is not a filter")
     func whitespaceSearchKeepsEverything() throws {
         let context = try TestStore.makeContext()
@@ -104,9 +96,6 @@ struct PhotoFilterTests {
         #expect(filter.apply(to: [holiday, birthday, untagged]).map(\.title) == ["Holiday", "Birthday"])
     }
 
-    /// Within a category the choices widen the result; across categories they
-    /// narrow it. Getting this backwards is the difference between "Rowan's
-    /// holiday photos" and "everything of Rowan's plus every holiday photo".
     @Test("Categories narrow each other")
     func categoriesAreAnded() throws {
         let context = try TestStore.makeContext()
@@ -125,9 +114,6 @@ struct PhotoFilterTests {
 
     // MARK: - Dates
 
-    /// The load-bearing half of the date window: a photo carries a time of day,
-    /// so a `to` of the 5th taken literally excludes everything shot on the 5th
-    /// after midnight — which is all of it.
     @Test("The end of the window includes the whole of its last day")
     func toDateIncludesTheWholeDay() throws {
         let context = try TestStore.makeContext()
@@ -153,8 +139,6 @@ struct PhotoFilterTests {
         #expect(filter.apply(to: [dayBefore, morning]).map(\.title) == ["Morning"])
     }
 
-    /// The web swaps a backwards range rather than matching nothing, and a date
-    /// picker makes it easy to enter one; an empty grid would read as a bug.
     @Test("A range entered backwards is swapped, not treated as empty")
     func reversedRangeIsSwapped() throws {
         let context = try TestStore.makeContext()
@@ -199,9 +183,6 @@ struct PhotoFilterTests {
         #expect(filter.apply(to: [byTitle, byDescription, accented, other]).map(\.title) == ["José's birthday"])
     }
 
-    /// Search is typed into the navigation bar, where it is already visible.
-    /// Filling in the toolbar's filter glyph for it would report a panel state
-    /// the panel does not have.
     @Test("Search counts as active but not as a panel filter")
     func searchIsNotAPanelFilter() {
         var filter = PhotoFilter()
@@ -263,8 +244,6 @@ struct PhotoFilterTests {
         var filter = PhotoFilter()
         filter.personLocalIds = [UUID()]
 
-        // A person deleted between opening the panel and reading the summary: the
-        // filter still excludes photos, so the summary must still say something.
         #expect(filter.summary(peopleNames: { _ in nil }) == "1 person")
     }
 }

@@ -3,11 +3,6 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// Applying tags from the phone. `UpdatePhotoTags` and `UpdateMilestoneTags`
-/// (backend/photos.go, backend/milestone.go) are whole-set writes: whatever is
-/// not in `tagIds` is detached. Everything below turns on that — what reaches the
-/// wire is the record's complete set, and a set that arrives short is a silent
-/// untagging.
 @MainActor
 @Suite("Tag editing")
 struct TagEditingTests {
@@ -16,8 +11,6 @@ struct TagEditingTests {
         try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
     }
 
-    /// Both procs answer with an empty Go struct, so the body is the literal
-    /// `{}` — routing anything else would test a response the server never sends.
     private static func routePhotoTags(_ harness: TestSync.Harness) {
         harness.server.route("rpc/UpdatePhotoTags", respond: .json([String: Any]()))
     }
@@ -87,9 +80,6 @@ struct TagEditingTests {
         #expect(await harness.service.syncQueue.count() == 0)
     }
 
-    /// The whole point of a whole-set write: taking the last tag off has to reach
-    /// the server as `[]`. Anything that dropped the key would leave the tag
-    /// attached and the next pull would put the chip back.
     @Test("Removing every tag sends an empty list")
     func clearingTagsSendsAnEmptyList() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -109,10 +99,6 @@ struct TagEditingTests {
         #expect(tagIds.isEmpty)
     }
 
-    /// A tag created on the web since the last pull has an id here and no
-    /// `FamilyTag` to explain it. `TagChipsView` and the picker both skip it — but
-    /// the *write* must not, or editing tags on a slightly stale device would
-    /// detach a tag the user never saw, let alone chose to remove.
     @Test("A tag id this device can't resolve is still sent back")
     func unresolvedTagIdsSurvive() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -129,9 +115,6 @@ struct TagEditingTests {
         #expect(body["tagIds"] as? [Int] == [3, 999])
     }
 
-    /// Each tap in the picker writes the complete set, so a handful of taps on a
-    /// train is a handful of operations of which only the last says anything
-    /// true.
     @Test("Repeated edits while offline collapse into one request")
     func repeatedEditsMerge() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -168,8 +151,6 @@ struct TagEditingTests {
 
         let operations = await harness.service.syncQueue.allOperations()
         #expect(operations.count == 1)
-        // Blocked, not failed: the server was never asked, so five passes must
-        // not discard the edit.
         #expect(operations.first?.retryCount == 0)
         #expect(operations.first?.blockedCount == 1)
     }
@@ -214,10 +195,6 @@ struct TagEditingTests {
         #expect(await harness.service.syncQueue.count() == 0)
     }
 
-    /// Milestones are not in the set `fetchAllSyncedLocalIds` builds, so the
-    /// dependency gate cannot hold this operation back — naming a dependency it
-    /// can never satisfy would block it for good. Execution catches it instead,
-    /// and the write goes out once the milestone's own create has landed.
     @Test("Tags on a milestone that hasn't synced wait for its create")
     func unsyncedMilestoneParksThenSends() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -262,9 +239,6 @@ struct TagEditingTests {
 
     // MARK: - Queue plumbing
 
-    /// The two records share one payload type, so the operation's own type is the
-    /// only thing that says which proc a queued edit belongs to — a mixed queue
-    /// has to send each edit to its own.
     @Test("A photo's tags and a milestone's tags are separate operations")
     func photoAndMilestoneWritesDoNotMerge() async throws {
         let harness = try TestSync.harness(connected: false)

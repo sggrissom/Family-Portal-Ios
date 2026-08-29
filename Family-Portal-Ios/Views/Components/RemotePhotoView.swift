@@ -1,24 +1,12 @@
 import SwiftUI
 
-/// A photo the server holds, by id.
-///
-/// The fetching, caching and 401 retry all live in `PhotoImageCache`; what is
-/// left here is the two things the view has to decide: whether it can render
-/// immediately, and what to do while a freshly uploaded photo is still being
-/// processed.
+/// A photo the server holds, by id. The fetching, caching and 401 retry live in `PhotoImageCache`.
 struct RemotePhotoView: View {
     let remoteId: Int
     let size: PhotoSizeVariant
     let contentMode: ContentMode
 
-    /// How long to wait between asks while the server is still generating the
-    /// photo's variants, and how many times to ask.
-    ///
-    /// Processing is fast when it works, so the first look-again is quick and
-    /// the gap widens from there. It stops rather than polling forever: a job
-    /// that has not finished in about a minute has failed in a way this view
-    /// cannot fix, and a screenful of thumbnails each polling on a timer is a
-    /// worse problem than a photo the user can fix by pulling to refresh.
+    /// How long to wait between asks while the server is still generating the photo's variants, and how many times to ask. It stops rather than polling forever.
     private static let processingRetryDelays: [Duration] = [
         .seconds(2), .seconds(3), .seconds(5), .seconds(8), .seconds(13), .seconds(21),
     ]
@@ -28,7 +16,6 @@ struct RemotePhotoView: View {
 
     private enum Phase {
         case loading
-        /// The server has the photo but has not finished making this variant.
         case processing
         case ready
         case unavailable
@@ -71,8 +58,7 @@ struct RemotePhotoView: View {
     }
 
     private func load() async {
-        // A thumbnail already in memory renders in the first layout pass
-        // instead of flashing a spinner on every scroll back.
+        // A thumbnail already in memory renders in the first layout pass instead of flashing a spinner on every scroll back.
         if let cached = PhotoImageCache.shared.cachedImage(remoteId: remoteId, size: size) {
             image = cached
             phase = .ready
@@ -97,7 +83,6 @@ struct RemotePhotoView: View {
                 do {
                     try await Task.sleep(for: Self.processingRetryDelays[attempt])
                 } catch {
-                    // The view went away, or `task(id:)` restarted us.
                     return
                 }
             }

@@ -3,15 +3,8 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// A stand-in for `GetChatMessages`, built to the same rule the Go handler
-/// follows: the window is cut from the *newest* end, and each page still arrives
-/// oldest-first within itself so the response shape is the one it always was.
-///
-/// `nonisolated` because the routing closure runs on the `URLProtocol`'s thread,
-/// not the main actor the suite lives on.
 nonisolated enum ChatHistory {
 
-    /// Messages are `msg-1` (oldest) through `msg-<total>` (newest).
     static func route(_ server: FakeHTTPServer, total: Int, failingOnCall failingCall: Int? = nil) {
         let counter = CallCounter()
         server.route("rpc/GetChatMessages") { request in
@@ -39,10 +32,7 @@ nonisolated enum ChatHistory {
         )
     }
 
-    /// One minute apart and ascending with the id, so the service's own sort
-    /// agrees with the order the ids imply.
     static func timestamp(_ index: Int) -> String {
-        // 2026-01-05T12:00:00Z
         let base = Date(timeIntervalSince1970: 1_767_614_400)
         return ISO8601DateFormatter().string(from: base.addingTimeInterval(TimeInterval(index) * 60))
     }
@@ -60,11 +50,6 @@ nonisolated enum ChatHistory {
     }
 }
 
-/// `GetChatMessages` pages backwards from the newest message, and its offset
-/// counts the server's ordering rather than the app's list. Those two facts are
-/// the whole contract behind pulling for history, and neither is visible in a
-/// type — a page that counted the wrong things would still compile, and would
-/// lose messages out of the middle of the thread.
 @MainActor
 @Suite("Chat history")
 struct ChatHistoryTests {
@@ -83,7 +68,6 @@ struct ChatHistoryTests {
         server.requests(for: "rpc/GetChatMessages")
     }
 
-    /// The offsets asked for, in order — the sequence a paging bug shows up in.
     private static func requestedOffsets(_ server: FakeHTTPServer) -> [Int] {
         historyRequests(server).map { request in
             let payload = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]
@@ -109,9 +93,6 @@ struct ChatHistoryTests {
 
     // MARK: - The newest page first
 
-    /// Before the backend honoured its offset the window was cut from the other
-    /// end, so a long-running family opened the app on its first ever messages and
-    /// never saw today's. Asking for offset 0 is what makes the first page recent.
     @Test("The first load asks for the newest page")
     func firstLoadRequestsNewestPage() async throws {
         let server = FakeHTTPServer()
@@ -148,8 +129,6 @@ struct ChatHistoryTests {
         #expect(service.error == nil)
     }
 
-    /// Older messages have to land *above* what is on screen rather than at the
-    /// end of the list — the list is what the view groups into days and scrolls.
     @Test("A loaded page lands in chronological order, not at the end")
     func historyIsInterleavedInOrder() async throws {
         let server = FakeHTTPServer()
@@ -181,14 +160,10 @@ struct ChatHistoryTests {
         #expect(Self.contents(service).first == "msg-1")
         #expect(service.hasMoreHistory == false)
 
-        // The pull stays attached to the scroll view once history runs out, so the
-        // guard rather than the UI is what stops a pointless request.
         await service.loadOlderMessages()
         #expect(Self.requestedOffsets(server) == [0, 50])
     }
 
-    /// A conversation shorter than one page is complete on arrival: there is no
-    /// page before it, and pulling could only ever return nothing.
     @Test("A conversation shorter than a page has no history to pull")
     func shortConversationHasNoHistory() async throws {
         let server = FakeHTTPServer()
@@ -206,10 +181,6 @@ struct ChatHistoryTests {
 
     // MARK: - The offset counts the server's messages, not ours
 
-    /// The trap this is here to catch: using `messages.count` as the offset. The
-    /// list also holds what the socket delivered and what this device sent, so
-    /// counting it would step over history that was never fetched and leave a hole
-    /// in the thread that nothing later fills.
     @Test("Messages arriving live do not push unfetched history out of reach")
     func liveMessagesDoNotSkipHistory() async throws {
         let server = FakeHTTPServer()
@@ -218,7 +189,6 @@ struct ChatHistoryTests {
 
         await service.loadMessages()
 
-        // Three messages land over the socket while the user is reading.
         try Self.deliverOverSocket(service, ids: 121...123)
         #expect(service.messages.count == 53)
 
@@ -229,9 +199,6 @@ struct ChatHistoryTests {
         #expect(service.messages.count == 103)
     }
 
-    /// Leaving the tab and coming back re-reads the newest page. If that reset the
-    /// paging cursor, the next pull would re-fetch a page already on screen and
-    /// look like a pull that did nothing.
     @Test("Reloading the newest page does not rewind the history cursor")
     func reloadingDoesNotRewindPaging() async throws {
         let server = FakeHTTPServer()
@@ -249,10 +216,6 @@ struct ChatHistoryTests {
 
     // MARK: - Pages the device already has
 
-    /// The store keeps every message this device has ever seen while the cursor
-    /// starts each session at zero, so the first pull after a relaunch can land on
-    /// a page that is entirely known. Stopping there would report "no more
-    /// history" by showing nothing, so the pull walks on until it finds something.
     @Test("A pull walks past pages it already has")
     func pullWalksPastKnownPages() async throws {
         let server = FakeHTTPServer()
@@ -261,25 +224,17 @@ struct ChatHistoryTests {
 
         await service.loadMessages()
 
-        // The page behind the current one is already here, as it would be for a
-        // device that pulled it during an earlier session.
         try Self.deliverOverSocket(service, ids: 101...150)
 
         await service.loadOlderMessages()
 
-        // One pull, two pages: the known one is stepped over rather than counted
-        // as a result.
         #expect(Self.requestedOffsets(server) == [0, 50, 100])
         #expect(Self.contents(service).first == "msg-51")
     }
 
-    /// The walk cannot be unbounded, or a device holding a long history would turn
-    /// one pull into a run of requests reaching all the way to the first message.
     @Test("The walk past known pages is capped")
     func walkPastKnownPagesIsCapped() async throws {
         let server = FakeHTTPServer()
-        // A server answering every offset with the same full page — the
-        // pathological shape of "nothing new here, keep going".
         server.route("rpc/GetChatMessages", respond: .json([
             "messages": (1...ChatService.pageSize).map { ChatHistory.message(id: $0) }
         ]))
@@ -288,7 +243,6 @@ struct ChatHistoryTests {
         await service.loadMessages()
         await service.loadOlderMessages()
 
-        // The first request is the newest page; the pull adds five more and stops.
         #expect(Self.historyRequests(server).count == 6)
         #expect(service.messages.count == ChatService.pageSize)
         #expect(service.hasMoreHistory)
@@ -297,13 +251,9 @@ struct ChatHistoryTests {
 
     // MARK: - Failure
 
-    /// A page that never arrived must not advance the cursor: the offset is the
-    /// only record of how far back the thread has been read, and moving it past a
-    /// page nothing was received for would skip those messages for good.
     @Test("A failed pull leaves the cursor where it was and retries the same page")
     func failedPullDoesNotAdvanceCursor() async throws {
         let server = FakeHTTPServer()
-        // Call 1 is the newest page; call 2 is the first pull for history.
         ChatHistory.route(server, total: 120, failingOnCall: 2)
         let service = try await Self.makeService(server: server)
 

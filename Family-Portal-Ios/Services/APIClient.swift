@@ -41,21 +41,6 @@ enum APIError: LocalizedError {
         }
     }
 
-    /// A rejected proc's own words, when the body is one.
-    ///
-    /// `vbeam.RespondError` writes `w.WriteHeader(400)` and then
-    /// `fmt.Fprintf(w, err.Error())` — no JSON, no `success: false` — so the
-    /// body of a 400 *is* the error. Activities is the first feature whose
-    /// backend returns strings meant for a user rather than for a log
-    /// ("That entry is not in the same season as this competition",
-    /// "A rank must be 1 or greater, and no greater than the field size"), and
-    /// wrapping those in `Server error (400): …` buries the only useful part of
-    /// the alert behind a status code the reader can do nothing with.
-    ///
-    /// The guards keep this to bodies that really are a sentence. A 400 can also
-    /// carry an HTML error page from something in front of the app, or a JSON
-    /// envelope from a handler that is not a proc, and neither of those is worth
-    /// showing verbatim — those fall back to the generic wording.
     static func procSentence(statusCode: Int, message: String?) -> String? {
         guard statusCode == 400, let message else { return nil }
 
@@ -71,6 +56,19 @@ enum APIError: LocalizedError {
     }
 }
 
+enum AccountDeletionError: LocalizedError, Equatable {
+    case refused(String)
+
+    static let fallbackMessage = "Could not delete your account."
+
+    var errorDescription: String? {
+        switch self {
+        case .refused(let message):
+            return message
+        }
+    }
+}
+
 enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
@@ -81,7 +79,6 @@ enum HTTPMethod: String {
 actor APIClient {
     static let shared = APIClient()
 
-    // Local constants to avoid main actor isolation issues
     private static let keychainAccessToken = AppConstants.Keychain.accessToken
     private static let keychainRefreshToken = AppConstants.Keychain.refreshToken
     private static let refreshTokenExpiry: TimeInterval = 30 * 24 * 60 * 60
@@ -127,9 +124,6 @@ actor APIClient {
         return encoder
     }()
 
-    /// Shared entry point for every JSON body the server sends, including the
-    /// WebSocket stream — its date strategy tolerates RFC3339 with fractional
-    /// seconds, which is what Go's `time.Time` marshals.
     nonisolated static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         try sharedDecoder.decode(type, from: data)
     }
@@ -140,10 +134,6 @@ actor APIClient {
     private let session: URLSession
     private let clientId: String
 
-    /// Called when the server rejects the refresh token outright, which is the
-    /// one failure the app cannot recover from without the user. Set by
-    /// `AuthService` so a dead session collapses back to the sign-in screen
-    /// instead of leaving every request failing.
     private var onSessionExpired: (@MainActor () async -> Void)?
 
     private nonisolated static let defaultURL = URL(string: AppConstants.defaultServerURL)!
@@ -155,9 +145,7 @@ actor APIClient {
         clientId = UUID().uuidString
 
         let loadedAccessToken = Self.loadToken(forKey: Self.keychainAccessToken)
-        // Builds before the refresh token was kept properly dropped it from the
-        // keychain at login, so an install may only have it in the cookie jar.
-        // Adopting it here upgrades those sessions instead of signing them out.
+        // Older installs may hold the refresh token only in the cookie jar; adopting it here upgrades them instead of signing them out.
         let storedRefreshToken = Self.loadToken(forKey: Self.keychainRefreshToken)
         let loadedRefreshToken = storedRefreshToken ?? Self.refreshCookie(for: initialBaseURL)?.value
         if storedRefreshToken == nil, let loadedRefreshToken {
@@ -175,9 +163,7 @@ actor APIClient {
         onSessionExpired = handler
     }
 
-    /// Private on purpose: callers outside the client only ever have the JWT
-    /// from a response body, and passing `nil` for the refresh token here
-    /// silently throws away a live session. Use `setAccessToken` instead.
+    /// Private on purpose: passing `nil` for the refresh token silently throws away a live session. Use `setAccessToken`.
     private func setTokens(accessToken: String?, refreshToken: String?) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
@@ -186,23 +172,12 @@ actor APIClient {
         syncCookies()
     }
 
-    /// Banks a newly issued JWT while leaving the refresh token alone.
-    ///
-    /// Login, sign-up and refresh all return the JWT in their response body but
-    /// the refresh token only in a `Set-Cookie` header, which `captureTokens`
-    /// has already banked by the time a caller gets here. Routing those callers
-    /// through `setTokens(accessToken:refreshToken: nil)` would erase the
-    /// refresh token they just received and cap the session at the JWT's 24
-    /// hours — which is exactly what used to happen.
     func setAccessToken(_ token: String?) {
         accessToken = token
         Self.storeToken(token, key: Self.keychainAccessToken)
         syncCookies()
     }
 
-    /// Whether there is anything to refresh with. The cookie jar is consulted
-    /// as well as the keychain because the server only ever hands the refresh
-    /// token over as a cookie.
     var hasRefreshCredential: Bool {
         refreshToken != nil || Self.refreshCookie(for: baseURL) != nil
     }
@@ -273,18 +248,10 @@ actor APIClient {
         try await request(path: "rpc/\(proc.rawValue)", method: .post, body: payload, requiresAuth: true)
     }
 
-    /// The raw response body of a proc, for a caller that needs to both decode
-    /// it and keep it. `ActivityService` writes exactly these bytes to its
-    /// snapshot cache, so a field this build ignores is still there for the
-    /// build that reads it — and its response types never need to be
-    /// `Encodable`.
     func callRPCData<Body: Encodable>(_ proc: RPCMethod, payload: Body) async throws -> Data {
         try await requestData(path: "rpc/\(proc.rawValue)", method: .post, body: payload, requiresAuth: true)
     }
 
-    /// For the procs a signed-out user has to reach: `CreateAccount`,
-    /// `RequestPasswordReset`. No token is attached and a 401 is never retried,
-    /// because there is no session to refresh.
     func callPublicRPC<T: Decodable, Body: Encodable>(_ proc: RPCMethod, payload: Body) async throws -> T {
         try await request(
             path: "rpc/\(proc.rawValue)",
@@ -316,10 +283,6 @@ actor APIClient {
         }
     }
 
-    /// Everything `request` does except decode. Split out so a caller that wants
-    /// the bytes and a caller that wants a type share one code path — the auth
-    /// headers, the token capture, the 401 refresh-and-retry, and the error
-    /// mapping are the parts that must not drift apart.
     func requestData<Body: Encodable>(
         path: String,
         method: HTTPMethod = .post,
@@ -379,10 +342,6 @@ actor APIClient {
         }
     }
 
-    /// `GET /api/mobile-version` (backend/mobile_version.go). Deliberately
-    /// pre-auth and cached 300s server-side, so the app can decide whether it
-    /// must update before it presents login. Rejects anything that isn't strict
-    /// major.minor.patch with a 400.
     func checkMobileVersion(appVersion: String) async throws -> MobileVersionPolicyDTO {
         guard var components = URLComponents(
             url: baseURL.appendingPathComponent("api/mobile-version"),
@@ -429,12 +388,39 @@ actor APIClient {
         }
     }
 
-    /// Refreshes the JWT if it is missing, expired, or about to expire.
-    ///
-    /// The 401 retry in `request` covers most of this, but the WebSocket and
-    /// the photo loader take `getAccessToken()` and use it directly, so they
-    /// need a token that is already good. An app resumed after more than a day
-    /// in the background has an expired one.
+    /// Throws `AccountDeletionError.refused` with the server's own sentence for a wrong password or a mistyped email.
+    func deleteAccount(password: String, confirmEmail: String) async throws {
+        let payload = DeleteAccountRequestDTO(password: password, confirmEmail: confirmEmail)
+
+        let data: Data
+        do {
+            data = try await requestData(path: "api/delete-account", method: .post, body: payload)
+        } catch APIError.server(let statusCode, let message) where statusCode == 400 {
+            throw AccountDeletionError.refused(Self.deletionRefusal(from: message))
+        }
+
+        let response: DeleteAccountResponseDTO
+        do {
+            response = try Self.decode(DeleteAccountResponseDTO.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+
+        // Belt and braces: a `success: false` returning normally would otherwise be read as a deleted account and erase the device.
+        guard response.success else {
+            throw AccountDeletionError.refused(response.error ?? AccountDeletionError.fallbackMessage)
+        }
+    }
+
+    private static func deletionRefusal(from message: String?) -> String {
+        guard let message, let data = message.data(using: .utf8),
+              let response = try? decode(DeleteAccountResponseDTO.self, from: data),
+              let error = response.error, !error.isEmpty else {
+            return AccountDeletionError.fallbackMessage
+        }
+        return error
+    }
+
     func ensureFreshAccessToken(margin: TimeInterval = 5 * 60) async {
         guard hasRefreshCredential else { return }
 
@@ -446,14 +432,7 @@ actor APIClient {
         try? await refreshAccessToken()
     }
 
-    /// Coalesces overlapping refreshes onto one network round-trip.
-    ///
-    /// The server rotates the refresh token on every use, so two refreshes in
-    /// flight at once can each invalidate the other's credential and end a live
-    /// session. Actor isolation alone does not prevent that: `refreshAccessToken`
-    /// suspends on its request, letting the next caller straight through the
-    /// freshness check. A photo grid mounting twenty `RemotePhotoView`s at once
-    /// is exactly that shape.
+    /// Coalesces overlapping refreshes onto one round-trip. The server rotates the refresh token on every use, so two in flight can each invalidate the other's credential.
     private var refreshTask: Task<Void, Error>?
 
     func refreshAccessToken() async throws {
@@ -495,10 +474,6 @@ actor APIClient {
 
             guard (200...299).contains(httpResponse.statusCode) else {
                 let message = String(data: data, encoding: .utf8)
-                // A 401 here is the server saying the refresh token is expired,
-                // unknown, or revoked — the session is over. Any other status is
-                // a server-side problem the stored token may well outlive, so
-                // it must not cost the user their sign-in.
                 if httpResponse.statusCode == 401 {
                     await endSession()
                 }
@@ -517,8 +492,6 @@ actor APIClient {
                 throw APIError.refreshFailed(refreshResponse.error)
             }
 
-            // `captureTokens` has already stored the rotated refresh token that
-            // came back with this response; only the JWT is left to bank.
             setAccessToken(token)
         } catch let error as APIError {
             throw error
@@ -527,8 +500,6 @@ actor APIClient {
         }
     }
 
-    /// Drops the local session and lets `AuthService` return to the sign-in
-    /// screen. Only called when the server has rejected the refresh token.
     private func endSession() async {
         clearTokens()
         if let onSessionExpired {
@@ -536,8 +507,6 @@ actor APIClient {
         }
     }
 
-    /// Reads the `exp` claim without verifying the signature — the server does
-    /// that. This only decides when to ask for a new token.
     nonisolated static func jwtExpiry(_ token: String) -> Date? {
         let segments = token.split(separator: ".")
         guard segments.count == 3 else { return nil }
@@ -576,7 +545,6 @@ actor APIClient {
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         }
 
-        // Keep refresh cookie available for refresh endpoint calls
         syncCookies()
     }
 
@@ -592,9 +560,7 @@ actor APIClient {
         var updatedRefreshToken: String?
 
         for cookie in cookies where !cookie.value.isEmpty {
-            // An empty value is the server expiring the cookie (logout, or a
-            // rejected refresh). Those paths call `clearTokens` themselves;
-            // storing the empty string here would only fake a credential.
+            // An empty value is the server expiring the cookie; storing it would only fake a credential.
             if cookie.name == "authToken" {
                 updatedAccessToken = cookie.value
             } else if cookie.name == "refreshToken" {
@@ -602,10 +568,6 @@ actor APIClient {
             }
         }
 
-        // The server rotates the refresh token on every refresh, and losing a
-        // rotation ends the session — so fall back to the jar URLSession has
-        // already filled in rather than trusting this parse of the combined
-        // `Set-Cookie` header. Absence is ignored: only `clearTokens` forgets.
         if updatedRefreshToken == nil, let jarToken = Self.refreshCookie(for: baseURL)?.value,
            jarToken != refreshToken {
             updatedRefreshToken = jarToken
@@ -708,9 +670,6 @@ extension APIClient {
         return response.message
     }
 
-    /// No defaults: the page size is `ChatService.pageSize` and the offset is the
-    /// paging cursor, so a default here would be a second copy of a number that
-    /// has to agree with the one the caller keeps.
     func getChatMessages(limit: Int, offset: Int) async throws -> [ChatMessageDTO] {
         let request = GetChatMessagesRequestDTO(limit: limit, offset: offset)
         let response: GetChatMessagesResponseDTO = try await callRPC(.getChatMessages, payload: request)

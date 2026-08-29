@@ -1,36 +1,19 @@
 import SwiftUI
 import Charts
 
-/// A person's measurements over time, plotted in one unit.
-///
-/// The chart used to label its Y axis with `sortedMeasurements.first?.unit` and
-/// plot raw `value`s. A record keeps whatever unit it was entered in — that is
-/// the honest record of what somebody wrote down, and every list shows it that
-/// way — so a person with some heights in inches and some in centimetres got a
-/// line that climbed from 34 to 86 and an axis claiming inches throughout. Not
-/// merely unlabeled: *wrong*, and wrong in the direction that looks like a
-/// growth spurt.
-///
-/// `MeasurementConversion` was written for this and never wired up. Everything
-/// is converted to one unit before it reaches a mark.
+/// A person's measurements over time, plotted in one unit — everything is converted through `MeasurementConversion` before it reaches a mark, since records keep whatever unit they were entered in.
 struct GrowthChartView: View {
     let measurements: [GrowthData]
     let measurementType: MeasurementType
 
-    /// The unit the axis is in. Starts at whatever the family measured in most
-    /// recently, since that is what they are currently thinking in, and can be
-    /// switched — the conversion is exact either way, so there is no reason to
-    /// make someone do it in their head.
+    /// The unit the axis is in. Starts at whatever the family measured in most recently, and can be switched.
     @State private var displayUnit: MeasurementUnit?
 
     private var resolvedUnit: MeasurementUnit {
         displayUnit ?? MeasurementConversion.preferredUnit(for: measurements, type: measurementType)
     }
 
-    /// Converted once per render, in `MeasurementConversion` rather than inside
-    /// the mark builders — where the same record would be converted twice, once
-    /// for the line and once for the point, and where none of it could be
-    /// tested.
+    /// Converted once per render rather than inside the mark builders, where the same record would be converted twice and none of it could be tested.
     private var points: [MeasurementConversion.Normalized] {
         MeasurementConversion.normalized(measurements, type: measurementType, to: resolvedUnit)
     }
@@ -39,9 +22,6 @@ struct GrowthChartView: View {
         measurementType == .height ? .blue : .red
     }
 
-    /// Offered only when there is a choice to make. A family that has always
-    /// measured in one unit does not need a control that changes nothing they
-    /// can see.
     private var unitChoices: [MeasurementUnit] {
         measurementType.validUnits
     }
@@ -83,9 +63,7 @@ struct GrowthChartView: View {
         }
         .chartYAxisLabel(MeasurementConversion.abbreviation(resolvedUnit), position: .leading)
         .frame(height: 220)
-        // A line chart is nothing to VoiceOver without this. The summary is the
-        // thing someone would actually ask of a growth chart — where it starts,
-        // where it ends, and over what span.
+        // A line chart is nothing to VoiceOver without this.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(measurementType.rawValue.capitalized) over time, in \(MeasurementConversion.abbreviation(resolvedUnit))")
         .accessibilityValue(accessibilitySummary)

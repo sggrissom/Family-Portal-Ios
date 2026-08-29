@@ -25,7 +25,6 @@ enum GoogleSignInError: LocalizedError {
 final class GoogleSignInService {
     private(set) var isSigningIn = false
 
-    /// Signs in with Google and returns the ID token
     @MainActor
     func signIn() async throws -> String {
         isSigningIn = true
@@ -61,12 +60,10 @@ final class GoogleSignInService {
         }
     }
 
-    /// Signs out of Google
     func signOut() {
         GIDSignIn.sharedInstance.signOut()
     }
 
-    /// Handles the URL callback from Google Sign-In
     func handle(_ url: URL) -> Bool {
         return GIDSignIn.sharedInstance.handle(url)
     }

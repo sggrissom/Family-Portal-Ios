@@ -5,16 +5,12 @@ import Testing
 @Suite("SyncQueue merge and retry")
 struct SyncQueueTests {
 
-    /// A throwaway file so tests never touch the app's real queue and never see
-    /// each other's writes.
     static func scratchFileURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("SyncQueueTests.\(UUID().uuidString)", isDirectory: true)
             .appendingPathComponent("SyncQueue.json", isDirectory: false)
     }
 
-    /// A throwaway `UserDefaults` suite, for the one test that still cares about
-    /// the drawer the queue used to live in.
     static func scratchDefaults() -> UserDefaults {
         let name = "SyncQueueTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
@@ -201,8 +197,6 @@ struct SyncQueueTests {
         }
         #expect(await queue.count() == 1)
 
-        // The last failure hands the operation back, which is how the user gets
-        // told a change was thrown away rather than merely delayed.
         let discarded = await queue.markFailed(operation.id)
         #expect(discarded?.id == operation.id)
         #expect(await queue.count() == 0)
@@ -210,10 +204,6 @@ struct SyncQueueTests {
 
     // MARK: - Blocked cap
 
-    /// The other end of the retry cap. A blocked run means nothing was sent, so
-    /// it must not spend a retry — but "never spends anything" is how an
-    /// operation waiting on a parent that was itself discarded stays in the queue
-    /// for the life of the install.
     @Test("A blocked operation is discarded eventually, without spending retries")
     func blockedCapDiscards() async throws {
         let (queue, _) = Self.scratchQueue()
@@ -253,8 +243,6 @@ struct SyncQueueTests {
 
         let operations = await queue.allOperations()
         #expect(operations.count == 1)
-        // Otherwise editing a blocked record resets the clock, and a photo that
-        // is never going to upload keeps its edits queued forever.
         #expect(operations[0].blockedCount == 2)
     }
 
@@ -272,8 +260,6 @@ struct SyncQueueTests {
         #expect(await queue.readyOperations(syncedLocalIds: ["photo"]).count == 1)
     }
 
-    /// `blockedOperations` has to be the exact complement of `readyOperations`:
-    /// an operation in neither list is one nothing will ever account for.
     @Test("Blocked operations are everything the ready set leaves out")
     func blockedOperationsComplementReady() async throws {
         let (queue, _) = Self.scratchQueue()
@@ -317,8 +303,6 @@ struct SyncQueueTests {
         #expect(await second.count() == 1)
     }
 
-    /// The queue is written on every mutation while a sync run may be in flight,
-    /// so what is on disk has to be a whole array at every instant.
     @Test("Clearing the queue leaves a readable empty file, not a missing one")
     func clearingPersistsAnEmptyQueue() async throws {
         let url = Self.scratchFileURL()
@@ -335,9 +319,6 @@ struct SyncQueueTests {
 
     // MARK: - Migration off UserDefaults
 
-    /// The queue used to be one blob in `UserDefaults`. Everything in it is a
-    /// local change the server has never heard about, so an upgrade that did not
-    /// carry it across would lose data that exists nowhere else.
     @Test("A queue left in UserDefaults by an older build is adopted")
     func migratesTheLegacyUserDefaultsQueue() async throws {
         let defaults = Self.scratchDefaults()
@@ -351,9 +332,6 @@ struct SyncQueueTests {
         let queue = SyncQueue(store: SyncQueueStore(fileURL: url, legacyDefaults: defaults))
 
         #expect(await queue.allOperations().map(\.localId) == ["A", "B"])
-        // Written through to the file, and the old drawer emptied, so the
-        // migration cannot run a second time and resurrect operations that have
-        // since synced.
         #expect(defaults.data(forKey: "com.familyrecord.syncQueue") == nil)
         let onDisk = try #require(try? Data(contentsOf: url))
         #expect(try JSONDecoder().decode([PendingOperation].self, from: onDisk).count == 2)
@@ -374,9 +352,6 @@ struct SyncQueueTests {
         #expect(await SyncQueue(store: store).allOperations().map(\.localId) == ["current"])
     }
 
-    /// The whole queue is persisted as one array, so an operation written before
-    /// `blockedCount` existed must not merely be skipped — a decode failure takes
-    /// every other pending change on the device with it.
     @Test("A queue written by a build without blockedCount still loads")
     func loadsOperationsFromBeforeBlockedCount() async throws {
         let url = Self.scratchFileURL()
@@ -385,8 +360,7 @@ struct SyncQueueTests {
             try Self.operation(.createMilestone, localId: "old", payload: ["v": 1]),
             try Self.operation(.updatePhoto, localId: "alsoOld", payload: ["v": 2])
         ]
-        // Round-trip through JSON and strip the key, rather than hand-writing the
-        // encoding: `Data` and `Date` have representations the encoder chooses.
+        // Round-trip through JSON and strip the key rather than hand-writing the encoding.
         let encoded = try JSONEncoder().encode(stored)
         let decoded = try JSONSerialization.jsonObject(with: encoded)
         var raw = try #require(decoded as? [[String: Any]])

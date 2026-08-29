@@ -1,21 +1,7 @@
 import Foundation
 
-/// How old someone is, as a phrase.
-///
-/// This is a **port of `calculateAgeAt` and `calculateGestationalAgeAt` in
-/// `backend/person.go`**, not an independent implementation of the same idea.
-/// The server computes this string too and sends it as `PersonDTO.age`; the app
-/// throws that away and computes its own, because a stored string goes stale the
-/// moment a birthday passes and an unsynced person has no server answer at all.
-/// That is the right trade only as long as the two agree, so what follows
-/// mirrors the server's arithmetic step for step rather than reaching for
-/// `Calendar.dateComponents`.
-///
-/// The difference is not academic. `dateComponents` resolves "31 March plus one
-/// month" by clamping to 30 April and calling that a whole month; the server's
-/// day comparison says 30 is less than 31 and calls it none. A child born on the
-/// 31st therefore read as "1 month" on the phone and "< 1 month" on the website,
-/// on one day of each month, for every month-end birthday.
+/// How old someone is, as a phrase. A port of `calculateAgeAt` and `calculateGestationalAgeAt` in `backend/person.go`, mirroring its arithmetic step for step.
+/// Not `Calendar.dateComponents`, which resolves "31 March plus one month" by clamping to 30 April and calling it a whole month where the server calls it none.
 enum AgeCalculator {
 
     static func age(from birthdate: Date, isPregnancy: Bool = false) -> String {
@@ -23,10 +9,7 @@ enum AgeCalculator {
     }
 
     static func age(from birthdate: Date, at referenceDate: Date, isPregnancy: Bool = false) -> String {
-        // A record flagged as a pregnancy stays in weeks even once the due date
-        // has passed — an overdue baby is 41 weeks, not a day old. Without the
-        // flag this case would fall through to ordinary age and read "< 1
-        // month" while the website said "41 weeks".
+        // A record flagged as a pregnancy stays in weeks even once the due date has passed — an overdue baby is 41 weeks, not a day old.
         if isPregnancy || referenceDate < birthdate {
             return gestationalAge(dueDate: birthdate, at: referenceDate)
         }
@@ -70,10 +53,7 @@ enum AgeCalculator {
         return years == 1 ? "1 year" : "\(years) years"
     }
 
-    /// Weeks of gestation, counting back from a 40-week term.
-    ///
-    /// Whole days between the two calendar dates, so a due date eight days out
-    /// is 38 weeks whatever time of day either end falls on.
+    /// Weeks of gestation, counting back from a 40-week term, over whole calendar days.
     private static func gestationalAge(dueDate: Date, at referenceDate: Date) -> String {
         let calendar = Calendar.current
         let due = calendar.startOfDay(for: dueDate)

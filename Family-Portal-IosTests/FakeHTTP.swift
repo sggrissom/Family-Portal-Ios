@@ -1,17 +1,9 @@
 import Foundation
 @testable import Family_Portal_Ios
 
-/// A stand-in backend for tests that need to exercise `APIClient`, `SyncService`
-/// or `ChatService` end to end rather than one decoder at a time.
-///
-/// Each instance owns a unique host, and the `URLProtocol` below routes purely on
-/// that host, so suites running in parallel never see each other's routes or
-/// recorded requests. `APIClient` already takes an injectable `URLSession`, which
-/// is the whole hook this needs.
 nonisolated final class FakeHTTPServer: @unchecked Sendable {
 
     struct Request: Sendable {
-        /// Normalised without the leading slash: `rpc/GetFamilyTimeline`.
         let path: String
         let body: Data
         let headers: [String: String]
@@ -21,9 +13,6 @@ nonisolated final class FakeHTTPServer: @unchecked Sendable {
         var status: Int
         var headers: [String: String]
         var body: Data
-        /// When set, the request fails at the transport instead of answering —
-        /// the shape of being offline, which the app treats differently from a
-        /// server that answered with an error.
         var transportFailure: URLError.Code?
 
         init(
@@ -48,12 +37,10 @@ nonisolated final class FakeHTTPServer: @unchecked Sendable {
             )
         }
 
-        /// A bare status, the way the backend answers a rejected request.
         static func status(_ status: Int, message: String = "") -> Response {
             Response(status: status, body: Data(message.utf8))
         }
 
-        /// The connection dropping, rather than any reply from the server.
         static func offline(_ code: URLError.Code = .notConnectedToInternet) -> Response {
             Response(transportFailure: code)
         }
@@ -82,9 +69,6 @@ nonisolated final class FakeHTTPServer: @unchecked Sendable {
     func session() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FakeURLProtocol.self]
-        // No HTTP cache. A test that routes a sequence of responses is asserting
-        // about what reached the server, and a cached 200 answering the second
-        // request would make that assertion mean something else.
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: configuration)
@@ -104,8 +88,6 @@ nonisolated final class FakeHTTPServer: @unchecked Sendable {
         route(path) { _ in response }
     }
 
-    /// Answers with each response in turn, then repeats the last one. This is how
-    /// a retry, a rotated token or a changed server state is expressed.
     func routeSequence(_ path: String, _ responses: [Response]) {
         precondition(!responses.isEmpty)
         let counter = Counter()
@@ -149,8 +131,6 @@ nonisolated final class FakeHTTPServer: @unchecked Sendable {
 
     // MARK: - Host registry
 
-    /// Weak so a server disappears with the test that made it, rather than
-    /// keeping every route of every test alive for the whole run.
     private final class WeakServer {
         weak var server: FakeHTTPServer?
         init(_ server: FakeHTTPServer) { self.server = server }
@@ -184,8 +164,6 @@ nonisolated final class FakeHTTPServer: @unchecked Sendable {
     }
 }
 
-/// Serves any request whose host belongs to a live `FakeHTTPServer`, and ignores
-/// everything else so a stray real URL still fails the way it would in the app.
 nonisolated final class FakeURLProtocol: URLProtocol {
 
     override class func canInit(with request: URLRequest) -> Bool {
@@ -233,8 +211,6 @@ nonisolated final class FakeURLProtocol: URLProtocol {
 
     override func stopLoading() {}
 
-    /// `URLSession` moves `httpBody` into `httpBodyStream` before a protocol sees
-    /// the request, so reading only `httpBody` would report every POST as empty.
     private static func body(of request: URLRequest) -> Data {
         if let body = request.httpBody {
             return body

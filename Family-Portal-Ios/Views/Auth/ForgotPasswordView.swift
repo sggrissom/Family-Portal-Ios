@@ -1,9 +1,6 @@
 import SwiftUI
 
-/// Requests the reset email that `RequestPasswordReset`
-/// (backend/password_reset.go) sends. The link in that email opens the
-/// website's reset page, which is where the new password is actually chosen —
-/// the app has no universal link to intercept it.
+/// Requests the reset email `RequestPasswordReset` (backend/password_reset.go) sends; the new password is chosen on the website.
 struct ForgotPasswordView: View {
     @Environment(AuthService.self) private var authService
 
@@ -19,8 +16,7 @@ struct ForgotPasswordView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Check your email", systemImage: "envelope.badge")
                             .font(.headline)
-                        // The server answers identically for unknown addresses,
-                        // so this must not imply the account exists.
+                        // The server answers identically for unknown addresses, so this must not imply the account exists.
                         Text("If an account exists for \(email), a password reset link is on its way. Open the link to choose a new password, then sign in here.")
                             .font(.callout)
                             .foregroundStyle(.secondary)

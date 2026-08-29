@@ -1,40 +1,12 @@
 import Foundation
 import OSLog
 
-/// One activities read, in the two halves a screen needs it in: what is already
-/// on disk, and what the server says now.
-///
-/// A value rather than a pair of service methods so a view can hand the whole
-/// read to `ActivityScreenState` and have the cache-then-live sequence run
-/// itself — the alternative is every screen spelling out the same six lines and
-/// one of them eventually getting the order wrong.
 nonisolated struct ActivityRead<Value: Sendable>: Sendable {
     let cached: @Sendable () async -> ActivitySnapshot<Value>?
     let live: @Sendable () async throws -> Value
 }
 
-/// Reads the competitive-activities feature (backend/activity*.go).
-///
-/// Online-first with a snapshot cache, deliberately outside SwiftData and
-/// `SyncQueue`:
-///
-/// - **The joins are already done.** `GetSeasonOverview` returns activity,
-///   season, events, entries-with-rosters and appearances-with-results in one
-///   payload. Modelling nine `@Model` classes and rebuilding those joins with
-///   `@Query` is rewriting work the server does in one index walk, and it buys a
-///   migration on `DataStore.container` for the trouble.
-/// - **Every write is a whole-set replace with server-side cross-record
-///   validation.** `CreateAppearance` refuses an entry from a different season
-///   than the event, a result naming someone off the roster, a placement whose
-///   rank exceeds its field. Those are exactly the refusals a device cannot
-///   predict — the same reason `FamilyMembershipService` is not queued: a queued
-///   write replayed hours later reports a success that never happened.
-/// - **There is no delta protocol.** `GetFamilyTimeline` does not carry
-///   activities, so a queued activity write would have nothing to reconcile
-///   against on the next pull.
-///
-/// The cache exists because the venue has no signal, and reading stale data is
-/// safe in a way that replaying stale writes is not.
+/// Online-first with a snapshot cache, deliberately outside SwiftData and `SyncQueue`: the joins are already done server-side, every write is a whole-set replace with cross-record validation the device cannot predict, and there is no delta protocol to reconcile a queued write against.
 @Observable
 @MainActor
 final class ActivityService {
@@ -42,9 +14,6 @@ final class ActivityService {
     private let apiClient: APIClient
     private let cache: ActivitySnapshotCache
 
-    /// Both injectable, the way `PhotoSyncService` and `FamilyMembershipService`
-    /// take their client, so a test drives a fake backend and a scratch cache
-    /// directory.
     init(apiClient: APIClient = .shared, cache: ActivitySnapshotCache = .shared) {
         self.apiClient = apiClient
         self.cache = cache
@@ -52,7 +21,6 @@ final class ActivityService {
 
     // MARK: - Reads
 
-    /// The family's programs. `familyId: 0` means the caller's primary family.
     func activities(familyId: Int = 0) -> ActivityRead<ListActivitiesResponseDTO> {
         read(
             .listActivities,
@@ -61,9 +29,6 @@ final class ActivityService {
         )
     }
 
-    /// One program's seasons, newest first. There is no proc that lists seasons
-    /// across activities, which is why the root screen is 1 + N calls — and N is
-    /// about 1.
     func seasons(activityId: Int) -> ActivityRead<ListSeasonsResponseDTO> {
         read(
             .listSeasons,
@@ -96,13 +61,6 @@ final class ActivityService {
         )
     }
 
-    /// The headline read: a kid's routines, their results, their photos.
-    ///
-    /// `seasonId: 0` is every season the person has been in. This is also the
-    /// one activities proc that is always safe to call for any person the app
-    /// can see — it resolves through the roster rather than through the family,
-    /// so a linked household reaches exactly the routines its shared child is
-    /// in.
     func personSeason(personId: Int, seasonId: Int = 0) -> ActivityRead<GetPersonSeasonResponseDTO> {
         read(
             .getPersonSeason,
@@ -111,9 +69,6 @@ final class ActivityService {
         )
     }
 
-    /// What this family has already typed into each free-text field, for
-    /// autocomplete. Cached with the rest, since a form opened at a venue needs
-    /// it as much as a screen does.
     func vocabulary(activityId: Int) -> ActivityRead<ListActivityVocabularyResponseDTO> {
         read(
             .listActivityVocabulary,
@@ -123,31 +78,9 @@ final class ActivityService {
     }
 
     // MARK: - Writes
-    //
-    // Online only, and never queued. `CreateAppearance` refuses an entry from a
-    // different season than the event; `SetAppearanceResults` refuses a result
-    // naming someone off the roster, a placement whose rank exceeds its field,
-    // and a set larger than the appearance can hold. Those are refusals the
-    // device cannot predict, and a queued write replayed hours later would
-    // report a success that never happened.
-    //
-    // None of these touch the snapshot cache. The screen that wrote reloads
-    // itself, which rewrites its own entry; other screens keep the payload they
-    // last saw until they refresh. That is the deliberate trade: dropping their
-    // caches would leave a phone at a venue with *nothing* on the routine screen
-    // rather than something slightly behind, and the stale note already says
-    // which it is.
+    // Online only, never queued: the server's cross-record refusals cannot be predicted on-device, and a queued write replayed hours later would report a success that never happened. None of these touch the snapshot cache.
+    // Text is clamped here rather than at each call site — over-length text is silently truncated on write, not refused.
 
-    // Text is clamped here rather than at each call site. Over-length text is
-    // silently *truncated* on write, not refused, so what a caller sends and
-    // what the record ends up holding have to be the same thing — and a rule
-    // enforced in one place is one a new form cannot forget.
-
-    /// Files a routine at a competition. Both parents are checked against each
-    /// other server-side — an entry from another season is `ErrEntryNotInSeason`
-    /// — and two appearances of the same entry at the same event are allowed on
-    /// purpose: a routine that dances its category and again in the overall
-    /// round is two performances with two sets of results.
     func createAppearance(
         eventId: Int,
         entryId: Int,
@@ -166,11 +99,7 @@ final class ActivityService {
         return response.appearance
     }
 
-    /// Only the date and the notes. Which routine performed at which competition
-    /// is the record's identity, not a field on it.
-    ///
-    /// `occurredAt: nil` **clears** the date rather than leaving it alone, so
-    /// the caller must pass what it is currently showing.
+    /// Only the date and the notes. `occurredAt: nil` **clears** the date rather than leaving it alone, so pass what the caller is showing.
     func updateAppearance(
         id: Int,
         occurredAt: Date?,
@@ -187,7 +116,6 @@ final class ActivityService {
         return response.appearance
     }
 
-    /// Takes the performance's results and photo attachments with it.
     func deleteAppearance(id: Int) async throws {
         let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
             .deleteAppearance,
@@ -195,9 +123,7 @@ final class ActivityService {
         )
     }
 
-    /// Replaces the whole results sheet. `results` must be every row the
-    /// appearance should end up with — the server deletes what it holds and
-    /// writes these in array order, which is where `sortOrder` comes from.
+    /// Replaces the whole results sheet; array order is where `sortOrder` comes from.
     func setAppearanceResults(
         appearanceId: Int,
         results: [ResultInputDTO]
@@ -222,15 +148,6 @@ final class ActivityService {
     }
 
     // MARK: - Structure writes
-    //
-    // The annual setup half: creating the program, naming the season, entering
-    // the routines and their rosters in September. Deliberately last and
-    // deliberately plain — this is keyboard work that happens once a year, and
-    // the phone only has to be able to do it, not be good at it.
-    //
-    // Names are required and trimmed to 200; every other text field is free by
-    // design, because competitions do not agree on what a division or a level is
-    // called and normalizing here would lose the distinction.
 
     func createActivity(familyId: Int = 0, name: String, kind: String) async throws -> ActivityDTO {
         let response: ActivityRecordResponseDTO = try await apiClient.callRPC(
@@ -256,8 +173,6 @@ final class ActivityService {
         return response.activity
     }
 
-    /// Cascades through every season under the activity, and each of those
-    /// through its competitions, routines, performances and results.
     func deleteActivity(id: Int) async throws {
         let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
             .deleteActivity,
@@ -285,9 +200,7 @@ final class ActivityService {
         return response.season
     }
 
-    /// Both dates are always sent. `UpdateSeason` assigns whatever
-    /// `parseActivityDate` returns unconditionally, so omitting one does not
-    /// leave it alone — it clears it.
+    /// Both dates are always sent: omitting one clears it rather than leaving it alone.
     func updateSeason(
         id: Int,
         name: String,
@@ -308,8 +221,6 @@ final class ActivityService {
         return response.season
     }
 
-    /// Cascades through every competition, routine, performance and result in
-    /// the season.
     func deleteSeason(id: Int) async throws {
         let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
             .deleteSeason,
@@ -365,8 +276,6 @@ final class ActivityService {
         return response.event
     }
 
-    /// Cascades through every performance at the competition, and its own
-    /// photos.
     func deleteEvent(id: Int) async throws {
         let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
             .deleteEvent,
@@ -400,8 +309,6 @@ final class ActivityService {
         return response.entry
     }
 
-    /// The roster is not on this call — `setEntryRoster` owns it, and sending
-    /// half a roster by accident is exactly what splitting them prevents.
     func updateEntry(
         id: Int,
         name: String,
@@ -426,10 +333,7 @@ final class ActivityService {
         return response.entry
     }
 
-    /// Replaces the whole roster. Every person must already be on the owning
-    /// family's roster: a routine can hold children from two households, but
-    /// only because the other household shared them in — this proc is not a
-    /// second way to reach a person.
+    /// Replaces the whole roster. Every person must already be on the owning family's roster.
     func setEntryRoster(entryId: Int, personIds: [Int]) async throws -> EntryViewDTO {
         let response: ActivityEntryResponseDTO = try await apiClient.callRPC(
             .setEntryRoster,
@@ -438,7 +342,6 @@ final class ActivityService {
         return response.entry
     }
 
-    /// Cascades through every performance of the routine.
     func deleteEntry(id: Int) async throws {
         let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
             .deleteEntry,
@@ -446,7 +349,6 @@ final class ActivityService {
         )
     }
 
-    /// The competition's own photos, as a whole set over remote ids.
     func setEventPhotos(eventId: Int, photoIds: [Int]) async throws -> [Int] {
         let response: SetEventPhotosResponseDTO = try await apiClient.callRPC(
             .setEventPhotos,
@@ -457,9 +359,7 @@ final class ActivityService {
 
     // MARK: - Internals
 
-    /// Decode before caching, never after: a payload this build cannot read is
-    /// not worth keeping, and caching it would make the failure permanent until
-    /// the next successful call.
+    /// Decode before caching, never after: caching a payload this build cannot read would make the failure permanent.
     private func read<Response: Decodable & Sendable, Request: Encodable & Sendable>(
         _ proc: RPCMethod,
         payload: Request,
@@ -485,44 +385,24 @@ final class ActivityService {
     }
 }
 
-/// What one activities screen is showing, and why.
-///
-/// The sequence is the same everywhere: render whatever the cache holds so the
-/// screen is not blank, fire the live call, replace. A failure leaves the cached
-/// payload in place and raises `isShowingCached` so the screen can say it is
-/// showing what it last saw, rather than throwing an error over data the user
-/// can still read.
-///
-/// `value == nil` with an `error` is deliberately a different state from a
-/// `value` that happens to be empty. Offline-with-nothing-cached and
-/// this-season-has-nothing-in-it are different screens; conflating them is how
-/// the chat history bug read as *this family has no messages*.
 @Observable
 @MainActor
 final class ActivityScreenState<Value: Sendable> {
 
     private(set) var value: Value?
     private(set) var isLoading = false
-    /// True when `value` came off disk and the live call has not replaced it —
-    /// either because it is still in flight or because it failed.
     private(set) var isShowingCached = false
     private(set) var fetchedAt: Date?
-    /// Set only when there is nothing at all to show. A failed refresh over a
-    /// cached payload is reported by `isShowingCached`, not here.
+    /// Set only when there is nothing at all to show; a failed refresh over a cached payload is reported by `isShowingCached`.
     private(set) var error: String?
 
     private var read: ActivityRead<Value>?
 
-    /// Loads the screen: cache first if there is nothing on it yet, then the
-    /// server. Safe to call again — `.task` re-fires on a view that comes back.
     func load(_ read: ActivityRead<Value>) async {
         self.read = read
         await refresh(read, consultingCache: true)
     }
 
-    /// Pull to refresh. Goes straight to the server: the user asking again is
-    /// asking for what the server has now, and the cache is what they are
-    /// already looking at.
     func reload() async {
         guard let read else { return }
         await refresh(read, consultingCache: false)
@@ -551,9 +431,6 @@ final class ActivityScreenState<Value: Sendable> {
             if value == nil {
                 self.error = error.localizedDescription
             } else {
-                // There is still something on screen, and it is honest about
-                // being old. An alert here would interrupt a reader to tell
-                // them something they can already see.
                 isShowingCached = true
             }
         }

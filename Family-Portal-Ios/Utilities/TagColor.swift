@@ -1,17 +1,9 @@
 import SwiftUI
 
 /// Turns a `FamilyTag.colorHex` into something drawable.
-///
-/// The colour is whatever the web's `<input type="color">` wrote — `CreateTag`
-/// and `UpdateTag` (backend/tags.go) validate the name and never the colour, so
-/// an empty string, a legacy value or an outright typo all reach the phone. A
-/// tag with an unreadable colour is still a tag the user put on the record, so
-/// every malformed value falls back to a neutral swatch rather than dropping the
-/// chip — the web does the same thing by handing the string straight to CSS and
-/// letting an invalid one inherit.
+/// The colour is never validated server-side, so an empty string or an outright typo reaches the phone; a malformed value falls back to a neutral swatch rather than dropping the chip.
 nonisolated enum TagColor {
 
-    /// What an empty or malformed hex string draws as.
     static let fallback = Color.secondary
 
     static func color(forHex hex: String) -> Color {
@@ -19,12 +11,7 @@ nonisolated enum TagColor {
         return Color(red: components.red, green: components.green, blue: components.blue)
     }
 
-    /// The parse itself, kept separate from `Color` so it can be asserted on
-    /// without rendering anything.
-    ///
-    /// Accepts `#RRGGBB` and the three-digit `#RGB` shorthand, with or without
-    /// the leading `#`, in either case. Anything else — including the `rgb(…)`
-    /// and named-colour forms CSS would take — is a miss.
+    /// The parse itself, kept separate from `Color` so it can be asserted on without rendering. Accepts `#RRGGBB` and the three-digit shorthand, with or without the `#`.
     static func components(forHex hex: String) -> (red: Double, green: Double, blue: Double)? {
         var digits = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         if digits.hasPrefix("#") {

@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 @Observable
 final class AuthService {
@@ -6,23 +7,17 @@ final class AuthService {
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
-    /// False until `restoreSession()` has finished once. Lets the root view hold
-    /// a launch placeholder instead of flashing the sign-in screen at a user who
-    /// turns out to have a valid session.
     private(set) var hasCheckedStoredSession = false
 
     private let googleSignInService = GoogleSignInService()
 
-    /// Runs at the start of `logout`, while the session is still valid. Push
-    /// registration is retired here so it can't be missed by whichever screen
-    /// happens to trigger the sign-out.
     @MainActor var onWillLogout: (@MainActor () async -> Void)?
 
-    /// Runs when the data already on this device cannot be vouched for as the
-    /// signing-in account's, before the new identity is published. The app
-    /// erases the local store here, so no screen ever renders the previous
-    /// account's records — see `LocalAccountOwner`.
+    /// Runs when the data on this device cannot be vouched for as the signing-in account's, before the new identity is published — see `LocalAccountOwner`.
     @MainActor var onUnownedLocalData: (@MainActor (LocalDataResetScope) async -> Void)?
+
+    /// Runs after the server has destroyed the account. Nothing remains to reconcile against, so the store is erased outright.
+    @MainActor var onAccountDeleted: (@MainActor () async -> Void)?
 
     private let accountOwner = LocalAccountOwner()
 
@@ -69,13 +64,6 @@ final class AuthService {
         isLoading = false
     }
 
-    /// `CreateAccount` (backend/users.go) creates the account, its family, and
-    /// an optional first person, then returns a token — so a successful sign-up
-    /// leaves the user signed in exactly as `login` would.
-    ///
-    /// Returns nil on success or a message to show the user. The failure is kept
-    /// out of the shared `errorMessage` so it can't surface on the sign-in
-    /// screen behind this one.
     @MainActor
     func createAccount(
         name: String,
@@ -88,8 +76,6 @@ final class AuthService {
         isLoading = true
         defer { isLoading = false }
 
-        // The website falls back to the account name here, and the backend
-        // validates the person only when a birthdate is present.
         let personName = initialPerson.map { $0.name.isEmpty ? name : $0.name } ?? name
 
         let request = CreateAccountRequestDTO(
@@ -124,11 +110,6 @@ final class AuthService {
         }
     }
 
-    /// `RequestPasswordReset` (backend/password_reset.go) emails a link to the
-    /// website's reset page. It answers identically for unknown addresses, so
-    /// the caller must not claim the account exists.
-    ///
-    /// Returns nil on success or a message to show the user.
     @MainActor
     func requestPasswordReset(email: String) async -> String? {
         isLoading = true
@@ -157,10 +138,8 @@ final class AuthService {
         errorMessage = nil
 
         do {
-            // Get ID token from Google
             let idToken = try await googleSignInService.signIn()
 
-            // Send token to backend for verification
             let response: LoginResponseDTO = try await APIClient.shared.request(
                 path: "api/login/google/token",
                 method: .post,
@@ -176,7 +155,6 @@ final class AuthService {
             }
         } catch let error as GoogleSignInError {
             if case .cancelled = error {
-                // User cancelled, don't show error
             } else {
                 errorMessage = error.errorDescription
             }
@@ -191,13 +169,8 @@ final class AuthService {
 
     // MARK: - Families
 
-    /// `GetFamilyInfo` (backend/users.go). Every family the user belongs to,
-    /// each with the invite code others need to join it. Empty until loaded.
     @MainActor private(set) var families: [FamilyInfoDTO] = []
 
-    /// Returns nil on success or a message to show the user. A user with no
-    /// family at all gets an error rather than an empty list, which is why the
-    /// caller has to distinguish "not loaded" from "none".
     @MainActor
     func loadFamilyInfo() async -> String? {
         do {
@@ -217,11 +190,6 @@ final class AuthService {
         }
     }
 
-    /// `JoinFamily` (backend/users.go). The joined family's people show up on
-    /// the next pull, since `GetFamilyTimeline` reads every family the user can
-    /// see — so callers should sync afterwards.
-    ///
-    /// Returns nil on success or a message to show the user.
     @MainActor
     func joinFamily(inviteCode: String) async -> String? {
         do {
@@ -245,13 +213,6 @@ final class AuthService {
         }
     }
 
-    /// The user is no longer in this family (`FamilyMembershipService.leaveFamily`).
-    /// Which family is primary may have moved with it, so the server's refreshed
-    /// identity is adopted and the list re-read.
-    ///
-    /// The local list is trimmed *first* and put back if the re-read fails:
-    /// `loadFamilyInfo` empties `families` on any error, which would turn a
-    /// successful leave into "You aren't part of a family yet."
     @MainActor
     func applyLeftFamily(_ familyId: Int, auth: AuthResponseDTO?) async {
         if let auth {
@@ -266,8 +227,6 @@ final class AuthService {
         }
     }
 
-    /// Records a rotated invite code without a round trip: `RotateInviteCode`
-    /// returns the new code, and it is the same value `GetFamilyInfo` would.
     @MainActor
     func applyRotatedInviteCode(_ inviteCode: String, forFamily familyId: Int) {
         guard let index = families.firstIndex(where: { $0.id == familyId }) else { return }
@@ -288,21 +247,39 @@ final class AuthService {
                 retryOnAuthFailure: false
             )
         } catch {
-            // Logout locally even if server call fails
         }
 
-        // Sign out of Google as well
         googleSignInService.signOut()
 
         await endSession()
+    }
+
+    /// Unlike `logout`, nothing local happens until the server has confirmed: a refused deletion must leave the user signed in with their data intact.
+    /// `onWillLogout` is deliberately not called — `deleteAccountTx` already drops every push token the user has, on every device.
+    @MainActor
+    func deleteAccount(password: String, confirmEmail: String) async -> String? {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            try await APIClient.shared.deleteAccount(password: password, confirmEmail: confirmEmail)
+        } catch {
+            AppLog.auth.error("Account deletion failed: \(String(describing: error), privacy: .public)")
+            return error.localizedDescription
+        }
+
+        // Google's own session outlives ours, so a Google user who did not sign out of it would be signed straight back in by the next tap.
+        googleSignInService.signOut()
+
+        await onAccountDeleted?()
+        await endSession()
+        return nil
     }
 
     @MainActor
     func restoreSession() async {
         defer { hasCheckedStoredSession = true }
 
-        // Registered here because this is the first thing the app does with the
-        // API, so no request can outrun it.
         let onSessionExpired: @MainActor () async -> Void = { [weak self] in
             guard let self else { return }
             self.endSessionLocally()
@@ -310,7 +287,6 @@ final class AuthService {
         await APIClient.shared.setSessionExpiredHandler(onSessionExpired)
 
         guard await APIClient.shared.hasRefreshCredential else {
-            // Nothing to refresh with: a fresh install, or a real sign-out.
             endSessionLocally()
             return
         }
@@ -331,29 +307,15 @@ final class AuthService {
                 await endSession()
             }
         } catch APIError.unauthorized {
-            // The refresh token is expired, revoked, or was reused. This is the
-            // only launch-time failure that should cost the user their session.
             await endSession()
         } catch {
-            // No network on launch, a DNS hiccup, a 502 — none of which say
-            // anything about whether the session is still good. Keep the tokens
-            // and carry on with the identity from last time; the next request
-            // refreshes for real, and a genuinely dead session gets caught by
-            // the 401 handling there.
+            // A network failure says nothing about whether the session is good: keep the tokens, and let the 401 handling catch a genuinely dead one.
             await adoptSession(Self.cachedUser())
         }
     }
 
-    /// Publishes a freshly authenticated identity, erasing what is on the device
-    /// first when it belongs to a different account.
-    ///
-    /// The erase is awaited before `currentUser` is set so the app can never
-    /// render a tab against the previous account's records: nothing is
-    /// authenticated until this returns.
-    ///
-    /// A sign-out deliberately leaves the recorded owner alone. The same user
-    /// signing back in keeps everything they had, including work still queued
-    /// for upload.
+    /// The erase is awaited before `currentUser` is set, so the app can never render a tab against the previous account's records.
+    /// A sign-out deliberately leaves the recorded owner alone: the same user signing back in keeps everything they had.
     @MainActor
     private func adoptSession(_ auth: AuthResponseDTO?) async {
         guard let auth else {
@@ -364,17 +326,12 @@ final class AuthService {
         if accountOwner.holdsDataForAnotherAccount(than: auth.id) {
             await onUnownedLocalData?(.everything)
         } else if !accountOwner.hasRecordedOwner {
-            // First run of a build that keeps this record. The store may already
-            // hold an earlier account's chat, put there before anything tracked
-            // whose it was, and no sync will ever clear it.
             await onUnownedLocalData?(.chatOnly)
         }
         accountOwner.record(userId: auth.id)
         setCurrentUser(auth)
     }
 
-    /// Forgets the session locally. The tokens are already gone by the time the
-    /// API client calls this, so there is nothing to revoke server-side.
     @MainActor
     private func endSessionLocally() {
         setCurrentUser(nil)
@@ -389,9 +346,6 @@ final class AuthService {
 
     // MARK: - Cached identity
 
-    /// The last known signed-in user, so a launch without connectivity can show
-    /// the app instead of a sign-in screen the user cannot get past offline.
-    /// Nothing here is a credential — the tokens live in the keychain.
     private static let cachedUserKey = "com.familyrecord.cachedAuthUser"
 
     @MainActor
@@ -417,8 +371,6 @@ final class AuthService {
     }
 }
 
-/// The first family member to create alongside a new account, mirroring the
-/// optional block on the website's create-account form.
 struct InitialPerson {
     var name: String
     var gender: Gender

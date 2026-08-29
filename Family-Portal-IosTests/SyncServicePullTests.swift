@@ -3,10 +3,6 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// `pullFamilyData` is the half of sync that owns the local store outright: it
-/// upserts everything the server lists and deletes everything it doesn't. Both
-/// halves have shipped bugs — a photo pinned on the device forever, a tag that
-/// reappeared after being removed — and neither was covered.
 @MainActor
 @Suite("SyncService pull")
 struct SyncServicePullTests {
@@ -40,8 +36,6 @@ struct SyncServicePullTests {
         let measurements = try harness.context.fetch(FetchDescriptor<GrowthData>())
         #expect(measurements.count == 1)
         #expect(measurements.first?.value == 104.5)
-        // The relationship, not just the row: a measurement with no person never
-        // appears anywhere in the UI.
         #expect(measurements.first?.person?.remoteId == "12")
 
         let milestones = try harness.context.fetch(FetchDescriptor<Milestone>())
@@ -101,8 +95,6 @@ struct SyncServicePullTests {
         #expect(photos.count == 1)
         #expect(photos.first?.taggedPeople.count == 1)
         #expect(photos.first?.taggedPeople.first?.remoteId == "12")
-        // The person came back in both responses; matching on remoteId is what
-        // keeps that from becoming two people.
         #expect(try harness.context.fetch(FetchDescriptor<Person>()).count == 1)
     }
 
@@ -153,10 +145,6 @@ struct SyncServicePullTests {
         #expect(try harness.context.fetch(FetchDescriptor<Photo>()).count == 1)
     }
 
-    /// `removeOrphans` used to skip any photo still holding local bytes, and
-    /// nothing ever cleared those bytes after an upload — so a photo deleted on
-    /// the web stayed on the phone forever. The exemption is `remoteId == nil`
-    /// now, and this is the case that regressing it would break.
     @Test("An uploaded photo is removed even if its local bytes are still around")
     func pullRemovesUploadedPhotoWithLocalBytes() async throws {
         let harness = try TestSync.harness()

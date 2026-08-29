@@ -1,9 +1,6 @@
 import SwiftUI
 import SwiftData
 
-/// `SyncService.updateGrowthData` and the backend's `UpdateGrowthData` proc were
-/// both fully implemented and unreachable: nothing in the app could edit a
-/// measurement once it was saved. The website has had this since GrowthForm.tsx.
 struct EditMeasurementView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncService.self) private var syncService: SyncService?
@@ -24,8 +21,7 @@ struct EditMeasurementView: View {
         _date = State(initialValue: measurement.date)
     }
 
-    /// Round-trips through the same text the row displays, so opening the sheet
-    /// and saving without touching anything is a no-op.
+    /// Round-trips through the same text the row displays, so opening the sheet and saving without touching anything is a no-op.
     private static func format(_ value: Double) -> String {
         value.truncatingRemainder(dividingBy: 1) == 0
             ? String(format: "%.0f", value)
@@ -72,8 +68,7 @@ struct EditMeasurementView: View {
                 }
             }
             .onChange(of: measurementType) { oldType, newType in
-                // Only when the type actually changes, or reopening the sheet
-                // would silently rewrite a unit the user chose.
+                // Only when the type actually changes, or reopening the sheet would silently rewrite a unit the user chose.
                 if oldType != newType {
                     unit = newType.defaultUnit
                 }
@@ -89,8 +84,6 @@ struct EditMeasurementView: View {
         measurement.unit = unit
         measurement.date = date
 
-        // The write is already local and the queue guarantees delivery, so the
-        // sheet doesn't wait on the network to close.
         dismiss()
 
         Task { [measurement] in

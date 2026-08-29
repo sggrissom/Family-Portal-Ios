@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// `GetFamilyInfo` / `JoinFamily` in backend/users.go.
 @Suite("Family DTOs")
 struct FamilyDTOTests {
 
@@ -30,7 +29,6 @@ struct FamilyDTOTests {
         #expect(dto.families.last?.isPrimary == false)
     }
 
-    /// A nil Go slice marshals as null, so the list must not be required.
     @Test("Tolerates a null families list")
     func toleratesNullFamilies() throws {
         let json = """
@@ -50,7 +48,6 @@ struct FamilyDTOTests {
         #expect(fields["inviteCode"] as? String == "ABC123")
     }
 
-    /// JoinFamily reports failures in-band with HTTP 200.
     @Test("Decodes both outcomes of JoinFamily")
     func decodesJoinResponses() throws {
         let success = try APIClient.decode(

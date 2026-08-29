@@ -3,12 +3,6 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// Attaching photos to a milestone. The whole contract lives in one field, and
-/// its three states are not interchangeable: `AddMilestoneTx`/`UpdateMilestoneTx`
-/// (backend/milestone.go) read an absent `photoIds` as "leave the attachments
-/// alone" and an empty array as "detach every one of them". A Swift optional
-/// encodes that distinction correctly only by accident of `encodeIfPresent`, so
-/// it is pinned here.
 @MainActor
 @Suite("Milestone photos")
 struct MilestonePhotoTests {
@@ -87,8 +81,6 @@ struct MilestonePhotoTests {
         #expect(await harness.service.syncQueue.count() == 0)
     }
 
-    /// The other two callers of `addMilestone` say nothing about photos, and
-    /// "nothing" has to stay off the wire rather than arriving as `[]`.
     @Test("Creating a milestone without photos omits the field entirely")
     func createWithoutPhotosOmitsTheField() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -108,8 +100,6 @@ struct MilestonePhotoTests {
     func responsePhotoIdsAreApplied() async throws {
         let harness = try TestSync.harness(connected: false)
         let scene = try Self.scene(in: harness)
-        // The server dropped one — it normalizes the list and rejects duplicates
-        // and non-positive ids.
         Self.routeAdd(harness, photoIds: [77])
 
         try await harness.service.addMilestone(scene.milestone, for: scene.person, photos: scene.photos)
@@ -123,9 +113,6 @@ struct MilestonePhotoTests {
 
     // MARK: - Update
 
-    /// `UpdateMilestone` takes the complete set, so clearing the selection has to
-    /// reach the server as `[]`. Encoding it as an absent key instead would make
-    /// "remove all photos" a silent no-op that the next pull undoes.
     @Test("Clearing the selection sends an empty list, not an absent one")
     func updateWithNoPhotosSendsAnEmptyList() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -183,9 +170,6 @@ struct MilestonePhotoTests {
 
     // MARK: - Photos that aren't ready
 
-    /// Attaching fewer photos than the user chose is the failure mode worth
-    /// avoiding: the milestone would look finished while a photo was quietly
-    /// missing from it, and nothing would ever retry.
     @Test("A photo still uploading parks the milestone instead of dropping it")
     func unsyncedPhotoBlocksTheOperation() async throws {
         let harness = try TestSync.harness(connected: false)
@@ -230,8 +214,6 @@ struct MilestonePhotoTests {
 
     // MARK: - Queue durability
 
-    /// The queue outlives an app upgrade: an operation written before this field
-    /// existed still has to decode, and must not read as "detach everything".
     @Test("An operation queued by an older build decodes as no opinion on photos")
     func legacyPayloadDecodes() throws {
         let create = try #require("""

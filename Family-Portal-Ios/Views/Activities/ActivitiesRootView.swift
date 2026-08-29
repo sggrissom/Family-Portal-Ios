@@ -1,11 +1,7 @@
 import SwiftUI
 
 /// The Activities tab: the family's programs, and the seasons under each.
-///
-/// One call for the programs plus one per program for its seasons. There is no
-/// proc that lists seasons across activities, and N is about 1 — a family runs
-/// one program, occasionally two — so the fan-out this shape usually warns
-/// against does not apply.
+/// One call for the programs plus one per program for its seasons — there is no proc that lists seasons across activities, and N is about 1.
 struct ActivitiesRootView: View {
     @Environment(ActivityService.self) private var service
 
@@ -51,15 +47,10 @@ struct ActivitiesRootView: View {
     }
 }
 
-/// One program and its seasons.
-///
-/// Its own screen state rather than a slice of the parent's: each list is its
-/// own call and its own cache entry, so a program whose seasons fail to load
-/// says so under that program instead of blanking the tab.
+/// One program and its seasons. Its own screen state, so a program whose seasons fail to load says so under that program instead of blanking the tab.
 private struct ActivitySeasonsSection: View {
     let activity: ActivityDTO
-    /// The activity list itself has to reload when a program is renamed or
-    /// deleted, which is the parent's business, not this section's.
+    /// The activity list itself has to reload when a program is renamed or deleted.
     let onChanged: @MainActor () async -> Void
 
     @Environment(ActivityService.self) private var service
@@ -136,8 +127,6 @@ private struct ActivitySeasonsSection: View {
             switch presented {
             case .editActivity:
                 ActivityEditorView(existing: activity, onSaved: {
-                    // A renamed or deleted program changes the list above as
-                    // well as the seasons below it.
                     await onChanged()
                     await state.reload()
                 })

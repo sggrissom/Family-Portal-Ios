@@ -2,22 +2,12 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// Everything the app does with an expiring session runs through
-/// `refreshAccessToken`: the 401 retry inside `request`, the proactive refresh
-/// the WebSocket and `RemotePhotoView` depend on, and the single decision that
-/// ends a session. It is also the one path where a mistake signs a user out for
-/// good, so it is worth pinning.
-///
-/// Serialized because the client's token storage (keychain and the shared cookie
-/// jar) is process-wide; parallel cases would clear each other's credentials.
 @MainActor
 @Suite("APIClient refresh and retry", .serialized)
 struct APIClientRefreshTests {
 
     private struct EmptyPayload: Encodable {}
 
-    /// The refresh token only ever arrives as a cookie, so this is how a session
-    /// with something to refresh is set up.
     private nonisolated static func seedRefreshCookie(host: String, value: String = "refresh-token") {
         let cookie = HTTPCookie(properties: [
             .domain: host,
@@ -40,7 +30,6 @@ struct APIClientRefreshTests {
         )
     }
 
-    /// Records whether the client declared the session over.
     @MainActor
     private final class SessionFlag {
         var expired = false
@@ -68,7 +57,6 @@ struct APIClientRefreshTests {
         #expect(server.requests(for: "rpc/GetFamilyInfo").count == 2)
         #expect(await client.getAccessToken() == "fresh-jwt")
 
-        // The replay carries the new token, not the one that was just rejected.
         let replay = server.requests(for: "rpc/GetFamilyInfo").last
         #expect(replay?.headers["Authorization"] == "Bearer fresh-jwt")
     }
@@ -114,9 +102,6 @@ struct APIClientRefreshTests {
         #expect(await client.getAccessToken() == nil)
     }
 
-    /// A 500 from `api/refresh` says nothing about the stored credential, and
-    /// treating it as a rejection would sign people out every time the server
-    /// had a bad minute.
     @Test("A server-side refresh failure leaves the session intact")
     func serverErrorKeepsSession() async throws {
         let server = FakeHTTPServer()
@@ -154,15 +139,10 @@ struct APIClientRefreshTests {
 
     // MARK: - Single flight
 
-    /// The server rotates the refresh token on every use, so two refreshes in
-    /// flight can each invalidate the other's credential and end a live session.
-    /// A photo grid mounting twenty `RemotePhotoView`s at once is exactly that
-    /// shape, which is why they all have to share one round trip.
     @Test("Overlapping refreshes share a single round trip")
     func concurrentRefreshesCoalesce() async throws {
         let server = FakeHTTPServer()
         server.route("api/refresh") { _ in
-            // Long enough that every caller below is waiting on this one call.
             Thread.sleep(forTimeInterval: 0.3)
             return Self.refreshSuccess()
         }
@@ -214,7 +194,6 @@ struct APIClientRefreshTests {
         #expect(await client.getAccessToken() == "fresh-jwt")
     }
 
-    /// An unsigned token: only the `exp` claim in the payload is ever read.
     private nonisolated static func jwt(expiringIn interval: TimeInterval) -> String {
         let claims: [String: Any] = ["exp": Date().addingTimeInterval(interval).timeIntervalSince1970]
         let payload = (try? JSONSerialization.data(withJSONObject: claims)) ?? Data()

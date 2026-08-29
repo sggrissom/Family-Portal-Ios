@@ -2,14 +2,9 @@ import SwiftUI
 import SwiftData
 
 /// One routine across its season: where it went, and how it did each time.
-///
-/// `GetEntryHistory` is the other direction off the same hinge as
-/// `GetEventDetail`, and one of the two procs that resolve through a roster — so
-/// it answers with a `SeasonSummary` and an `EventSummary` per performance
-/// rather than the full records.
+/// `GetEntryHistory` resolves through a roster, so it answers with a `SeasonSummary` and an `EventSummary` per performance rather than the full records.
 struct RoutineView: View {
     let entryId: Int
-    /// For the title before the payload lands.
     let entryName: String
 
     @Environment(ActivityService.self) private var service
@@ -18,7 +13,6 @@ struct RoutineView: View {
     @State private var state = ActivityScreenState<GetEntryHistoryResponseDTO>()
     @State private var isEditing = false
 
-    /// A deleted routine leaves nothing to show.
     @Environment(\.dismiss) private var dismiss
 
     private var labels: ActivityLabels {
@@ -44,9 +38,7 @@ struct RoutineView: View {
         }
         .sheet(isPresented: $isEditing) {
             if let response = state.value {
-                // `GetEntryHistory` carries a `SeasonSummary`, which has the
-                // season's id — enough for the editor, which only needs it to
-                // create, and this is always an edit.
+                // `GetEntryHistory` carries a `SeasonSummary`, whose id is all the editor needs — this is always an edit.
                 RoutineEditorView(
                     seasonId: response.season.id,
                     existing: response.entry,

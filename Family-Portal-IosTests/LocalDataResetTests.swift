@@ -3,17 +3,10 @@ import SwiftData
 import Testing
 @testable import Family_Portal_Ios
 
-/// SwiftData survives a sign-out, so the records of whoever used the device last
-/// are still there when the next account signs in. The pull heals the timeline —
-/// `removeOrphans` drops what the server no longer lists — but chat is merged,
-/// never reconciled, so the previous account's conversation stays on screen
-/// until it is erased outright.
 @MainActor
 @Suite("Local data reset")
 struct LocalDataResetTests {
 
-    /// A cache with nowhere on disk to write, so a test never clears the app's
-    /// real photo cache — the same reason `makeQueue` gets its own queue file.
     private static func scratchPhotoCache() -> PhotoImageCache {
         PhotoImageCache(session: URLSession(configuration: .ephemeral))
     }
@@ -52,8 +45,6 @@ struct LocalDataResetTests {
         #expect(owner.holdsDataForAnotherAccount(than: 8))
     }
 
-    /// Id 0 is what `integer(forKey:)` reads a missing key as, so an account
-    /// that really is user 0 must not read as "no owner recorded".
     @Test("A recorded owner of zero is still a recorded owner")
     func zeroIsARecordedOwner() {
         let owner = LocalAccountOwner(defaults: Self.scratchDefaults())
@@ -127,9 +118,6 @@ struct LocalDataResetTests {
         #expect(users == 0)
     }
 
-    /// A queued operation carries no identity of its own, so anything the last
-    /// account left unsent would be pushed under the new account's session, into
-    /// the new account's family.
     @Test("Work the previous account left queued is dropped")
     func erasesThePendingQueue() async throws {
         let context = try TestStore.makeContext()
@@ -154,10 +142,6 @@ struct LocalDataResetTests {
         #expect(queuedAfter == 0)
     }
 
-    /// The migration case: a store that predates any record of who owns it. Only
-    /// chat is dropped, because it is the only thing the next pull cannot
-    /// reconcile — and a queue built before this bookkeeping still belongs to
-    /// the user who is signing in.
     @Test("A chat-only erase leaves the timeline and the queue alone")
     func chatOnlyErasePreservesEverythingElse() async throws {
         let context = try TestStore.makeContext()

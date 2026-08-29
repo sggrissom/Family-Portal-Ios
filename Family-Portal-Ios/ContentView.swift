@@ -1,10 +1,3 @@
-//
-//  ContentView.swift
-//  Family-Portal-Ios
-//
-//  Created by Grissom on 1/22/26.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -16,15 +9,13 @@ struct ContentView: View {
 
     @State private var selectedTab: MainTab = .family
 
-    /// The tab bar's identities. A raw value rather than an index so a tab
-    /// inserted later cannot silently change what a deep link selects.
+    /// The tab bar's identities. A raw value rather than an index, so a tab inserted later cannot silently change what a deep link selects.
     private enum MainTab: String, Hashable {
         case family, timeline, photos, activities, settings
     }
 
     var body: some View {
-        // The version gate sits outside the auth gate on purpose: the policy
-        // endpoint is pre-auth so an unsupported build never reaches login.
+        // The version gate sits outside the auth gate on purpose: the policy endpoint is pre-auth, so an unsupported build never reaches login.
         if mobileVersionService.status == .updateRequired {
             UpdateRequiredView(
                 message: mobileVersionService.updateMessage,
@@ -82,21 +73,12 @@ struct ContentView: View {
                 .badge(chatService?.unreadCount ?? 0)
                 .tag(MainTab.settings)
         }
-        // Both, because a link can arrive either before the tabs exist — a cold
-        // launch from a tapped notification — or while they are already on
-        // screen.
+        // Both, because a link can arrive before the tabs exist — a cold launch from a tapped notification — or while they are already on screen.
         .task { selectTabForPendingLink() }
         .onChange(of: deepLinkRouter.pending) { _, _ in selectTabForPendingLink() }
     }
 
-    /// Moves to the tab that owns the pending destination, and leaves the link
-    /// in place for the screen under it.
-    ///
-    /// This deliberately does not claim the link. Selecting a tab is only the
-    /// first half of honoring `/chat` or `/profile/7`; the second half belongs
-    /// to the navigation stack inside that tab, which claims it when it can act
-    /// on it. `/photos` and `/family-timeline` are tab roots, so for them
-    /// selecting the tab *is* the whole job and the link is claimed here.
+    /// Moves to the tab that owns the pending destination and leaves the link in place for the screen under it. `/photos` and `/family-timeline` are tab roots, so those are claimed here.
     private func selectTabForPendingLink() {
         guard let link = deepLinkRouter.pending else { return }
 

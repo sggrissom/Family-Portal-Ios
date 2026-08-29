@@ -4,18 +4,8 @@ import SwiftData
 struct DataStore {
     static let shared = DataStore()
 
-    /// Every `@Model` the app stores, in one place.
-    ///
-    /// Previews and tests build their own in-memory containers and used to
-    /// write this list out again, which is how `PreviewData` came to be missing
-    /// `ChatMessage`: any preview that touched a chat model crashed, and the
-    /// build said nothing, because a schema is data rather than a type. A model
-    /// added later now reaches all three by construction.
-    ///
-    /// A function rather than a stored constant so it can be `nonisolated`:
-    /// the test target builds its containers off the main actor, and a shared
-    /// `Schema` instance would have to be `Sendable` to reach it. Building one
-    /// is cheap and happens three times in a process.
+    /// Every `@Model` the app stores, in one place, so previews and tests cannot drift from the app's schema.
+    /// A function rather than a stored constant so it can be `nonisolated`: the test target builds its containers off the main actor.
     nonisolated static func makeSchema() -> Schema {
         Schema([
             Family.self,

@@ -5,12 +5,6 @@ import Testing
 @Suite("RPC method names")
 struct RPCMethodTests {
 
-    // vbeam dispatches on the Go function name passed to vbeam.RegisterProc, so
-    // every string below is the wire contract and nothing in Swift checks it
-    // against the server — a rename on either side compiles clean and fails at
-    // runtime. Each expectation was read off the corresponding RegisterProc
-    // call in the Go source, so a drifting name has to fail here.
-
     @Test("Account and family proc names match the backend")
     func accountProcNames() {
         #expect(RPCMethod.createAccount.rawValue == "CreateAccount")
@@ -57,19 +51,11 @@ struct RPCMethodTests {
         #expect(RPCMethod.addPeopleToPhoto.rawValue == "AddPeopleToPhoto")
     }
 
-    /// The regression this suite exists for. `RemovePersonFromPhoto` is a plain
-    /// transaction helper in backend/photos.go, so the registered proc had to be
-    /// named `RemovePersonFromPhotoProc`. Calling the un-suffixed name failed
-    /// every untag: the queued operation retried five times, was discarded, and
-    /// the next pull restored the tag — with nothing surfaced to the user.
     @Test("RemovePersonFromPhoto keeps its Proc suffix")
     func removePersonFromPhotoKeepsProcSuffix() {
         #expect(RPCMethod.removePersonFromPhoto.rawValue == "RemovePersonFromPhotoProc")
     }
 
-    /// The two writes are registered from the record's own file — photos.go and
-    /// milestone.go — rather than tags.go, so their names were read off those
-    /// `RegisterProc` calls and not from the tag registrations next to `ListTags`.
     @Test("Tag proc names match the backend")
     func tagProcNames() {
         #expect(RPCMethod.listTags.rawValue == "ListTags")
@@ -90,12 +76,6 @@ struct RPCMethodTests {
         #expect(RPCMethod.unregisterPushDevice.rawValue == "UnregisterPushDevice")
     }
 
-    /// All 26 activities procs, read off the four `RegisterProc` blocks
-    /// (`RegisterActivityMethods`, `RegisterActivityResultMethods`,
-    /// `RegisterActivityViewMethods`, `RegisterActivityPhotoMethods`) rather
-    /// than off the generated TypeScript. Every one matches its Go function name
-    /// exactly — there is no `…Proc` suffix anywhere in this feature — so the
-    /// `RemovePersonFromPhotoProc` trap does not recur here.
     @Test("Activity structure proc names match the backend")
     func activityStructureProcNames() {
         #expect(RPCMethod.listActivities.rawValue == "ListActivities")
@@ -148,12 +128,6 @@ struct RPCMethodTests {
         #expect(Set(names).count == names.count)
     }
 
-    /// vbeam builds the request path itself, so a name carrying whitespace or a
-    /// slash would produce a URL that 404s rather than a dispatch failure.
-    ///
-    /// Written as a loop rather than `@Test(arguments:)` because the argument
-    /// expression lives in a macro attribute, where the `@testable` import
-    /// doesn't make the app module's internal `RPCMethod` visible.
     @Test("Proc names are bare identifiers")
     func procNamesAreBareIdentifiers() {
         for method in RPCMethod.allCases {

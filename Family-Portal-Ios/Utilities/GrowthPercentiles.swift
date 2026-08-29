@@ -1,12 +1,7 @@
 import Foundation
 
-/// WHO 2006 Child Growth Standards (0–24 months) and CDC NCHS 2000 Growth Charts
-/// (2–20 years), ported from `frontend/lib/growthPercentiles.ts` so a percentile
-/// quoted on the phone matches the one quoted on the web for the same record.
-///
-/// Every table is **metric** — height in cm, weight in kg — because that is how
-/// both standards publish them. Values measured in inches or pounds are converted
-/// before they are ranked; see `MeasurementConversion`.
+/// WHO 2006 Child Growth Standards (0–24 months) and CDC NCHS 2000 Growth Charts (2–20 years), ported from `frontend/lib/growthPercentiles.ts` so both clients quote the same percentile.
+/// Every table is **metric** — cm and kg. Imperial values are converted before ranking; see `MeasurementConversion`.
 struct PercentileRow: Equatable {
     var month: Double
     var p3: Double
@@ -18,13 +13,10 @@ struct PercentileRow: Equatable {
 
 enum GrowthPercentiles {
 
-    /// The oldest age either standard covers. Past this there is no reference
-    /// population, so a percentile is not "100th" — it does not exist.
+    /// The oldest age either standard covers. Past this a percentile does not exist.
     static let maxAgeMonths: Double = 240
 
-    /// Where the WHO tables hand over to the CDC ones. Both publish a row at 24
-    /// months and they disagree slightly; the web picks WHO for exactly 24, so
-    /// the comparison is `<=` here too.
+    /// Where the WHO tables hand over to the CDC ones. Both publish a row at 24 months and disagree slightly; the web picks WHO, so the comparison is `<=` here too.
     static let whoCutoffMonths: Double = 24
 
     // MARK: - WHO 0–24 months
@@ -241,10 +233,7 @@ enum GrowthPercentiles {
 
     // MARK: - Lookup
 
-    /// Linear interpolation between the two adjacent rows that bracket `ageMonths`.
-    /// Ages outside the table clamp to its ends rather than extrapolating —
-    /// `percentileRow` has already rejected anything past 240 months, and the
-    /// tables start at birth.
+    /// Linear interpolation between the two rows bracketing `ageMonths`. Ages outside the table clamp to its ends rather than extrapolating.
     static func interpolate(_ table: [PercentileRow], ageMonths: Double) -> PercentileRow? {
         guard let first = table.first, let last = table.last else { return nil }
         if ageMonths <= first.month { return first }
@@ -270,13 +259,8 @@ enum GrowthPercentiles {
         return nil
     }
 
-    /// The percentile row for an age, in **metric** units. `nil` outside 0–240
-    /// months: past 20 years neither standard has a reference population, and a
-    /// missing answer is better than one invented by extrapolation.
-    ///
-    /// `.other` averages the boys' and girls' tables, matching the web's handling
-    /// of gender 2. It is a stand-in, not a third standard — neither WHO nor CDC
-    /// publishes one.
+    /// The percentile row for an age, in **metric** units. `nil` outside 0–240 months, where neither standard has a reference population.
+    /// `.other` averages the boys' and girls' tables, matching the web's handling of gender 2. A stand-in, not a third standard.
     static func percentileRow(
         ageMonths: Double,
         gender: Gender,
@@ -321,9 +305,6 @@ enum GrowthPercentiles {
 
     // MARK: - Ranking
 
-    /// Where a metric value falls, as an approximate percentile rank. `.below`
-    /// rather than a number under the 3rd: the tables carry no band down there to
-    /// interpolate inside, so any figure would be invented.
     enum Rank: Equatable {
         case below
         case value(Double)
@@ -335,8 +316,6 @@ enum GrowthPercentiles {
         if metricValue > row.p97 {
             let span = row.p97 - row.p85
             guard span > 1e-9 else { return .value(97) }
-            // Extrapolate along the 85th–97th slope so a value above the top band
-            // still gets a figure instead of collapsing to a flat ">97th".
             let extra = ((metricValue - row.p97) / span) * (97 - 85)
             return .value(min(99.9, 97 + extra))
         }
@@ -357,9 +336,6 @@ enum GrowthPercentiles {
         return .value(50)
     }
 
-    /// A human-readable percentile, e.g. "~75th %ile", "<3rd %ile", "~99.2th %ile".
-    /// `nil` when the age is out of range, which is also how a person with no
-    /// birthday is handled — the caller has no age to pass.
     static func percentileLabel(
         value: Double,
         unit: MeasurementUnit,
@@ -395,12 +371,7 @@ enum GrowthPercentiles {
 
     // MARK: - Age
 
-    /// Age in months, fractional. This is the web's arithmetic
-    /// (`yearDiff * 12 + monthDiff + dayDiff / 30.4375`) rather than a
-    /// `Calendar` interval, because a percentile the two clients disagree on is
-    /// worse than one that is a fraction of a month off the calendar truth: the
-    /// day component is deliberately *not* normalised, so it can be negative and
-    /// pull the total back below the whole-month boundary.
+    /// Age in months, fractional. The web's arithmetic rather than a `Calendar` interval, so the two clients cannot disagree; the day component is deliberately not normalised.
     static func ageInMonths(
         birthday: Date,
         on date: Date,
@@ -416,9 +387,6 @@ enum GrowthPercentiles {
         return Double(wholeMonths) + Double(day - birthDay) / 30.4375
     }
 
-    /// "8 mo", "3 yr", "3 yr 4 mo" — the web's `formatAgeAtMeasurement`. Under
-    /// two years it stays in months, because "1 yr 1 mo" tells a parent less than
-    /// "13 mo" does.
     static func formatAge(months: Double) -> String {
         if months < 0 { return "—" }
         if months < 24 {

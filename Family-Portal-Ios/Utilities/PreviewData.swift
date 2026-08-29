@@ -4,9 +4,7 @@ import SwiftData
 @MainActor
 enum PreviewData {
     static let container: ModelContainer = {
-        // `DataStore.schema` rather than a list of its own: this one used to
-        // omit `ChatMessage`, so every preview that touched a chat model
-        // crashed.
+        // `DataStore.schema` rather than a list of its own, which used to omit `ChatMessage`.
         let schema = DataStore.makeSchema()
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [config])

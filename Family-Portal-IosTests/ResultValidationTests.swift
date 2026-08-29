@@ -2,13 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// The results editor checks the same rules `SetAppearanceResults` does, so a
-/// mistake made in a building with no signal is caught before it costs a round
-/// trip.
-///
-/// This is a mirror, not a replacement — the server checks all of it again and
-/// is the one that decides. What these tests pin is that the mirror says the
-/// same thing, in the same words.
 @Suite("Result validation")
 struct ResultValidationTests {
 
@@ -43,9 +36,6 @@ struct ResultValidationTests {
         #expect(draft.validate(roster: Self.roster) == nil)
     }
 
-    /// A field holding something that is not a number reads as *absent*, which
-    /// surfaces as "a placement needs a rank" — the truth the user needs — rather
-    /// than as a silent 0 the server would refuse for a different reason.
     @Test("An unparseable rank reads as no rank at all")
     func unparseableRankIsAbsent() {
         let draft = ResultDraft(kind: .placement, rankText: "first")
@@ -83,9 +73,6 @@ struct ResultValidationTests {
         #expect(draft.score == 92.5)
     }
 
-    /// Without this check any person id at all would land in
-    /// `ResultByPersonIndex`, where another family's "a kid's individual awards"
-    /// view would find it.
     @Test("A result can only name someone on the entry's roster")
     func personMustBeOnRoster() {
         var draft = ResultDraft(kind: .award, label: "Judges' Choice", personId: 99)
@@ -98,8 +85,6 @@ struct ResultValidationTests {
         #expect(draft.validate(roster: Self.roster) == nil)
     }
 
-    /// Zero reads as "names nobody" server-side, so a form that sends 0 for an
-    /// unset select does the harmless thing rather than being refused.
     @Test("A person id of zero names nobody")
     func zeroPersonIdNamesNobody() {
         #expect(ResultDraft(kind: .award, label: "Overall", personId: 0).validate(roster: Self.roster) == nil)
@@ -127,9 +112,6 @@ struct ResultValidationTests {
         #expect(ResultSheet.validate(rows, roster: Self.roster) == nil)
     }
 
-    /// An accidental extra row in a form carries nothing at all. Dropping it is
-    /// friendlier than refusing the save over it, and the server would refuse it
-    /// through the per-kind checks.
     @Test("Blank rows are dropped rather than refused")
     func blankRowsAreDropped() {
         let rows = [
@@ -154,8 +136,6 @@ struct ResultValidationTests {
 
     // MARK: - What reaches the wire
 
-    /// `ResultInput` carries no sort order because array position *is* the
-    /// order, so the save has to preserve what is on screen.
     @Test("Rows are sent in the order they are on screen")
     func orderIsPreserved() {
         let inputs = ResultSheet.inputs([
@@ -167,8 +147,6 @@ struct ResultValidationTests {
         #expect(inputs.map(\.kind) == ["placement", "adjudication", "award"])
     }
 
-    /// The trap that makes "no placement" indistinguishable from "1st" if it is
-    /// got wrong. An empty field is `nil` on the wire, never 0.
     @Test("An empty number field sends nothing, not zero")
     func emptyNumbersAreAbsent() throws {
         let input = ResultDraft(kind: .adjudication, label: "High Gold").input()
@@ -178,8 +156,7 @@ struct ResultValidationTests {
         #expect(input.score == nil)
         #expect(input.personId == nil)
 
-        // And `encodeIfPresent` keeps them off the wire entirely, which is what
-        // `omitempty` on the Go side expects.
+        // And `encodeIfPresent` keeps them off the wire, which is what `omitempty` expects.
         let encoded = try JSONSerialization.jsonObject(
             with: JSONEncoder().encode(input)
         ) as? [String: Any]
@@ -188,9 +165,6 @@ struct ResultValidationTests {
         #expect(encoded?["personId"] == nil)
     }
 
-    /// Over-length text is *truncated* server-side rather than refused, so a
-    /// field that let the user type past the cap would quietly keep less than
-    /// they wrote. Clamping here means what is sent is what will be stored.
     @Test("Text is clamped to the caps the server would truncate at")
     func textIsClamped() {
         let input = ResultDraft(
@@ -207,8 +181,6 @@ struct ResultValidationTests {
 
     // MARK: - Round trip
 
-    /// The editor opens on rows the server already holds, so those have to come
-    /// back out unchanged if nobody touches them.
     @Test("A saved sheet reopens as the same sheet")
     func roundTrip() throws {
         let stored = try APIClient.decode(
@@ -233,10 +205,6 @@ struct ResultValidationTests {
         #expect(inputs[3].personId == 7)
     }
 
-    /// A whole score must not come back as "92.0" — and, more to the point, must
-    /// not come back through a *localized* formatter, where a device that writes
-    /// 92,5 would put a string in the field that parses back as nothing and
-    /// report "a score result needs a score" for a score nobody touched.
     @Test("A score round-trips through the text field")
     func scoreRoundTrips() throws {
         let whole = try APIClient.decode(
@@ -253,9 +221,6 @@ struct ResultValidationTests {
         #expect(ResultDraft(fractional).score == 92.5)
     }
 
-    /// `normalizeResultKind` refuses unknown kinds on write, so a row this build
-    /// cannot name must not be dropped silently — re-saving the sheet would fail
-    /// on a row the user never saw.
     @Test("An unrecognized kind still opens as an editable row")
     func unknownKindSurvives() throws {
         let stored = try APIClient.decode(

@@ -1,9 +1,6 @@
 import SwiftUI
 
-/// How a profile photo is framed inside the avatar circle. Mirrors the web
-/// client's `ProfileImage`, which scales the image about a percentage origin
-/// (`transform: scale(s); transform-origin: x% y%`), so the same person shows
-/// the same face on both.
+/// How a profile photo is framed inside the avatar circle. Mirrors the web's `ProfileImage`, which scales about a percentage origin, so the same person shows the same face on both.
 struct ProfilePhotoCrop: Equatable {
     let x: Double
     let y: Double
@@ -44,9 +41,6 @@ struct PersonAvatarView: View {
         self.size = size
     }
 
-    /// The usual call: everything the avatar needs already lives on the person,
-    /// including the crop, which is easy to forget when it is passed field by
-    /// field.
     init(person: Person, size: CGFloat = 44) {
         self.init(
             name: person.name,
@@ -77,14 +71,7 @@ struct PersonAvatarView: View {
 
     var body: some View {
         avatar
-            // Decorative, and hidden rather than labelled.
-            //
-            // Left alone it is a `Text` of the initials, so VoiceOver spells
-            // them: "Ada Doe" becomes "A, D". Labelling it with the name is not
-            // the fix either — every place this appears already shows the name
-            // in text right beside it, so a labelled avatar makes each row read
-            // "Ada, Ada, Child, Age 3". The picture adds nothing a screen
-            // reader can use that the row does not already say.
+            // Decorative and hidden rather than labelled: every place this appears already shows the name in text beside it, and VoiceOver would otherwise spell the initials.
             .accessibilityHidden(true)
     }
 

@@ -1,18 +1,8 @@
 import Foundation
 @testable import Family_Portal_Ios
 
-/// JSON bodies shaped like `json.Marshal` output for the types in
-/// `../Family-Portal/backend/activity*.go`.
-///
-/// The defaults are deliberately the awkward ones: dates default to the Go zero
-/// time, and the optional numbers on a result default to absent. Those are the
-/// states the server produces constantly — "not known yet" is normal for a
-/// season's dates, and "no placement" is normal for an adjudication — so a
-/// fixture that had to opt into them would let a decoder that mishandles them
-/// pass every test.
 nonisolated extension Fixture {
 
-    /// What a non-pointer `time.Time` marshals to when nothing was ever set.
     static let unsetDate = "0001-01-01T00:00:00Z"
 
     // MARK: - Records
@@ -53,7 +43,6 @@ nonisolated extension Fixture {
         ]
     }
 
-    /// Go's `Event`.
     static func activityEvent(
         id: Int,
         seasonId: Int = 1,
@@ -79,7 +68,6 @@ nonisolated extension Fixture {
         ]
     }
 
-    /// Go's `Entry`.
     static func activityEntry(
         id: Int,
         seasonId: Int = 1,
@@ -124,8 +112,6 @@ nonisolated extension Fixture {
         ]
     }
 
-    /// Go's `Result`. `rank`, `outOf`, `score` and `personId` carry `omitempty`,
-    /// so an unset one is an *absent key* — never `null` and never 0.
     static func activityResult(
         id: Int,
         appearanceId: Int = 1,
@@ -306,9 +292,6 @@ nonisolated extension Fixture {
 
 nonisolated extension Fixture {
 
-    /// What `CreateAppearance`, `UpdateAppearance`, `SetAppearanceResults` and
-    /// `SetAppearancePhotos` all answer with: the appearance, its results and
-    /// its photo ids, built inside the write transaction.
     static func appearanceResponse(
         _ appearance: [String: Any],
         results: [[String: Any]] = [],

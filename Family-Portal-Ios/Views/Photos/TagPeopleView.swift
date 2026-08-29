@@ -16,11 +16,7 @@ struct TagPeopleView: View {
                 Toggle("", isOn: Binding(
                     get: { photo.taggedPeople.contains(where: { $0.id == person.id }) },
                     set: { isTagged in
-                        // The toggle is applied locally first and the queue
-                        // delivers it, so an error here means nothing was queued
-                        // at all. Undoing the local change keeps the switch
-                        // honest instead of letting the next pull revert it
-                        // silently, minutes later.
+                        // The toggle is applied locally first and the queue delivers it, so an error here means nothing was queued at all — undoing keeps the switch honest.
                         if isTagged {
                             photo.taggedPeople.append(person)
                             Task {

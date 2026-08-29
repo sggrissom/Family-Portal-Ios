@@ -10,10 +10,7 @@ final class NetworkMonitor {
 
     private var wasConnected: Bool = true
 
-    /// - Parameter startMonitoring: pass `false` to leave `isConnected` under the
-    ///   caller's control. Tests need a connectivity state that stays put; a live
-    ///   `NWPathMonitor` overwrites whatever they set as soon as the simulator's
-    ///   path settles.
+    /// - Parameter startMonitoring: pass `false` to leave `isConnected` under the caller's control; a live `NWPathMonitor` overwrites whatever a test sets.
     init(startMonitoring: Bool = true) {
         guard startMonitoring else { return }
 

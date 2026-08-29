@@ -3,20 +3,12 @@ import Testing
 import UIKit
 @testable import Family_Portal_Ios
 
-/// `RemotePhotoView` used to issue a fresh request every time it appeared, and
-/// to treat the server's "still processing" placeholder as a permanent failure.
-/// Both are about the same seam — what the client does with a photo response —
-/// and both are invisible until a real gallery is scrolled on a real device.
-///
-/// Serialized because `APIClient`'s token storage is process-wide.
 @MainActor
 @Suite("Photo image cache", .serialized)
 struct PhotoImageCacheTests {
 
     // MARK: - Fixtures
 
-    /// A real PNG, because the point of several of these cases is whether
-    /// `UIImage` could decode what came back.
     private static func pngBytes() -> Data {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
         let image = renderer.image { context in
@@ -34,8 +26,6 @@ struct PhotoImageCacheTests {
         )
     }
 
-    /// What `servePhotoHandler` returns while the background worker is still
-    /// generating variants: a 200, an animated SVG, and no-store.
     private static func processingResponse() -> FakeHTTPServer.Response {
         FakeHTTPServer.Response(
             status: 200,
@@ -47,11 +37,6 @@ struct PhotoImageCacheTests {
         )
     }
 
-    /// An unsigned token carrying only `exp`, which is the one claim
-    /// `ensureFreshAccessToken` reads. A token with no readable expiry is
-    /// treated as expired and refreshed before every fetch, which would put a
-    /// proactive refresh in front of each case below and obscure what they are
-    /// actually about.
     private nonisolated static func jwt(expiringIn interval: TimeInterval) -> String {
         let claims: [String: Any] = ["exp": Date().addingTimeInterval(interval).timeIntervalSince1970]
         let payload = (try? JSONSerialization.data(withJSONObject: claims)) ?? Data()
@@ -65,8 +50,6 @@ struct PhotoImageCacheTests {
     private static func cache(_ server: FakeHTTPServer) async -> PhotoImageCache {
         let client = server.apiClient()
         await client.setAccessToken(Self.jwt(expiringIn: 60 * 60))
-        // The fake server's session is ephemeral and has no URLCache, so nothing
-        // here touches the app's real cache directory.
         return PhotoImageCache(apiClient: client, session: server.session())
     }
 
@@ -87,8 +70,7 @@ struct PhotoImageCacheTests {
             return
         }
 
-        // The whole reason this class exists: a gallery scrolling a cell back
-        // into view must not re-download it.
+        // A gallery scrolling a cell back into view must not re-download it.
         #expect(server.requests(for: "api/photo/5/thumb").count == 1)
     }
 
@@ -135,9 +117,6 @@ struct PhotoImageCacheTests {
 
     // MARK: - Processing
 
-    /// The bug this replaces: the SVG placeholder decoded to nothing, the view
-    /// recorded a failure, and nothing ever asked again — so a photo taken
-    /// seconds ago showed a broken-image glyph until the app was relaunched.
     @Test("The processing placeholder is not a failure and is not cached")
     func processingIsDistinctFromFailure() async throws {
         let server = FakeHTTPServer()
@@ -206,8 +185,6 @@ struct PhotoImageCacheTests {
             Issue.record("a dropped connection should read as unavailable")
             return
         }
-        // A failure must not be remembered, or a photo that failed once while
-        // the phone was in a lift never loads again.
         guard case .image = await cache.image(remoteId: 5, size: .thumb) else {
             Issue.record("the photo should load once the network is back")
             return
@@ -242,9 +219,7 @@ struct PhotoImageCacheTests {
             Issue.record("the photo should load after a refresh")
             return
         }
-        // Exactly one refresh, and exactly one replay. The token was fresh
-        // enough that `ensureFreshAccessToken` had nothing to do, so both of
-        // these are the 401 path and nothing else.
+        // Exactly one refresh and one replay: the token was fresh, so both are the 401 path.
         #expect(server.requests(for: "api/refresh").count == 1)
         #expect(server.requests(for: "api/photo/5/thumb").count == 2)
     }
@@ -259,8 +234,7 @@ struct PhotoImageCacheTests {
 
         let request = server.requests(for: "api/photo/5/thumb").first
         #expect(request?.headers["Authorization"]?.hasPrefix("Bearer ") == true)
-        // Constant, so the server's `Vary: Accept` cannot split the cache into
-        // one entry per header the system happened to send.
+        // Constant, so the server's `Vary: Accept` cannot split the cache per header.
         #expect(request?.headers["Accept"] == "image/webp,image/jpeg,*/*")
     }
 
@@ -282,9 +256,6 @@ struct PhotoImageCacheTests {
         #expect(server.requests(for: "api/photo/5/thumb").count == 2)
     }
 
-    /// The sweep has to be wired in, not merely available: photo ids are global,
-    /// so a device that changes hands would otherwise keep answering for the old
-    /// account's photos out of memory.
     @Test("A full local reset clears the photo cache")
     func fullResetClearsThePhotoCache() async throws {
         let server = FakeHTTPServer()
@@ -304,8 +275,6 @@ struct PhotoImageCacheTests {
         #expect(cache.cachedImage(remoteId: 5, size: .thumb) == nil)
     }
 
-    /// `.chatOnly` is for a store that predates any record of who owns it, not
-    /// for a change of account, so there is nothing to protect anyone from.
     @Test("A chat-only reset leaves the photo cache alone")
     func chatOnlyResetKeepsThePhotoCache() async throws {
         let server = FakeHTTPServer()

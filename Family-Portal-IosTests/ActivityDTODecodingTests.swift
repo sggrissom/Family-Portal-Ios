@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// The activities payloads carry three shapes nothing else in this app does, and
-/// each one has a wrong answer that looks like a right one.
 @Suite("Activity DTO decoding")
 struct ActivityDTODecodingTests {
 
@@ -13,11 +11,6 @@ struct ActivityDTODecodingTests {
 
     // MARK: - Trap 1: the year-1 date
 
-    /// The test the suite exists for. `Season.StartDate`, `Event.EndDate` and
-    /// `Appearance.OccurredAt` are non-pointer `time.Time`, so "not known yet" —
-    /// an explicitly normal state — marshals as `"0001-01-01T00:00:00Z"`, which
-    /// the ISO8601 decoder accepts and hands back as a `Date` in the year 1.
-    /// Formatting one prints *Jan 1, 1* wherever the web prints nothing.
     @Test("An unset date decodes and reads as unset, not as the year 1")
     func unsetDatesAreRecognized() throws {
         let season = try decode(SeasonDTO.self, Fixture.season(id: 41))
@@ -54,9 +47,6 @@ struct ActivityDTODecodingTests {
         #expect(ActivityDateText.range(from: season.startDate, to: season.endDate) != nil)
     }
 
-    /// A single-day competition has a start and no end, which is the common
-    /// case — the range must collapse to the start rather than read as
-    /// open-ended or print the year 1.
     @Test("An event with no end date reads as one day")
     func singleDayEventCollapses() throws {
         let event = try decode(ActivityEventDTO.self, Fixture.activityEvent(
@@ -69,8 +59,6 @@ struct ActivityDTODecodingTests {
         #expect(text?.contains("–") == false)
     }
 
-    /// `appearanceOrder` on the server falls back to the event's start date when
-    /// `OccurredAt` is zero, and the row has to say the same thing.
     @Test("A performance with no time of its own falls back to the competition's date")
     func occurredFallsBackToEvent() throws {
         let appearance = try decode(AppearanceDTO.self, Fixture.appearance(id: 9))
@@ -84,10 +72,6 @@ struct ActivityDTODecodingTests {
 
     // MARK: - Trap 2: the omitted number
 
-    /// `Rank`, `OutOf`, `Score` and `PersonId` are `*T` with `omitempty`. The
-    /// backend packs them through `packOptionalInt` specifically so "no
-    /// placement" stays distinguishable from "1st"; decoding an absent key as 0
-    /// throws that away.
     @Test("Absent optional numbers stay nil rather than becoming zero")
     func absentNumbersStayNil() throws {
         let result = try decode(ActivityResultDTO.self, Fixture.activityResult(id: 1))
@@ -139,10 +123,6 @@ struct ActivityDTODecodingTests {
         #expect(response.appearances.isEmpty)
     }
 
-    /// Insurance rather than a fix: every list-bearing getter in
-    /// backend/activity.go returns `[]T{}` today. If one ever returns a nil
-    /// slice, an empty list is the cheap direction to be wrong in — a decode
-    /// failure takes the whole screen down.
     @Test("An omitted collection decodes as empty rather than throwing")
     func omittedCollectionsDecode() throws {
         let response = try decode(
@@ -181,8 +161,6 @@ struct ActivityDTODecodingTests {
         #expect(response.appearances.first?.results.first?.label == "High Gold")
         #expect(response.appearances.first?.photoIds == [101, 102])
 
-        // The join the client does instead of the server repeating each parent
-        // on every row.
         let byEvent = Dictionary(grouping: response.appearances) { $0.appearance.eventId }
         #expect(byEvent[5]?.count == 1)
         #expect(byEvent[6] == nil)
@@ -232,8 +210,6 @@ struct ActivityDTODecodingTests {
         #expect(ActivityResultText.placement(rank: 1, outOf: 14, label: "") == "1st of 14")
         #expect(ActivityResultText.placement(rank: 2, outOf: nil, label: "") == "2nd")
         #expect(ActivityResultText.placement(rank: 3, outOf: 9, label: "Overall") == "3rd of 9 · Overall")
-        // A rank the server would refuse on write, but which an older row can
-        // hold: the label is still worth reading.
         #expect(ActivityResultText.placement(rank: nil, outOf: nil, label: "Overall") == "Overall")
     }
 

@@ -2,22 +2,11 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// `FamilyMembershipService` against a fake backend.
-///
-/// Membership refusals are the point of this suite. Every one of them arrives as
-/// HTTP 200 with `{ success: false, error: … }` — the Go handlers put the message
-/// in the body and return a nil error — so a service that only checked the status
-/// code would report "you left the family" to somebody who is still very much in
-/// it.
 @MainActor
 @Suite("Family membership")
 struct FamilyMembershipTests {
 
     // MARK: - Fixtures
-    //
-    // Each returns `[String: Any]` explicitly: these bodies mix ints, bools and
-    // nested arrays, and a bare literal in an `Any` position has no type to be
-    // inferred from.
 
     private static func member(
         userId: Int,
@@ -54,8 +43,6 @@ struct FamilyMembershipTests {
         ["success": true, "members": members]
     }
 
-    /// A refusal as the Go handlers write one: HTTP 200, `success: false`, and a
-    /// message meant to be shown to the user.
     private static func refusal(_ message: String, members: Bool = false) -> [String: Any] {
         var body: [String: Any] = ["success": false, "error": message]
         if members {
@@ -99,8 +86,6 @@ struct FamilyMembershipTests {
 
         let response = try await Self.service(server).members(familyId: 7)
 
-        // Owner first, then join order: the backend sorts, and re-sorting here
-        // would only be a second opinion that can disagree with it.
         #expect(response.members.map(\.userId) == [1, 2])
         #expect(response.members.first?.isOwner == true)
         #expect(response.members.last?.isSelf == true)
@@ -120,9 +105,6 @@ struct FamilyMembershipTests {
         #expect(try Self.body(of: requests[0])["familyId"] as? Int == 0)
     }
 
-    /// `joinedAt` is the field this DTO deliberately ignores. It has to stay
-    /// ignorable: decoding it would put a date parse between the user and the
-    /// list, for a value nothing on screen shows.
     @Test("An unparseable joinedAt does not stop the list from decoding")
     func listIgnoresJoinedAt() async throws {
         let server = FakeHTTPServer()
@@ -182,9 +164,6 @@ struct FamilyMembershipTests {
         #expect(auth?.familyId == 9)
     }
 
-    /// `omitempty` does nothing for a Go struct field, so a response with nothing
-    /// to say about the caller still carries a fully zero `AuthResponse`. Adopting
-    /// that as the signed-in user would replace a valid session with user id 0.
     @Test("A zero-valued auth is reported as no auth rather than as user 0")
     func leaveIgnoresZeroAuth() async throws {
         let server = FakeHTTPServer()
@@ -224,9 +203,6 @@ struct FamilyMembershipTests {
         #expect(try await Self.service(server).rotateInviteCode(familyId: 7) == "NEWCODE9")
     }
 
-    /// A success with no code would leave the family showing its old — now dead —
-    /// code as though nothing had happened, which is worse than an error: the user
-    /// would go on sharing a code that no longer works.
     @Test("A success carrying no code is treated as a failure")
     func rotateWithoutACodeFails() async throws {
         let server = FakeHTTPServer()
@@ -249,9 +225,6 @@ struct FamilyMembershipTests {
 
     // MARK: - The local family list
 
-    /// Rotation updates the row in place rather than re-fetching, so the carried
-    /// fields have to survive: a family that lost its name or its primary flag on
-    /// the way through would look like a different family.
     @Test("A rotated code replaces only the code")
     func withInviteCodeKeepsEverythingElse() {
         let family = FamilyInfoDTO(

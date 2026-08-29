@@ -2,15 +2,9 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// The JWT the backend issues lives 24 hours (backend/auth.go
-/// `setAuthJwtCookie`), while a login is meant to last 30 days on the refresh
-/// token. `ensureFreshAccessToken` is what bridges the two on resume, and it can
-/// only do that if the `exp` claim reads correctly.
 @Suite("Access token expiry")
 struct AuthSessionTests {
 
-    /// Builds an unsigned token with the given claims. Only the payload segment
-    /// is ever read — the signature is the server's business.
     private func makeToken(claims: [String: Any]) throws -> String {
         let payload = try JSONSerialization.data(withJSONObject: claims)
         let encoded = payload.base64EncodedString()
@@ -32,9 +26,6 @@ struct AuthSessionTests {
         #expect(abs(parsed.timeIntervalSince(expiry)) < 1)
     }
 
-    /// Padding is stripped from real JWTs, so every payload length has to decode
-    /// — a payload that failed to parse would look like an expired token and
-    /// trigger a refresh on every resume.
     @Test("Decodes payloads of any length", arguments: 1...8)
     func decodesUnpaddedPayloads(nameLength: Int) throws {
         let expiry = Date(timeIntervalSince1970: 1_800_000_000)

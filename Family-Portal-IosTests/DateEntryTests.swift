@@ -3,7 +3,6 @@ import SwiftUI
 import Testing
 @testable import Family_Portal_Ios
 
-/// Age-based date entry, the `inputType: "age"` case in backend/growth.go.
 @Suite("Age date entry")
 struct DateEntryTests {
 
@@ -38,9 +37,6 @@ struct DateEntryTests {
         #expect(DateEntryPicker.date(from: birthday, years: 0, months: 0) == birthday)
     }
 
-    /// Foundation clamps a short month rather than rolling into the next one,
-    /// which is why the date is resolved on the device instead of being sent as
-    /// an age for Go's AddDate to compute differently.
     @Test("A month step off Jan 31 stays in February")
     @MainActor
     func clampsShortMonths() {

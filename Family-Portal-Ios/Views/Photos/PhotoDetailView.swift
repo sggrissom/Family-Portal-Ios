@@ -48,8 +48,7 @@ private struct PhotoDetailContent: View {
     @Bindable var photo: Photo
     @Binding var showDeleteConfirmation: Bool
 
-    /// Values last handed to the sync queue, so leaving a field that wasn't
-    /// touched doesn't enqueue a redundant update.
+    /// Values last handed to the sync queue, so leaving an untouched field doesn't enqueue a redundant update.
     @State private var syncedTitle: String?
     @State private var syncedDescription: String?
     @State private var saveError: String?
@@ -130,11 +129,7 @@ private struct PhotoDetailContent: View {
                 }
                 .padding(.horizontal)
 
-                // Below the people and their Manage link, not between them:
-                // "tagged people" and "tags" are separate things that share a
-                // word, and interleaving them reads as one broken section.
-                // `TagChipsView` draws nothing when the photo has no tags, or
-                // none this device knows yet.
+                // Below the people and their Manage link, not between them: "tagged people" and "tags" are separate things that share a word.
                 TagChipsView(tagRemoteIds: photo.tagRemoteIds, title: "Tags")
                     .padding(.horizontal)
 
@@ -148,8 +143,7 @@ private struct PhotoDetailContent: View {
                 }
                 .padding(.horizontal)
 
-                // Only people tagged in the photo are offered: the server
-                // refuses a profile photo the person is not associated with.
+                // Only people tagged in the photo are offered: the server refuses a profile photo the person is not associated with.
                 if !taggedPeople.isEmpty {
                     Menu {
                         ForEach(taggedPeople) { person in
@@ -189,8 +183,7 @@ private struct PhotoDetailContent: View {
         .onDisappear { commitEdits() }
     }
 
-    /// SwiftData leaves to-many relationships unordered, so both the chips and
-    /// the profile-photo menu would otherwise reshuffle between redraws.
+    /// SwiftData leaves to-many relationships unordered, so both the chips and the profile-photo menu would otherwise reshuffle between redraws.
     private var taggedPeople: [Person] {
         photo.taggedPeople.sorted { $0.name < $1.name }
     }
@@ -210,8 +203,7 @@ private struct PhotoDetailContent: View {
         }
     }
 
-    /// Queues the edited title/description. Without this the next `pullFamilyData`
-    /// overwrites both fields from the server and the typing disappears.
+    /// Queues the edited title/description. Without this the next pull overwrites both fields from the server.
     private func commitEdits() {
         let title = photo.title
         let description = photo.descriptionText

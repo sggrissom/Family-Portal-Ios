@@ -15,14 +15,9 @@ final class SyncService {
     var syncError: String?
     var pendingOperationCount: Int = 0
 
-    /// Set when the queue gives up on an operation for good. Kept apart from
-    /// `syncError`, which every pull clears: a connection that came back fixes a
-    /// sync error, but nothing brings back a change that was dropped, so this
-    /// stays until the user acknowledges it.
+    /// Set when the queue gives up on an operation for good; survives the pulls that clear `syncError`.
     private(set) var discardedChangeWarning: String?
 
-    /// `syncQueue` is injectable so tests can drive `processQueue` against a
-    /// scratch queue instead of the shared one in Application Support.
     init(
         modelContext: ModelContext,
         apiClient: APIClient,
@@ -131,21 +126,8 @@ final class SyncService {
         isSyncing = false
     }
 
-    /// Refreshes the family's tag vocabulary, the thing `Photo.tagRemoteIds` and
-    /// `Milestone.tagRemoteIds` are resolved against.
-    ///
-    /// Failures are swallowed rather than aborting the pull. Tags are a label on
-    /// records the pull has already stored: a `ListTags` that 500s should cost
-    /// the user their pills, not their people, photos and milestones. Orphan
-    /// removal stays inside the success path for the same reason — a list that
-    /// never arrived is not evidence that the family has no tags, and deleting
-    /// on that basis would blank every pill until the next successful sync.
-    ///
-    /// The caller's `modelContext.save()` persists what this writes.
     private func pullTags() async {
         do {
-            // `ListTagsRequest` is an empty struct, but vbeam still unmarshals a
-            // body, so the call sends `{}` like the other argument-less procs.
             struct EmptyPayload: Encodable {}
             let response: ListTagsResponseDTO = try await apiClient.callRPC(
                 .listTags,
@@ -167,24 +149,14 @@ final class SyncService {
 
     // MARK: - Queue Processing
 
-    /// A run is in flight. `@MainActor` is not mutual exclusion: `processQueue`
-    /// suspends on every request, and a second run entering during that gap reads
-    /// the same `readyOperations` — an operation is only dequeued *after* it
-    /// succeeds — and sends it a second time. Picking 20 photos at once enqueues
-    /// 20 operations back to back, each kicking off its own run, so what used to
-    /// be a rare race becomes duplicate uploads by default.
+    /// A run is in flight. `@MainActor` is not mutual exclusion: a second run entering during a suspension would re-send operations that have not been dequeued yet.
     @ObservationIgnored private var isProcessingQueue = false
 
-    /// Work arrived while a run was in flight. The run in progress may already
-    /// have taken its snapshot, so returning early would strand whatever was just
-    /// enqueued until the next sync; instead the current run goes round again.
     @ObservationIgnored private var queueRunRequested = false
 
     func processQueue() async {
         guard networkMonitor.isConnected else { return }
 
-        // Set before the first suspension point, so a caller arriving mid-run
-        // always sees it.
         if isProcessingQueue {
             queueRunRequested = true
             return
@@ -215,10 +187,6 @@ final class SyncService {
                     break
                 }
                 if case SyncError.missingRemoteId = error {
-                    // Nothing was sent, so this is not a retry — but it is a run
-                    // this operation could not use, and an operation waiting on a
-                    // parent whose own create was discarded would otherwise wait
-                    // for the life of the install.
                     accountedFor.insert(operation.id)
                     if let dropped = await syncQueue.markBlocked(operation.id) {
                         discarded.append(dropped)
@@ -235,13 +203,6 @@ final class SyncService {
             }
         }
 
-        // Operations the dependency gate held back never reached the loop above,
-        // which is exactly why they need counting here: they are the ones that
-        // can sit in the queue indefinitely without anything ever noticing. The
-        // synced set is re-read because a parent that succeeded moments ago in
-        // this very run unblocks its children, and the snapshot taken at the top
-        // predates that. A run cut short by the network charges nobody: being
-        // offline must not spend an operation's allowance.
         if !wentOffline {
             let syncedNow = await fetchAllSyncedLocalIds()
             let blocked = await syncQueue.blockedOperations(syncedLocalIds: syncedNow)
@@ -252,8 +213,6 @@ final class SyncService {
             }
         }
 
-        // Losing an operation is the one sync outcome the user cannot infer from
-        // the pending count going down, so it gets said out loud.
         if !discarded.isEmpty {
             discardedChangeWarning = Self.discardedChangeMessage(for: discarded)
         }
@@ -351,9 +310,6 @@ final class SyncService {
     private func executeSetProfilePhoto(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(SetProfilePhotoPayload.self, from: operation.payload)
 
-        // Either record being gone locally makes the choice moot; either one
-        // merely lacking a remote id makes it blocked — the same split as the
-        // create operations.
         guard let person = findPerson(byLocalId: operation.localId),
               let photo = findPhoto(byLocalId: payload.photoLocalId) else {
             return
@@ -382,13 +338,6 @@ final class SyncService {
     private func executeCreateGrowthData(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(CreateGrowthDataPayload.self, from: operation.payload)
 
-        // Three outcomes that used to be one `return`. The first two are moot
-        // work — the record or its person was deleted locally — and dropping the
-        // operation is right. The third is not: a person who simply has not
-        // synced yet needs this operation kept, because `return` dequeues it as
-        // though it had succeeded and the measurement then sits on the device
-        // forever with no remote id. `missingRemoteId` is retried next pass,
-        // by which time the person's own create has assigned one.
         guard let growthData = findGrowthData(byLocalId: operation.localId) else {
             return
         }
@@ -418,7 +367,6 @@ final class SyncService {
     private func executeCreateMilestone(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(CreateMilestonePayload.self, from: operation.payload)
 
-        // Same three-way split as `executeCreateGrowthData`.
         guard let milestone = findMilestone(byLocalId: operation.localId) else {
             return
         }
@@ -448,10 +396,6 @@ final class SyncService {
     private func executeUploadPhoto(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(UploadPhotoPayload.self, from: operation.payload)
 
-        // Both misses mean the work is already moot rather than blocked: the
-        // photo was deleted locally, or a previous run of this operation
-        // uploaded it and cleared the bytes below. Dropping the operation is
-        // right in either case.
         guard let photo = findPhoto(byLocalId: operation.localId),
               let imageData = photo.imageData else {
             return
@@ -480,11 +424,6 @@ final class SyncService {
         )
         applyPhotoDTO(response, to: photo)
 
-        // The server holds the bytes now. Keeping the local copy stored a second
-        // full-resolution image for every photo ever taken in the app, in a
-        // store that never shrank, and made the photo permanently exempt from
-        // `removeOrphans` — so a photo deleted elsewhere never left the device.
-        // Display falls back to `RemotePhotoView` on the `remoteId` just set.
         photo.imageData = nil
 
         try modelContext.save()
@@ -598,13 +537,6 @@ final class SyncService {
         try modelContext.save()
     }
 
-    /// Both tag writes answer with an empty body, so there is nothing to apply
-    /// afterwards: the record already carries the set the user chose, written
-    /// when the operation was enqueued.
-    ///
-    /// A photo deleted locally makes the write moot and the operation is dropped;
-    /// one merely waiting on its upload is parked, the same split every other
-    /// operation makes.
     private func executeUpdatePhotoTags(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(UpdateTagsPayload.self, from: operation.payload)
 
@@ -680,10 +612,6 @@ final class SyncService {
     // MARK: - Push: Person
 
     func addPerson(_ person: Person) async throws {
-        // Substituting `Date()` here recorded today as the birthday of anyone
-        // added without one, and the value came straight back on the next pull
-        // indistinguishable from a real date. The server requires a birthdate
-        // either way (validateAddPersonRequest in backend/person.go).
         guard let birthday = person.birthday else {
             throw SyncError.missingBirthday
         }
@@ -725,12 +653,7 @@ final class SyncService {
         )
     }
 
-    /// Points a person's avatar at one of the photos they are tagged in.
-    ///
-    /// The tag is a server-side precondition, not a UI nicety: `SetProfilePhoto`
-    /// (backend/person.go) rejects a photo the person is not associated with,
-    /// and a rejection here costs the operation a retry and eventually discards
-    /// it. Refusing up front turns that into an error the user sees at the tap.
+    /// Points a person's avatar at one of the photos they are tagged in. The server rejects a photo they are not tagged in, so refuse up front.
     func setProfilePhoto(_ photo: Photo, for person: Person) async throws {
         guard photo.taggedPeople.contains(where: { $0.id == person.id }) else {
             throw SyncError.personNotInPhoto
@@ -738,9 +661,6 @@ final class SyncService {
 
         let photoRemoteId = photo.remoteId.flatMap(Int.init)
 
-        // Re-picking the photo a person already uses keeps the crop chosen for
-        // it — cropping is a web-only editor — instead of snapping the framing
-        // back to centre. Any other photo starts centred at 1×.
         let keepsExistingCrop = photoRemoteId != nil && photoRemoteId == person.profilePhotoId
         let cropX = keepsExistingCrop ? (person.profileCropX ?? 50) : 50
         let cropY = keepsExistingCrop ? (person.profileCropY ?? 50) : 50
@@ -753,9 +673,6 @@ final class SyncService {
             cropScale: cropScale
         )
 
-        // Optimistic only once the photo has an id the avatar can load. A photo
-        // still waiting to upload has none, and the avatar catches up when the
-        // operation runs and applies the returned person.
         if let photoRemoteId {
             person.profilePhotoId = photoRemoteId
             person.profileCropX = cropX
@@ -817,8 +734,6 @@ final class SyncService {
         }
 
         let payload = DeletePayload(remoteId: id)
-        // Read the local id before the delete — afterwards the model is gone
-        // from the context and its properties are no longer safe to touch.
         let localId = data.id.uuidString
 
         modelContext.delete(data)
@@ -834,8 +749,7 @@ final class SyncService {
 
     // MARK: - Push: Milestones
 
-    /// `photos` is the milestone's complete attachment set, or `nil` to say
-    /// nothing about attachments at all — see `UpdateMilestoneRequestDTO`.
+    /// `photos` is the milestone's complete attachment set, or `nil` to say nothing about attachments.
     func addMilestone(_ milestone: Milestone, for person: Person, photos: [Photo]? = nil) async throws {
         let payload = CreateMilestonePayload(
             personLocalId: person.id.uuidString,
@@ -875,13 +789,6 @@ final class SyncService {
         )
     }
 
-    /// The attachment the user just chose, shown before the server confirms it.
-    ///
-    /// Only the photos that already have a remote id can appear: `photoRemoteIds`
-    /// is what `MilestoneRowView` and the detail sheet render from, and there is
-    /// no id to render for a photo still uploading. The operation's own response
-    /// replaces this list with the server's, so a photo omitted here comes back
-    /// as soon as it exists.
     private func applyPhotosOptimistically(_ photos: [Photo]?, to milestone: Milestone) throws {
         guard let photos else { return }
         milestone.photoRemoteIds = photos.compactMap { $0.remoteId.flatMap(Int.init) }
@@ -939,8 +846,6 @@ final class SyncService {
             photoDate: dateToAPIString(photo.photoDate)
         )
 
-        // A photo edited before its upload has flushed has no remote id yet, so
-        // the update has to wait for the upload operation to assign one.
         let dependsOnLocalId = photo.remoteId == nil ? photo.id.uuidString : nil
 
         try await enqueueOperation(
@@ -999,24 +904,12 @@ final class SyncService {
 
     // MARK: - Push: Tags
 
-    /// Replaces the tags on a photo with `tagRemoteIds`.
-    ///
-    /// The set is complete, not a delta — `UpdatePhotoTags` detaches every tag it
-    /// is not sent — so the caller passes the record's whole new set, *including
-    /// any id this device cannot resolve to a `FamilyTag` yet*. Dropping those
-    /// would silently untag a photo whenever the web created a tag since the last
-    /// pull, which is exactly the window in which an unresolvable id exists.
-    ///
-    /// The local write happens after the enqueue, not before: a failure to queue
-    /// means the change will never reach the server, and leaving the record
-    /// showing it would be a lie the user only discovers at the next pull. There
-    /// is nothing to undo this way.
+    /// Replaces the tags on a photo. The set is complete rather than a delta, and must include ids this device cannot resolve yet or they are silently untagged.
     func updatePhotoTags(_ photo: Photo, tagRemoteIds: [Int]) async throws {
         try await enqueueOperation(
             type: .updatePhotoTags,
             localId: photo.id.uuidString,
             payload: UpdateTagsPayload(tagRemoteIds: tagRemoteIds),
-            // A photo tagged before its upload has flushed has no id to tag yet.
             dependsOnLocalId: photo.remoteId == nil ? photo.id.uuidString : nil
         )
 
@@ -1024,12 +917,7 @@ final class SyncService {
         try modelContext.save()
     }
 
-    /// The milestone half of `updatePhotoTags(_:tagRemoteIds:)`.
-    ///
-    /// No dependency is declared, because milestones are not in the set
-    /// `fetchAllSyncedLocalIds` builds — naming one would block the operation for
-    /// good. An unsynced milestone is caught at execution instead, which parks it
-    /// on a blocked run until its own create assigns a remote id.
+    /// The milestone half of `updatePhotoTags(_:tagRemoteIds:)`. No dependency is declared; an unsynced milestone is parked at execution instead.
     func updateMilestoneTags(_ milestone: Milestone, tagRemoteIds: [Int]) async throws {
         try await enqueueOperation(
             type: .updateMilestoneTags,
@@ -1111,16 +999,7 @@ final class SyncService {
         return syncedIds
     }
 
-    /// Turns the photo local ids carried by a milestone operation into the remote
-    /// ids the request needs.
-    ///
-    /// Three cases. A `nil` list means the operation says nothing about photos,
-    /// and the key has to stay off the wire entirely.
-    /// A photo deleted locally is dropped from the list: the milestone should
-    /// still be written, and a photo that no longer exists cannot be attached to
-    /// anything. A photo that exists but has not uploaded yet throws
-    /// `missingRemoteId`, which parks the operation until the upload assigns one
-    /// rather than quietly attaching fewer photos than the user chose.
+    /// Resolves a milestone operation's photo local ids to remote ids. `nil` keeps the key off the wire, a deleted photo is dropped, and one still uploading throws `missingRemoteId`.
     private func resolvePhotoRemoteIds(_ localIds: [String]?) throws -> [Int]? {
         guard let localIds else { return nil }
 
@@ -1135,10 +1014,7 @@ final class SyncService {
         return remoteIds
     }
 
-    /// Both records have to be synced before the server can be told about the
-    /// pairing, but an operation can only name one dependency. The photo goes
-    /// first because it is the one likely to be mid-upload; the person is
-    /// checked on execution and throws `missingRemoteId` if it is still behind.
+    /// An operation can only name one dependency, so the photo goes first and the person is checked at execution.
     private func dependencyLocalIdForProfilePhoto(photo: Photo, person: Person) -> String? {
         if photo.remoteId == nil {
             return photo.id.uuidString
@@ -1273,12 +1149,6 @@ final class SyncService {
 
     // MARK: - Orphan Removal
 
-    /// Deletes records the server no longer lists. Anything still awaiting its
-    /// first push has no `remoteId` and is skipped by the guard below, which is
-    /// the only protection unsynced local work needs — an extra exemption for
-    /// photos holding local bytes used to sit here, and because those bytes were
-    /// never released after upload it silently pinned every uploaded photo on
-    /// the device for good.
     private func removeOrphans<T: PersistentModel>(_ type: T.Type, seenIds: Set<String>) {
         let descriptor = FetchDescriptor<T>()
         guard let allModels = try? modelContext.fetch(descriptor) else { return }

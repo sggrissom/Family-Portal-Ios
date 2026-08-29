@@ -78,7 +78,6 @@ struct PersonDetailView: View {
                     }
                     .padding(.horizontal)
 
-                    // Latest Measurements Section
                     GroupBox("Latest Measurements") {
                         VStack(alignment: .leading, spacing: 12) {
                             if let height = latestHeight {
@@ -120,12 +119,7 @@ struct PersonDetailView: View {
                     }
                     .padding(.horizontal)
 
-                    // Activities
-                    //
-                    // Only when the person has a remote id: a person created
-                    // offline has no server record yet, and `GetPersonSeason`
-                    // is addressed by server id. There is nothing to show for
-                    // someone the server has never heard of.
+                    // Only when the person has a remote id: `GetPersonSeason` is addressed by server id, and a person created offline has no server record yet.
                     if let personRemoteId = person.remoteId.flatMap(Int.init) {
                         GroupBox("Activities") {
                             NavigationLink(
@@ -146,7 +140,6 @@ struct PersonDetailView: View {
                         .padding(.horizontal)
                     }
 
-                    // Recent Milestones Section
                     GroupBox("Recent Milestones") {
                         VStack(alignment: .leading, spacing: 8) {
                             if recentMilestones.isEmpty {
@@ -176,7 +169,6 @@ struct PersonDetailView: View {
                     }
                     .padding(.horizontal)
 
-                    // Photos Section
                     GroupBox("Photos") {
                         VStack(alignment: .leading, spacing: 8) {
                             if recentPhotos.isEmpty {
@@ -232,9 +224,7 @@ struct PersonDetailView: View {
             }
             .toolbar {
                 if allowsManagementActions {
-                    // No delete affordance: the backend has no DeletePerson proc
-                    // (backend/person.go), so a local delete is undone by the
-                    // next pullFamilyData.
+                    // No delete affordance: the backend has no DeletePerson proc, so a local delete is undone by the next pull.
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             showEditSheet = true
@@ -290,9 +280,7 @@ struct PersonPhotosView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
-    /// SwiftData does not order to-many relationships, so reading `person.photos`
-    /// straight out left this grid in an arbitrary order while the four-photo
-    /// preview that links here was sorted newest-first.
+    /// SwiftData does not order to-many relationships, so `person.photos` comes out arbitrary.
     private var photos: [Photo] {
         person.photos.sorted { $0.photoDate > $1.photoDate }
     }

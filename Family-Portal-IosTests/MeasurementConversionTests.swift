@@ -2,13 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// A record keeps whatever unit it was entered in — that is the honest record of
-/// what somebody wrote down, and every list shows it that way. A chart cannot
-/// afford that: 34 inches and 86 centimetres are the same child, and plotting
-/// both raw draws a growth spurt that never happened.
-///
-/// `MeasurementConversion` existed for this and was never wired up to the chart.
-/// Nothing here had a test.
 @MainActor
 @Suite("Measurement conversion")
 struct MeasurementConversionTests {
@@ -48,9 +41,6 @@ struct MeasurementConversionTests {
         #expect(abs(back - original) < 1e-9)
     }
 
-    /// A height unit and a weight unit have no meaningful conversion. Returning
-    /// the value untouched is the honest answer; a scaled one would look
-    /// plausible and be nonsense.
     @Test("Mismatched units are left alone")
     func mismatchedUnitsAreNotConverted() {
         #expect(MeasurementConversion.convert(10, from: .inches, to: .kilograms) == 10)
@@ -75,8 +65,6 @@ struct MeasurementConversionTests {
         #expect(MeasurementConversion.preferredUnit(for: [], type: .weight) == .pounds)
     }
 
-    /// Both types share one list of records, so a weight entered yesterday must
-    /// not decide what unit the height chart opens in.
     @Test("The other measurement type does not decide the unit")
     func preferredUnitIgnoresTheOtherType() {
         let records = [
@@ -89,8 +77,6 @@ struct MeasurementConversionTests {
 
     // MARK: - The series a chart plots
 
-    /// The bug itself: without conversion this series reads 34, 86, 36 — a spike
-    /// and a collapse where the child grew steadily.
     @Test("A mixed-unit series is plotted in one unit")
     func mixedUnitsAreNormalized() {
         let records = [

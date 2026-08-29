@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// `RegisterPushDevice` / `UnregisterPushDevice` in backend/push_notifications.go.
-/// `validateRegisterPushDeviceRequest` rejects the request outright if any of
-/// these fields is wrong, so the wire format is worth pinning down.
 @Suite("Push notification registration")
 struct PushNotificationTests {
 
@@ -48,8 +45,6 @@ struct PushNotificationTests {
         #expect(unregister.success)
     }
 
-    /// The server compares this against its own APNS_ENVIRONMENT and rejects a
-    /// mismatch, so a Debug build must never claim "production".
     @Test("A Debug build registers against the APNs sandbox")
     @MainActor
     func debugBuildUsesSandbox() {

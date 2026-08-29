@@ -1,19 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// One competition, as it happened: every performance in order, plus the
-/// weekend's own photos — and, on the day, where they get entered.
-///
-/// `GetEventDetail` is one walk of the by-event index, so the read is a single
-/// call no matter how many routines danced. The season overview alongside it is
-/// only for *writing*: it is the one payload that carries the season's whole
-/// entry list (which routine to file) and the activity id (which vocabulary to
-/// autocomplete from), neither of which the event detail has. It is cached like
-/// every other read, and usually already warm from the screen the user came
-/// through.
 struct CompetitionView: View {
     let eventId: Int
-    /// For the title before the payload lands.
     let eventName: String
 
     @Environment(ActivityService.self) private var service
@@ -22,16 +11,12 @@ struct CompetitionView: View {
     @State private var state = ActivityScreenState<GetEventDetailResponseDTO>()
     @State private var seasonState = ActivityScreenState<GetSeasonOverviewResponseDTO>()
 
-    /// One sheet slot rather than four `.sheet` modifiers stacked on one view.
-    /// SwiftUI presents a single sheet per view, so several `isPresented`
-    /// bindings on the same node race each other and the loser silently never
-    /// appears.
+    /// One sheet slot rather than four `.sheet` modifiers: SwiftUI presents one sheet per view, and several `isPresented` bindings on the same node race each other.
     private enum AppearanceSheet: Identifiable {
         case add
         case edit(AppearanceDetailDTO)
         case results(AppearanceDetailDTO)
         case photos(AppearanceDetailDTO)
-        /// The competition itself, and the weekend's own photos.
         case editEvent
         case eventPhotos
 
@@ -49,17 +34,12 @@ struct CompetitionView: View {
 
     @State private var sheet: AppearanceSheet?
 
-    /// A deleted competition leaves nothing to show, so the screen goes rather
-    /// than reloading into a 404.
     @Environment(\.dismiss) private var dismiss
 
     private var labels: ActivityLabels {
         ActivityLabels.forKind(state.value?.season.kind ?? ActivityKind.generic)
     }
 
-    /// Writing needs the season. Until it lands there is nothing to file a
-    /// performance *as*, so the affordance is off rather than presenting a
-    /// picker with nothing in it.
     private var canWrite: Bool { seasonState.value != nil }
 
     var body: some View {
@@ -68,8 +48,6 @@ struct CompetitionView: View {
         }
         .navigationTitle(state.value?.event.name ?? eventName)
         .navigationBarTitleDisplayMode(.inline)
-        // Keyed on the season id so it fires once the event detail names it, and
-        // again only if it somehow changes.
         .task(id: state.value?.season.id) {
             guard let seasonId = state.value?.season.id else { return }
             await seasonState.load(service.seasonOverview(seasonId: seasonId))
@@ -140,9 +118,6 @@ struct CompetitionView: View {
                 }
             case .eventPhotos:
                 if let response = state.value {
-                    // The competition's *own* photos — the venue, the group in
-                    // the lobby. A routine's photos travel with its performance,
-                    // which is the other picker.
                     ActivityPhotoPickerView(
                         attachedPhotoIds: response.photoIds,
                         subject: labels.event.lowercased(),
@@ -168,18 +143,13 @@ struct CompetitionView: View {
         }
     }
 
-    /// The entry's roster, for narrowing a result to one person. Empty when the
-    /// season has not loaded — the person picker simply does not appear, and the
-    /// server still checks the rule either way.
     private func roster(forEntry entryId: Int) -> [Int] {
         seasonState.value?.entries.first { $0.entry.id == entryId }?.personIds ?? []
     }
 
     @ViewBuilder
     private func content(_ response: GetEventDetailResponseDTO) -> some View {
-        // The season summary carries the activity's kind for exactly this: the
-        // response holds no `Activity`, and without it the screen would render
-        // "Event" — the one word the label map exists to avoid.
+        // The season summary carries the activity's kind; without it the screen renders "Event", the one word the label map exists to avoid.
         let labels = ActivityLabels.forKind(response.season.kind)
         let people = ActivityPeople(self.people)
 
@@ -209,10 +179,6 @@ struct CompetitionView: View {
         .padding(.horizontal)
     }
 
-    /// The row leads to the routine's history; everything you do *to* the
-    /// performance is behind the menu. A `ScrollView` has no swipe actions to
-    /// hang them off, and competition day wants them one tap deep rather than
-    /// behind a mode switch.
     private func appearanceRow(_ detail: AppearanceDetailDTO, people: ActivityPeople) -> some View {
         HStack(alignment: .top, spacing: 8) {
             NavigationLink {
@@ -275,8 +241,6 @@ struct CompetitionView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // The competition's own photos — the venue, the group in the
-                // lobby. A routine's photos travel with its performance.
                 ActivityPhotoStrip(photoIds: response.photoIds)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

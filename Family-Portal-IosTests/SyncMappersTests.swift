@@ -6,10 +6,6 @@ import Testing
 struct SyncMappersTests {
 
     // MARK: - Enum round-trips
-    //
-    // The int and string codes below are the wire contract with the Go backend
-    // (PersonType/GenderType in person.go, MeasurementType in growth.go), so a
-    // reordered Swift enum has to fail here rather than silently mislabel data.
 
     @Test("PersonType survives a round-trip", arguments: [PersonType.parent, .child])
     func personTypeRoundTrip(type: PersonType) {
@@ -66,8 +62,6 @@ struct SyncMappersTests {
 
     // MARK: - dateToAPIString
 
-    /// The backend parses these with `time.Parse("2006-01-02", ...)`, so the
-    /// string has to be the UTC calendar day regardless of device timezone.
     @Test("Formats as a UTC calendar day")
     func dateToAPIStringUsesUTC() {
         var calendar = Calendar(identifier: .gregorian)
@@ -84,8 +78,6 @@ struct SyncMappersTests {
 
     @Test("Late-evening US times don't roll back a day")
     func dateToAPIStringNearMidnight() {
-        // 2026-03-15T23:30:00Z is still the 15th in UTC even though a device in
-        // Auckland would already be calling it the 16th locally.
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         var components = DateComponents()

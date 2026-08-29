@@ -2,13 +2,7 @@ import SwiftUI
 import SwiftData
 import OSLog
 
-/// Files a routine at a competition — the first half of competition day.
-///
-/// The entry list comes from the season, not from the competition: a routine
-/// that has not danced yet is exactly the one you are here to add. Two
-/// appearances of the same entry at the same event are allowed on purpose, so
-/// nothing is filtered out — a routine that dances its category and again in the
-/// overall round is two performances with two sets of results.
+/// Files a routine at a competition. Two appearances of the same entry at the same event are allowed on purpose, so nothing is filtered out.
 struct AddAppearanceView: View {
     let eventId: Int
     let entries: [EntryViewDTO]
@@ -97,10 +91,6 @@ struct AddAppearanceView: View {
                 await onSaved()
                 dismiss()
             } catch {
-                // Stays open. The refusal this most often carries —
-                // "That entry is not in the same season as this competition" —
-                // is something to fix here, not to acknowledge and lose the form
-                // over.
                 AppLog.activities.error(
                     "Creating an appearance failed: \(String(describing: error), privacy: .public)"
                 )
@@ -111,12 +101,7 @@ struct AddAppearanceView: View {
     }
 }
 
-/// The date and notes on a performance, plus deleting it.
-///
-/// Which routine performed at which competition is deliberately *not* editable:
-/// that pair is the record's identity, not a field on it. A misfiled one is
-/// deleted and re-entered, which also makes it obvious that its results went
-/// with it.
+/// Which routine performed at which competition is deliberately not editable: that pair is the record's identity, not a field on it.
 struct EditAppearanceView: View {
     let appearance: AppearanceDTO
     let entryName: String
@@ -205,9 +190,7 @@ struct EditAppearanceView: View {
 
         Task {
             do {
-                // The date is always sent, never omitted: an absent key does not
-                // mean "leave it alone", it means "set it to unknown". What the
-                // form is showing is what the record ends up with.
+                // The date is always sent, never omitted: an absent key means "set it to unknown" rather than "leave it alone".
                 _ = try await service.updateAppearance(
                     id: appearance.id,
                     occurredAt: occurredAt.date,
@@ -245,13 +228,7 @@ struct EditAppearanceView: View {
 
 // MARK: - Shared form pieces
 
-/// A date that may genuinely not be known.
-///
-/// `OccurredAt` is a non-pointer `time.Time`, so the wire has no null for it —
-/// the zero time is how "sometime that weekend" is stored, and the ordering on
-/// both sides falls back to the competition's own date when it sees one. This
-/// keeps the toggle and the picked day together so a form cannot send one
-/// without meaning the other.
+/// A date that may genuinely not be known. `OccurredAt` has no null on the wire, so the zero time is how "sometime that weekend" is stored.
 struct ActivityDateField: Equatable {
     var isSet: Bool
     var day: Date
@@ -261,8 +238,6 @@ struct ActivityDateField: Equatable {
         day = .now
     }
 
-    /// Reads a value off the wire. A server zero becomes "not set" rather than a
-    /// date in the year 1.
     init(_ serverValue: Date) {
         if let known = serverValue.serverDate {
             isSet = true
@@ -273,8 +248,7 @@ struct ActivityDateField: Equatable {
         }
     }
 
-    /// What the write sends. `nil` clears the date, which is exactly what the
-    /// toggle being off means.
+    /// What the write sends. `nil` clears the date, which is what the toggle being off means.
     var date: Date? { isSet ? day : nil }
 }
 
@@ -304,9 +278,7 @@ struct AppearanceNotesSection: View {
             TextField("Notes", text: $notes, axis: .vertical)
                 .lineLimit(2...6)
                 .onChange(of: notes) { _, new in
-                    // The server truncates past this rather than refusing, so a
-                    // field that let the user keep typing would quietly keep
-                    // less than they wrote.
+                    // The server truncates past this rather than refusing.
                     if new.count > ActivityFieldLimit.notes.characters {
                         notes = String(new.prefix(ActivityFieldLimit.notes.characters))
                     }

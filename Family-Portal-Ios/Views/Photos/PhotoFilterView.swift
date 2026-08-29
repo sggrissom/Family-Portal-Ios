@@ -1,18 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// The gallery's filter panel: people, tags and a date window, matching the
-/// web's (`frontend/pages/photos/family-photos.tsx`).
-///
-/// Every change applies immediately to the grid behind it — the same
-/// immediate-apply choice `TagPickerView` and "Manage Tagged People" already
-/// make — so the sheet has Done rather than Apply, and dismissing never discards
-/// anything.
-///
-/// People and tags come from the local store, not from `ListPeople`/`ListTags` as
-/// the web fetches them: the gallery it filters is local too, so a filter that
-/// needed the network would be unusable in exactly the situation this app is
-/// built for.
+/// The gallery's filter panel, matching the web's. Every change applies immediately, so the sheet has Done rather than Apply.
+/// People and tags come from the local store, not the network: the gallery it filters is local too.
 struct PhotoFilterView: View {
     @Binding var filter: PhotoFilter
 
@@ -20,8 +10,6 @@ struct PhotoFilterView: View {
     @Query private var tags: [FamilyTag]
     @Environment(\.dismiss) private var dismiss
 
-    /// `ListTags` sorts case-insensitively by name; the same order here keeps the
-    /// two clients' panels reading alike.
     private var sortedTags: [FamilyTag] {
         tags.sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
@@ -91,8 +79,7 @@ struct PhotoFilterView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(sortedTags) { tag in
-                    // A tag the pull stored without a usable id can't match
-                    // anything, since `Photo.tagRemoteIds` holds server ids.
+                    // A tag the pull stored without a usable id can't match anything, since `Photo.tagRemoteIds` holds server ids.
                     let remoteId = tag.remoteId.flatMap(Int.init)
                     let isSelected = remoteId.map { filter.tagRemoteIds.contains($0) } ?? false
 
@@ -148,10 +135,7 @@ struct PhotoFilterView: View {
         }
     }
 
-    /// The two halves of the window are independently optional — "everything
-    /// since June" is as ordinary a request as a closed range — so each end is a
-    /// switch over a `Date?` rather than a picker that is always showing some
-    /// date the user never chose.
+    /// Each end of the window is independently optional — "everything since June" is as ordinary a request as a closed range.
     private func bound(_ keyPath: WritableKeyPath<PhotoFilter, Date?>, default fallback: @autoclosure @escaping () -> Date) -> Binding<Bool> {
         Binding(
             get: { filter[keyPath: keyPath] != nil },
@@ -174,8 +158,7 @@ struct PhotoFilterView: View {
         )
     }
 
-    /// A month back, so switching "From" on lands on a window that holds
-    /// something. Today would show an empty grid and read as a broken filter.
+    /// A month back, so switching "From" on lands on a window that holds something.
     private static var defaultFrom: Date {
         Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     }

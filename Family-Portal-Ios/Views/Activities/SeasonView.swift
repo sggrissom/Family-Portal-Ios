@@ -2,16 +2,10 @@ import SwiftUI
 import SwiftData
 
 /// One season: its competitions and its routines, side by side.
-///
-/// `GetSeasonOverview` ships each event and each entry once and the appearances
-/// as the bare hinge, rather than repeating the parents on every row — a full
-/// season is a dozen competitions by a dozen routines, so the detailed shape
-/// would send each entry a dozen times over. The join is done here, on `entryId`
-/// and `eventId`, exactly as the web does it.
+/// `GetSeasonOverview` ships each event and each entry once and the appearances as the bare hinge; the join is done here on `entryId` and `eventId`, exactly as the web does it.
 struct SeasonView: View {
     let seasonId: Int
-    /// Carried in so the title is right before the payload lands. The response
-    /// is authoritative once it does.
+    /// Carried in so the title is right before the payload lands.
     let seasonName: String
 
     @Environment(ActivityService.self) private var service
@@ -21,8 +15,7 @@ struct SeasonView: View {
     @State private var vocabulary = ActivityScreenState<ListActivityVocabularyResponseDTO>()
     @State private var sheet: Sheet?
 
-    /// One slot, because SwiftUI presents a single sheet per view and several
-    /// bindings on the same node race each other.
+    /// One slot, because SwiftUI presents a single sheet per view and several bindings on the same node race each other.
     private enum Sheet: Identifiable {
         case addEvent
         case editEvent(ActivityEventDTO)
@@ -49,10 +42,7 @@ struct SeasonView: View {
         }
         .navigationTitle(state.value?.season.name ?? seasonName)
         .navigationBarTitleDisplayMode(.inline)
-        // Setup forms autocomplete from what this family has already typed, for
-        // the same reason the results editor does: nothing normalizes these
-        // fields at write time, so a season otherwise ends up with "Jazz",
-        // "jazz" and "JAZZ" as three different styles.
+        // Nothing normalizes these fields at write time, so without autocomplete a season ends up with "Jazz", "jazz" and "JAZZ" as three different styles.
         .task(id: state.value?.activity.id) {
             guard let activityId = state.value?.activity.id else { return }
             await vocabulary.load(service.vocabulary(activityId: activityId))

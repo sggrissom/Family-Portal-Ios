@@ -14,8 +14,6 @@ struct MobileVersionTests {
 
     @Test("An unrecognized status does not lock the user out")
     func unknownStatusIsPermissive() {
-        // Anything the app doesn't understand has to fall through to .unknown,
-        // which ContentView treats as "let them in".
         #expect(MobileVersionStatus(wireValue: "") == .unknown)
         #expect(MobileVersionStatus(wireValue: "maintenance") == .unknown)
     }
@@ -39,14 +37,8 @@ struct MobileVersionTests {
         #expect(dto.updateMessage == "Please update to keep syncing.")
     }
 
-    /// `parseAppVersion` in backend/mobile_version.go accepts only the SemVer
-    /// core format and 400s on anything else — which is why MARKETING_VERSION
-    /// had to move from "1.0" to "1.0.0".
     @Test("The bundle's marketing version is strict major.minor.patch")
     func marketingVersionIsStrictSemver() throws {
-        // Assert against the bundle directly rather than AppConstants, whose
-        // "0.0.0" fallback would satisfy the semver checks below even if the
-        // key were missing from Info.plist entirely.
         let version = try #require(
             Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
             "CFBundleShortVersionString is missing from the built Info.plist"
@@ -67,8 +59,6 @@ struct MobileVersionTests {
 
     @Test("The bundle declares iPhone-only device support")
     func declaresIPhoneOnly() throws {
-        // A manual Info.plist doesn't get UIDeviceFamily injected from
-        // TARGETED_DEVICE_FAMILY, so this has to be asserted on the bundle.
         let families = try #require(
             Bundle.main.object(forInfoDictionaryKey: "UIDeviceFamily") as? [Int],
             "UIDeviceFamily is missing from the built Info.plist"
@@ -78,8 +68,6 @@ struct MobileVersionTests {
 
     @Test("The bundle ships a privacy manifest")
     func shipsPrivacyManifest() {
-        // Required for App Store submission; the app uses UserDefaults, which
-        // is a declared-reason API.
         #expect(Bundle.main.url(forResource: "PrivacyInfo", withExtension: "xcprivacy") != nil)
     }
 }

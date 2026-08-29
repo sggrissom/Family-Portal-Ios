@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// The competition-day writes. Online only, never queued: `CreateAppearance`
-/// refuses an entry from a different season, `SetAppearanceResults` refuses a
-/// result naming someone off the roster — refusals the device cannot predict,
-/// and a queued write replayed hours later would report a success that never
-/// happened.
 @MainActor
 @Suite("Activity writes")
 struct ActivityWriteTests {
@@ -26,8 +21,6 @@ struct ActivityWriteTests {
         return try #require(json as? [String: Any])
     }
 
-    /// A calendar day at midday, so no time-zone offset can slide it onto the
-    /// day before or after.
     private static func day(year: Int, month: Int, day: Int) -> Date {
         var components = DateComponents()
         components.year = year
@@ -39,18 +32,12 @@ struct ActivityWriteTests {
 
     // MARK: - Dates on the wire
 
-    /// `parseActivityDate` reads `YYYY-MM-DD` and nothing else, and the day is
-    /// the *device's* day: a `DatePicker` hands back midnight local, so
-    /// formatting in UTC would move a competition east of Greenwich to the day
-    /// before.
     @Test("A date is sent as the calendar day the user picked")
     func requestDateFormat() {
         #expect(ServerDateFormat.requestString(Self.day(year: 2026, month: 3, day: 14)) == "2026-03-14")
         #expect(ServerDateFormat.requestString(nil) == nil)
     }
 
-    /// A value read back off the wire and handed straight to a write must not
-    /// resurrect as a date in the year 1.
     @Test("The server's zero time is sent as no date at all")
     func serverZeroIsNotADate() {
         let zero = Date(timeIntervalSince1970: -62_135_596_800)
@@ -83,9 +70,6 @@ struct ActivityWriteTests {
         #expect(body["notes"] as? String == "ballroom C")
     }
 
-    /// "Sometime that weekend" is a normal state for a competition schedule, not
-    /// missing information — the backend's own ordering falls back to the event's
-    /// start date when it sees one.
     @Test("A performance with no known day omits the date")
     func createAppearanceWithoutDate() async throws {
         let server = FakeHTTPServer()
@@ -101,8 +85,6 @@ struct ActivityWriteTests {
         #expect(body["occurredAt"] == nil)
     }
 
-    /// The refusal this path exists to surface. `ErrEntryNotInSeason` arrives as
-    /// a bare 400 body and has to reach the user as its own sentence.
     @Test("An entry from another season is refused in the backend's own words")
     func createAppearanceRefusal() async {
         let sentence = "That entry is not in the same season as this competition"
@@ -121,10 +103,6 @@ struct ActivityWriteTests {
 
     // MARK: - Updating
 
-    /// Trap #5, and the one that loses data quietly: `UpdateAppearance` assigns
-    /// whatever `parseActivityDate` returns *unconditionally*, so omitting the
-    /// key does not mean "leave it alone" — it means "set it to unknown". An
-    /// editor must always send what it is showing.
     @Test("An update always sends the date it is showing")
     func updateAppearanceSendsItsDate() async throws {
         let server = FakeHTTPServer()
@@ -144,8 +122,6 @@ struct ActivityWriteTests {
         #expect(body["notes"] as? String == "second call")
     }
 
-    /// And clearing it is the same call with no date, which is the only way to
-    /// say "we don't know when after all".
     @Test("Clearing the date omits the key, which is what clears it")
     func updateAppearanceClearsItsDate() async throws {
         let server = FakeHTTPServer()
@@ -160,8 +136,6 @@ struct ActivityWriteTests {
         #expect(body["occurredAt"] == nil)
     }
 
-    /// `ActivityDateField` is what keeps the toggle and the picked day
-    /// together, so a form cannot send one while meaning the other.
     @Test("The date field reads a server zero as not set")
     func dateFieldReadsServerZero() {
         let unset = ActivityDateField(Date(timeIntervalSince1970: -62_135_596_800))
@@ -191,9 +165,6 @@ struct ActivityWriteTests {
 
     // MARK: - Results
 
-    /// A whole-set replace: the request carries every row the appearance should
-    /// end up with, in screen order, and the server assigns `sortOrder` from
-    /// array position.
     @Test("Saving a results sheet sends the whole set in order")
     func setAppearanceResultsRequestShape() async throws {
         let server = FakeHTTPServer()
@@ -212,21 +183,17 @@ struct ActivityWriteTests {
         #expect(body["appearanceId"] as? Int == 21)
 
         let results = try #require(body["results"] as? [[String: Any]])
-        // The blank row never reaches the wire.
         #expect(results.count == 2)
         #expect(results[0]["kind"] as? String == "placement")
         #expect(results[0]["rank"] as? Int == 1)
         #expect(results[0]["outOf"] as? Int == 14)
         #expect(results[1]["kind"] as? String == "adjudication")
-        // No sort order on the wire: position in the array *is* the order.
         #expect(results[0]["sortOrder"] == nil)
-        // And the absent optionals stay absent rather than arriving as 0.
         #expect(results[1]["rank"] == nil)
         #expect(results[1]["score"] == nil)
         #expect(results[1]["personId"] == nil)
     }
 
-    /// An empty array is a meaningful save, not a no-op: it clears the sheet.
     @Test("Saving no results clears the sheet")
     func setAppearanceResultsCanClear() async throws {
         let server = FakeHTTPServer()
@@ -259,9 +226,6 @@ struct ActivityWriteTests {
 
     // MARK: - Photos
 
-    /// Also a whole-set write, over *remote* photo ids, and the order is kept:
-    /// the server drops the joins and rewrites them in the order asked for, so a
-    /// read comes back that way.
     @Test("Attaching photos sends the whole set, in order")
     func setAppearancePhotosRequestShape() async throws {
         let server = FakeHTTPServer()
@@ -294,9 +258,6 @@ struct ActivityWriteTests {
 
     // MARK: - Vocabulary
 
-    /// Autocomplete is not a nicety: adjudication labels are free text by design
-    /// and nothing normalizes them at write time, so without it "High Gold"
-    /// becomes "high gold" and the season view cannot even count them.
     @Test("The vocabulary is asked for by activity and cached with the reads")
     func vocabularyRequestShape() async throws {
         let server = FakeHTTPServer()
@@ -310,8 +271,6 @@ struct ActivityWriteTests {
         await first.load(service.vocabulary(activityId: 1))
         #expect(first.value?.adjudications == ["Diamond", "High Gold"])
 
-        // A form opened at a venue needs the suggestions as much as a screen
-        // needs its payload.
         let offline = ActivityScreenState<ListActivityVocabularyResponseDTO>()
         await offline.load(service.vocabulary(activityId: 1))
         #expect(offline.value?.adjudications == ["Diamond", "High Gold"])

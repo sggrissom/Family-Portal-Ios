@@ -3,22 +3,12 @@ import UIKit
 import UserNotifications
 import os
 
-/// APNs registration, wired to `RegisterPushDevice` / `UnregisterPushDevice`
-/// in backend/push_notifications.go. `backend/chat.go` already queues a push for
-/// every new chat message, so that whole server path stayed dark until the app
-/// started handing over a device token.
-///
-/// A singleton because `AppDelegate` — which SwiftUI instantiates itself — is
-/// the only place the token arrives.
 @MainActor
 @Observable
 final class PushNotificationService: NSObject {
     static let shared = PushNotificationService()
 
-    /// The backend refuses any registration whose environment doesn't match its
-    /// own `APNS_ENVIRONMENT`. Xcode rewrites the entitlement to "production"
-    /// when exporting for TestFlight or the App Store, so the build
-    /// configuration is what distinguishes the two.
+    /// The backend refuses a registration whose environment doesn't match its own `APNS_ENVIRONMENT`, and Xcode rewrites the entitlement to "production" for TestFlight.
     static var environment: String {
         #if DEBUG
         return "sandbox"
@@ -34,30 +24,16 @@ final class PushNotificationService: NSObject {
 
     private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
 
-    /// The token last accepted by the server, kept so logout can retire exactly
-    /// what was registered.
     private(set) var registeredToken: String?
 
     private var isRegistering = false
 
-    /// Where a tapped notification's destination goes.
-    ///
-    /// Assigned by the app on launch rather than injected, because this is a
-    /// singleton for a reason that has not changed: `AppDelegate` is the only
-    /// place a device token arrives, and `UNUserNotificationCenter` is the only
-    /// place a tap does. Weak, so the router's owner still decides its lifetime.
     weak var router: DeepLinkRouter?
 
     private override init() {
         super.init()
     }
 
-    /// Call once the user is signed in: asks for permission the first time, and
-    /// on every later launch re-registers so a rotated token reaches the server.
-    ///
-    /// Silent about failures on purpose — a user who declines notifications, or
-    /// a server without APNs configured, must not see an error for something
-    /// they didn't ask for.
     func registerForPushNotifications() async {
         guard !isRegistering else { return }
         isRegistering = true
@@ -85,11 +61,9 @@ final class PushNotificationService: NSObject {
             break
         }
 
-        // The token comes back through AppDelegate, not from this call.
         UIApplication.shared.registerForRemoteNotifications()
     }
 
-    /// Called from `AppDelegate` with the raw APNs token.
     func handleDeviceToken(_ deviceToken: Data) async {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         guard let bundleId = Bundle.main.bundleIdentifier else { return }
@@ -116,13 +90,10 @@ final class PushNotificationService: NSObject {
     }
 
     func handleRegistrationFailure(_ error: Error) {
-        // Expected on a simulator without a paired push environment.
         Self.logger.error("APNs registration failed: \(error.localizedDescription, privacy: .public)")
     }
 
-    /// Retires this device's token. Must run while the session is still valid,
-    /// so it hangs off `AuthService.onWillLogout` rather than the sign-out
-    /// button.
+    /// Retires this device's token. Must run while the session is still valid, so it hangs off `AuthService.onWillLogout`.
     func unregisterForPushNotifications() async {
         guard let token = registeredToken else { return }
         registeredToken = nil
@@ -139,10 +110,7 @@ final class PushNotificationService: NSObject {
         UIApplication.shared.unregisterForRemoteNotifications()
     }
 
-    /// The server stamps `badge: 1` on every push and never sends a corrected
-    /// count, so APNs alone can only ever raise the badge. Nothing takes it back
-    /// down unless the app does — which is why a single test push left the icon
-    /// badged for good.
+    /// The server stamps `badge: 1` on every push and never sends a corrected count, so nothing takes the badge back down unless the app does.
     func clearBadge() async {
         let center = UNUserNotificationCenter.current()
         do {
@@ -150,33 +118,20 @@ final class PushNotificationService: NSObject {
         } catch {
             Self.logger.error("Clearing badge failed: \(error.localizedDescription, privacy: .public)")
         }
-        // Delivered notifications outlive the badge otherwise, leaving the same
-        // stale test push sitting in Notification Center.
         center.removeAllDeliveredNotifications()
     }
 }
 
 extension PushNotificationService: UNUserNotificationCenterDelegate {
-    /// Without this, a message that arrives while the app is open is delivered
-    /// silently — which reads as a dropped notification.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        // `.badge` is deliberately absent: the user is already looking at the
-        // app, and a badge applied now would survive until the next foreground
-        // transition — which never comes, because the app is foreground.
+        // `.badge` is deliberately absent: a badge applied while the app is foreground would survive until a foreground transition that never comes.
         await clearBadge()
         return [.banner, .sound]
     }
 
-    /// Tapping a notification is the user acknowledging it, so the badge goes
-    /// even if the app was launched straight into this handler.
-    ///
-    /// It is also the only moment the payload's routing half is worth anything.
-    /// Every push carries a `data.destination` that matches the web route for
-    /// the same content; until this read it, tapping a chat notification opened
-    /// whatever screen the app happened to be on.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse

@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-/// The annual setup half: the program, its seasons, the competitions in a
-/// season, the routines in a season, and who is in a routine.
-///
-/// Plain forms, but two of the traps bite hardest here — every one of these
-/// records has dates that clear when omitted, and every delete cascades.
 @MainActor
 @Suite("Activity structure writes")
 struct ActivityStructureWriteTests {
@@ -37,9 +32,6 @@ struct ActivityStructureWriteTests {
 
     // MARK: - Activity
 
-    /// `familyId: 0` means the caller's primary family, the same convention
-    /// `FamilyMembershipService` uses. `CreateActivity` and `ListActivities` are
-    /// the only two activities requests that carry one at all.
     @Test("Creating a program defaults to the primary family")
     func createActivityRequestShape() async throws {
         let server = FakeHTTPServer()
@@ -56,8 +48,6 @@ struct ActivityStructureWriteTests {
         #expect(body["kind"] as? String == "dance")
     }
 
-    /// Over-length text is *truncated* server-side rather than refused, so what
-    /// a caller sends and what gets stored have to be the same thing.
     @Test("A name longer than the cap is clamped before it is sent")
     func nameIsClamped() async throws {
         let server = FakeHTTPServer()
@@ -107,10 +97,6 @@ struct ActivityStructureWriteTests {
         #expect(body["endDate"] as? String == "2026-06-30")
     }
 
-    /// Trap #5. `UpdateSeason` assigns whatever `parseActivityDate` returns
-    /// *unconditionally*, so an omitted key does not leave the date alone — it
-    /// clears it. An editor has to send what it is showing, both halves, every
-    /// time.
     @Test("Updating a season sends the dates it is showing")
     func updateSeasonSendsBothDates() async throws {
         let server = FakeHTTPServer()
@@ -124,8 +110,6 @@ struct ActivityStructureWriteTests {
 
         let body = try Self.body(try #require(server.requests(for: "rpc/UpdateSeason").first))
         #expect(body["startDate"] as? String == "2025-09-01")
-        // An end date nobody has set yet: absent, which is how the record
-        // already reads and what keeps it that way.
         #expect(body["endDate"] == nil)
     }
 
@@ -168,7 +152,6 @@ struct ActivityStructureWriteTests {
         #expect(body["host"] as? String == "Nuvo")
         #expect(body["location"] as? String == "Nashville, TN")
         #expect(body["startDate"] as? String == "2026-03-14")
-        // A single-day competition, which is the common case.
         #expect(body["endDate"] == nil)
     }
 
@@ -185,8 +168,6 @@ struct ActivityStructureWriteTests {
 
     // MARK: - Routine and roster
 
-    /// The roster travels with the create — `CreateEntry` takes `personIds` and
-    /// calls `setEntryRosterTx` when the key is present.
     @Test("Creating a routine can set its roster in the same call")
     func createEntryCarriesItsRoster() async throws {
         let server = FakeHTTPServer()
@@ -206,8 +187,6 @@ struct ActivityStructureWriteTests {
         #expect(body["style"] as? String == "Lyrical")
     }
 
-    /// But not with the update: `SetEntryRoster` owns it, which is what stops an
-    /// update carrying a half-built roster over a whole one.
     @Test("Updating a routine leaves the roster alone")
     func updateEntryOmitsTheRoster() async throws {
         let server = FakeHTTPServer()
@@ -225,8 +204,6 @@ struct ActivityStructureWriteTests {
         #expect(body["personIds"] == nil)
     }
 
-    /// Whole-set: rosters are small and always edited together — nobody adds one
-    /// dancer to a routine in isolation.
     @Test("Setting a roster replaces the whole set, in order")
     func setEntryRosterRequestShape() async throws {
         let server = FakeHTTPServer()
@@ -254,9 +231,6 @@ struct ActivityStructureWriteTests {
         #expect((body["personIds"] as? [Int])?.isEmpty == true)
     }
 
-    /// A routine can hold children from two households, but only because the
-    /// other household shared them in — `SetEntryRoster` is not a second way to
-    /// reach a person.
     @Test("A person off the family's roster is refused in the backend's own words")
     func rosterRefusal() async {
         let sentence = "That person is not on this family's roster"
@@ -284,9 +258,6 @@ struct ActivityStructureWriteTests {
 
     // MARK: - Competition photos
 
-    /// The weekend shots that are not of any one routine. `SetEventPhotos` is
-    /// the only activities write that answers with the ids rather than with a
-    /// record, so the response shape is its own thing.
     @Test("Competition photos are a whole set, and the response carries the ids back")
     func setEventPhotosRequestShape() async throws {
         let server = FakeHTTPServer()

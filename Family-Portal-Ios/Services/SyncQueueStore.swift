@@ -1,35 +1,15 @@
 import Foundation
 import OSLog
 
-/// Where the pending-operation queue is kept between launches.
-///
-/// It used to be one JSON blob in `UserDefaults`, rewritten in full on every
-/// mutation — every enqueue, every retry count, every dequeue. `UserDefaults` is
-/// a preferences store: it is loaded into memory in its entirety, it is not meant
-/// to hold a growing record, and a device that has been offline for a weekend can
-/// accumulate a real backlog of operations there. Nothing about that was urgent
-/// once photo bytes stopped travelling in the queue — the payloads left are small
-/// JSON — but it was always the wrong drawer.
-///
-/// So the queue lives in Application Support as its own file, written atomically,
-/// which is also what `ActivitySnapshotCache` does with the payloads it banks.
-///
-/// This is deliberately not SwiftData, the other option §33 named. The queue is
-/// read and written as a whole array — `mergeOperationIfPossible` scans it,
-/// `readyOperations` sorts it — so per-record storage buys nothing, and a queue
-/// inside the same store it is trying to push would gain a schema migration on
-/// `DataStore.container` for the trouble.
 nonisolated struct SyncQueueStore: Sendable {
 
-    /// The `UserDefaults` key the queue used to be written to. A build that
-    /// upgrades still has to find whatever was pending there — see `load()`.
+    /// The `UserDefaults` key the queue used to be written to; a build that upgrades still has to find whatever was pending there. See `load()`.
     private static let legacyStorageKey = "com.familyrecord.syncQueue"
 
     private let fileURL: URL
-    private let legacyDefaults: UserDefaults
+    /// `UserDefaults` is thread-safe but not marked `Sendable`, and this store is read off whatever actor the queue runs on.
+    nonisolated(unsafe) private let legacyDefaults: UserDefaults
 
-    /// Both are injectable so tests never touch the app's real queue, the same
-    /// arrangement `ActivitySnapshotCache` has with its directory.
     init(fileURL: URL? = nil, legacyDefaults: UserDefaults = .standard) {
         self.fileURL = fileURL ?? Self.defaultFileURL()
         self.legacyDefaults = legacyDefaults
@@ -43,14 +23,7 @@ nonisolated struct SyncQueueStore: Sendable {
 
     // MARK: - Reading
 
-    /// Everything still pending, in the order it was written.
-    ///
-    /// On the first launch of a build that has this file, there is no file and
-    /// there may well be a queue in `UserDefaults`. Adopting it is not optional
-    /// politeness: those operations are local changes the user has already made
-    /// and the server has never heard about, so dropping them loses data that
-    /// exists nowhere else. The migration runs once — the legacy key is cleared
-    /// as soon as the file is written — and a fresh install simply finds neither.
+    /// On the first launch of a build that has this file, any legacy `UserDefaults` queue is adopted — those are local changes the server has never heard about. The migration runs once.
     func load() -> [PendingOperation] {
         if let data = try? Data(contentsOf: fileURL) {
             return decode(data, source: "queue file")
@@ -71,11 +44,7 @@ nonisolated struct SyncQueueStore: Sendable {
         do {
             return try JSONDecoder().decode([PendingOperation].self, from: data)
         } catch {
-            // The whole queue is one array, so a decode failure costs every
-            // pending change on the device. `PendingOperation` is written to
-            // survive a field it has never seen — `blockedCount` was added to it
-            // after ship — but if it ever does fail, an empty queue is the only
-            // honest answer.
+            // The whole queue is one array, so a decode failure costs every pending change. If it ever does fail, an empty queue is the only honest answer.
             AppLog.queue.error(
                 "Failed to load the \(source, privacy: .public): \(String(describing: error), privacy: .public)"
             )
@@ -85,12 +54,7 @@ nonisolated struct SyncQueueStore: Sendable {
 
     // MARK: - Writing
 
-    /// Replaces the stored queue.
-    ///
-    /// Atomically, because this is called on every mutation including the ones
-    /// that happen while a sync run is in flight: a write torn by a crash or a
-    /// task cancellation would leave a half-written array that `load()` cannot
-    /// decode, and that costs the whole backlog rather than one operation.
+    /// Replaces the stored queue, atomically: a write torn by a crash would leave an array `load()` cannot decode, costing the whole backlog.
     func save(_ operations: [PendingOperation]) {
         do {
             try FileManager.default.createDirectory(
@@ -100,10 +64,7 @@ nonisolated struct SyncQueueStore: Sendable {
             let data = try JSONEncoder().encode(operations)
             try data.write(to: fileURL, options: [.atomic])
 
-            // Matches what `UserDefaults` gave these payloads before the move, and
-            // is the strongest protection a queue may have: a sync can run from
-            // the background after a reboot, and `.complete` would make the file
-            // unreadable until someone unlocks the phone.
+            // A sync can run from the background after a reboot, and `.complete` would make the file unreadable until someone unlocks the phone.
             try? FileManager.default.setAttributes(
                 [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
                 ofItemAtPath: fileURL.path
