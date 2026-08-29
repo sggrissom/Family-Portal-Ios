@@ -345,11 +345,23 @@ struct SyncQueueTests {
             forKey: "com.familyrecord.syncQueue"
         )
 
+        // The file has to be on disk before the first queue is built: a queue that
+        // finds nothing there migrates the legacy blob in, and the precedence this
+        // test is about would never be exercised.
         let url = Self.scratchFileURL()
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try JSONEncoder()
+            .encode([try Self.operation(.createMilestone, localId: "current", payload: ["v": 2])])
+            .write(to: url)
+
         let store = SyncQueueStore(fileURL: url, legacyDefaults: defaults)
-        await SyncQueue(store: store).enqueue(try Self.operation(.createMilestone, localId: "current", payload: ["v": 2]))
 
         #expect(await SyncQueue(store: store).allOperations().map(\.localId) == ["current"])
+        // The legacy blob is ignored, not adopted — and not cleared either.
+        #expect(defaults.data(forKey: "com.familyrecord.syncQueue") != nil)
     }
 
     @Test("A queue written by a build without blockedCount still loads")
