@@ -6,6 +6,8 @@ nonisolated struct AuthResponseDTO: Sendable {
     let email: String
     let isAdmin: Bool
     let familyId: Int?
+    /// The person record standing in for this account, which is the subject every derived relationship label is phrased against. `omitempty` on the Go side, so an account never linked to a person simply omits the key.
+    let personId: Int?
 
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -14,6 +16,7 @@ nonisolated struct AuthResponseDTO: Sendable {
         email = try container.decode(String.self, forKey: .email)
         isAdmin = try container.decode(Bool.self, forKey: .isAdmin)
         familyId = try container.decodeIfPresent(Int.self, forKey: .familyId)
+        personId = try container.decodeIfPresent(Int.self, forKey: .personId)
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
@@ -23,10 +26,11 @@ nonisolated struct AuthResponseDTO: Sendable {
         try container.encode(email, forKey: .email)
         try container.encode(isAdmin, forKey: .isAdmin)
         try container.encodeIfPresent(familyId, forKey: .familyId)
+        try container.encodeIfPresent(personId, forKey: .personId)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, email, isAdmin, familyId
+        case id, name, email, isAdmin, familyId, personId
     }
 }
 
@@ -274,7 +278,6 @@ nonisolated struct PersonDTO: Codable, Sendable {
     let id: Int
     let familyId: Int
     let name: String
-    let type: Int
     let gender: Int
     let birthday: Date
     /// The server's own rendering of the age. Not used — `AgeCalculator` computes it locally, because this goes stale the moment a birthday passes.
@@ -285,17 +288,19 @@ nonisolated struct PersonDTO: Codable, Sendable {
     let profileCropX: Double?
     let profileCropY: Double?
     let profileCropScale: Double?
+    /// How this person relates to the *caller's* own person, worded by the server ("daughter", "grandfather"). Derived, viewer-relative and `omitempty`: absent whenever the graph does not connect the two.
+    let relationship: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, familyId, name, type, gender, birthday, age, isPregnancy
+        case id, familyId, name, gender, birthday, age, isPregnancy
         case profilePhotoId, profileCropX, profileCropY, profileCropScale
+        case relationship
     }
 
     nonisolated init(
         id: Int,
         familyId: Int,
         name: String,
-        type: Int,
         gender: Int,
         birthday: Date,
         age: String,
@@ -303,12 +308,12 @@ nonisolated struct PersonDTO: Codable, Sendable {
         profilePhotoId: Int? = nil,
         profileCropX: Double? = nil,
         profileCropY: Double? = nil,
-        profileCropScale: Double? = nil
+        profileCropScale: Double? = nil,
+        relationship: String? = nil
     ) {
         self.id = id
         self.familyId = familyId
         self.name = name
-        self.type = type
         self.gender = gender
         self.birthday = birthday
         self.age = age
@@ -317,6 +322,7 @@ nonisolated struct PersonDTO: Codable, Sendable {
         self.profileCropX = profileCropX
         self.profileCropY = profileCropY
         self.profileCropScale = profileCropScale
+        self.relationship = relationship
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -324,7 +330,6 @@ nonisolated struct PersonDTO: Codable, Sendable {
         id = try container.decode(Int.self, forKey: .id)
         familyId = try container.decode(Int.self, forKey: .familyId)
         name = try container.decode(String.self, forKey: .name)
-        type = try container.decode(Int.self, forKey: .type)
         gender = try container.decode(Int.self, forKey: .gender)
         birthday = try container.decode(Date.self, forKey: .birthday)
         age = try container.decodeIfPresent(String.self, forKey: .age) ?? ""
@@ -334,6 +339,7 @@ nonisolated struct PersonDTO: Codable, Sendable {
         profileCropX = try container.decodeIfPresent(Double.self, forKey: .profileCropX)
         profileCropY = try container.decodeIfPresent(Double.self, forKey: .profileCropY)
         profileCropScale = try container.decodeIfPresent(Double.self, forKey: .profileCropScale)
+        relationship = try container.decodeIfPresent(String.self, forKey: .relationship)
     }
 }
 
@@ -559,17 +565,71 @@ nonisolated struct AppleTokenLoginRequestDTO: Encodable, Sendable {
 
 nonisolated struct AddPersonRequestDTO: Encodable, Sendable {
     let name: String
-    let personType: Int
     let gender: Int
     let birthdate: String  // "yyyy-MM-dd"
+    /// What the new person is to `anchorId`, as `StatedRelation` codes it. `0` with `anchorId: 0` records no relationship, which the server reads as "not saying yet".
+    let stated: Int
+    let anchorId: Int
 }
 
 nonisolated struct UpdatePersonRequestDTO: Encodable, Sendable {
     let id: Int
     let name: String
-    let personType: Int
     let gender: Int
     let birthdate: String  // "yyyy-MM-dd"
+}
+
+// MARK: - Relationships (backend/relation.go)
+
+/// One edge as the server words it for a subject: `label` is what `personName` is *to the person asked about*, already gendered from the target, so the same stored edge reads correctly from either end.
+nonisolated struct RelationViewDTO: Codable, Sendable, Identifiable {
+    let id: Int
+    let personId: Int
+    let personName: String
+    let label: String
+}
+
+nonisolated struct GetPersonRelationsRequestDTO: Encodable, Sendable {
+    let personId: Int
+}
+
+nonisolated struct GetPersonRelationsResponseDTO: Codable, Sendable {
+    let personId: Int
+    let relations: [RelationViewDTO]
+    /// False when the caller may see this person but not edit them, which is the server's own answer rather than something the app re-derives.
+    let manageable: Bool
+
+    nonisolated init(personId: Int, relations: [RelationViewDTO], manageable: Bool) {
+        self.personId = personId
+        self.relations = relations
+        self.manageable = manageable
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        personId = try container.decodeIfPresent(Int.self, forKey: .personId) ?? 0
+        // Go marshals an empty slice as `null`, and a refusal sends the whole struct zero-valued.
+        relations = try container.decodeIfPresent([RelationViewDTO].self, forKey: .relations) ?? []
+        manageable = try container.decodeIfPresent(Bool.self, forKey: .manageable) ?? false
+    }
+}
+
+nonisolated struct AddRelationRequestDTO: Encodable, Sendable {
+    let personId: Int
+    let anchorId: Int
+    /// `StatedRelation`'s raw value: what `personId` is to `anchorId`.
+    let stated: Int
+}
+
+nonisolated struct RemoveRelationRequestDTO: Encodable, Sendable {
+    let relationId: Int
+}
+
+/// `RelationActionResponse`. Refusals arrive as HTTP 200 with `success: false`, and `relations` is a struct, so `omitempty` does nothing for it: a refusal still carries a zero-valued one that must not be mistaken for "this person has no relationships".
+nonisolated struct RelationActionResponseDTO: Decodable, Sendable {
+    let success: Bool
+    let error: String?
+    let relations: GetPersonRelationsResponseDTO?
 }
 
 nonisolated struct AddGrowthDataRequestDTO: Encodable, Sendable {

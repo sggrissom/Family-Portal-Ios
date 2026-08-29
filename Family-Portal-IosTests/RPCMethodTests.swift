@@ -29,6 +29,13 @@ struct RPCMethodTests {
         #expect(RPCMethod.getFamilyTimeline.rawValue == "GetFamilyTimeline")
     }
 
+    @Test("Relationship proc names match the backend")
+    func relationProcNames() {
+        #expect(RPCMethod.getPersonRelations.rawValue == "GetPersonRelations")
+        #expect(RPCMethod.addRelation.rawValue == "AddRelation")
+        #expect(RPCMethod.removeRelation.rawValue == "RemoveRelation")
+    }
+
     @Test("Growth data proc names match the backend")
     func growthProcNames() {
         #expect(RPCMethod.addGrowthData.rawValue == "AddGrowthData")

@@ -2,7 +2,8 @@ import SwiftUI
 
 struct PersonRowView: View {
     let name: String
-    let type: PersonType
+    /// The server's wording for how this person relates to the signed-in account's own person. `nil` for anyone the relationship graph doesn't reach, which leaves the age standing alone rather than showing a placeholder.
+    let relationship: String?
     let birthday: Date?
     /// Travels with `birthday`, which it qualifies: the same date is a due date or a birth date depending on it.
     let isPregnancy: Bool
@@ -12,7 +13,7 @@ struct PersonRowView: View {
 
     init(
         name: String,
-        type: PersonType,
+        relationship: String?,
         birthday: Date?,
         isPregnancy: Bool = false,
         profilePhotoRemoteId: Int?,
@@ -20,7 +21,7 @@ struct PersonRowView: View {
         avatarSize: CGFloat = 80
     ) {
         self.name = name
-        self.type = type
+        self.relationship = relationship
         self.birthday = birthday
         self.isPregnancy = isPregnancy
         self.profilePhotoRemoteId = profilePhotoRemoteId
@@ -31,7 +32,7 @@ struct PersonRowView: View {
     init(person: Person, avatarSize: CGFloat = 80) {
         self.init(
             name: person.name,
-            type: person.type,
+            relationship: person.relationship,
             birthday: person.birthday,
             isPregnancy: person.isPregnancy,
             profilePhotoRemoteId: person.profilePhotoId,
@@ -57,7 +58,6 @@ struct PersonRowView: View {
         HStack(spacing: 12) {
             PersonAvatarView(
                 name: name,
-                type: type,
                 profilePhotoRemoteId: profilePhotoRemoteId,
                 crop: crop,
                 size: avatarSize
@@ -68,9 +68,11 @@ struct PersonRowView: View {
                     .font(.body)
 
                 HStack(spacing: 8) {
-                    Text(type.rawValue.capitalized)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let relationship {
+                        Text(relationship.capitalized)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     if let ageText {
                         Text(ageText)

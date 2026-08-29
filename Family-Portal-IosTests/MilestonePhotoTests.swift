@@ -18,7 +18,7 @@ struct MilestonePhotoTests {
         photoRemoteIds: [String?] = ["77", "78"],
         milestoneRemoteId: String? = nil
     ) throws -> Scene {
-        let person = Person(name: "Rowan", type: .child, gender: .other, birthday: Date())
+        let person = Person(name: "Rowan", gender: .other, birthday: Date())
         person.remoteId = "12"
         harness.context.insert(person)
 

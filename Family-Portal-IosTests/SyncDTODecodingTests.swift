@@ -26,10 +26,10 @@ struct SyncDTODecodingTests {
           "id": 12,
           "familyId": 7,
           "name": "Rowan",
-          "type": 1,
           "gender": 2,
           "birthday": "2019-08-04T00:00:00Z",
           "age": "6 years",
+          "relationship": "daughter",
           "profilePhotoId": 88,
           "profileCropX": 50,
           "profileCropY": 42.5,
@@ -42,8 +42,8 @@ struct SyncDTODecodingTests {
         #expect(dto.id == 12)
         #expect(dto.familyId == 7)
         #expect(dto.name == "Rowan")
-        #expect(dto.type == 1)
         #expect(dto.gender == 2)
+        #expect(dto.relationship == "daughter")
         #expect(dto.age == "6 years")
         #expect(dto.profilePhotoId == 88)
         #expect(dto.profileCropY == 42.5)
@@ -55,8 +55,9 @@ struct SyncDTODecodingTests {
     func mapsPersonToModel() throws {
         let json = """
         {
-          "id": 12, "familyId": 7, "name": "Rowan", "type": 1, "gender": 2,
+          "id": 12, "familyId": 7, "name": "Rowan", "gender": 2,
           "birthday": "2019-08-04T00:00:00Z", "age": "6 years",
+          "relationship": "daughter",
           "profilePhotoId": 88, "profileCropX": 50, "profileCropY": 50,
           "profileCropScale": 1, "isPregnancy": false
         }
@@ -65,9 +66,23 @@ struct SyncDTODecodingTests {
 
         #expect(person.remoteId == "12")
         #expect(person.name == "Rowan")
-        #expect(person.type == .child)
+        #expect(person.relationship == "daughter")
         #expect(person.gender == .other)
         #expect(person.profilePhotoId == 88)
+    }
+
+    @Test("A person the relationship graph doesn't reach carries no relationship")
+    func unrelatedPersonHasNoRelationship() throws {
+        // The server omits the key rather than sending "", and `GetFamilyTimeline` labels everyone it can, so an absent key means unrelated rather than unknown.
+        let json = """
+        {
+          "id": 12, "familyId": 7, "name": "Rowan", "gender": 2,
+          "birthday": "2019-08-04T00:00:00Z", "age": "6 years", "isPregnancy": false
+        }
+        """
+        let person = personFromDTO(try APIClient.decode(PersonDTO.self, from: Data(json.utf8)))
+
+        #expect(person.relationship == nil)
     }
 
     // MARK: - GrowthDataDTO

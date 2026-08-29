@@ -9,20 +9,19 @@ nonisolated enum Fixture {
     static func person(
         id: Int,
         name: String = "Rowan",
-        type: Int = 1,
         gender: Int = 0,
         birthday: String = "2019-08-04T00:00:00Z",
         familyId: Int = 7,
         profilePhotoId: Int? = nil,
         profileCropX: Double? = nil,
         profileCropY: Double? = nil,
-        profileCropScale: Double? = nil
+        profileCropScale: Double? = nil,
+        relationship: String? = nil
     ) -> [String: Any] {
         var person: [String: Any] = [
             "id": id,
             "familyId": familyId,
             "name": name,
-            "type": type,
             "gender": gender,
             "birthday": birthday,
             "age": "6 years"
@@ -38,6 +37,10 @@ nonisolated enum Fixture {
         }
         if let profileCropScale {
             person["profileCropScale"] = profileCropScale
+        }
+        // Derived and viewer-relative, so the server omits it for anyone the graph doesn't reach.
+        if let relationship {
+            person["relationship"] = relationship
         }
         return person
     }

@@ -28,7 +28,7 @@ struct PhotoFilterTests {
     }
 
     private static func makePerson(in context: ModelContext, name: String) throws -> Person {
-        let person = Person(name: name, type: .child, gender: .other, birthday: makeDate(2019, 8, 4))
+        let person = Person(name: name, gender: .other, birthday: makeDate(2019, 8, 4))
         context.insert(person)
         try context.save()
         return person

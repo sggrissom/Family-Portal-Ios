@@ -99,14 +99,16 @@ nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
 
 nonisolated struct CreatePersonPayload: Codable, Sendable {
     let name: String
-    let personType: Int
     let gender: Int
     let birthdate: String
+    /// `StatedRelation`'s raw value: what the new person is to `anchorLocalId`. `0` means none was stated.
+    let stated: Int
+    /// The anchor as a *local* id, resolved to a server id when the operation runs, exactly as a milestone's photo ids are: an anchor added moments earlier may not be on the server yet, and parking beats sending a person with no relationship at all.
+    let anchorLocalId: String?
 }
 
 nonisolated struct UpdatePersonPayload: Codable, Sendable {
     let name: String
-    let personType: Int
     let gender: Int
     let birthdate: String
 }

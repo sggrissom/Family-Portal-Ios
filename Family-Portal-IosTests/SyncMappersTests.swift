@@ -7,15 +7,23 @@ struct SyncMappersTests {
 
     // MARK: - Enum round-trips
 
-    @Test("PersonType survives a round-trip", arguments: [PersonType.parent, .child])
-    func personTypeRoundTrip(type: PersonType) {
-        #expect(intToPersonType(personTypeToInt(type)) == type)
+    @Test("StatedRelation codes match the backend's iota order")
+    func statedRelationCodes() {
+        #expect(StatedRelation.none.rawValue == 0)
+        #expect(StatedRelation.child.rawValue == 1)
+        #expect(StatedRelation.parent.rawValue == 2)
+        #expect(StatedRelation.sibling.rawValue == 3)
+        #expect(StatedRelation.partner.rawValue == 4)
     }
 
-    @Test("PersonType codes match the backend")
-    func personTypeCodes() {
-        #expect(personTypeToInt(.parent) == 0)
-        #expect(personTypeToInt(.child) == 1)
+    @Test("Every relation wording names a real edge kind")
+    func relationOptionsAreStated() {
+        #expect(RelationOption.all.count == 12)
+        #expect(RelationOption.all.allSatisfy { $0.stated != .none })
+        // A gendered word states the gender too, so the form can stop asking twice.
+        #expect(RelationOption.all.first { $0.label == "daughter" }?.gender == .female)
+        #expect(RelationOption.all.first { $0.label == "father" }?.gender == .male)
+        #expect(RelationOption.all.first { $0.label == "sibling" }?.gender == nil)
     }
 
     @Test("Gender survives a round-trip", arguments: [Gender.male, .female, .other])
@@ -54,7 +62,6 @@ struct SyncMappersTests {
 
     @Test("Unknown codes fall back instead of trapping")
     func unknownCodesFallBack() {
-        #expect(intToPersonType(99) == .child)
         #expect(intToGender(99) == .other)
         #expect(intToMeasurementType(99) == .height)
         #expect(unitFromString("furlongs") == .inches)

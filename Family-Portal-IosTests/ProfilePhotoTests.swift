@@ -18,7 +18,7 @@ struct ProfilePhotoTests {
         photoRemoteId: String? = "77",
         tagged: Bool = true
     ) throws -> Tagged {
-        let person = Person(name: "Rowan", type: .child, gender: .other, birthday: Date())
+        let person = Person(name: "Rowan", gender: .other, birthday: Date())
         person.remoteId = personRemoteId
         harness.context.insert(person)
 
@@ -260,7 +260,6 @@ struct ProfilePhotoTests {
             id: 12,
             familyId: 7,
             name: "Rowan",
-            type: 1,
             gender: 0,
             birthday: Date(),
             age: "6 years",

@@ -133,7 +133,7 @@ struct SyncServicePullTests {
         harness.server.route("rpc/GetFamilyTimeline", respond: .json(Fixture.timeline([])))
         harness.server.route("rpc/ListFamilyPhotos", respond: .json(Self.noPhotos()))
 
-        let person = Person(name: "Added offline", type: .child, gender: .other, birthday: Date())
+        let person = Person(name: "Added offline", gender: .other, birthday: Date())
         let photo = Photo(title: "Not uploaded yet", descriptionText: "", photoDate: Date(), imageData: Data([0xFF, 0xD8]))
         harness.context.insert(person)
         harness.context.insert(photo)
@@ -169,7 +169,7 @@ struct SyncServicePullTests {
         harness.server.route("rpc/GetFamilyTimeline", respond: .status(500, message: "database is down"))
         harness.server.route("rpc/ListFamilyPhotos", respond: .json(Self.noPhotos()))
 
-        let person = Person(name: "Added offline", type: .child, gender: .other, birthday: Date())
+        let person = Person(name: "Added offline", gender: .other, birthday: Date())
         harness.context.insert(person)
         try harness.context.save()
 

@@ -12,11 +12,11 @@ enum PreviewData {
         let family = Family(name: "Sample Family", inviteCode: "ABC123")
         container.mainContext.insert(family)
 
-        let parent = Person(name: "Deer Daddy", type: .parent, gender: .male, birthday: date(1990, 5, 15))
+        let parent = Person(name: "Deer Daddy", gender: .male, birthday: date(1990, 5, 15), relationship: "father")
         parent.family = family
         container.mainContext.insert(parent)
 
-        let child = Person(name: "Doe", type: .child, gender: .female, birthday: date(2022, 3, 10))
+        let child = Person(name: "Doe", gender: .female, birthday: date(2022, 3, 10), relationship: "daughter")
         child.family = family
         container.mainContext.insert(child)
 
@@ -67,13 +67,13 @@ enum PreviewData {
     static var sampleParent: Person {
         let descriptor = FetchDescriptor<Person>()
         let people = try! container.mainContext.fetch(descriptor)
-        return people.first { $0.type == .parent }!
+        return people.first { $0.relationship == "father" }!
     }
 
     static var sampleChild: Person {
         let descriptor = FetchDescriptor<Person>()
         let people = try! container.mainContext.fetch(descriptor)
-        return people.first { $0.type == .child }!
+        return people.first { $0.relationship == "daughter" }!
     }
 
     static var sampleGrowthData: [GrowthData] {

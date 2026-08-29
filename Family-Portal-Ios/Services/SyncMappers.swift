@@ -1,22 +1,5 @@
 import Foundation
 
-// MARK: - PersonType Mapping
-
-func personTypeToInt(_ type: PersonType) -> Int {
-    switch type {
-    case .parent: return 0
-    case .child: return 1
-    }
-}
-
-func intToPersonType(_ value: Int) -> PersonType {
-    switch value {
-    case 0: return .parent
-    case 1: return .child
-    default: return .child
-    }
-}
-
 // MARK: - Gender Mapping
 
 func genderToInt(_ gender: Gender) -> Int {
@@ -100,8 +83,8 @@ private func normalizeBirthdayDate(_ date: Date) -> Date {
 func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
     person.remoteId = String(dto.id)
     person.name = dto.name
-    person.type = intToPersonType(dto.type)
     person.gender = intToGender(dto.gender)
+    person.relationship = nonEmpty(dto.relationship)
     person.birthday = normalizeBirthdayDate(dto.birthday)
     person.isPregnancy = dto.isPregnancy
     person.profilePhotoId = nonZero(dto.profilePhotoId)
@@ -118,6 +101,12 @@ private func nonZero(_ value: Int?) -> Int? {
 
 private func nonZero(_ value: Double?) -> Double? {
     guard let value, value != 0 else { return nil }
+    return value
+}
+
+/// A relationship the graph could not name comes back as an omitted key from most procs but as `""` from the ones that build it field by field; both mean "unrelated as far as the server can tell".
+private func nonEmpty(_ value: String?) -> String? {
+    guard let value, !value.isEmpty else { return nil }
     return value
 }
 
@@ -158,7 +147,6 @@ func applyTagDTO(_ dto: TagDTO, to tag: FamilyTag) {
 func personFromDTO(_ dto: PersonDTO) -> Person {
     let person = Person(
         name: dto.name,
-        type: intToPersonType(dto.type),
         gender: intToGender(dto.gender),
         birthday: normalizeBirthdayDate(dto.birthday)
     )

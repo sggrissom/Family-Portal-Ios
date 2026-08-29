@@ -25,6 +25,12 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case setProfilePhoto = "SetProfilePhoto"
     case getFamilyTimeline = "GetFamilyTimeline"
 
+    // MARK: - Relationships (backend/relation.go)
+
+    case getPersonRelations = "GetPersonRelations"
+    case addRelation = "AddRelation"
+    case removeRelation = "RemoveRelation"
+
     // MARK: - Growth data (backend/growth.go)
 
     case addGrowthData = "AddGrowthData"

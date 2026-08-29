@@ -277,13 +277,29 @@ final class SyncService {
 
         let request = AddPersonRequestDTO(
             name: payload.name,
-            personType: payload.personType,
             gender: payload.gender,
-            birthdate: payload.birthdate
+            birthdate: payload.birthdate,
+            stated: payload.stated,
+            anchorId: try resolveRelationAnchor(payload)
         )
         let response: AddPersonResponseDTO = try await apiClient.callRPC(.addPerson, payload: request)
         applyPersonDTO(response.person, to: person)
         try modelContext.save()
+    }
+
+    /// The anchor's server id, or 0 when there is nothing to state. An anchor the user has since deleted drops the relationship rather than blocking the person forever; one that is merely still uploading throws, so the operation is parked and retried with the relationship intact.
+    private func resolveRelationAnchor(_ payload: CreatePersonPayload) throws -> Int {
+        guard payload.stated != StatedRelation.none.rawValue,
+              let anchorLocalId = payload.anchorLocalId else {
+            return 0
+        }
+        guard let anchor = findPerson(byLocalId: anchorLocalId) else {
+            return 0
+        }
+        guard let remoteId = anchor.remoteId, let anchorId = Int(remoteId) else {
+            throw SyncError.missingRemoteId("The related person must be synced first")
+        }
+        return anchorId
     }
 
     private func executeUpdatePerson(_ operation: PendingOperation) async throws {
@@ -298,7 +314,6 @@ final class SyncService {
         let request = UpdatePersonRequestDTO(
             id: personId,
             name: payload.name,
-            personType: payload.personType,
             gender: payload.gender,
             birthdate: payload.birthdate
         )
@@ -611,23 +626,35 @@ final class SyncService {
 
     // MARK: - Push: Person
 
-    func addPerson(_ person: Person) async throws {
+    /// Queues a new person, optionally stating how they relate to someone already in the roster. The stated word travels with the create rather than as a second call: it is what the server derives every other label from, and a person added offline should arrive related, not related a round trip later.
+    func addPerson(
+        _ person: Person,
+        stated: StatedRelation = .none,
+        anchor: Person? = nil
+    ) async throws {
         guard let birthday = person.birthday else {
             throw SyncError.missingBirthday
         }
 
+        let statesRelation = stated != .none && anchor != nil
         let payload = CreatePersonPayload(
             name: person.name,
-            personType: personTypeToInt(person.type),
             gender: genderToInt(person.gender),
-            birthdate: dateToAPIString(birthday)
+            birthdate: dateToAPIString(birthday),
+            stated: statesRelation ? stated.rawValue : StatedRelation.none.rawValue,
+            anchorLocalId: statesRelation ? anchor?.id.uuidString : nil
         )
+
+        // The anchor is a dependency only while it is unsynced, so the create waits at the gate instead of spending a request to learn the same thing.
+        let dependsOnLocalId = statesRelation && anchor?.remoteId == nil
+            ? anchor?.id.uuidString
+            : nil
 
         try await enqueueOperation(
             type: .createPerson,
             localId: person.id.uuidString,
             payload: payload,
-            dependsOnLocalId: nil
+            dependsOnLocalId: dependsOnLocalId
         )
     }
 
@@ -638,7 +665,6 @@ final class SyncService {
 
         let payload = UpdatePersonPayload(
             name: person.name,
-            personType: personTypeToInt(person.type),
             gender: genderToInt(person.gender),
             birthdate: dateToAPIString(birthday)
         )
@@ -1085,7 +1111,7 @@ final class SyncService {
         if let existing = try? modelContext.fetch(descriptor).first {
             return existing
         }
-        let person = Person(name: "", type: .child, gender: .other)
+        let person = Person(name: "", gender: .other)
         person.remoteId = remoteId
         modelContext.insert(person)
         return person

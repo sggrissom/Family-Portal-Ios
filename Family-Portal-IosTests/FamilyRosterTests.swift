@@ -7,46 +7,45 @@ import Testing
 @Suite("Family roster")
 struct FamilyRosterTests {
 
-    private static func person(_ name: String, _ type: PersonType, born: Date?) -> Person {
-        Person(name: name, type: type, gender: .other, birthday: born)
+    private static func person(_ name: String, born: Date?) -> Person {
+        Person(name: name, gender: .other, birthday: born)
     }
 
     private static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
         Calendar(identifier: .gregorian).date(from: DateComponents(year: year, month: month, day: day))!
     }
 
-    @Test("Parents and children are separated")
-    func rosterIsPartitionedByType() {
+    @Test("The roster is one list, not a parent and child split")
+    func rosterKeepsEveryoneInOneList() {
         let people = [
-            Self.person("Ada", .parent, born: Self.date(1990, 1, 1)),
-            Self.person("Bo", .child, born: Self.date(2020, 1, 1)),
-            Self.person("Cy", .parent, born: nil),
+            Self.person("Ada", born: Self.date(1990, 1, 1)),
+            Self.person("Bo", born: Self.date(2020, 1, 1)),
+            Self.person("Cy", born: nil),
         ]
 
-        #expect(Person.parents(in: people).map(\.name) == ["Ada", "Cy"])
-        #expect(Person.children(in: people).map(\.name) == ["Bo"])
+        #expect(Person.roster(in: people).map(\.name) == ["Ada", "Bo", "Cy"])
     }
 
-    @Test("Children are ordered oldest first")
-    func childrenAreOldestFirst() {
+    @Test("The roster is ordered oldest first")
+    func rosterIsOldestFirst() {
         let people = [
-            Self.person("Youngest", .child, born: Self.date(2024, 6, 1)),
-            Self.person("Eldest", .child, born: Self.date(2018, 3, 4)),
-            Self.person("Middle", .child, born: Self.date(2021, 11, 20)),
+            Self.person("Youngest", born: Self.date(2024, 6, 1)),
+            Self.person("Eldest", born: Self.date(2018, 3, 4)),
+            Self.person("Middle", born: Self.date(2021, 11, 20)),
         ]
 
-        #expect(Person.children(in: people).map(\.name) == ["Eldest", "Middle", "Youngest"])
+        #expect(Person.roster(in: people).map(\.name) == ["Eldest", "Middle", "Youngest"])
     }
 
-    @Test("Children with no birthday sort last, by name")
+    @Test("People with no birthday sort last, by name")
     func unknownBirthdaysSortLast() {
         let people = [
-            Self.person("Zoe", .child, born: nil),
-            Self.person("Eldest", .child, born: Self.date(2018, 3, 4)),
-            Self.person("Ada", .child, born: nil),
+            Self.person("Zoe", born: nil),
+            Self.person("Eldest", born: Self.date(2018, 3, 4)),
+            Self.person("Ada", born: nil),
         ]
 
-        #expect(Person.children(in: people).map(\.name) == ["Eldest", "Ada", "Zoe"])
+        #expect(Person.roster(in: people).map(\.name) == ["Eldest", "Ada", "Zoe"])
     }
 
     @Test("Previews and tests build the same store the app does")

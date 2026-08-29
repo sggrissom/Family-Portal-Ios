@@ -8,7 +8,7 @@ import Testing
 struct SyncServiceQueueTests {
 
     private static func syncedPerson(in harness: TestSync.Harness, remoteId: String = "12") throws -> Person {
-        let person = Person(name: "Rowan", type: .child, gender: .other, birthday: Date())
+        let person = Person(name: "Rowan", gender: .other, birthday: Date())
         person.remoteId = remoteId
         harness.context.insert(person)
         try harness.context.save()
@@ -71,7 +71,7 @@ struct SyncServiceQueueTests {
     func gateBlockedOperationIsEventuallyDiscarded() async throws {
         let harness = try TestSync.harness(connected: false)
 
-        let person = Person(name: "Rowan", type: .child, gender: .other, birthday: Date())
+        let person = Person(name: "Rowan", gender: .other, birthday: Date())
         harness.context.insert(person)
         try harness.context.save()
 
@@ -319,7 +319,7 @@ struct SyncServiceQueueTests {
     func missingBirthdayIsRefused() async throws {
         let harness = try TestSync.harness(connected: false)
 
-        let person = Person(name: "No birthday", type: .child, gender: .other)
+        let person = Person(name: "No birthday", gender: .other)
         harness.context.insert(person)
         try harness.context.save()
 

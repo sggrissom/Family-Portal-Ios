@@ -62,7 +62,9 @@ struct PersonDetailView: View {
 
                     GroupBox("Details") {
                         VStack(alignment: .leading, spacing: 12) {
-                            detailRow(label: "Type", value: person.type.rawValue.capitalized)
+                            if let relationship = person.relationship {
+                                detailRow(label: "Relationship", value: relationship.capitalized)
+                            }
                             detailRow(label: "Gender", value: person.gender.rawValue.capitalized)
 
                             if let birthday = person.birthday {

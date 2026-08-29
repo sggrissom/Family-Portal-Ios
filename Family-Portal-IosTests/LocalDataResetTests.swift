@@ -72,7 +72,7 @@ struct LocalDataResetTests {
 
         let family = Family(name: "Grissom", inviteCode: "ABC123")
         context.insert(family)
-        let person = Person(name: "Ada", type: .child, gender: .female, birthday: Date())
+        let person = Person(name: "Ada", gender: .female, birthday: Date())
         person.family = family
         context.insert(person)
         let growth = GrowthData(measurementType: .height, value: 100, unit: .centimeters, date: Date())
@@ -153,7 +153,7 @@ struct LocalDataResetTests {
         )
         await queue.enqueue(operation)
 
-        context.insert(Person(name: "Ada", type: .child, gender: .female, birthday: Date()))
+        context.insert(Person(name: "Ada", gender: .female, birthday: Date()))
         context.insert(Photo(title: "Beach", descriptionText: "", photoDate: Date()))
         context.insert(ChatMessage(
             clientMessageId: UUID().uuidString,

@@ -6,10 +6,11 @@ struct EditPersonView: View {
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
+    @Query(sort: \Person.name) private var people: [Person]
+
     let person: Person
 
     @State private var name: String
-    @State private var type: PersonType
     @State private var gender: Gender
     @State private var birthday: Date
     @State private var isSaving = false
@@ -17,7 +18,6 @@ struct EditPersonView: View {
     init(person: Person) {
         self.person = person
         _name = State(initialValue: person.name)
-        _type = State(initialValue: person.type)
         _gender = State(initialValue: person.gender)
         // A person predating the required-birthday change may still have none; showing today gives the user something concrete to correct.
         _birthday = State(initialValue: person.birthday ?? Date())
@@ -28,15 +28,6 @@ struct EditPersonView: View {
             Form {
                 Section("Name") {
                     TextField("Full Name", text: $name)
-                }
-
-                Section("Type") {
-                    Picker("Type", selection: $type) {
-                        ForEach(PersonType.allCases, id: \.self) { personType in
-                            Text(personType.rawValue.capitalized)
-                        }
-                    }
-                    .pickerStyle(.segmented)
                 }
 
                 Section("Gender") {
@@ -54,6 +45,15 @@ struct EditPersonView: View {
                     Text("Birthday")
                 } footer: {
                     Text("Used to calculate ages across the app.")
+                }
+
+                // Relationships live on the server and are named from the whole graph, so there is nothing to show for a person it has never seen.
+                if let personId = person.remoteId.flatMap(Int.init) {
+                    PersonRelationsSection(
+                        personId: personId,
+                        personName: person.name,
+                        candidates: relationCandidates
+                    )
                 }
             }
             .navigationTitle("Edit Person")
@@ -74,10 +74,14 @@ struct EditPersonView: View {
         }
     }
 
+    /// Everyone but this person who has a server id to state a relationship against.
+    private var relationCandidates: [Person] {
+        people.filter { $0.id != person.id && $0.remoteId != nil }
+    }
+
     private func savePerson() {
         isSaving = true
         person.name = name
-        person.type = type
         person.gender = gender
         person.birthday = birthday
 

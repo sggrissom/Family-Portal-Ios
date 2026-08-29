@@ -49,6 +49,7 @@ struct AuthDTOTests {
             "email": "ada@example.com",
             "isAdmin": false,
             "familyId": 3,
+            "personId": 11,
             "families": [
               { "id": 3, "name": "Ada's Family", "role": 0, "isPrimary": true }
             ]
@@ -62,7 +63,23 @@ struct AuthDTOTests {
         #expect(dto.auth?.id == 7)
         #expect(dto.auth?.email == "ada@example.com")
         #expect(dto.auth?.familyId == 3)
+        // The person this account stands for, which every relationship label is phrased against.
+        #expect(dto.auth?.personId == 11)
         #expect(dto.error == nil)
+    }
+
+    @Test("An account with no person of its own decodes without one")
+    func decodesAuthWithoutPersonId() throws {
+        // `omitempty` on the Go side, so an account that was never linked to a person simply omits the key.
+        let json = """
+        {
+          "id": 7, "name": "Ada", "email": "ada@example.com",
+          "isAdmin": false, "familyId": 3, "families": null
+        }
+        """
+        let auth = try APIClient.decode(AuthResponseDTO.self, from: Data(json.utf8))
+
+        #expect(auth.personId == nil)
     }
 
     @Test("A rejected sign-up decodes its error message")

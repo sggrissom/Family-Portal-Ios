@@ -17,6 +17,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── AuthService.swift, GoogleSignInService.swift
 │   ├── FamilyMembershipService.swift
 │   ├── DataStore.swift, NetworkMonitor.swift
+│   ├── PersonRelationService.swift
 │   ├── SyncService.swift, SyncQueue.swift, SyncMappers.swift
 │   ├── PhotoSyncService.swift, PushNotificationService.swift
 │   ├── MobileVersionService.swift
@@ -25,7 +26,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Auth/          LoginView, CreateAccountView, ForgotPasswordView,
 │   │                  UpdateRequiredView
 │   ├── Family/        FamilyMembersView, AddPersonView, EditPersonView,
-│   │                  PersonDetailView, TimelineView, ProfilePhotoPickerView
+│   │                  PersonDetailView, PersonRelationsSection, TimelineView,
+│   │                  ProfilePhotoPickerView
 │   ├── Photos/        PhotoGalleryView, PhotoDetailView, TagPeopleView,
 │   │                  PhotoRoute, PhotoFilter, PhotoFilterView
 │   ├── Measurements/  MeasurementListView, AddMeasurementView,
@@ -65,12 +67,18 @@ All models are `@Model` classes with `remoteId: String?` for backend sync.
 | Model | Key Fields | Relationships |
 |-------|-----------|---------------|
 | Family | name, inviteCode, createdAt | members: [Person] (cascade) |
-| Person | name, type: PersonType, gender: Gender, birthday: Date? | family: Family?, growthData: [GrowthData] (cascade), milestones: [Milestone] (cascade), photos: [Photo] |
+| Person | name, gender: Gender, birthday: Date?, relationship: String? | family: Family?, growthData: [GrowthData] (cascade), milestones: [Milestone] (cascade), photos: [Photo] |
 | GrowthData | measurementType, value: Double, unit: MeasurementUnit, date | person: Person? |
 | Milestone | descriptionText, category: MilestoneCategory, date | person: Person? |
 | Photo | imageData: Data? (externalStorage), title, descriptionText, photoDate, tagRemoteIds: [Int] | taggedPeople: [Person] |
 | User | name, email, familyId: UUID? | — |
 | FamilyTag | name, colorHex, familyId | — (records hold tag ids, not a relationship) |
+
+`Person.relationship` is the server's own wording for how that person relates to
+the signed-in account's person — "daughter", "grandfather", "cousin" — derived by
+walking the relation graph rather than stored on the person. It is *viewer-relative*:
+the same record reads differently to two accounts, which is why nothing groups a
+roster by it and why the app never computes one itself.
 
 `Milestone.photoRemoteIds`/`tagRemoteIds` and `Photo.tagRemoteIds` hold *server*
 ids rather than SwiftData relationships: the pairings are the server's to own,
@@ -112,6 +120,32 @@ Membership self-service against `backend/membership_procs.go`: `ListFamilyMember
 - A rotation that succeeds with an empty code is treated as a failure: the family would otherwise keep showing the old, now-dead code as if nothing had happened
 - `familyId: 0` means the caller's primary family, matching the Go fallback
 - State lands back in `AuthService`: `applyLeftFamily(_:auth:)` trims the family and re-reads the list (keeping the trimmed list if the re-read fails, since `loadFamilyInfo` empties `families` on error), and `applyRotatedInviteCode(_:forFamily:)` patches the row in place because the response is already authoritative
+
+### PersonRelationService
+
+The relationship graph (`backend/relation.go`): `GetPersonRelations`, `AddRelation`,
+`RemoveRelation`, against an injectable `APIClient` like `FamilyMembershipService`.
+
+- Only **three** edge kinds are ever stored — parent-of, sibling-of, partner-of.
+  Grandparent, grandchild, aunt, nephew and cousin are the server walking those
+  edges outward, so they can be read but never added or removed: the edge to
+  remove is always one somebody typed. Sibling is stored rather than always
+  inferred from a shared parent, so "Kate is my sister" works without entering
+  parents nobody will enter
+- Direction rides on the wire. `StatedRelation` names what the *new* person is to
+  the anchor (`child` vs `parent`), so the request says what the user said and the
+  client never has to normalise it. Its raw values pin the Go iota order
+- Wording comes from the target's gender, which is why one stored edge reads
+  correctly from both ends — and why `RelationOption` (the twelve words the
+  pickers offer, mirroring `RELATION_OPTIONS` in the web) also prefills the new
+  person's gender: "daughter" has already said it
+- **Not** queued, for the same reason membership is not: a label is derived from
+  edges this device cannot see all of, so only the server can word one. A queued
+  edge would show a relationship the graph had not gained
+- Refusals arrive as HTTP **200** with `{ success: false, error: … }`, lifted into
+  `RelationError.refused`. `relations` is a *struct*, so Go's `omitempty` does
+  nothing for it and a refusal still carries a zero-valued one — read as an empty
+  graph it would wipe every relationship off the screen
 
 ### ChatService (`@Observable`, `@MainActor`)
 
@@ -164,6 +198,7 @@ network answers.
 - `Photo.imageData` holds local bytes only until the upload is confirmed, then it is cleared and display falls back to `RemotePhotoView`. `removeOrphans` protects unsynced work by `remoteId == nil` alone — do not re-add a local-bytes exemption, which pinned uploaded photos on the device forever
 - A queue operation whose own record is gone `return`s (moot, drop it); one whose *parent* is merely unsynced throws `SyncError.missingRemoteId` so it is retried rather than dequeued as a success — and is charged a blocked run, not a retry, so it cannot wait forever
 - `Person.birthday` is required by the server (`validateAddPersonRequest`); the push path throws `SyncError.missingBirthday` rather than substituting a date
+- `addPerson(_:stated:anchor:)` sends the stated relationship *with* the create rather than as a second call, so a person added offline arrives related. The anchor travels as a **local** id and is resolved at execution, the way a milestone's photo ids are: an anchor still uploading throws `missingRemoteId` (park and retry) instead of arriving unrelated, and one deleted since simply drops the relationship
 - `syncQueue` is injectable (`init(…, syncQueue:)`) so tests drive `processQueue` without touching the app's real queue
 - `setProfilePhoto(_:for:)` refuses a photo the person is not tagged in (`SyncError.personNotInPhoto`) because the server does too, and a rejection discovered there costs five retries. Crop is stored and rendered, never edited on iOS: re-picking the current photo keeps its crop, any other photo starts centred at 1×
 - Backend ints and floats marshal as `0` rather than as an absent key, so `applyPersonDTO` maps zero to `nil` — otherwise every person without a profile photo asked `RemotePhotoView` to load photo id 0
@@ -228,7 +263,9 @@ network answers.
 
 ### APIDTOs
 Response DTOs for all backend endpoints. Key types:
-- `PersonDTO` (type/gender as Int), `GrowthDataDTO` (measurementType as Int), `MilestoneDTO`, `ImageDTO`, `TagDTO`
+- `PersonDTO` (gender as Int, `relationship` derived and viewer-relative), `GrowthDataDTO` (measurementType as Int), `MilestoneDTO`, `ImageDTO`, `TagDTO`
+- `AuthResponseDTO.personId` is the person the account stands for — the subject every relationship label is phrased against, and the anchor `AddPersonView` defaults to
+- `RelationViewDTO`, `GetPersonRelationsResponseDTO`, `RelationActionResponseDTO` (see PersonRelationService)
 - `FamilyTimelineItemDTO` { person, growthData[], milestones[], photos[] }
 - `GetFamilyTimelineResponseDTO` { people: [FamilyTimelineItemDTO] }
 
@@ -258,6 +295,7 @@ Go + vbeam RPC server.
 - `GetFamilyInfo` → `FamilyInfoDTO`
 - `ListPeople` → `ListPeopleResponseDTO`
 - `AddPerson`, `AddGrowthData`, `UpdateGrowthData`, `DeleteGrowthData`
+- `GetPersonRelations`, `AddRelation`, `RemoveRelation` (backend/relation.go)
 - `AddMilestone`, `UpdateMilestone`, `DeleteMilestone`
 - `AddPeopleToPhoto`, `RemovePersonFromPhoto`, `DeletePhoto`
 - `SetProfilePhoto`
@@ -286,8 +324,11 @@ Backend uses integer iota values (from 0):
 
 | Enum | iOS Value | Backend Int |
 |------|-----------|-------------|
-| PersonType.parent | "parent" | 0 |
-| PersonType.child | "child" | 1 |
+| StatedRelation.none | — | 0 |
+| StatedRelation.child | — | 1 |
+| StatedRelation.parent | — | 2 |
+| StatedRelation.sibling | — | 3 |
+| StatedRelation.partner | — | 4 |
 | Gender.male | "male" | 0 |
 | Gender.female | "female" | 1 |
 | Gender.other | "other" | 2 |
@@ -307,7 +348,10 @@ iOS enums use `inches`/`centimeters`/`pounds`/`kilograms` — mappers needed.
 Dates sent as `"YYYY-MM-DD"` strings. The `inputType` field: `"date"`, `"age"`, or `"today"`.
 
 ```
-AddPerson: { name, personType: Int, gender: Int, birthdate: "YYYY-MM-DD" }
+AddPerson: { name, gender: Int, birthdate: "YYYY-MM-DD", stated: Int, anchorId: Int }  // stated/anchorId both 0 = not saying
+GetPersonRelations: { personId: Int }
+AddRelation: { personId: Int, anchorId: Int, stated: Int }   // stated says what personId is to anchorId
+RemoveRelation: { relationId: Int }
 AddGrowthData: { personId: Int, measurementType: "height"|"weight", value: Double, unit: "cm"|"in"|"kg"|"lbs", inputType: "date"|"age"|"today", measurementDate: "YYYY-MM-DD"? }
 UpdateGrowthData: { id: Int, measurementType: "height"|"weight", value: Double, unit: String, inputType: String, measurementDate: String? }
 DeleteGrowthData: { id: Int }

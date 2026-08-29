@@ -22,20 +22,17 @@ struct ProfilePhotoCrop: Equatable {
 
 struct PersonAvatarView: View {
     let name: String
-    let type: PersonType
     let profilePhotoRemoteId: Int?
     let crop: ProfilePhotoCrop
     let size: CGFloat
 
     init(
         name: String,
-        type: PersonType,
         profilePhotoRemoteId: Int? = nil,
         crop: ProfilePhotoCrop = .centered,
         size: CGFloat = 44
     ) {
         self.name = name
-        self.type = type
         self.profilePhotoRemoteId = profilePhotoRemoteId
         self.crop = crop
         self.size = size
@@ -44,7 +41,6 @@ struct PersonAvatarView: View {
     init(person: Person, size: CGFloat = 44) {
         self.init(
             name: person.name,
-            type: person.type,
             profilePhotoRemoteId: person.profilePhotoId,
             crop: ProfilePhotoCrop(
                 x: person.profileCropX,
@@ -62,11 +58,15 @@ struct PersonAvatarView: View {
         return String(first + last).uppercased()
     }
 
+    private static let palette: [Color] = [.blue, .green, .orange, .purple, .pink, .teal, .indigo]
+
+    /// A stable colour per name, so a photo-less avatar is still tellable apart. Keyed on the name rather than on a relationship, which is viewer-relative: the same person would otherwise change colour depending on who was looking.
     private var backgroundColor: Color {
-        switch type {
-        case .parent: return .blue
-        case .child: return .green
+        var hash = 5381
+        for byte in name.utf8 {
+            hash = (hash &* 33) &+ Int(byte)
         }
+        return Self.palette[abs(hash % Self.palette.count)]
     }
 
     var body: some View {
