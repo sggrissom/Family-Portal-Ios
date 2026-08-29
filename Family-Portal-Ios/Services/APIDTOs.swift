@@ -550,6 +550,13 @@ nonisolated struct GoogleTokenLoginRequestDTO: Encodable, Sendable {
     let idToken: String
 }
 
+/// `AppleTokenLoginRequest` in backend/apple_auth.go. `name` is only ever non-empty on a user's
+/// first authorization; the server treats an empty one as absent and names the account itself.
+nonisolated struct AppleTokenLoginRequestDTO: Encodable, Sendable {
+    let idToken: String
+    let name: String
+}
+
 nonisolated struct AddPersonRequestDTO: Encodable, Sendable {
     let name: String
     let personType: Int

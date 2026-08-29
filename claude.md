@@ -86,6 +86,8 @@ Singleton managing `ModelContainer` with all 6 model types.
 - `login(email:password:)` → POST `api/login`
 - `logout()` → POST `api/logout`, clears tokens
 - `restoreSession()` → POST `api/refresh`; only a 401 ends the session, other failures fall back to the cached identity so an offline launch stays signed in
+- `loginWithGoogle()` → POST `api/login/google/token`; `loginWithApple(_:)` → POST `api/login/apple/token`. Apple's `SignInWithAppleButton` owns its own presentation, so unlike Google there is nothing to await: the view hands the raw `Result` over and `AppleSignInService` classifies it, cancellation included. The server matches the identity token's email against the same account table the password path uses, and it accepts the token only if its audience is in `APPLE_IOS_CLIENT_ID` — the app's bundle id, `com.familyrecord.ios`
+- Apple releases the user's name only on the *first* authorization, which is why `AppleTokenLoginRequestDTO` carries it: every later sign-in sends an empty string and the server names the account itself
 - `serverURL` persisted in UserDefaults, synced to APIClient
 - `isAuthenticated` computed from `currentUser != nil`
 

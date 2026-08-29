@@ -1,3 +1,4 @@
+import AuthenticationServices
 import Foundation
 import OSLog
 
@@ -10,6 +11,7 @@ final class AuthService {
     private(set) var hasCheckedStoredSession = false
 
     private let googleSignInService = GoogleSignInService()
+    private let appleSignInService = AppleSignInService()
 
     @MainActor var onWillLogout: (@MainActor () async -> Void)?
 
@@ -28,6 +30,9 @@ final class AuthService {
     var isGoogleSigningIn: Bool {
         googleSignInService.isSigningIn
     }
+
+    /// Apple's button owns its own presentation, so this covers only the token exchange that follows it.
+    @MainActor private(set) var isAppleSigningIn = false
 
     init() {}
 
@@ -165,6 +170,51 @@ final class AuthService {
         }
 
         isLoading = false
+    }
+
+    @MainActor
+    func configureAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
+        appleSignInService.configure(request)
+    }
+
+    /// Takes the button's raw result so cancellation — which Apple reports as a failure — is
+    /// classified in one place rather than in the view.
+    @MainActor
+    func loginWithApple(_ result: Result<ASAuthorization, Error>) async {
+        isLoading = true
+        isAppleSigningIn = true
+        errorMessage = nil
+        defer {
+            isAppleSigningIn = false
+            isLoading = false
+        }
+
+        do {
+            let credential = try appleSignInService.credential(from: result)
+
+            let response: LoginResponseDTO = try await APIClient.shared.request(
+                path: "api/login/apple/token",
+                method: .post,
+                body: AppleTokenLoginRequestDTO(idToken: credential.identityToken, name: credential.name),
+                requiresAuth: false
+            )
+
+            if response.success, let token = response.token, let auth = response.auth {
+                await APIClient.shared.setAccessToken(token)
+                await adoptSession(auth)
+            } else {
+                errorMessage = response.error ?? "Apple sign-in failed."
+            }
+        } catch let error as AppleSignInError {
+            if case .cancelled = error {
+            } else {
+                errorMessage = error.errorDescription
+            }
+        } catch let error as APIError {
+            errorMessage = error.errorDescription
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     // MARK: - Families

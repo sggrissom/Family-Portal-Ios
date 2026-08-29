@@ -50,8 +50,8 @@ struct DeleteAccountView: View {
                 SecureField("Password", text: $password)
                     .textContentType(.password)
             } footer: {
-                // A Google-only account has no password on file and the server skips the check, so an empty field is a real answer here.
-                Text("Leave blank if you sign in with Google.")
+                // A Google- or Apple-only account has no password on file and the server skips the check, so an empty field is a real answer here.
+                Text("Leave blank if you sign in with Google or Apple.")
             }
 
             Section {

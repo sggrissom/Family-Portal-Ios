@@ -8,6 +8,15 @@
 	<key>aps-environment</key>
 	<string>development</string>
 
+	<!-- Sign in with Apple. The capability has to be enabled on the App ID in the
+	     developer portal as well, or signing fails with a profile that does not
+	     match; "Default" is the plain sign-in scope, with no group of related
+	     apps sharing one account. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+
 	<!-- What makes a familyrecord.app link — including the `destination` every
 	     push payload carries — open this app instead of Safari.
 
