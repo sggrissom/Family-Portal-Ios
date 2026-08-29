@@ -74,7 +74,7 @@ enum LocalDataReset {
     /// `activityCache` and `photoCache` are injectable for the same reason
     /// `syncQueue` is: a test must be able to prove the sweep happens without
     /// erasing the real app's cache directories.
-    static func erase(
+    @MainActor static func erase(
         _ scope: LocalDataResetScope,
         context: ModelContext,
         syncQueue: SyncQueue,
@@ -127,3 +127,4 @@ enum LocalDataReset {
         }
     }
 }
+
