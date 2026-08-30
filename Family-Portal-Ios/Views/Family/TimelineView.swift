@@ -92,6 +92,10 @@ struct TimelineView: View {
                 }
             }
             .navigationTitle("Timeline")
+            // Registered on the stack rather than on the list, so a photo stays pushed while the row behind it is filtered away or deleted.
+            .navigationDestination(for: PhotoRoute.self) { route in
+                PhotoDetailView(photoId: route.id)
+            }
             .refreshable {
                 await syncService.performFullSync()
             }
@@ -204,6 +208,8 @@ struct TimelineView: View {
                     }
                 }
             }
+
+            Divider()
         }
     }
 
@@ -229,6 +235,7 @@ struct TimelineView: View {
                 .foregroundStyle(isSelected ? .white : .primary)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -318,15 +325,21 @@ private struct TimelineResultsView: View {
     var body: some View {
         let visibleItems = items
         if visibleItems.isEmpty {
-            ContentUnavailableView(
-                "No matching activity",
-                systemImage: "line.3.horizontal.decrease.circle",
-                description: Text("Try adjusting your filters.")
-            )
+            if searchText.isEmpty {
+                ContentUnavailableView(
+                    "No matching activity",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    description: Text("Try adjusting your filters.")
+                )
+            } else {
+                ContentUnavailableView.search(text: searchText)
+            }
         } else {
             List(visibleItems) { item in
                 TimelineRowView(item: item)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
             }
+            .listStyle(.plain)
         }
     }
 
@@ -387,6 +400,9 @@ enum TimelineFilterType: CaseIterable {
 struct TimelineRowView: View {
     let item: TimelineItem
 
+    @State private var showingMilestoneDetail = false
+    @State private var editingMeasurement: GrowthData?
+
     private var categoryIcon: String {
         switch item {
         case .milestone(let milestone):
@@ -446,6 +462,14 @@ struct TimelineRowView: View {
         }
     }
 
+    /// A photo's caption, only when the title above is not already showing it.
+    private var secondaryText: String? {
+        guard case .photo(let photo) = item else { return nil }
+        let description = photo.descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !description.isEmpty, description != descriptionText else { return nil }
+        return description
+    }
+
     private var badgeText: String {
         switch item {
         case .milestone(let milestone):
@@ -457,18 +481,67 @@ struct TimelineRowView: View {
         }
     }
 
+    /// Photos can carry several tagged people, and only the first one gets an avatar.
+    private var peopleText: String? {
+        let names = item.people.map(\.name)
+        switch names.count {
+        case 0: return nil
+        case 1: return names[0]
+        default: return "\(names[0]) +\(names.count - 1)"
+        }
+    }
+
+    private var dateText: String {
+        item.date.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    // Every row leads somewhere that shows the whole item, since the row itself only has room for the gist.
     var body: some View {
+        switch item {
+        case .photo(let photo):
+            // The only branch with a screen of its own; the other two open the thing that owns the text.
+            NavigationLink(value: PhotoRoute(id: photo.id)) {
+                rowContent
+            }
+        case .milestone(let milestone):
+            Button {
+                showingMilestoneDetail = true
+            } label: {
+                rowContent
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows the full milestone")
+            .sheet(isPresented: $showingMilestoneDetail) {
+                MilestoneDetailSheetView(milestone: milestone)
+            }
+        case .growthData(let data):
+            Button {
+                editingMeasurement = data
+            } label: {
+                rowContent
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Edit this measurement")
+            .sheet(item: $editingMeasurement) { measurement in
+                EditMeasurementView(measurement: measurement)
+            }
+        }
+    }
+
+    private var rowContent: some View {
         HStack(alignment: .top, spacing: 12) {
             if let person = item.person {
                 PersonAvatarView(person: person, size: 44)
             } else {
                 Circle()
                     .fill(Color.gray.opacity(0.3))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 44, height: 44)
             }
 
+            // The text column owns the full remaining width: nothing sits to its right to squeeze it,
+            // so a long milestone wraps instead of ending in an ellipsis.
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
+                HStack(spacing: 8) {
                     Label(badgeText, systemImage: categoryIcon)
                         .font(.caption)
                         .foregroundStyle(itemColor)
@@ -477,35 +550,56 @@ struct TimelineRowView: View {
                         .background(itemColor.opacity(0.15), in: Capsule())
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
-                        .layoutPriority(1)
 
-                    if let person = item.person {
-                        Text(person.name)
+                    if let peopleText {
+                        Text(peopleText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
                     }
+
+                    Spacer(minLength: 0)
+
+                    Text(dateText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
 
                 Text(descriptionText)
                     .font(.body)
-                    .lineLimit(2)
-            }
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
+                if let secondaryText {
+                    Text(secondaryText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
 
             if case .photo(let photo) = item {
                 PhotoThumbnailView(imageData: photo.imageData, title: "", remoteId: photo.remoteId)
                     .frame(width: 44, height: 44)
-                    .accessibilityLabel(descriptionText)
             }
-
-            Text(item.date.formatted(date: .abbreviated, time: .omitted))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        // One element per row, so VoiceOver reads the entry rather than five fragments of it.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        [badgeText, peopleText, descriptionText, secondaryText, dateText]
+            .compactMap { $0 }
+            .joined(separator: ", ")
     }
 }
 

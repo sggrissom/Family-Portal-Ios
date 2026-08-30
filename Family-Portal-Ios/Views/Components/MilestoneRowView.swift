@@ -66,7 +66,8 @@ struct MilestoneRowView: View {
     }
 }
 
-private struct MilestoneDetailSheetView: View {
+/// The full milestone, shown when a row is tapped. Shared with the timeline, whose rows truncate the same way.
+struct MilestoneDetailSheetView: View {
     let milestone: Milestone
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncService.self) private var syncService: SyncService?
