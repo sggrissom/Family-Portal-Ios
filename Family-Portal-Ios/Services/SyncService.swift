@@ -109,7 +109,20 @@ final class SyncService {
                 photo.taggedPeople = taggedPeople
             }
 
+            var seenRelationIds = Set<String>()
+            for relationDTO in timelineResponse.relations {
+                let relationRemoteId = String(relationDTO.id)
+                let relation = findOrCreateRelation(remoteId: relationRemoteId)
+                guard applyRelationDTO(relationDTO, to: relation) else {
+                    // A kind this build cannot read is not stored at all, so it must not be counted as seen either or the orphan sweep would keep the stale row it replaced.
+                    modelContext.delete(relation)
+                    continue
+                }
+                seenRelationIds.insert(relationRemoteId)
+            }
+
             removeOrphans(Person.self, seenIds: seenPersonIds)
+            removeOrphans(PersonRelation.self, seenIds: seenRelationIds)
             removeOrphans(GrowthData.self, seenIds: seenGrowthDataIds)
             removeOrphans(Milestone.self, seenIds: seenMilestoneIds)
             removeOrphans(Photo.self, seenIds: seenPhotoIds)
@@ -279,8 +292,10 @@ final class SyncService {
             name: payload.name,
             gender: payload.gender,
             birthdate: payload.birthdate,
+            isPregnancy: payload.isPregnancy,
             stated: payload.stated,
-            anchorId: try resolveRelationAnchor(payload)
+            anchorId: try resolveRelationAnchor(payload),
+            additionalAnchorIds: resolveAdditionalAnchors(payload)
         )
         let response: AddPersonResponseDTO = try await apiClient.callRPC(.addPerson, payload: request)
         applyPersonDTO(response.person, to: person)
@@ -302,6 +317,14 @@ final class SyncService {
         return anchorId
     }
 
+    /// The co-anchors that can be named right now. One still uploading or since deleted is simply left out: the server refuses the *whole* call over an id it cannot see, and a create that never lands is a worse outcome than a second parent the user can add again.
+    private func resolveAdditionalAnchors(_ payload: CreatePersonPayload) -> [Int] {
+        guard payload.stated != StatedRelation.none.rawValue else { return [] }
+        return payload.additionalAnchorLocalIds.compactMap { localId in
+            findPerson(byLocalId: localId)?.remoteId.flatMap(Int.init)
+        }
+    }
+
     private func executeUpdatePerson(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(UpdatePersonPayload.self, from: operation.payload)
 
@@ -315,7 +338,8 @@ final class SyncService {
             id: personId,
             name: payload.name,
             gender: payload.gender,
-            birthdate: payload.birthdate
+            birthdate: payload.birthdate,
+            isPregnancy: payload.isPregnancy
         )
         let response: UpdatePersonResponseDTO = try await apiClient.callRPC(.updatePerson, payload: request)
         applyPersonDTO(response.person, to: person)
@@ -630,7 +654,8 @@ final class SyncService {
     func addPerson(
         _ person: Person,
         stated: StatedRelation = .none,
-        anchor: Person? = nil
+        anchor: Person? = nil,
+        additionalAnchors: [Person] = []
     ) async throws {
         guard let birthday = person.birthday else {
             throw SyncError.missingBirthday
@@ -641,8 +666,12 @@ final class SyncService {
             name: person.name,
             gender: genderToInt(person.gender),
             birthdate: dateToAPIString(birthday),
+            isPregnancy: person.isPregnancy,
             stated: statesRelation ? stated.rawValue : StatedRelation.none.rawValue,
-            anchorLocalId: statesRelation ? anchor?.id.uuidString : nil
+            anchorLocalId: statesRelation ? anchor?.id.uuidString : nil,
+            additionalAnchorLocalIds: statesRelation
+                ? additionalAnchors.filter { $0.id != anchor?.id }.map(\.id.uuidString)
+                : []
         )
 
         // The anchor is a dependency only while it is unsynced, so the create waits at the gate instead of spending a request to learn the same thing.
@@ -666,7 +695,8 @@ final class SyncService {
         let payload = UpdatePersonPayload(
             name: person.name,
             gender: genderToInt(person.gender),
-            birthdate: dateToAPIString(birthday)
+            birthdate: dateToAPIString(birthday),
+            isPregnancy: person.isPregnancy
         )
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
@@ -1117,6 +1147,19 @@ final class SyncService {
         return person
     }
 
+    private func findOrCreateRelation(remoteId: String) -> PersonRelation {
+        var descriptor = FetchDescriptor<PersonRelation>(
+            predicate: #Predicate { $0.remoteId == remoteId }
+        )
+        descriptor.fetchLimit = 1
+        if let existing = try? modelContext.fetch(descriptor).first {
+            return existing
+        }
+        let relation = PersonRelation(remoteId: remoteId, fromId: 0, toId: 0, kind: .parent)
+        modelContext.insert(relation)
+        return relation
+    }
+
     private func findOrCreateGrowthData(remoteId: String) -> GrowthData {
         var descriptor = FetchDescriptor<GrowthData>(
             predicate: #Predicate { $0.remoteId == remoteId }
@@ -1214,6 +1257,7 @@ private protocol RemoteIdentifiable {
 }
 
 extension Person: RemoteIdentifiable {}
+extension PersonRelation: RemoteIdentifiable {}
 extension GrowthData: RemoteIdentifiable {}
 extension Milestone: RemoteIdentifiable {}
 extension Photo: RemoteIdentifiable {}

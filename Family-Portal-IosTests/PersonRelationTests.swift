@@ -92,6 +92,32 @@ struct PersonRelationTests {
         #expect(await harness.service.syncQueue.count() == 0)
     }
 
+    @Test("Co-anchors travel with a new person, and are dropped if they cannot be named")
+    func addPersonCarriesResolvableCoAnchors() async throws {
+        let harness = try TestSync.harness(connected: false)
+        let anchor = try Self.person(in: harness, name: "Steven", remoteId: "12")
+        let coParent = try Self.person(in: harness, name: "Ruth", remoteId: "14")
+        // Still uploading, so there is no id to send. The create must not be held back over a suggestion.
+        let pending = try Self.person(in: harness, name: "Jo", remoteId: nil)
+        let mia = try Self.person(in: harness, name: "Mia", remoteId: nil)
+        Self.routeAddPerson(harness, relationship: "daughter")
+
+        try await harness.service.addPerson(
+            mia,
+            stated: .child,
+            anchor: anchor,
+            additionalAnchors: [coParent, pending]
+        )
+
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        let body = try Self.body(of: try #require(harness.server.requests(for: "rpc/AddPerson").first))
+        #expect(body["anchorId"] as? Int == 12)
+        #expect(body["additionalAnchorIds"] as? [Int] == [14])
+        #expect(await harness.service.syncQueue.count() == 0)
+    }
+
     // MARK: - Editing a person
 
     @Test("An edit adopts the relationship the server words back")
@@ -112,6 +138,45 @@ struct PersonRelationTests {
 
         #expect(kate.name == "Kate Ann")
         #expect(kate.relationship == nil)
+    }
+
+    @Test("An edit sends the pregnancy flag it was opened with")
+    func updateCarriesThePregnancyFlag() async throws {
+        // `UpdatePerson` assigns this unconditionally: omitting it decodes as `false` on the Go side and quietly clears an unborn record.
+        let harness = try TestSync.harness(connected: false)
+        let bump = try Self.person(in: harness, name: "Baby", remoteId: "13")
+        bump.isPregnancy = true
+        try harness.context.save()
+
+        harness.server.route("rpc/UpdatePerson", respond: .json([
+            "person": Fixture.person(id: 13, name: "Baby", isPregnancy: true)
+        ]))
+
+        try await harness.service.updatePerson(bump)
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        let body = try Self.body(of: try #require(harness.server.requests(for: "rpc/UpdatePerson").first))
+        #expect(body["isPregnancy"] as? Bool == true)
+        #expect(bump.isPregnancy)
+    }
+
+    @Test("A new unborn record says so when it is created")
+    func addPersonCarriesThePregnancyFlag() async throws {
+        let harness = try TestSync.harness(connected: false)
+        let bump = Person(name: "Baby", gender: .other, birthday: Date(), isPregnancy: true)
+        harness.context.insert(bump)
+        try harness.context.save()
+        harness.server.route("rpc/AddPerson", respond: .json([
+            "person": Fixture.person(id: 13, name: "Baby", isPregnancy: true)
+        ]))
+
+        try await harness.service.addPerson(bump)
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        let body = try Self.body(of: try #require(harness.server.requests(for: "rpc/AddPerson").first))
+        #expect(body["isPregnancy"] as? Bool == true)
     }
 
     // MARK: - The relationship graph
@@ -174,6 +239,62 @@ struct PersonRelationTests {
             try await PersonRelationService(apiClient: server.apiClient())
                 .addRelation(personId: 13, anchorId: 13, stated: .sibling)
         }
+    }
+
+    @Test("Implied rows are marked as such and never collide with each other")
+    func impliedRowsAreDistinguished() async throws {
+        // The server sends implied rows with id 0. Keyed on that they would collapse into one; keyed on the person they stay distinct.
+        let server = FakeHTTPServer()
+        server.route("rpc/GetPersonRelations", respond: .json([
+            "personId": 13,
+            "relations": [
+                Fixture.relationView(id: 4, personId: 12, personName: "Ruth", label: "mother"),
+                Fixture.relationView(id: 0, personId: 14, personName: "Ben", label: "brother", stored: false),
+                Fixture.relationView(id: 0, personId: 15, personName: "Rose", label: "grandmother", stored: false),
+            ],
+            "manageable": true
+        ]))
+
+        let relations = try await PersonRelationService(apiClient: server.apiClient())
+            .relations(personId: 13)
+
+        let stored = relations.relations.filter(\.stored)
+        let implied = relations.relations.filter { !$0.stored }
+        #expect(stored.map(\.personName) == ["Ruth"])
+        #expect(stored.first?.relationId == 4)
+        #expect(implied.map(\.personName) == ["Ben", "Rose"])
+        #expect(Set(relations.relations.map(\.id)).count == 3)
+    }
+
+    @Test("A server that predates the split sent only rows somebody typed")
+    func rowsWithoutTheFlagAreStored() async throws {
+        let server = FakeHTTPServer()
+        server.route("rpc/GetPersonRelations", respond: .json([
+            "personId": 13,
+            "relations": [["id": 4, "personId": 12, "personName": "Ruth", "label": "mother"]],
+            "manageable": true
+        ]))
+
+        let relations = try await PersonRelationService(apiClient: server.apiClient())
+            .relations(personId: 13)
+
+        #expect(relations.relations.first?.stored == true)
+    }
+
+    @Test("One statement can be made against several people at once")
+    func addRelationCarriesCoAnchors() async throws {
+        let server = FakeHTTPServer()
+        server.route("rpc/AddRelation", respond: .json([
+            "success": true,
+            "relations": ["personId": 13, "relations": [], "manageable": true]
+        ]))
+
+        _ = try await PersonRelationService(apiClient: server.apiClient())
+            .addRelation(personId: 13, anchorId: 12, stated: .child, additionalAnchorIds: [14, 15])
+
+        let body = try Self.body(of: try #require(server.requests(for: "rpc/AddRelation").first))
+        #expect(body["anchorId"] as? Int == 12)
+        #expect(body["additionalAnchorIds"] as? [Int] == [14, 15])
     }
 
     @Test("Removing an edge answers with what is left")

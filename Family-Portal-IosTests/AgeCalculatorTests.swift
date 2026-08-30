@@ -116,3 +116,44 @@ struct AgeCalculatorTests {
         #expect(Self.age(bornOn: (2027, 3, 15), on: (2026, 3, 15)) == "0 weeks")
     }
 }
+
+// MARK: - Offering the flag at all
+
+@Suite("Pregnancy option")
+struct PregnancyOptionTests {
+
+    private static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        Calendar(identifier: .gregorian).date(from: DateComponents(year: year, month: month, day: day))!
+    }
+
+    private static let today = date(2026, 3, 15)
+
+    @Test("A date still to come is offered as a due date")
+    func futureDateOffersTheOption() {
+        #expect(AgeCalculator.offersPregnancyOption(
+            isPregnancy: false, birthday: Self.date(2026, 9, 1), now: Self.today
+        ))
+    }
+
+    @Test("Today is a birthday, not a due date")
+    func todayDoesNotOfferTheOption() {
+        // The web compares date strings, so the boundary is the calendar day rather than the instant.
+        #expect(!AgeCalculator.offersPregnancyOption(
+            isPregnancy: false, birthday: Self.date(2026, 3, 15), now: Self.today
+        ))
+    }
+
+    @Test("A past date is not offered, so grown adults are never asked")
+    func pastDateDoesNotOfferTheOption() {
+        #expect(!AgeCalculator.offersPregnancyOption(
+            isPregnancy: false, birthday: Self.date(1984, 3, 3), now: Self.today
+        ))
+    }
+
+    @Test("A record already flagged keeps the option, which is the only way to turn it off")
+    func flaggedRecordAlwaysOffersTheOption() {
+        #expect(AgeCalculator.offersPregnancyOption(
+            isPregnancy: true, birthday: Self.date(2026, 3, 1), now: Self.today
+        ))
+    }
+}

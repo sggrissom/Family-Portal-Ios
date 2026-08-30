@@ -48,6 +48,82 @@ struct SyncServicePullTests {
         #expect(harness.service.lastSyncDate != nil)
     }
 
+    // MARK: - The relationship graph
+
+    @Test("A pull stores the edges that came with the people")
+    func pullStoresRelations() async throws {
+        let harness = try TestSync.harness()
+        harness.server.route("rpc/GetFamilyTimeline", respond: .json(Fixture.timeline(
+            [
+                Fixture.timelineItem(person: Fixture.person(id: 12, name: "Ruth")),
+                Fixture.timelineItem(person: Fixture.person(id: 13, name: "Mia")),
+            ],
+            relations: [Fixture.relation(id: 4, fromId: 12, toId: 13, kind: 0)]
+        )))
+        harness.server.route("rpc/ListFamilyPhotos", respond: .json(Self.noPhotos()))
+
+        await harness.service.pullFamilyData()
+
+        let relations = try harness.context.fetch(FetchDescriptor<PersonRelation>())
+        #expect(relations.count == 1)
+        #expect(relations.first?.remoteId == "4")
+        #expect(relations.first?.fromId == 12)
+        #expect(relations.first?.toId == 13)
+        #expect(relations.first?.kind == .parent)
+    }
+
+    @Test("An edge the server has dropped goes with it")
+    func pullRemovesStaleRelations() async throws {
+        let harness = try TestSync.harness()
+        let people = [Fixture.timelineItem(person: Fixture.person(id: 12, name: "Ruth"))]
+        harness.server.routeSequence("rpc/GetFamilyTimeline", [
+            .json(Fixture.timeline(people, relations: [Fixture.relation(id: 4, fromId: 12, toId: 13)])),
+            .json(Fixture.timeline(people, relations: [])),
+        ])
+        harness.server.route("rpc/ListFamilyPhotos", respond: .json(Self.noPhotos()))
+
+        await harness.service.pullFamilyData()
+        #expect(try harness.context.fetch(FetchDescriptor<PersonRelation>()).count == 1)
+
+        await harness.service.pullFamilyData()
+        #expect(try harness.context.fetch(FetchDescriptor<PersonRelation>()).isEmpty)
+    }
+
+    @Test("An edge kind this build cannot read is dropped rather than guessed at")
+    func pullDropsUnknownRelationKinds() async throws {
+        let harness = try TestSync.harness()
+        harness.server.route("rpc/GetFamilyTimeline", respond: .json(Fixture.timeline(
+            [Fixture.timelineItem(person: Fixture.person(id: 12, name: "Ruth"))],
+            relations: [
+                Fixture.relation(id: 4, fromId: 12, toId: 13, kind: 0),
+                // A kind added server-side after this build shipped. Storing it as a parent would move people between generations.
+                Fixture.relation(id: 5, fromId: 12, toId: 14, kind: 99),
+            ]
+        )))
+        harness.server.route("rpc/ListFamilyPhotos", respond: .json(Self.noPhotos()))
+
+        await harness.service.pullFamilyData()
+
+        let relations = try harness.context.fetch(FetchDescriptor<PersonRelation>())
+        #expect(relations.map(\.remoteId) == ["4"])
+    }
+
+    @Test("A server that sends no edges at all is not an error")
+    func pullToleratesMissingRelations() async throws {
+        let harness = try TestSync.harness()
+        // A deployment predating the field omits the key entirely.
+        harness.server.route("rpc/GetFamilyTimeline", respond: .json([
+            "people": [Fixture.timelineItem(person: Fixture.person(id: 12, name: "Ruth"))]
+        ]))
+        harness.server.route("rpc/ListFamilyPhotos", respond: .json(Self.noPhotos()))
+
+        await harness.service.pullFamilyData()
+
+        #expect(harness.service.syncError == nil)
+        #expect(try harness.context.fetch(FetchDescriptor<Person>()).count == 1)
+        #expect(try harness.context.fetch(FetchDescriptor<PersonRelation>()).isEmpty)
+    }
+
     @Test("A second pull updates the record it already has instead of adding another")
     func pullUpdatesInPlace() async throws {
         let harness = try TestSync.harness()

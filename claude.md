@@ -11,7 +11,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 ├── Models/
 │   ├── Enums.swift, Family.swift, Person.swift, GrowthData.swift
 │   ├── Milestone.swift, Photo.swift, User.swift
-│   └── ChatMessage.swift, FamilyTag.swift
+│   └── ChatMessage.swift, FamilyTag.swift, PersonRelation.swift
 ├── Services/
 │   ├── APIClient.swift, APIDTOs.swift, RPCMethod.swift
 │   ├── AuthService.swift, GoogleSignInService.swift
@@ -42,9 +42,12 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   └── Components/    PersonAvatarView, PersonRowView, MeasurementRowView,
 │                      MilestoneRowView, PhotoThumbnailView, RemotePhotoView,
 │                      SyncStatusView, FlowLayout, ZoomableView,
-│                      DateEntryPicker, TagChipsView, TagPickerView
+│                      DateEntryPicker, TagChipsView, TagPickerView,
+│                      FamilyRosterSections, CoAnchorPicker
 └── Utilities/
     ├── Constants.swift, AgeCalculator.swift, PreviewData.swift
+    ├── RelationGraph.swift           # walks the stored edges
+    ├── FamilyGroups.swift            # bands the roster by generation
     ├── AppLog.swift                  # OSLog categories
     ├── TagColor.swift                # tag hex string → Color
     └── ErrorPresenter.swift          # shared error alert
@@ -54,7 +57,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 
 - **UI**: SwiftUI, tab-based (Family, Timeline, Photos, Settings)
 - **State**: `@Observable` classes, `@Query` for SwiftData reads
-- **Persistence**: SwiftData with models: Family, Person, GrowthData, Milestone, Photo, User, ChatMessage, FamilyTag
+- **Persistence**: SwiftData with models: Family, Person, PersonRelation, GrowthData, Milestone, Photo, User, ChatMessage, FamilyTag
 - **Networking**: `APIClient` actor with JWT auth, auto-refresh on 401
 - **Auth**: `AuthService` (`@Observable`) manages login/logout/session restore
 - **Sync**: `SyncService` (`@Observable`) handles bidirectional sync with offline queue support
@@ -67,7 +70,8 @@ All models are `@Model` classes with `remoteId: String?` for backend sync.
 | Model | Key Fields | Relationships |
 |-------|-----------|---------------|
 | Family | name, inviteCode, createdAt | members: [Person] (cascade) |
-| Person | name, gender: Gender, birthday: Date?, relationship: String? | family: Family?, growthData: [GrowthData] (cascade), milestones: [Milestone] (cascade), photos: [Photo] |
+| Person | name, gender: Gender, birthday: Date?, isPregnancy: Bool, relationship: String? | family: Family?, growthData: [GrowthData] (cascade), milestones: [Milestone] (cascade), photos: [Photo] |
+| PersonRelation | fromId: Int, toId: Int, kind: RelationKind | — (holds *server* person ids, not a relationship) |
 | GrowthData | measurementType, value: Double, unit: MeasurementUnit, date | person: Person? |
 | Milestone | descriptionText, category: MilestoneCategory, date | person: Person? |
 | Photo | imageData: Data? (externalStorage), title, descriptionText, photoDate, tagRemoteIds: [Int] | taggedPeople: [Person] |
@@ -80,6 +84,20 @@ walking the relation graph rather than stored on the person. It is *viewer-relat
 the same record reads differently to two accounts, which is why nothing groups a
 roster by it and why the app never computes one itself.
 
+`PersonRelation` is one stored edge of the family graph. It is held locally so
+the roster can band itself by generation on launch rather than after the network
+answers, and its ends are server ids for the same reason a photo's tag ids are:
+the graph is the server's to own, the whole set is replaced on every pull, and a
+person still uploading has no server id to be an end of yet. Only the three
+stored kinds exist — parent (directed, `fromId` is the parent), sibling and
+partner (symmetric, stored in whichever direction somebody stated them).
+
+`Person.isPregnancy` must be sent on **every** update: `UpdatePerson` assigns it
+unconditionally, so an editor that omits it decodes as `false` on the Go side and
+silently clears the flag. `AgeCalculator.offersPregnancyOption` decides whether
+an editor shows the toggle at all — a record already flagged, or a date that has
+not arrived.
+
 `Milestone.photoRemoteIds`/`tagRemoteIds` and `Photo.tagRemoteIds` hold *server*
 ids rather than SwiftData relationships: the pairings are the server's to own,
 both sides can arrive from different calls, and an id with nothing to resolve it
@@ -88,7 +106,8 @@ yet simply renders as nothing.
 ## Services
 
 ### DataStore
-Singleton managing `ModelContainer` with all 6 model types.
+Singleton managing `ModelContainer`; `makeSchema()` is the one list of `@Model`
+types, shared with previews and tests.
 
 ### AuthService (`@Observable`)
 - `login(email:password:)` → POST `api/login`
@@ -146,6 +165,43 @@ The relationship graph (`backend/relation.go`): `GetPersonRelations`, `AddRelati
   `RelationError.refused`. `relations` is a *struct*, so Go's `omitempty` does
   nothing for it and a refusal still carries a zero-valued one — read as an empty
   graph it would wipe every relationship off the screen
+- `GetPersonRelations` returns **two kinds of row**. `stored: true` is one
+  somebody typed and is the only kind with anything to remove; `stored: false` is
+  the graph answering — the siblings a shared parent implies, a grandmother two
+  edges up — and arrives with **id 0**, the same id for every implied row. That
+  is why `RelationViewDTO.id` is composed (`stored-4`, `implied-15`) rather than
+  taken from the wire: a `ForEach` keyed on the wire id would collapse every
+  implied row into one. `relationId` is what `RemoveRelation` takes
+- `addRelation(…additionalAnchorIds:)` states the same relation against several
+  people in one write, so "daughter of Steven **and** Ruth" is one call rather
+  than one per parent. The server skips ids that are 0, the subject, repeated, or
+  already stored — but fails the *whole* call over one it cannot see, committing
+  nothing, so only ever pass ids that came back with the people themselves
+
+### RelationGraph and FamilyGroups
+
+Ports of `frontend/lib/relations.ts` and `frontend/lib/familyGroups.ts`, so the
+phone and the dashboard answer the same questions from the same graph.
+
+- `RelationGraph` names *neighbours* only — parents, children, siblings,
+  partners. It never words a relationship: "grandmother" and "cousin" are the
+  server's (`backend/relation_label.go`), and a client that derived them would
+  disagree with the labels beside them on the same screen
+- Siblings are those stated outright **plus** those sharing a parent, walked one
+  step and no further: stated sibling edges are not transitive, because
+  half-siblings break that. Stating several at once is what
+  `coAnchorSuggestions` is for — a child's other parent (preselected only when
+  the anchor has exactly one partner), or the anchor's siblings
+- Nothing is *inferred* from a partner. Treating a partner's child as your own
+  would be silent and unrefusable, and step-families are exactly where it is
+  wrong, so a co-anchor is a tick the user makes and an edge the server stores
+- `FamilyGroups.group(people:relations:)` bands the roster by generation, read
+  off the **bottom** of the tree: the youngest generation present is always
+  "Children". Reading from the top would rename every band the moment a
+  grandparent was added. People no edge reaches go last under "Not linked yet",
+  which includes anyone added offline — they have no server id to be an end of an
+  edge yet. A generation, unlike a relationship, is not viewer-relative, which is
+  why the graph can band a roster where `Person.relationship` cannot
 
 ### ChatService (`@Observable`, `@MainActor`)
 
@@ -198,7 +254,8 @@ network answers.
 - `Photo.imageData` holds local bytes only until the upload is confirmed, then it is cleared and display falls back to `RemotePhotoView`. `removeOrphans` protects unsynced work by `remoteId == nil` alone — do not re-add a local-bytes exemption, which pinned uploaded photos on the device forever
 - A queue operation whose own record is gone `return`s (moot, drop it); one whose *parent* is merely unsynced throws `SyncError.missingRemoteId` so it is retried rather than dequeued as a success — and is charged a blocked run, not a retry, so it cannot wait forever
 - `Person.birthday` is required by the server (`validateAddPersonRequest`); the push path throws `SyncError.missingBirthday` rather than substituting a date
-- `addPerson(_:stated:anchor:)` sends the stated relationship *with* the create rather than as a second call, so a person added offline arrives related. The anchor travels as a **local** id and is resolved at execution, the way a milestone's photo ids are: an anchor still uploading throws `missingRemoteId` (park and retry) instead of arriving unrelated, and one deleted since simply drops the relationship
+- `addPerson(_:stated:anchor:additionalAnchors:)` sends the stated relationship *with* the create rather than as a second call, so a person added offline arrives related. The anchor travels as a **local** id and is resolved at execution, the way a milestone's photo ids are: an anchor still uploading throws `missingRemoteId` (park and retry) instead of arriving unrelated, and one deleted since simply drops the relationship. The *additional* anchors are treated the opposite way and simply dropped when they cannot be named: they are a suggestion the user accepted rather than the relationship they set out to state, and one unresolvable id would otherwise fail the whole server call and hold the person back
+- `pullFamilyData()` also stores the graph's edges as `PersonRelation`, swept by the same orphan pass as everything else
 - `syncQueue` is injectable (`init(…, syncQueue:)`) so tests drive `processQueue` without touching the app's real queue
 - `setProfilePhoto(_:for:)` refuses a photo the person is not tagged in (`SyncError.personNotInPhoto`) because the server does too, and a rejection discovered there costs five retries. Crop is stored and rendered, never edited on iOS: re-picking the current photo keeps its crop, any other photo starts centred at 1×
 - Backend ints and floats marshal as `0` rather than as an absent key, so `applyPersonDTO` maps zero to `nil` — otherwise every person without a profile photo asked `RemotePhotoView` to load photo id 0
@@ -267,7 +324,8 @@ Response DTOs for all backend endpoints. Key types:
 - `AuthResponseDTO.personId` is the person the account stands for — the subject every relationship label is phrased against, and the anchor `AddPersonView` defaults to
 - `RelationViewDTO`, `GetPersonRelationsResponseDTO`, `RelationActionResponseDTO` (see PersonRelationService)
 - `FamilyTimelineItemDTO` { person, growthData[], milestones[], photos[] }
-- `GetFamilyTimelineResponseDTO` { people: [FamilyTimelineItemDTO] }
+- `GetFamilyTimelineResponseDTO` { people: [FamilyTimelineItemDTO], relations: [RelationDTO] } — `relations` is the stored edge set among those people, the same one `ListPeople` returns. The app syncs through this one proc, so without it a roster could not be banded short of a call per person; decoded with `decodeIfPresent` so a server predating it still pulls
+- `RelationDTO` { id, fromId, toId, kind: Int } — `kind` is decoded as an `Int`, not the enum: one added server-side is *dropped* on mapping rather than failing the pull, and never guessed at, since only `.parent` implies a generation step
 
 ## Auth Flow
 
@@ -348,10 +406,11 @@ iOS enums use `inches`/`centimeters`/`pounds`/`kilograms` — mappers needed.
 Dates sent as `"YYYY-MM-DD"` strings. The `inputType` field: `"date"`, `"age"`, or `"today"`.
 
 ```
-AddPerson: { name, gender: Int, birthdate: "YYYY-MM-DD", stated: Int, anchorId: Int }  // stated/anchorId both 0 = not saying
+AddPerson: { name, gender: Int, birthdate: "YYYY-MM-DD", isPregnancy: Bool, stated: Int, anchorId: Int, additionalAnchorIds: [Int] }  // stated/anchorId both 0 = not saying
+UpdatePerson: { id: Int, name, gender: Int, birthdate: "YYYY-MM-DD", isPregnancy: Bool }  // isPregnancy is assigned unconditionally — always send it
 GetPersonRelations: { personId: Int }
-AddRelation: { personId: Int, anchorId: Int, stated: Int }   // stated says what personId is to anchorId
-RemoveRelation: { relationId: Int }
+AddRelation: { personId: Int, anchorId: Int, stated: Int, additionalAnchorIds: [Int] }   // stated says what personId is to anchorId
+RemoveRelation: { relationId: Int }   // a stored row's id; implied rows have none
 AddGrowthData: { personId: Int, measurementType: "height"|"weight", value: Double, unit: "cm"|"in"|"kg"|"lbs", inputType: "date"|"age"|"today", measurementDate: "YYYY-MM-DD"? }
 UpdateGrowthData: { id: Int, measurementType: "height"|"weight", value: Double, unit: String, inputType: String, measurementDate: String? }
 DeleteGrowthData: { id: Int }

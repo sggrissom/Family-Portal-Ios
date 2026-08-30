@@ -93,6 +93,16 @@ func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
     person.profileCropScale = nonZero(dto.profileCropScale)
 }
 
+/// Applies an edge whose kind this build understands. An unknown kind returns `false` and the caller drops the edge: guessing would be worse than ignoring it, since only `.parent` implies a generation step and picking wrong moves people between bands.
+func applyRelationDTO(_ dto: RelationDTO, to relation: PersonRelation) -> Bool {
+    guard let kind = RelationKind(rawValue: dto.kind) else { return false }
+    relation.remoteId = String(dto.id)
+    relation.fromId = dto.fromId
+    relation.toId = dto.toId
+    relation.kind = kind
+    return true
+}
+
 /// The backend marshals these as plain Go numbers, so "unset" arrives as `0` rather than as an absent key — taken literally, every avatar asked to load photo id 0.
 private func nonZero(_ value: Int?) -> Int? {
     guard let value, value != 0 else { return nil }

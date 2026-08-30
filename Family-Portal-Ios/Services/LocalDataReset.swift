@@ -61,6 +61,7 @@ enum LocalDataReset {
             // Every type is swept explicitly rather than leaning on `Family`'s cascade: the pull creates records without attaching a `Family`.
             delete(Family.self, from: context)
             delete(Person.self, from: context)
+            delete(PersonRelation.self, from: context)
             delete(GrowthData.self, from: context)
             delete(Milestone.self, from: context)
             delete(Photo.self, from: context)

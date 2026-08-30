@@ -548,6 +548,20 @@ nonisolated struct FamilyTimelineItemDTO: Codable, Sendable {
 
 nonisolated struct GetFamilyTimelineResponseDTO: Codable, Sendable {
     let people: [FamilyTimelineItemDTO]
+    /// The stored edges among `people`, the same set `ListPeople` returns. The app syncs through this one proc, so without them the roster would have no way to band a family by generation short of a call per person.
+    let relations: [RelationDTO]
+
+    nonisolated init(people: [FamilyTimelineItemDTO], relations: [RelationDTO] = []) {
+        self.people = people
+        self.relations = relations
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        people = try container.decodeIfPresent([FamilyTimelineItemDTO].self, forKey: .people) ?? []
+        // A server predating the field, and Go marshalling an empty slice as `null`, both read as "no edges" rather than failing the whole pull.
+        relations = try container.decodeIfPresent([RelationDTO].self, forKey: .relations) ?? []
+    }
 }
 
 // MARK: - Request DTOs
@@ -567,9 +581,31 @@ nonisolated struct AddPersonRequestDTO: Encodable, Sendable {
     let name: String
     let gender: Int
     let birthdate: String  // "yyyy-MM-dd"
+    /// True while `birthdate` is a due date. The server keeps the age in weeks off this flag rather than off the date, so an overdue baby still reads 41 weeks.
+    let isPregnancy: Bool
     /// What the new person is to `anchorId`, as `StatedRelation` codes it. `0` with `anchorId: 0` records no relationship, which the server reads as "not saying yet".
     let stated: Int
     let anchorId: Int
+    /// The same stated relation against more people, so "child of Steven and Ruth" is one write. Ids that are 0, the new person, repeated, or already stored are skipped server-side; one naming somebody the caller cannot see fails the whole call.
+    let additionalAnchorIds: [Int]
+
+    nonisolated init(
+        name: String,
+        gender: Int,
+        birthdate: String,
+        isPregnancy: Bool = false,
+        stated: Int,
+        anchorId: Int,
+        additionalAnchorIds: [Int] = []
+    ) {
+        self.name = name
+        self.gender = gender
+        self.birthdate = birthdate
+        self.isPregnancy = isPregnancy
+        self.stated = stated
+        self.anchorId = anchorId
+        self.additionalAnchorIds = additionalAnchorIds
+    }
 }
 
 nonisolated struct UpdatePersonRequestDTO: Encodable, Sendable {
@@ -577,16 +613,78 @@ nonisolated struct UpdatePersonRequestDTO: Encodable, Sendable {
     let name: String
     let gender: Int
     let birthdate: String  // "yyyy-MM-dd"
+    /// Not optional to send: `UpdatePerson` assigns this unconditionally, so omitting it decodes as `false` on the Go side and quietly un-pregnancies the record.
+    let isPregnancy: Bool
+
+    nonisolated init(id: Int, name: String, gender: Int, birthdate: String, isPregnancy: Bool = false) {
+        self.id = id
+        self.name = name
+        self.gender = gender
+        self.birthdate = birthdate
+        self.isPregnancy = isPregnancy
+    }
 }
 
 // MARK: - Relationships (backend/relation.go)
 
-/// One edge as the server words it for a subject: `label` is what `personName` is *to the person asked about*, already gendered from the target, so the same stored edge reads correctly from either end.
+/// One relationship as the server words it for a subject: `label` is what `personName` is *to the person asked about*, already gendered from the target, so the same edge reads correctly from either end.
+/// A row is either **stored** — somebody typed it, and `relationId` names the row to remove — or **implied**, worked out from the edges: the siblings that follow from a shared parent, a grandmother two parent edges up. Implied rows all arrive with `relationId` 0, which is why `id` is composed rather than taken from the wire: keying a list on the wire id would collapse every implied row into one.
 nonisolated struct RelationViewDTO: Codable, Sendable, Identifiable {
-    let id: Int
+    let relationId: Int
     let personId: Int
     let personName: String
     let label: String
+    /// False when nobody stated this — there is no row behind it, so it cannot be removed.
+    let stored: Bool
+
+    var id: String { stored ? "stored-\(relationId)" : "implied-\(personId)" }
+
+    enum CodingKeys: String, CodingKey {
+        case relationId = "id"
+        case personId, personName, label, stored
+    }
+
+    nonisolated init(relationId: Int, personId: Int, personName: String, label: String, stored: Bool = true) {
+        self.relationId = relationId
+        self.personId = personId
+        self.personName = personName
+        self.label = label
+        self.stored = stored
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        relationId = try container.decodeIfPresent(Int.self, forKey: .relationId) ?? 0
+        personId = try container.decodeIfPresent(Int.self, forKey: .personId) ?? 0
+        personName = try container.decodeIfPresent(String.self, forKey: .personName) ?? ""
+        label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
+        // A server predating the split sent only stored rows, so its silence means stored.
+        stored = try container.decodeIfPresent(Bool.self, forKey: .stored) ?? true
+    }
+}
+
+/// One stored edge of the graph as it travels — `Relation` in backend/relation.go, carried by `ListPeople` and `GetFamilyTimeline`.
+nonisolated struct RelationDTO: Codable, Sendable, Identifiable {
+    let id: Int
+    let fromId: Int
+    let toId: Int
+    /// `RelationKind`'s raw value. Decoded as an `Int` rather than the enum so a kind added server-side is dropped rather than failing the whole pull.
+    let kind: Int
+
+    nonisolated init(id: Int, fromId: Int, toId: Int, kind: Int) {
+        self.id = id
+        self.fromId = fromId
+        self.toId = toId
+        self.kind = kind
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(Int.self, forKey: .id) ?? 0
+        fromId = try container.decodeIfPresent(Int.self, forKey: .fromId) ?? 0
+        toId = try container.decodeIfPresent(Int.self, forKey: .toId) ?? 0
+        kind = try container.decodeIfPresent(Int.self, forKey: .kind) ?? 0
+    }
 }
 
 nonisolated struct GetPersonRelationsRequestDTO: Encodable, Sendable {
@@ -619,6 +717,15 @@ nonisolated struct AddRelationRequestDTO: Encodable, Sendable {
     let anchorId: Int
     /// `StatedRelation`'s raw value: what `personId` is to `anchorId`.
     let stated: Int
+    /// More people the same statement applies to, saved in one write. See `AddPersonRequestDTO.additionalAnchorIds` for what the server skips and what it refuses.
+    let additionalAnchorIds: [Int]
+
+    nonisolated init(personId: Int, anchorId: Int, stated: Int, additionalAnchorIds: [Int] = []) {
+        self.personId = personId
+        self.anchorId = anchorId
+        self.stated = stated
+        self.additionalAnchorIds = additionalAnchorIds
+    }
 }
 
 nonisolated struct RemoveRelationRequestDTO: Encodable, Sendable {

@@ -101,16 +101,66 @@ nonisolated struct CreatePersonPayload: Codable, Sendable {
     let name: String
     let gender: Int
     let birthdate: String
+    /// True while `birthdate` is a due date rather than a birth date.
+    let isPregnancy: Bool
     /// `StatedRelation`'s raw value: what the new person is to `anchorLocalId`. `0` means none was stated.
     let stated: Int
     /// The anchor as a *local* id, resolved to a server id when the operation runs, exactly as a milestone's photo ids are: an anchor added moments earlier may not be on the server yet, and parking beats sending a person with no relationship at all.
     let anchorLocalId: String?
+    /// More anchors the same statement applies to, also as local ids. Unlike the primary anchor these are *dropped* when they cannot be resolved: they were a suggestion the user accepted, not the relationship they set out to state, and holding the whole create back for one of them would be worse than saving without it.
+    let additionalAnchorLocalIds: [String]
+
+    nonisolated init(
+        name: String,
+        gender: Int,
+        birthdate: String,
+        isPregnancy: Bool = false,
+        stated: Int,
+        anchorLocalId: String?,
+        additionalAnchorLocalIds: [String] = []
+    ) {
+        self.name = name
+        self.gender = gender
+        self.birthdate = birthdate
+        self.isPregnancy = isPregnancy
+        self.stated = stated
+        self.anchorLocalId = anchorLocalId
+        self.additionalAnchorLocalIds = additionalAnchorLocalIds
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        gender = try container.decode(Int.self, forKey: .gender)
+        birthdate = try container.decode(String.self, forKey: .birthdate)
+        // Operations queued by an earlier build are still on disk at launch, and must not fail to decode over fields they never wrote.
+        isPregnancy = try container.decodeIfPresent(Bool.self, forKey: .isPregnancy) ?? false
+        stated = try container.decode(Int.self, forKey: .stated)
+        anchorLocalId = try container.decodeIfPresent(String.self, forKey: .anchorLocalId)
+        additionalAnchorLocalIds = try container.decodeIfPresent([String].self, forKey: .additionalAnchorLocalIds) ?? []
+    }
 }
 
 nonisolated struct UpdatePersonPayload: Codable, Sendable {
     let name: String
     let gender: Int
     let birthdate: String
+    let isPregnancy: Bool
+
+    nonisolated init(name: String, gender: Int, birthdate: String, isPregnancy: Bool = false) {
+        self.name = name
+        self.gender = gender
+        self.birthdate = birthdate
+        self.isPregnancy = isPregnancy
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        gender = try container.decode(Int.self, forKey: .gender)
+        birthdate = try container.decode(String.self, forKey: .birthdate)
+        isPregnancy = try container.decodeIfPresent(Bool.self, forKey: .isPregnancy) ?? false
+    }
 }
 
 nonisolated struct SetProfilePhotoPayload: Codable, Sendable {

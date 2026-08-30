@@ -53,6 +53,15 @@ enum AgeCalculator {
         return years == 1 ? "1 year" : "\(years) years"
     }
 
+    /// Whether an editor should offer "Baby isn't born yet" at all — a port of `showsPregnancyOption` in frontend/pages/people/edit-person.tsx.
+    /// Only where it could be true: a record already flagged, or a date that has not arrived. The web compares date *strings*, so the comparison here is by calendar day rather than by instant; today is not a due date.
+    /// A flag already set keeps the toggle on screen whatever the date says, since it is the only way to turn it off again.
+    static func offersPregnancyOption(isPregnancy: Bool, birthday: Date, now: Date = Date()) -> Bool {
+        if isPregnancy { return true }
+        let calendar = Calendar.current
+        return calendar.startOfDay(for: birthday) > calendar.startOfDay(for: now)
+    }
+
     /// Weeks of gestation, counting back from a 40-week term, over whole calendar days.
     private static func gestationalAge(dueDate: Date, at referenceDate: Date) -> String {
         let calendar = Calendar.current

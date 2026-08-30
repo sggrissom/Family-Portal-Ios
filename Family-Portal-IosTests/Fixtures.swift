@@ -16,7 +16,8 @@ nonisolated enum Fixture {
         profileCropX: Double? = nil,
         profileCropY: Double? = nil,
         profileCropScale: Double? = nil,
-        relationship: String? = nil
+        relationship: String? = nil,
+        isPregnancy: Bool = false
     ) -> [String: Any] {
         var person: [String: Any] = [
             "id": id,
@@ -24,7 +25,8 @@ nonisolated enum Fixture {
             "name": name,
             "gender": gender,
             "birthday": birthday,
-            "age": "6 years"
+            "age": "6 years",
+            "isPregnancy": isPregnancy
         ]
         if let profilePhotoId {
             person["profilePhotoId"] = profilePhotoId
@@ -166,8 +168,30 @@ nonisolated enum Fixture {
         ]
     }
 
-    static func timeline(_ items: [[String: Any]]) -> [String: Any] {
-        ["people": items]
+    static func timeline(_ items: [[String: Any]], relations: [[String: Any]] = []) -> [String: Any] {
+        ["people": items, "relations": relations]
+    }
+
+    /// One stored edge as `ListPeople` and `GetFamilyTimeline` carry it. `kind` is `RelationKind`'s raw value: parent 0, sibling 1, partner 2.
+    static func relation(id: Int, fromId: Int, toId: Int, kind: Int = 0) -> [String: Any] {
+        ["id": id, "fromId": fromId, "toId": toId, "kind": kind]
+    }
+
+    /// One row of `GetPersonRelations`. An implied row is the graph answering rather than something somebody typed, so it carries no id to remove.
+    static func relationView(
+        id: Int,
+        personId: Int,
+        personName: String,
+        label: String,
+        stored: Bool = true
+    ) -> [String: Any] {
+        [
+            "id": stored ? id : 0,
+            "personId": personId,
+            "personName": personName,
+            "label": label,
+            "stored": stored
+        ]
     }
 
     static func familyPhotos(_ photos: [(image: [String: Any], people: [[String: Any]])]) -> [String: Any] {

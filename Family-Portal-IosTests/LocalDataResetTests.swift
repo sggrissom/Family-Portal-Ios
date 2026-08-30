@@ -81,6 +81,7 @@ struct LocalDataResetTests {
         let milestone = Milestone(descriptionText: "First steps", category: .development, date: Date())
         milestone.person = person
         context.insert(milestone)
+        context.insert(PersonRelation(remoteId: "4", fromId: 1, toId: 2, kind: .parent))
         context.insert(Photo(title: "Beach", descriptionText: "", photoDate: Date()))
         context.insert(FamilyTag(name: "Holiday", colorHex: "#4A90D9", familyId: 1))
         context.insert(ChatMessage(
@@ -101,6 +102,7 @@ struct LocalDataResetTests {
 
         let families = try context.fetchCount(FetchDescriptor<Family>())
         let people = try context.fetchCount(FetchDescriptor<Person>())
+        let relations = try context.fetchCount(FetchDescriptor<PersonRelation>())
         let growthData = try context.fetchCount(FetchDescriptor<GrowthData>())
         let milestones = try context.fetchCount(FetchDescriptor<Milestone>())
         let photos = try context.fetchCount(FetchDescriptor<Photo>())
@@ -110,6 +112,7 @@ struct LocalDataResetTests {
 
         #expect(families == 0)
         #expect(people == 0)
+        #expect(relations == 0)
         #expect(growthData == 0)
         #expect(milestones == 0)
         #expect(photos == 0)

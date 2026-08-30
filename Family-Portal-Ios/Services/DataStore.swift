@@ -10,6 +10,7 @@ struct DataStore {
         Schema([
             Family.self,
             Person.self,
+            PersonRelation.self,
             GrowthData.self,
             Milestone.self,
             Photo.self,

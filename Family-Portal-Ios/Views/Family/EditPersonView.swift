@@ -13,6 +13,7 @@ struct EditPersonView: View {
     @State private var name: String
     @State private var gender: Gender
     @State private var birthday: Date
+    @State private var isPregnancy: Bool
     @State private var isSaving = false
 
     init(person: Person) {
@@ -21,6 +22,11 @@ struct EditPersonView: View {
         _gender = State(initialValue: person.gender)
         // A person predating the required-birthday change may still have none; showing today gives the user something concrete to correct.
         _birthday = State(initialValue: person.birthday ?? Date())
+        _isPregnancy = State(initialValue: person.isPregnancy)
+    }
+
+    private var showsPregnancyOption: Bool {
+        AgeCalculator.offersPregnancyOption(isPregnancy: isPregnancy, birthday: birthday)
     }
 
     var body: some View {
@@ -39,12 +45,22 @@ struct EditPersonView: View {
                     .pickerStyle(.segmented)
                 }
 
+                // The flag is sent on every save whether or not it is on screen: `UpdatePerson` assigns it unconditionally, so an editor that left it out would quietly un-pregnancy the record.
                 Section {
-                    DatePicker("Birthday", selection: $birthday, displayedComponents: .date)
+                    if showsPregnancyOption {
+                        Toggle("Baby isn't born yet", isOn: $isPregnancy)
+                    }
+                    DatePicker(
+                        isPregnancy ? "Due Date" : "Birthday",
+                        selection: $birthday,
+                        displayedComponents: .date
+                    )
                 } header: {
-                    Text("Birthday")
+                    Text(isPregnancy ? "Due Date" : "Birthday")
                 } footer: {
-                    Text("Used to calculate ages across the app.")
+                    Text(isPregnancy
+                         ? "An unborn record's age reads in weeks, and keeps counting in weeks past the due date."
+                         : "Used to calculate ages across the app.")
                 }
 
                 // Relationships live on the server and are named from the whole graph, so there is nothing to show for a person it has never seen.
@@ -84,6 +100,7 @@ struct EditPersonView: View {
         person.name = name
         person.gender = gender
         person.birthday = birthday
+        person.isPregnancy = isPregnancy
 
         Task {
             do {

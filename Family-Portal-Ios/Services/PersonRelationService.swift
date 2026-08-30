@@ -17,17 +17,20 @@ struct PersonRelationService {
     }
 
     /// States that `personId` is `stated` of `anchorId` — "Kate is my sister" — and answers with the person's whole relationship list as it now stands.
+    /// `additionalAnchorIds` says the same thing about more people in the one write: "daughter of Steven *and* Ruth". The server refuses the whole call over an id the caller cannot see, so pass only ids that came back with the people themselves.
     func addRelation(
         personId: Int,
         anchorId: Int,
-        stated: StatedRelation
+        stated: StatedRelation,
+        additionalAnchorIds: [Int] = []
     ) async throws -> GetPersonRelationsResponseDTO {
         let response: RelationActionResponseDTO = try await apiClient.callRPC(
             .addRelation,
             payload: AddRelationRequestDTO(
                 personId: personId,
                 anchorId: anchorId,
-                stated: stated.rawValue
+                stated: stated.rawValue,
+                additionalAnchorIds: additionalAnchorIds
             )
         )
         return try Self.relations(from: response, fallback: "Could not save that relationship.")
