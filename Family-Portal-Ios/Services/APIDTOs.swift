@@ -575,6 +575,9 @@ nonisolated struct GoogleTokenLoginRequestDTO: Encodable, Sendable {
 nonisolated struct AppleTokenLoginRequestDTO: Encodable, Sendable {
     let idToken: String
     let name: String
+    /// Exchanged server-side for the refresh token account deletion revokes, as App Store Review
+    /// Guideline 5.1.1(v) requires. The server treats an empty one as "nothing to exchange".
+    let authorizationCode: String
 }
 
 nonisolated struct AddPersonRequestDTO: Encodable, Sendable {

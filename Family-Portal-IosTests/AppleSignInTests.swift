@@ -13,11 +13,28 @@ struct AppleSignInTests {
 
     @Test("Login request uses the keys appleTokenLoginHandler reads")
     func requestKeys() throws {
-        let fields = try encodedFields(AppleTokenLoginRequestDTO(idToken: "identity-token", name: "Ada Lovelace"))
+        let fields = try encodedFields(AppleTokenLoginRequestDTO(
+            idToken: "identity-token",
+            name: "Ada Lovelace",
+            authorizationCode: "auth-code"
+        ))
 
-        #expect(fields.count == 2)
+        #expect(fields.count == 3)
         #expect(fields["idToken"] as? String == "identity-token")
         #expect(fields["name"] as? String == "Ada Lovelace")
+        #expect(fields["authorizationCode"] as? String == "auth-code")
+    }
+
+    @Test("Forwards the authorization code the backend revokes the account with")
+    func decodesAuthorizationCode() {
+        let data = Data("c1a2b3".utf8)
+
+        #expect(AppleSignInService.authorizationCode(from: data) == "c1a2b3")
+    }
+
+    @Test("Reports no authorization code rather than failing the sign-in")
+    func missingAuthorizationCode() {
+        #expect(AppleSignInService.authorizationCode(from: nil) == "")
     }
 
     @Test("Joins the name Apple hands over on the first authorization")

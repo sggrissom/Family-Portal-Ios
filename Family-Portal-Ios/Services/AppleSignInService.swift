@@ -18,12 +18,16 @@ enum AppleSignInError: LocalizedError {
     }
 }
 
-/// What `SignInWithAppleButton` hands back, reduced to the two things the backend reads.
+/// What `SignInWithAppleButton` hands back, reduced to the three things the backend reads.
 struct AppleCredential: Sendable {
     let identityToken: String
     /// Apple releases the name only in the response to the very first authorization and never
     /// again, so this is empty for every returning user — `upsertAppleUser` falls back on its own.
     let name: String
+    /// Spent server-side for a refresh token that account deletion can revoke, which App Store
+    /// Review Guideline 5.1.1(v) requires of an app offering Sign in with Apple. Unlike the
+    /// identity token this is not what authenticates anyone, so an absent one is not an error.
+    let authorizationCode: String
 }
 
 /// Apple's own button owns the presentation, so unlike `GoogleSignInService` there is nothing to
@@ -46,7 +50,8 @@ struct AppleSignInService: Sendable {
             }
             return AppleCredential(
                 identityToken: identityToken,
-                name: Self.displayName(from: appleCredential.fullName)
+                name: Self.displayName(from: appleCredential.fullName),
+                authorizationCode: Self.authorizationCode(from: appleCredential.authorizationCode)
             )
         case .failure(let error):
             if let authError = error as? ASAuthorizationError, authError.code == .canceled {
@@ -54,6 +59,13 @@ struct AppleSignInService: Sendable {
             }
             throw AppleSignInError.failed(error)
         }
+    }
+
+    /// Apple documents the code as optional and it is single-use, so a missing one means the
+    /// server has nothing to exchange rather than that the sign-in failed.
+    static func authorizationCode(from data: Data?) -> String {
+        guard let data, let code = String(data: data, encoding: .utf8) else { return "" }
+        return code
     }
 
     /// The backend takes a single string and trims it, so an empty result means "nothing to say"

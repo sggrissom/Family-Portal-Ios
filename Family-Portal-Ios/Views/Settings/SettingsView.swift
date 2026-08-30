@@ -36,12 +36,6 @@ struct SettingsView: View {
                         Button("Sign Out", role: .destructive) {
                             showLogoutConfirmation = true
                         }
-
-                        // Required of any app that offers account creation (App Store Review Guideline 5.1.1(v)).
-                        NavigationLink("Delete Account") {
-                            DeleteAccountView()
-                        }
-                        .foregroundStyle(.red)
                     } else {
                         HStack {
                             Image(systemName: "person.circle")
@@ -158,6 +152,17 @@ struct SettingsView: View {
 
                     Link(destination: AppConstants.privacyPolicyURL) {
                         Label("Privacy Policy", systemImage: "hand.raised")
+                    }
+                }
+
+                // Last section on purpose: reachable without hunting for it, but not somewhere a thumb lands by accident.
+                // Required of any app that offers account creation (App Store Review Guideline 5.1.1(v)).
+                if authService.isAuthenticated {
+                    Section {
+                        NavigationLink("Delete Account") {
+                            DeleteAccountView()
+                        }
+                        .foregroundStyle(.red)
                     }
                 }
             }

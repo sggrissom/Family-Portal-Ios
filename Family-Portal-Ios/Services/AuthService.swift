@@ -195,7 +195,11 @@ final class AuthService {
             let response: LoginResponseDTO = try await APIClient.shared.request(
                 path: "api/login/apple/token",
                 method: .post,
-                body: AppleTokenLoginRequestDTO(idToken: credential.identityToken, name: credential.name),
+                body: AppleTokenLoginRequestDTO(
+                    idToken: credential.identityToken,
+                    name: credential.name,
+                    authorizationCode: credential.authorizationCode
+                ),
                 requiresAuth: false
             )
 
