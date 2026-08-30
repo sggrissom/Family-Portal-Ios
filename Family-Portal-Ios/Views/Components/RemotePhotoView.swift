@@ -1,10 +1,21 @@
 import SwiftUI
 
+/// What a `RemotePhotoView` is doing while it has nothing of its own to draw. Reported to the caller so a view that supplies its own stand-in — an avatar, say — can tell "still coming" from "never coming".
+enum RemotePhotoPhase {
+    case loading
+    case processing
+    case ready
+    case unavailable
+}
+
 /// A photo the server holds, by id. The fetching, caching and 401 retry live in `PhotoImageCache`.
 struct RemotePhotoView: View {
     let remoteId: Int
     let size: PhotoSizeVariant
     let contentMode: ContentMode
+    /// Off for callers that draw their own stand-in behind this view; the built-in spinner and symbol would otherwise sit on top of it.
+    let showsPlaceholder: Bool
+    let onPhaseChange: ((RemotePhotoPhase) -> Void)?
 
     /// How long to wait between asks while the server is still generating the photo's variants, and how many times to ask. It stops rather than polling forever.
     private static let processingRetryDelays: [Duration] = [
@@ -12,19 +23,25 @@ struct RemotePhotoView: View {
     ]
 
     @State private var image: UIImage?
-    @State private var phase: Phase = .loading
+    @State private var phase: RemotePhotoPhase
 
-    private enum Phase {
-        case loading
-        case processing
-        case ready
-        case unavailable
-    }
-
-    init(remoteId: Int, size: PhotoSizeVariant, contentMode: ContentMode = .fill) {
+    init(
+        remoteId: Int,
+        size: PhotoSizeVariant,
+        contentMode: ContentMode = .fill,
+        showsPlaceholder: Bool = true,
+        onPhaseChange: ((RemotePhotoPhase) -> Void)? = nil
+    ) {
         self.remoteId = remoteId
         self.size = size
         self.contentMode = contentMode
+        self.showsPlaceholder = showsPlaceholder
+        self.onPhaseChange = onPhaseChange
+
+        // Seeded rather than left to `.task`, which only runs after a frame has already been drawn: a photo that is decoded and waiting in memory should reach the very first layout pass. Without this, scrolling back to a thumbnail already seen flashes its placeholder again.
+        let cached = PhotoImageCache.shared.cachedImage(remoteId: remoteId, size: size)
+        _image = State(initialValue: cached)
+        _phase = State(initialValue: cached == nil ? .loading : .ready)
     }
 
     var body: some View {
@@ -34,7 +51,7 @@ struct RemotePhotoView: View {
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
                     .accessibilityLabel("Photo")
-            } else {
+            } else if showsPlaceholder {
                 switch phase {
                 case .loading:
                     ProgressView()
@@ -43,8 +60,12 @@ struct RemotePhotoView: View {
                 case .ready, .unavailable:
                     placeholder(systemName: "photo", label: "Photo unavailable")
                 }
+            } else {
+                Color.clear
             }
         }
+        // A photo that arrives late fades over whatever stood in for it; a hard cut reads as the view changing its mind. Keyed on presence rather than on the image, whose `==` compares pixels.
+        .animation(.easeIn(duration: 0.2), value: image != nil)
         .task(id: "\(remoteId)-\(size.rawValue)") {
             await load()
         }
@@ -57,28 +78,33 @@ struct RemotePhotoView: View {
             .accessibilityLabel(label)
     }
 
+    private func setPhase(_ new: RemotePhotoPhase) {
+        phase = new
+        onPhaseChange?(new)
+    }
+
     private func load() async {
         // A thumbnail already in memory renders in the first layout pass instead of flashing a spinner on every scroll back.
         if let cached = PhotoImageCache.shared.cachedImage(remoteId: remoteId, size: size) {
             image = cached
-            phase = .ready
+            setPhase(.ready)
             return
         }
 
         image = nil
-        phase = .loading
+        setPhase(.loading)
 
         for attempt in 0...Self.processingRetryDelays.count {
             switch await PhotoImageCache.shared.image(remoteId: remoteId, size: size) {
             case .image(let loaded):
                 image = loaded
-                phase = .ready
+                setPhase(.ready)
                 return
             case .unavailable:
-                phase = .unavailable
+                setPhase(.unavailable)
                 return
             case .processing:
-                phase = .processing
+                setPhase(.processing)
                 guard attempt < Self.processingRetryDelays.count else { return }
                 do {
                     try await Task.sleep(for: Self.processingRetryDelays[attempt])

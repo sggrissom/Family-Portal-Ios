@@ -69,6 +69,9 @@ struct PersonAvatarView: View {
         return Self.palette[abs(hash % Self.palette.count)]
     }
 
+    /// Tracked so the stand-in behind the photo can tell "not here yet" from "not coming".
+    @State private var photoPhase: RemotePhotoPhase = .loading
+
     var body: some View {
         avatar
             // Decorative and hidden rather than labelled: every place this appears already shows the name in text beside it, and VoiceOver would otherwise spell the initials.
@@ -79,14 +82,33 @@ struct PersonAvatarView: View {
     private var avatar: some View {
         if let profilePhotoRemoteId {
             ZStack {
-                initialsView
-                RemotePhotoView(remoteId: profilePhotoRemoteId, size: .thumb)
-                    .frame(width: size, height: size)
-                    .scaleEffect(crop.scale, anchor: crop.anchor)
-                    .clipShape(Circle())
+                // Outside the crop scaling below, which is framing for the photo and would blow the initials up past the circle.
+                photoStandIn
+                RemotePhotoView(
+                    remoteId: profilePhotoRemoteId,
+                    size: .thumb,
+                    showsPlaceholder: false,
+                    onPhaseChange: { photoPhase = $0 }
+                )
+                .frame(width: size, height: size)
+                .scaleEffect(crop.scale, anchor: crop.anchor)
+                .clipShape(Circle())
             }
             .frame(width: size, height: size)
         } else {
+            initialsView
+        }
+    }
+
+    /// What stands behind a photo that has not arrived. A plain disc while it is still coming: swapping coloured initials for a face a beat later reads as the row changing person, which is what makes a list of avatars look unsettled on a cold scroll. The initials are still the answer once the photo is known not to be coming.
+    @ViewBuilder
+    private var photoStandIn: some View {
+        switch photoPhase {
+        case .loading, .processing, .ready:
+            Circle()
+                .fill(.quaternary)
+                .frame(width: size, height: size)
+        case .unavailable:
             initialsView
         }
     }
