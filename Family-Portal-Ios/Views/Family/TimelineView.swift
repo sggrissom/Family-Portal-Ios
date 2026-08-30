@@ -49,7 +49,6 @@ struct TimelineView: View {
     @Query(sort: \Milestone.date, order: .reverse) private var milestones: [Milestone]
     @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
     @Query private var people: [Person]
-    @Environment(SyncService.self) private var syncService
 
     @State private var selectedPersonId: UUID? = nil
     @State private var selectedItemType: TimelineFilterType = .all
@@ -60,7 +59,7 @@ struct TimelineView: View {
 
     @State private var debouncedSearchText = ""
 
-    @State private var cachedPeople: [Person] = []
+    @State private var cachedPeople: [TimelinePersonFilterOption] = []
 
     @State private var availableYears: [Int] = []
 
@@ -96,9 +95,6 @@ struct TimelineView: View {
             .navigationDestination(for: PhotoRoute.self) { route in
                 PhotoDetailView(photoId: route.id)
             }
-            .refreshable {
-                await syncService.performFullSync()
-            }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search timeline")
         // `task(id:)` cancels the pending run on the next keystroke, which is the whole debounce. Clearing is immediate.
@@ -111,11 +107,8 @@ struct TimelineView: View {
             guard !Task.isCancelled else { return }
             debouncedSearchText = searchText
         }
-        .onAppear {
-            cachedPeople = people
-            recomputeAvailableYears()
-        }
-        .onChange(of: people) { _, newValue in
+        .onAppear { recomputeAvailableYears() }
+        .onChange(of: currentPeople, initial: true) { _, newValue in
             if !newValue.isEmpty || cachedPeople.isEmpty {
                 cachedPeople = newValue
             }
@@ -148,6 +141,28 @@ struct TimelineView: View {
         availableYears = years.sorted(by: >)
     }
 
+    private var currentPeople: [TimelinePersonFilterOption] {
+        var optionsById: [UUID: TimelinePersonFilterOption] = [:]
+
+        func include(_ person: Person) {
+            optionsById[person.id] = TimelinePersonFilterOption(id: person.id, name: person.name)
+        }
+
+        people.forEach(include)
+        if optionsById.isEmpty {
+            milestones.compactMap(\.person).forEach(include)
+            growthData.compactMap(\.person).forEach(include)
+            photos.flatMap(\.taggedPeople).forEach(include)
+        }
+
+        return optionsById.values.sorted {
+            let comparison = $0.name.localizedCaseInsensitiveCompare($1.name)
+            return comparison == .orderedSame
+                ? $0.id.uuidString < $1.id.uuidString
+                : comparison == .orderedAscending
+        }
+    }
+
     @ViewBuilder
     private var filterChips: some View {
         VStack(spacing: 0) {
@@ -155,7 +170,7 @@ struct TimelineView: View {
                 filterChip(label: "All People", isSelected: selectedPersonId == nil) {
                     selectedPersonId = nil
                 }
-                ForEach(cachedPeople, id: \.id) { person in
+                ForEach(cachedPeople) { person in
                     filterChip(label: person.name, isSelected: selectedPersonId == person.id) {
                         selectedPersonId = person.id
                     }
@@ -221,6 +236,7 @@ struct TimelineView: View {
             .padding(.horizontal)
             .padding(.vertical, 10)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .background(Color(.systemBackground))
     }
 
@@ -237,6 +253,11 @@ struct TimelineView: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
+}
+
+private struct TimelinePersonFilterOption: Identifiable, Equatable {
+    let id: UUID
+    let name: String
 }
 
 /// The list itself, fetched already narrowed. Its own view because that is the only way `@Query` takes a predicate depending on state: the descriptors are built in `init`.
