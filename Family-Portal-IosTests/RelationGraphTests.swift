@@ -70,7 +70,7 @@ struct RelationGraphTests {
         )
 
         #expect(suggestions.map(\.anchorId) == [Id.ruth])
-        #expect(suggestions.allSatisfy(\.defaultChecked))
+        #expect(suggestions.allSatisfy { $0.defaultChecked })
     }
 
     @Test("More than one partner is ambiguous, so nothing is ticked for the user")
