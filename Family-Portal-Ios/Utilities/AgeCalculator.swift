@@ -76,3 +76,11 @@ enum AgeCalculator {
         return weeksPregnant == 1 ? "1 week" : "\(weeksPregnant) weeks"
     }
 }
+
+extension Person {
+    /// How old this person was on `date` — "3 years", "7 months" — or `nil` when their birthday isn't recorded.
+    func age(on date: Date) -> String? {
+        guard let birthday else { return nil }
+        return AgeCalculator.age(from: birthday, at: date, isPregnancy: isPregnancy)
+    }
+}

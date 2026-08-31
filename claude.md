@@ -14,7 +14,6 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   └── ChatMessage.swift, FamilyTag.swift, PersonRelation.swift
 ├── Services/
 │   ├── APIClient.swift, APIDTOs.swift, RPCMethod.swift
-│   ├── PhotoImporter.swift
 │   ├── AuthService.swift, GoogleSignInService.swift
 │   ├── FamilyMembershipService.swift
 │   ├── DataStore.swift, NetworkMonitor.swift
@@ -32,8 +31,10 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Photos/        PhotoGalleryView, PhotoDetailView, TagPeopleView,
 │   │                  PhotoRoute, PhotoFilter, PhotoFilterView
 │   ├── Measurements/  MeasurementListView, AddMeasurementView,
-│   │                  EditMeasurementView, GrowthChartView
-│   ├── Milestones/    MilestoneListView, AddMilestoneView, EditMilestoneView,
+│   │                  MeasurementDetailView, EditMeasurementView,
+│   │                  GrowthChartView
+│   ├── Milestones/    MilestoneListView, AddMilestoneView,
+│   │                  MilestoneDetailView, EditMilestoneView,
 │   │                  MilestonePhotoPickerView
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
@@ -41,11 +42,11 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Settings/      SettingsView, FamilyManagementView, FamilyInfoView,
 │   │                  FamilyMembershipView
 │   └── Components/    PersonAvatarView, PersonRowView, PersonPickerRow,
-│                      MeasurementRowView,
-│                      MilestoneRowView, PhotoThumbnailView, RemotePhotoView,
-│                      SyncStatusView, FlowLayout, ZoomableView,
+│                      MeasurementRowView, MilestoneRowView, PhotoThumbnailView,
+│                      RemotePhotoView, SyncStatusView, FlowLayout, ZoomableView,
 │                      DateEntryPicker, TagChipsView, TagPickerView,
-│                      FamilyRosterSections, CoAnchorPicker
+│                      FamilyRosterSections, CoAnchorPicker,
+│                      DetailSheetComponents, RecordStyle
 └── Utilities/
     ├── Constants.swift, AgeCalculator.swift, PreviewData.swift
     ├── RelationGraph.swift           # walks the stored edges
@@ -347,6 +348,24 @@ network answers.
 - The milestone sheet clears its photo selection when the person changes. `save()`
   filters the selection through `photoChoices` and so could never *send* a stale
   id, but the count beside "Attach Photos" would go on claiming them
+
+### Viewing records
+
+- Tapping a milestone or a measurement anywhere — the list, the timeline, the
+  person screen — opens a **view** sheet, not the editor. These records are read
+  many times and changed almost never, so the editor sits one step further in,
+  behind the sheet's Edit button
+- `MilestoneDetailSheetView` and `MeasurementDetailSheetView` are built from the
+  same parts in `DetailSheetComponents`: a `DetailSheetHeader` (tinted category
+  chip over the record's own words), then a `DetailFieldGroup` of
+  `DetailFieldRow`s. New facts go in the group, and both sheets keep their shape
+- Editing tags is the one edit that stays on the milestone sheet: `TagPickerView`
+  saves through `updateMilestoneTags` on its own rather than through the editor,
+  which knows nothing about tags
+- `RecordStyle` holds the glyph and tint for a `MilestoneCategory` and a
+  `MeasurementType`. Three views had grown their own copy of those switches
+- `Person.age(on:)` (in `AgeCalculator.swift`) is how both sheets say how old
+  somebody was on the day the record is dated
 
 ### Error presentation and logging
 - `ErrorPresenter` (`@Observable`, app scope, injected into the environment) plus the `.appErrorAlert()` modifier applied once at the root. Views report failures through it rather than swallowing them
