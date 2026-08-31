@@ -9,6 +9,29 @@ procs, and nothing to the backend — every screen it touches already exists.
 
 ---
 
+## Status — 30 August 2026
+
+**All five phases have landed**, one commit each, stacked in the order below.
+What adding costs now:
+
+| What | Path | Taps to a form |
+| --- | --- | --- |
+| Milestone / Measurement | Family or Timeline → `+` | **2** |
+| … for a named person | long-press their roster row → `+` | **2** |
+| … from their own screen | Family → person → `+` | **3** |
+| Photo | any of Photos, Family, Timeline → `+` | **2** |
+| Person | Family → `+` (Settings still works) | **2** |
+
+None of it has been **built or run** — there is no Swift toolchain on the machine
+this was written on. The parts with logic rather than layout carry tests:
+`PhotoImporterTests` and `QuickAddDefaultsTests`.
+
+One thing landed that this plan did not name: the phase 3 stack also carries a
+commit of concurrent work on **record detail sheets**, which the quick-add stack
+needed as a base to build against.
+
+---
+
 ## 1. What adding costs today
 
 | What | Path | Taps to a form |
