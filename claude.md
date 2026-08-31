@@ -14,6 +14,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   └── ChatMessage.swift, FamilyTag.swift, PersonRelation.swift
 ├── Services/
 │   ├── APIClient.swift, APIDTOs.swift, RPCMethod.swift
+│   ├── PhotoImporter.swift
 │   ├── AuthService.swift, GoogleSignInService.swift
 │   ├── FamilyMembershipService.swift
 │   ├── DataStore.swift, NetworkMonitor.swift
@@ -39,7 +40,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  DateSeparatorView, UserAvatarView
 │   ├── Settings/      SettingsView, FamilyManagementView, FamilyInfoView,
 │   │                  FamilyMembershipView
-│   └── Components/    PersonAvatarView, PersonRowView, MeasurementRowView,
+│   └── Components/    PersonAvatarView, PersonRowView, PersonPickerRow,
+│                      MeasurementRowView,
 │                      MilestoneRowView, PhotoThumbnailView, RemotePhotoView,
 │                      SyncStatusView, FlowLayout, ZoomableView,
 │                      DateEntryPicker, TagChipsView, TagPickerView,
@@ -281,8 +283,16 @@ network answers.
 - Blocked is tracked apart from failed. An operation waiting on something unsynced spends a `blockedCount`, never a `retryCount` — nothing was sent, so the server never said no — but 20 blocked runs discards it, because a parent whose own create was discarded is never coming. `blockedOperations` is the exact complement of `readyOperations`: an operation the dependency gate holds back never reaches `executeOperation`, so `processQueue` has to ask for it by name or nothing ever accounts for it. It re-reads the synced set first, since a parent that succeeded earlier in the same run has already unblocked its children
 - `PendingOperation` decodes by hand only so a missing `blockedCount` defaults to 0. The queue persists as one `[PendingOperation]` blob, so one operation from an older build failing to decode would take every pending change on the device with it — add new fields the same way
 
-### Photo gallery (`PhotoGalleryView`, `PhotoFilter`, `PhotoFilterView`)
+### Photo gallery (`PhotoGalleryView`, `PhotoImporter`, `PhotoFilter`, `PhotoFilterView`)
 
+- The import itself is `PhotoImporter` (`@Observable`, `@MainActor`), not the
+  gallery: the quick-add menu offers photos from the Family and Timeline tabs
+  too, and all three need the same run. Its dependencies — context, sync service,
+  error presenter — arrive **on the call**, because a view's `@State` is built
+  before its `@Environment` can be read, so `@State private var importer =
+  PhotoImporter()` is the whole wiring
+- A second pick made while a run is in flight extends that run's `total` rather
+  than starting a competing one, so one progress bar covers both
 - The picker is multi-select and `.ordered`. Items are read **sequentially** —
   each is a full-resolution image, and decoding twenty at once is the kind of
   memory spike that gets an app killed mid-import
@@ -291,12 +301,17 @@ network answers.
   import means every photo is on screen and queued, not that it is on the server;
   a bulk import is also what makes overlapping `processQueue` runs ordinary
   rather than rare (see SyncService)
-- Progress is a bottom `safeAreaInset`, not the full-screen overlay it replaced:
-  photos land in the grid as they are read, and blocking the screen hid the one
-  thing that showed the import working
+- Progress is a bottom `safeAreaInset` (`PhotoImportProgressBar`), not the
+  full-screen overlay it replaced: photos land in the grid as they are read, and
+  blocking the screen hid the one thing that showed the import working
 - A failed run reports **once**, not per photo — a dozen alerts stacked behind
   each other is what per-photo reporting looks like for an iCloud batch. A single
   failure still reports its own error, so the iCloud hint survives
+- The capture date is read from the picked image's own EXIF rather than from
+  `PHAsset`, which needs photo-library authorization the picker does not, and is
+  parsed against a fixed POSIX locale. No EXIF date answers **nil**, not an
+  epoch: the caller falls back to "now", and a photo dated 1970 would sort to the
+  bottom of every gallery forever
 - `PhotoFilter` is a value type holding people (local ids), tags (remote ids, as
   `Photo.tagRemoteIds` carries them), a date window and search text. Choices
   within a category OR, categories AND — the rule in
