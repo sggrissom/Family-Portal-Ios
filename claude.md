@@ -361,6 +361,21 @@ network answers.
 - **The Photos and Activities tabs keep the single-purpose `+` they have.** Each
   already opens the one thing that tab adds, and a menu there would spend a tap on
   the commonest action to reach three that have a home elsewhere
+- `QuickAddDefaults` decides what a sheet opens with. The person is: the one last
+  written for **if the roster still holds them**, else the only person, else the
+  first of the youngest generation — `FamilyGroups` bands from the bottom, so its
+  last generation is always the "Children" one. A household that has stated no
+  relationships has no youngest band and is **asked**
+- An unrecognised remembered id resolves to *nobody*, never to somebody near it: a
+  local id outlives an account erase, and a record landing on whoever inherited
+  the slot would be silent and wrong. `LocalDataReset` therefore needs no sweep
+  for it
+- The remembered unit is only used for a type it can measure. A height last taken
+  in inches says nothing about how a family weighs anybody, and the sheet must
+  never open on "12 inches" of weight
+- **Save and Add Another** on the measurement sheet keeps the person and the date
+  and clears only the value: height and weight are taken in the same minute for
+  the same person, and that was otherwise two full trips through the sheet
 
 ### Viewing records
 
