@@ -6,6 +6,8 @@ struct FamilyMembersView: View {
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
 
     @State private var path = NavigationPath()
+    /// Owned here rather than in `FamilyRosterSections`: one sheet for the whole list, not one per row.
+    @State private var rowQuickAdd: PersonQuickAdd?
 
     /// A person's season, reached by the server id a link carries. The route carries the name too, so the destination need not look the person up again.
     private struct PersonSeasonRoute: Hashable {
@@ -24,12 +26,13 @@ struct FamilyMembersView: View {
                     )
                 } else {
                     List {
-                        FamilyRosterSections(people: people)
+                        FamilyRosterSections(people: people) { rowQuickAdd = $0 }
                     }
                 }
             }
             .navigationTitle("Family")
             .quickAdd(people: people)
+            .sheet(item: $rowQuickAdd) { PersonQuickAddSheet(request: $0) }
             .navigationDestination(for: UUID.self) { personId in
                 PersonDetailView(personId: personId, allowsManagementActions: false)
             }

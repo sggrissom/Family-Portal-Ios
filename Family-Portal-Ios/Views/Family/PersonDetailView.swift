@@ -221,6 +221,8 @@ struct PersonDetailView: View {
             }
             .navigationTitle(person.name)
             .navigationBarTitleDisplayMode(.inline)
+            // Not gated on `allowsManagementActions`: recording a measurement is the day-to-day use of this screen, not management of the record.
+            .quickAdd(for: person)
             .navigationDestination(for: PhotoRoute.self) { route in
                 PhotoDetailView(photoId: route.id)
             }
