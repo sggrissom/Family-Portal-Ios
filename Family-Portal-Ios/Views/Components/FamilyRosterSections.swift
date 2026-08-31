@@ -6,6 +6,9 @@ import SwiftData
 struct FamilyRosterSections: View {
     let people: [Person]
 
+    /// What a row's long press offers. The sheet belongs to the host: a `.sheet` attached inside the `ForEach` would be one per row bound to the same state, and every one of them would try to present it.
+    var onQuickAdd: ((PersonQuickAdd) -> Void)?
+
     @Query private var relations: [PersonRelation]
 
     private var groups: [PersonGroup] {
@@ -20,6 +23,18 @@ struct FamilyRosterSections: View {
                 ForEach(group.people, id: \.id) { person in
                     NavigationLink(value: person.id) {
                         PersonRowView(person: person)
+                    }
+                    .contextMenu {
+                        if let onQuickAdd {
+                            // A long press on the roster is two taps to a measurement, without opening the person at all.
+                            ForEach(QuickAddKind.aboutAPerson) { kind in
+                                Button {
+                                    onQuickAdd(PersonQuickAdd(person: person, kind: kind))
+                                } label: {
+                                    Label("Add \(kind.label)", systemImage: kind.icon)
+                                }
+                            }
+                        }
                     }
                 }
             }

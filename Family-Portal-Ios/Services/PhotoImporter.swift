@@ -34,11 +34,14 @@ final class PhotoImporter {
     private(set) var progress: ImportProgress?
 
     /// Adds `items` to whatever run is in flight, starting one if there isn't. A second pick made mid-import extends the same bar rather than opening a competing one.
+    ///
+    /// `taggingTo` is the person an import made from their own screen belongs to. Without it a photo added from Ada's screen would not appear among Ada's photos, which is the only place the person who added it was looking.
     func importPicked(
         _ items: [PhotosPickerItem],
         into context: ModelContext,
         syncService: SyncService?,
-        errorPresenter: ErrorPresenter?
+        errorPresenter: ErrorPresenter?,
+        taggingTo person: Person? = nil
     ) {
         guard !items.isEmpty else { return }
 
@@ -50,7 +53,7 @@ final class PhotoImporter {
             // Sequential on purpose: twenty full-resolution images decoded at once is the kind of memory spike that gets an app killed mid-import.
             for item in items {
                 do {
-                    try await importOne(item, into: context, syncService: syncService)
+                    try await importOne(item, into: context, syncService: syncService, taggingTo: person)
                     progress?.completed += 1
                 } catch {
                     AppLog.ui.error("Photo import failed: \(String(describing: error), privacy: .public)")
@@ -70,7 +73,8 @@ final class PhotoImporter {
     private func importOne(
         _ item: PhotosPickerItem,
         into context: ModelContext,
-        syncService: SyncService?
+        syncService: SyncService?,
+        taggingTo person: Person?
     ) async throws {
         guard let data = try await item.loadTransferable(type: Data.self),
               UIImage(data: data) != nil else {
@@ -87,6 +91,12 @@ final class PhotoImporter {
         try context.save()
         // Only queues: a finished import means every photo is on screen and queued, not that it is on the server.
         try await syncService?.uploadPhoto(photo)
+
+        // After the upload is queued, never before: the tag operation's dependency is the photo's own local id, and the queue holds it back until the upload has answered with a remote one.
+        if let person {
+            photo.taggedPeople.append(person)
+            try await syncService?.addPeopleToPhoto(photo, people: [person])
+        }
     }
 
     /// Reports **once** for the whole run. A dozen alerts stacked behind each other is what per-photo reporting looks like for an iCloud batch.

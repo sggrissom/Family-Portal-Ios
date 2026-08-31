@@ -376,6 +376,19 @@ network answers.
 - **Save and Add Another** on the measurement sheet keeps the person and the date
   and clears only the value: height and weight are taken in the same minute for
   the same person, and that was otherwise two full trips through the sheet
+- Standing on a person is half the answer, so `PersonDetailView` carries its own
+  `+` (`.quickAdd(for:)`) and every roster row a `.contextMenu`, both offering
+  measurement and milestone with the person already filled in. The person `+` is
+  **not** gated on `allowsManagementActions`: recording a measurement is the
+  day-to-day use of that screen, not management of the record
+- The roster's sheet is owned by the **host** (`FamilyMembersView`,
+  `FamilyManagementView`), not by `FamilyRosterSections`: a `.sheet` attached
+  inside the row `ForEach` would be one per row bound to the same state, and every
+  one of them would try to present it
+- Photos imported from a person's `+` are **tagged with that person**, queued
+  after the upload so the queue's dependency gate holds the tag until the photo
+  has a remote id. Their screen lists the photos they are tagged in, so an
+  untagged one would look like nothing had happened
 
 ### Viewing records
 
