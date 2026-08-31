@@ -9,6 +9,10 @@ struct AddMilestoneView: View {
 
     /// The whole roster rather than one person: a `@Query` predicate is fixed at `init` and cannot follow a `@State` selection, so the sheet fetches everyone and picks in memory. A household is small enough that the breadth costs nothing.
     @Query(sort: \Person.name) private var people: [Person]
+    /// For the fallback in `QuickAddDefaults.person`, which bands the roster to find the youngest generation.
+    @Query private var relations: [PersonRelation]
+
+    private let defaults = QuickAddDefaults()
 
     @State private var selectedPersonId: UUID?
     @State private var descriptionText: String = ""
@@ -86,6 +90,15 @@ struct AddMilestoneView: View {
             .onChange(of: selectedPersonId) { _, _ in
                 selectedPhotoIds.removeAll()
             }
+            .onAppear {
+                if selectedPersonId == nil {
+                    selectedPersonId = QuickAddDefaults.person(
+                        in: people,
+                        remembered: defaults.rememberedPersonId,
+                        relations: relations.map(\.edge)
+                    )?.id
+                }
+            }
         }
     }
 
@@ -95,6 +108,7 @@ struct AddMilestoneView: View {
         let milestone = Milestone(descriptionText: descriptionText.trimmingCharacters(in: .whitespaces), category: category, date: date)
         milestone.person = person
         modelContext.insert(milestone)
+        defaults.rememberPerson(person.id)
 
         // Resolved here rather than in the picker, so a photo untagged or deleted while the sheet was open drops out instead of being sent as an id the server rejects.
         let photos = photoChoices.filter { selectedPhotoIds.contains($0.id) }
