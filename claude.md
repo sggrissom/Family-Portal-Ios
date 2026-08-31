@@ -312,6 +312,27 @@ network answers.
 - `hasPanelFilters` is kept apart from `isActive` so the toolbar glyph doesn't
   fill in for a search term the search bar is already showing
 
+### Adding records
+
+- `AddMilestoneView` and `AddMeasurementView` take `personId: UUID?`. **Nil means
+  the sheet asks**, which is what lets anything open one without already standing
+  on somebody — the whole reason adding used to be four taps deep
+- Neither can narrow its `@Query` to the person any more: a predicate is fixed at
+  `init` and cannot follow a `@State` selection, so both fetch the roster and pick
+  in memory. A household is small, and `TimelineView` and `AddPersonView` already
+  query all of it
+- The **For** row (`PersonPickerRow`) is shown whether or not the caller named
+  somebody, so a sheet opened on the wrong person is fixable in place. Its
+  "Choose someone" option exists only while nothing is chosen — there is nothing
+  to go back to, since neither sheet can save without a person
+- `DateEntryPicker` is given `.id(person?.id)`: its age steppers resolve against
+  the birthday it was handed, so a picker carried over to somebody else would hold
+  a date worked out from the wrong birthday. A new person gets a fresh picker back
+  on "Today"
+- The milestone sheet clears its photo selection when the person changes. `save()`
+  filters the selection through `photoChoices` and so could never *send* a stale
+  id, but the count beside "Attach Photos" would go on claiming them
+
 ### Error presentation and logging
 - `ErrorPresenter` (`@Observable`, app scope, injected into the environment) plus the `.appErrorAlert()` modifier applied once at the root. Views report failures through it rather than swallowing them
 - App-scoped rather than per view because the views raising these errors dismiss themselves in the same breath; an alert owned by a closing sheet never appears. Sheets `dismiss()` first, then report

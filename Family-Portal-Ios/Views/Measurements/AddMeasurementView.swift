@@ -7,23 +7,27 @@ struct AddMeasurementView: View {
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
-    @Query private var people: [Person]
-    private var person: Person? { people.first }
+    /// The whole roster rather than one person, for the reason given in `AddMilestoneView`: a `@Query` predicate cannot follow a `@State` selection.
+    @Query(sort: \Person.name) private var people: [Person]
 
+    @State private var selectedPersonId: UUID?
     @State private var measurementType: MeasurementType
     @State private var valueText: String = ""
     @State private var unit: MeasurementUnit
     @State private var date: Date = .now
     @State private var isSaving = false
 
-    private var isValid: Bool {
-        Double(valueText) != nil
+    private var person: Person? {
+        people.first { $0.id == selectedPersonId }
     }
 
-    init(personId: UUID, initialType: MeasurementType = .height) {
-        _people = Query(filter: #Predicate<Person> { person in
-            person.id == personId
-        })
+    private var isValid: Bool {
+        person != nil && Double(valueText) != nil
+    }
+
+    /// `nil` opens the sheet asking who this is for. A caller already standing on somebody names them, and can still be corrected in place.
+    init(personId: UUID? = nil, initialType: MeasurementType = .height) {
+        _selectedPersonId = State(initialValue: personId)
         _measurementType = State(initialValue: initialType)
         _unit = State(initialValue: initialType.defaultUnit)
     }
@@ -31,6 +35,10 @@ struct AddMeasurementView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    PersonPickerRow(people: people, selection: $selectedPersonId)
+                }
+
                 Picker("Type", selection: $measurementType) {
                     ForEach(MeasurementType.allCases, id: \.self) { type in
                         Text(type.rawValue.capitalized)
@@ -48,6 +56,8 @@ struct AddMeasurementView: View {
 
                 Section {
                     DateEntryPicker(birthday: person?.birthday, date: $date)
+                        // Keyed on the person, for the reason given in `AddMilestoneView`: an age is resolved against the birthday the picker was handed.
+                        .id(person?.id)
                 }
             }
             .navigationTitle("Add Measurement")
