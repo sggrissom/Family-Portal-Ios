@@ -7,32 +7,40 @@ struct AddMilestoneView: View {
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
-    @Query private var people: [Person]
-    private var person: Person? { people.first }
+    /// The whole roster rather than one person: a `@Query` predicate is fixed at `init` and cannot follow a `@State` selection, so the sheet fetches everyone and picks in memory. A household is small enough that the breadth costs nothing.
+    @Query(sort: \Person.name) private var people: [Person]
 
+    @State private var selectedPersonId: UUID?
     @State private var descriptionText: String = ""
     @State private var category: MilestoneCategory = .development
     @State private var date: Date = .now
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var isSaving = false
 
+    private var person: Person? {
+        people.first { $0.id == selectedPersonId }
+    }
+
     private var isValid: Bool {
-        !descriptionText.trimmingCharacters(in: .whitespaces).isEmpty
+        person != nil && !descriptionText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private var photoChoices: [Photo] {
         milestonePhotoChoices(for: nil, person: person, allPhotos: [])
     }
 
-    init(personId: UUID) {
-        _people = Query(filter: #Predicate<Person> { person in
-            person.id == personId
-        })
+    /// `nil` opens the sheet asking who this is for. A caller already standing on somebody names them, and can still be corrected in place.
+    init(personId: UUID? = nil) {
+        _selectedPersonId = State(initialValue: personId)
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    PersonPickerRow(people: people, selection: $selectedPersonId)
+                }
+
                 Section {
                     Picker("Category", selection: $category) {
                         ForEach(MilestoneCategory.allCases, id: \.self) { cat in
@@ -48,11 +56,14 @@ struct AddMilestoneView: View {
 
                 Section {
                     DateEntryPicker(birthday: person?.birthday, date: $date)
+                        // Keyed on the person: the age steppers resolve against the birthday they were handed, so a picker carried over to somebody else would hold a date worked out from the wrong one.
+                        .id(person?.id)
                 }
 
                 MilestonePhotosSection(
                     photos: photoChoices,
-                    emptyDescription: "Tag \(person?.name ?? "this person") in a photo to attach it to a milestone.",
+                    emptyDescription: person.map { "Tag \($0.name) in a photo to attach it to a milestone." }
+                        ?? "Choose who this milestone is for to see their photos.",
                     selection: $selectedPhotoIds
                 )
             }
@@ -70,6 +81,10 @@ struct AddMilestoneView: View {
                     }
                     .disabled(!isValid || isSaving)
                 }
+            }
+            // The eligible photos are the person's, so a selection made against somebody else is no longer about anything. `save()` filters through `photoChoices` and so could never send a stale id, but the count beside "Attach Photos" would go on claiming them.
+            .onChange(of: selectedPersonId) { _, _ in
+                selectedPhotoIds.removeAll()
             }
         }
     }
