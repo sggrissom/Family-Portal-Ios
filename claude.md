@@ -45,7 +45,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │                      MeasurementRowView, MilestoneRowView, PhotoThumbnailView,
 │                      RemotePhotoView, SyncStatusView, FlowLayout, ZoomableView,
 │                      DateEntryPicker, TagChipsView, TagPickerView,
-│                      FamilyRosterSections, CoAnchorPicker,
+│                      FamilyRosterSections, CoAnchorPicker, QuickAddMenu,
 │                      DetailSheetComponents, RecordStyle
 └── Utilities/
     ├── Constants.swift, AgeCalculator.swift, PreviewData.swift
@@ -348,6 +348,19 @@ network answers.
 - The milestone sheet clears its photo selection when the person changes. `save()`
   filters the selection through `photoChoices` and so could never *send* a stale
   id, but the count beside "Attach Photos" would go on claiming them
+- The `+` on the **Family** and **Timeline** roots is `QuickAddMenu`, hung there
+  by the `.quickAdd(people:)` modifier — one modifier rather than a copy per tab,
+  so the two cannot offer different things or word them differently. It carries
+  the three sheets, the photo picker and the import's progress bar with it
+- Milestone and measurement are *about* somebody, so they are **disabled** on an
+  empty roster rather than opening a sheet that could never save. Photos and
+  person are not
+- Photos is the one choice that is not a sheet: it is `.photosPicker`, handed to
+  the same `PhotoImporter` the gallery uses, so a photo added from the Family tab
+  imports exactly as one added from Photos
+- **The Photos and Activities tabs keep the single-purpose `+` they have.** Each
+  already opens the one thing that tab adds, and a menu there would spend a tap on
+  the commonest action to reach three that have a home elsewhere
 
 ### Viewing records
 

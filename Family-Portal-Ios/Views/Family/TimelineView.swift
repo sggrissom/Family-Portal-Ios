@@ -91,6 +91,8 @@ struct TimelineView: View {
                 }
             }
             .navigationTitle("Timeline")
+            // The timeline is where a family notices something has not been recorded, so it is where adding it has to be reachable.
+            .quickAdd(people: people)
             // Registered on the stack rather than on the list, so a photo stays pushed while the row behind it is filtered away or deleted.
             .navigationDestination(for: PhotoRoute.self) { route in
                 PhotoDetailView(photoId: route.id)
