@@ -44,7 +44,7 @@ enum FamilyGroups {
                 unlinked.append(person)
             }
         }
-        unlinked.sort(by: isOlder)
+        unlinked.sort { isOlder($0, $1) }
 
         let depths = generationDepths(of: linked, edges: edges)
         var generations: [Int: [Int]] = [:]
@@ -164,6 +164,6 @@ enum FamilyGroups {
 extension Person {
     /// The household, oldest first, ungrouped. Kept for the places that want a plain list — `FamilyGroups.group` is what the roster renders.
     static func roster(in people: [Person]) -> [Person] {
-        people.sorted(by: FamilyGroups.isOlder)
+        people.sorted { FamilyGroups.isOlder($0, $1) }
     }
 }
