@@ -12,7 +12,7 @@ struct MeasurementListView: View {
 
     @State private var selectedType: MeasurementType = .height
     @State private var showingAddMeasurement = false
-    @State private var editingMeasurement: GrowthData?
+    @State private var selectedMeasurement: GrowthData?
 
     private let personId: UUID
 
@@ -57,12 +57,12 @@ struct MeasurementListView: View {
                 List {
                     ForEach(filteredMeasurements, id: \.id) { measurement in
                         Button {
-                            editingMeasurement = measurement
+                            selectedMeasurement = measurement
                         } label: {
                             MeasurementRowView(value: measurement.value, unit: measurement.unit, date: measurement.date)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityHint("Edit this measurement")
+                        .accessibilityHint("Shows the full measurement")
                     }
                     .onDelete(perform: deleteMeasurements)
                 }
@@ -85,8 +85,8 @@ struct MeasurementListView: View {
         .sheet(isPresented: $showingAddMeasurement) {
             AddMeasurementView(personId: personId, initialType: selectedType)
         }
-        .sheet(item: $editingMeasurement) { measurement in
-            EditMeasurementView(measurement: measurement)
+        .sheet(item: $selectedMeasurement) { measurement in
+            MeasurementDetailSheetView(measurement: measurement)
         }
     }
 

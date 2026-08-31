@@ -20,7 +20,7 @@ struct FamilyMembersView: View {
                     ContentUnavailableView(
                         "No Family Members",
                         systemImage: "person.3",
-                        description: Text("Manage family members from Settings.")
+                        description: Text("Tap + to add someone, or manage the family from Settings.")
                     )
                 } else {
                     List {
@@ -29,6 +29,7 @@ struct FamilyMembersView: View {
                 }
             }
             .navigationTitle("Family")
+            .quickAdd(people: people)
             .navigationDestination(for: UUID.self) { personId in
                 PersonDetailView(personId: personId, allowsManagementActions: false)
             }

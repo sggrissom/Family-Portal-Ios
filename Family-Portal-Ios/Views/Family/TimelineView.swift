@@ -91,6 +91,8 @@ struct TimelineView: View {
                 }
             }
             .navigationTitle("Timeline")
+            // The timeline is where a family notices something has not been recorded, so it is where adding it has to be reachable.
+            .quickAdd(people: people)
             // Registered on the stack rather than on the list, so a photo stays pushed while the row behind it is filtered away or deleted.
             .navigationDestination(for: PhotoRoute.self) { route in
                 PhotoDetailView(photoId: route.id)
@@ -422,47 +424,21 @@ struct TimelineRowView: View {
     let item: TimelineItem
 
     @State private var showingMilestoneDetail = false
-    @State private var editingMeasurement: GrowthData?
+    @State private var selectedMeasurement: GrowthData?
 
     private var categoryIcon: String {
         switch item {
-        case .milestone(let milestone):
-            switch milestone.category {
-            case .development: return "leaf.fill"
-            case .behavior: return "face.smiling.fill"
-            case .health: return "heart.fill"
-            case .achievement: return "trophy.fill"
-            case .first: return "star.fill"
-            case .other: return "note.text"
-            }
-        case .growthData(let data):
-            switch data.measurementType {
-            case .height: return "ruler"
-            case .weight: return "scalemass"
-            }
-        case .photo:
-            return "photo"
+        case .milestone(let milestone): return milestone.category.icon
+        case .growthData(let data): return data.measurementType.icon
+        case .photo: return "photo"
         }
     }
 
     private var itemColor: Color {
         switch item {
-        case .milestone(let milestone):
-            switch milestone.category {
-            case .development: return .green
-            case .behavior: return .orange
-            case .health: return .red
-            case .achievement: return .yellow
-            case .first: return .purple
-            case .other: return .gray
-            }
-        case .growthData(let data):
-            switch data.measurementType {
-            case .height: return .blue
-            case .weight: return .teal
-            }
-        case .photo:
-            return .indigo
+        case .milestone(let milestone): return milestone.category.color
+        case .growthData(let data): return data.measurementType.color
+        case .photo: return .indigo
         }
     }
 
@@ -493,12 +469,9 @@ struct TimelineRowView: View {
 
     private var badgeText: String {
         switch item {
-        case .milestone(let milestone):
-            return milestone.category.rawValue.capitalized
-        case .growthData(let data):
-            return data.measurementType.rawValue.capitalized
-        case .photo:
-            return "Photo"
+        case .milestone(let milestone): return milestone.category.label
+        case .growthData(let data): return data.measurementType.label
+        case .photo: return "Photo"
         }
     }
 
@@ -520,7 +493,7 @@ struct TimelineRowView: View {
     var body: some View {
         switch item {
         case .photo(let photo):
-            // The only branch with a screen of its own; the other two open the thing that owns the text.
+            // The only branch with a screen of its own; the other two open a view sheet over this one.
             NavigationLink(value: PhotoRoute(id: photo.id)) {
                 rowContent
             }
@@ -537,14 +510,14 @@ struct TimelineRowView: View {
             }
         case .growthData(let data):
             Button {
-                editingMeasurement = data
+                selectedMeasurement = data
             } label: {
                 rowContent
             }
             .buttonStyle(.plain)
-            .accessibilityHint("Edit this measurement")
-            .sheet(item: $editingMeasurement) { measurement in
-                EditMeasurementView(measurement: measurement)
+            .accessibilityHint("Shows the full measurement")
+            .sheet(item: $selectedMeasurement) { measurement in
+                MeasurementDetailSheetView(measurement: measurement)
             }
         }
     }
