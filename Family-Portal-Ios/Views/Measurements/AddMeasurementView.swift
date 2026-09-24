@@ -18,6 +18,9 @@ struct AddMeasurementView: View {
     @State private var measurementType: MeasurementType
     @State private var valueText: String = ""
     @State private var unit: MeasurementUnit
+    @State private var usesPoundsAndOunces = false
+    @State private var poundsText: String = ""
+    @State private var ouncesText: String = ""
     @State private var date: Date = .now
     @State private var isSaving = false
     /// Set by "Save and add another", so the sheet stays up and the next value lands on the same person and date.
@@ -27,8 +30,19 @@ struct AddMeasurementView: View {
         people.first { $0.id == selectedPersonId }
     }
 
+    private var offersPoundsAndOunces: Bool {
+        measurementType == .weight && unit == .pounds
+    }
+
+    private var enteredValue: Double? {
+        if offersPoundsAndOunces && usesPoundsAndOunces {
+            return MeasurementConversion.parsePoundsAndOunces(pounds: poundsText, ounces: ouncesText)
+        }
+        return Double(valueText)
+    }
+
     private var isValid: Bool {
-        person != nil && Double(valueText) != nil
+        person != nil && enteredValue != nil
     }
 
     /// `nil` opens the sheet asking who this is for. A caller already standing on somebody names them, and can still be corrected in place.
@@ -54,14 +68,26 @@ struct AddMeasurementView: View {
                     }
                 }
 
-                TextField("Value", text: $valueText)
-                    .keyboardType(.decimalPad)
-                    .focused($isValueFocused)
+                if offersPoundsAndOunces && usesPoundsAndOunces {
+                    PoundsAndOuncesFields(
+                        pounds: $poundsText,
+                        ounces: $ouncesText,
+                        isPoundsFocused: $isValueFocused
+                    )
+                } else {
+                    TextField("Value", text: $valueText)
+                        .keyboardType(.decimalPad)
+                        .focused($isValueFocused)
+                }
 
                 Picker("Unit", selection: $unit) {
                     ForEach(measurementType.validUnits, id: \.self) { u in
                         Text(u.rawValue.capitalized)
                     }
+                }
+
+                if offersPoundsAndOunces {
+                    Toggle("Pounds & Ounces", isOn: $usesPoundsAndOunces)
                 }
 
                 Section {
@@ -96,6 +122,9 @@ struct AddMeasurementView: View {
             .onChange(of: measurementType) { _, newType in
                 unit = defaults.unit(for: newType)
             }
+            .onChange(of: selectedPersonId) {
+                resetPoundsAndOunces()
+            }
             .onAppear {
                 if selectedPersonId == nil {
                     selectedPersonId = QuickAddDefaults.person(
@@ -104,12 +133,17 @@ struct AddMeasurementView: View {
                         relations: relations.map(\.edge)
                     )?.id
                 }
+                resetPoundsAndOunces()
             }
         }
     }
 
+    private func resetPoundsAndOunces() {
+        usesPoundsAndOunces = MeasurementConversion.entersPoundsAndOunces(for: person, on: date)
+    }
+
     private func save(keepingOpen: Bool = false) {
-        guard let value = Double(valueText), let person else { return }
+        guard let value = enteredValue, let person else { return }
         isSaving = true
         let measurement = GrowthData(measurementType: measurementType, value: value, unit: unit, date: date)
         measurement.person = person
@@ -120,6 +154,8 @@ struct AddMeasurementView: View {
         if keepingOpen {
             // The person and the date are what the next measurement shares; the value is the only thing that changes.
             valueText = ""
+            poundsText = ""
+            ouncesText = ""
             isSaving = false
             isValueFocused = true
         }

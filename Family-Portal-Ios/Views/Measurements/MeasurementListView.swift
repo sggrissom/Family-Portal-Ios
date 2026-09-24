@@ -59,7 +59,7 @@ struct MeasurementListView: View {
                         Button {
                             selectedMeasurement = measurement
                         } label: {
-                            MeasurementRowView(value: measurement.value, unit: measurement.unit, date: measurement.date)
+                            MeasurementRowView(measurement: measurement)
                         }
                         .buttonStyle(.plain)
                         .accessibilityHint("Shows the full measurement")

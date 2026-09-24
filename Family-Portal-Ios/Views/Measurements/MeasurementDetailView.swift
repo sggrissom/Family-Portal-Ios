@@ -15,7 +15,11 @@ struct MeasurementDetailSheetView: View {
             return nil
         }
         let converted = MeasurementConversion.convert(measurement.value, from: measurement.unit, to: other)
-        return ("In \(other.rawValue)", MeasurementConversion.format(converted, unit: other))
+        return ("In \(other.rawValue)", MeasurementConversion.format(
+            converted,
+            unit: other,
+            ageMonths: MeasurementConversion.ageMonths(of: measurement)
+        ))
     }
 
     var body: some View {
@@ -26,7 +30,7 @@ struct MeasurementDetailSheetView: View {
                         icon: measurement.measurementType.icon,
                         tint: measurement.measurementType.color,
                         badge: measurement.measurementType.label,
-                        title: MeasurementConversion.format(measurement.value, unit: measurement.unit),
+                        title: MeasurementConversion.format(measurement),
                         titleFont: .largeTitle
                     )
 

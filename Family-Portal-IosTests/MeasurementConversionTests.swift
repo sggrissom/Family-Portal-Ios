@@ -130,4 +130,57 @@ struct MeasurementConversionTests {
         #expect(MeasurementConversion.format(34.25, unit: .inches) == "34.3 in")
         #expect(MeasurementConversion.format(86.36, unit: .centimeters) == "86.4 cm")
     }
+
+    // MARK: - Pounds and ounces
+
+    @Test("Pounds split into whole pounds and ounces, carrying a rounded-up pound")
+    func splitting() {
+        let even = MeasurementConversion.splitPoundsAndOunces(7.5)
+        #expect(even.pounds == 7 && even.ounces == 8)
+        let half = MeasurementConversion.splitPoundsAndOunces(MeasurementConversion.pounds(7, ounces: 8.5))
+        #expect(half.pounds == 7 && half.ounces == 8.5)
+        let carried = MeasurementConversion.splitPoundsAndOunces(7.999)
+        #expect(carried.pounds == 8 && carried.ounces == 0)
+    }
+
+    @Test("Pounds and ounces leave out a part that is zero")
+    func poundsAndOuncesFormatting() {
+        #expect(MeasurementConversion.formatPoundsAndOunces(7.25) == "7 lb 4 oz")
+        #expect(MeasurementConversion.formatPoundsAndOunces(8) == "8 lb")
+        #expect(MeasurementConversion.formatPoundsAndOunces(0.75) == "12 oz")
+    }
+
+    @Test("Under two reads in pounds and ounces; without an age, under 25 lb does")
+    func whenPoundsAndOunces() {
+        #expect(MeasurementConversion.format(30, unit: .pounds, ageMonths: 6) == "30 lb")
+        #expect(MeasurementConversion.format(20.5, unit: .pounds, ageMonths: 36) == "20.5 lbs")
+        #expect(MeasurementConversion.format(7.5, unit: .pounds) == "7 lb 8 oz")
+        #expect(MeasurementConversion.format(150, unit: .pounds) == "150 lbs")
+        #expect(MeasurementConversion.format(3.4, unit: .kilograms, ageMonths: 1) == "3.4 kg")
+    }
+
+    @Test("Pounds and ounces parse with either field blank, but not both")
+    func parsing() {
+        #expect(MeasurementConversion.parsePoundsAndOunces(pounds: "7", ounces: "8") == 7.5)
+        #expect(MeasurementConversion.parsePoundsAndOunces(pounds: "7", ounces: "") == 7)
+        #expect(MeasurementConversion.parsePoundsAndOunces(pounds: "", ounces: "12") == 0.75)
+        #expect(MeasurementConversion.parsePoundsAndOunces(pounds: "", ounces: "") == nil)
+        #expect(MeasurementConversion.parsePoundsAndOunces(pounds: "7", ounces: "16") == nil)
+        #expect(MeasurementConversion.parsePoundsAndOunces(pounds: "0", ounces: "0") == nil)
+        #expect(MeasurementConversion.parsePoundsAndOunces(pounds: "abc", ounces: "1") == nil)
+    }
+
+    @Test("A new weight starts in pounds and ounces only for someone under two")
+    func entryDefault() {
+        let today = Self.date(2024, 7, 1)
+        let baby = Person(name: "Baby", gender: .other, birthday: Self.date(2024, 1, 1))
+        let kid = Person(name: "Kid", gender: .other, birthday: Self.date(2020, 1, 1))
+        let unknown = Person(name: "Unknown", gender: .other)
+        let expecting = Person(name: "Due", gender: .other, birthday: Self.date(2024, 9, 1), isPregnancy: true)
+        #expect(MeasurementConversion.entersPoundsAndOunces(for: baby, on: today))
+        #expect(!MeasurementConversion.entersPoundsAndOunces(for: kid, on: today))
+        #expect(!MeasurementConversion.entersPoundsAndOunces(for: unknown, on: today))
+        #expect(!MeasurementConversion.entersPoundsAndOunces(for: expecting, on: today))
+        #expect(!MeasurementConversion.entersPoundsAndOunces(for: nil, on: today))
+    }
 }

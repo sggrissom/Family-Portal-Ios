@@ -269,11 +269,8 @@ struct PersonDetailView: View {
     }
 
     private func formatMeasurement(_ data: GrowthData) -> String {
-        let valueStr = data.value.truncatingRemainder(dividingBy: 1) == 0
-            ? String(format: "%.0f", data.value)
-            : String(format: "%.1f", data.value)
         let dateStr = data.date.formatted(date: .abbreviated, time: .omitted)
-        return "\(valueStr) \(data.unit.rawValue) (\(dateStr))"
+        return "\(MeasurementConversion.format(data)) (\(dateStr))"
     }
 }
 

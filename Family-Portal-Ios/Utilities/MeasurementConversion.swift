@@ -80,11 +80,85 @@ enum MeasurementConversion {
         unitToString(unit)
     }
 
-    static func format(_ value: Double, unit: MeasurementUnit) -> String {
+    /// Pounds read as pounds and ounces while `ageMonths` is under two years; with no age to go on, while the weight is under 25 lb. Same rule as the web's `formatMeasurement`.
+    static func format(_ value: Double, unit: MeasurementUnit, ageMonths: Double? = nil) -> String {
+        if prefersPoundsAndOunces(value, unit: unit, ageMonths: ageMonths) {
+            return formatPoundsAndOunces(value)
+        }
+        return "\(oneDecimal(value)) \(abbreviation(unit))"
+    }
+
+    static func format(_ record: GrowthData) -> String {
+        format(record.value, unit: record.unit, ageMonths: ageMonths(of: record))
+    }
+
+    static func ageMonths(of record: GrowthData) -> Double? {
+        guard let birthday = record.person?.birthday, record.person?.isPregnancy != true else { return nil }
+        let months = GrowthPercentiles.ageInMonths(birthday: birthday, on: record.date)
+        return months >= 0 ? months : nil
+    }
+
+    // MARK: - Pounds and ounces
+
+    static let ouncesPerPound = 16.0
+    private static let poundsAndOuncesMaxAgeMonths = 24.0
+    private static let poundsAndOuncesMaxPounds = 25.0
+
+    static func prefersPoundsAndOunces(_ value: Double, unit: MeasurementUnit, ageMonths: Double? = nil) -> Bool {
+        guard unit == .pounds else { return false }
+        if let ageMonths, ageMonths >= 0 {
+            return ageMonths < poundsAndOuncesMaxAgeMonths
+        }
+        return value < poundsAndOuncesMaxPounds
+    }
+
+    /// Ounces to one decimal, carried into the pounds when they round up to a full pound.
+    static func splitPoundsAndOunces(_ value: Double) -> (pounds: Int, ounces: Double) {
+        var pounds = Int(value.rounded(.down))
+        var ounces = ((value - Double(pounds)) * ouncesPerPound * 10).rounded() / 10
+        if ounces >= ouncesPerPound {
+            pounds += 1
+            ounces -= ouncesPerPound
+        }
+        return (pounds, ounces)
+    }
+
+    static func pounds(_ pounds: Double, ounces: Double) -> Double {
+        pounds + ounces / ouncesPerPound
+    }
+
+    /// Either field may be left blank, but not both; ounces stop short of a full pound.
+    static func parsePoundsAndOunces(pounds: String, ounces: String) -> Double? {
+        let poundsText = pounds.trimmingCharacters(in: .whitespaces)
+        let ouncesText = ounces.trimmingCharacters(in: .whitespaces)
+        guard !(poundsText.isEmpty && ouncesText.isEmpty) else { return nil }
+        guard let whole = poundsText.isEmpty ? 0 : Double(poundsText),
+              let part = ouncesText.isEmpty ? 0 : Double(ouncesText),
+              whole >= 0, part >= 0, part < ouncesPerPound else {
+            return nil
+        }
+        let total = self.pounds(whole, ounces: part)
+        return total > 0 ? total : nil
+    }
+
+    /// Whether a new weight for `person` should start out in pounds and ounces.
+    static func entersPoundsAndOunces(for person: Person?, on date: Date) -> Bool {
+        guard let person, let birthday = person.birthday, !person.isPregnancy else { return false }
+        let months = GrowthPercentiles.ageInMonths(birthday: birthday, on: date)
+        return months >= 0 && months < poundsAndOuncesMaxAgeMonths
+    }
+
+    static func formatPoundsAndOunces(_ value: Double) -> String {
+        let (pounds, ounces) = splitPoundsAndOunces(value)
+        if pounds == 0 { return "\(oneDecimal(ounces)) oz" }
+        if ounces == 0 { return "\(pounds) lb" }
+        return "\(pounds) lb \(oneDecimal(ounces)) oz"
+    }
+
+    static func oneDecimal(_ value: Double) -> String {
         let rounded = (value * 10).rounded() / 10
-        let text = rounded.truncatingRemainder(dividingBy: 1) == 0
+        return rounded.truncatingRemainder(dividingBy: 1) == 0
             ? String(format: "%.0f", rounded)
             : String(format: "%.1f", rounded)
-        return "\(text) \(abbreviation(unit))"
     }
 }

@@ -447,10 +447,7 @@ struct TimelineRowView: View {
         case .milestone(let milestone):
             return milestone.descriptionText
         case .growthData(let data):
-            let formatted = data.value.truncatingRemainder(dividingBy: 1) == 0
-                ? String(format: "%.0f", data.value)
-                : String(format: "%.1f", data.value)
-            return "\(data.measurementType.rawValue.capitalized): \(formatted) \(data.unit.rawValue)"
+            return "\(data.measurementType.rawValue.capitalized): \(MeasurementConversion.format(data))"
         case .photo(let photo):
             let title = photo.title.trimmingCharacters(in: .whitespacesAndNewlines)
             if !title.isEmpty { return title }
