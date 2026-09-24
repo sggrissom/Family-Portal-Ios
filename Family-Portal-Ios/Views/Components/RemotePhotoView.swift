@@ -25,6 +25,13 @@ struct RemotePhotoView: View {
     @State private var image: UIImage?
     @State private var phase: RemotePhotoPhase
 
+    /// Optional so previews and tests that never inject one still render.
+    @Environment(NetworkMonitor.self) private var networkMonitor: NetworkMonitor?
+
+    private var isOffline: Bool {
+        networkMonitor.map { !$0.isConnected } ?? false
+    }
+
     init(
         remoteId: Int,
         size: PhotoSizeVariant,
@@ -58,7 +65,11 @@ struct RemotePhotoView: View {
                 case .processing:
                     placeholder(systemName: "clock", label: "Photo still processing")
                 case .ready, .unavailable:
-                    placeholder(systemName: "photo", label: "Photo unavailable")
+                    if isOffline {
+                        placeholder(systemName: "icloud.slash", label: "Photo not downloaded yet")
+                    } else {
+                        placeholder(systemName: "photo", label: "Photo unavailable")
+                    }
                 }
             } else {
                 Color.clear
@@ -66,7 +77,8 @@ struct RemotePhotoView: View {
         }
         // A photo that arrives late fades over whatever stood in for it; a hard cut reads as the view changing its mind. Keyed on presence rather than on the image, whose `==` compares pixels.
         .animation(.easeIn(duration: 0.2), value: image != nil)
-        .task(id: "\(remoteId)-\(size.rawValue)") {
+        // Keyed on connectivity too, so a photo that could not load offline tries again once the signal returns.
+        .task(id: "\(remoteId)-\(size.rawValue)-\(isOffline)") {
             await load()
         }
     }

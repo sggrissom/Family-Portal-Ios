@@ -115,7 +115,8 @@ types, shared with previews and tests.
 ### AuthService (`@Observable`)
 - `login(email:password:)` → POST `api/login`
 - `logout()` → POST `api/logout`, clears tokens
-- `restoreSession()` → POST `api/refresh`; only a 401 ends the session, other failures fall back to the cached identity so an offline launch stays signed in
+- Launch is local-first and never waits on the network. `restoreSession()` adopts the cached identity (UserDefaults) as long as a refresh credential exists, so the tabs render straight from SwiftData; `revalidateSession()` then refreshes through `APIClient.refreshAccessToken()` — the single-flight path, because the sync the restore kicks off may be refreshing too. Only a 401 (via the client's session-expired handler) ends the session; other failures keep the cached identity. With a credential but no cached identity, the launch placeholder waits for revalidation
+- `APIClient.defaultSession` and `PhotoImageCache`'s session time a stalled request out at 20s rather than the system's 60s: on a weak signal, requests fall back to the queue or local data sooner. `PhotoImageCache` falls back to its on-disk `URLCache` copy, however stale, when a fetch fails, and `RemotePhotoView` retries when connectivity returns
 - `loginWithGoogle()` → POST `api/login/google/token`; `loginWithApple(_:)` → POST `api/login/apple/token`. Apple's `SignInWithAppleButton` owns its own presentation, so unlike Google there is nothing to await: the view hands the raw `Result` over and `AppleSignInService` classifies it, cancellation included. The server matches the identity token's email against the same account table the password path uses, and it accepts the token only if its audience is in `APPLE_IOS_CLIENT_ID` — the app's bundle id, `com.familyrecord.ios`
 - Apple releases the user's name only on the *first* authorization, which is why `AppleTokenLoginRequestDTO` carries it: every later sign-in sends an empty string and the server names the account itself
 - `serverURL` persisted in UserDefaults, synced to APIClient
@@ -254,6 +255,7 @@ network answers.
 - Push methods: `addPerson`, `addGrowthData`, `updateGrowthData`, `deleteGrowthData`, `addMilestone`, `updateMilestone`, `deleteMilestone`, `deletePhoto`
 - Offline support via `SyncQueue` — operations queued when offline, processed on reconnect
 - Server-authoritative: on conflict, server data wins; optimistic UI for local changes
+- …but only once the queue has delivered them. A pull is a snapshot from before the queued operations land, so `pullFamilyData()` reads the queue first (`pendingLocalChanges()`) and does not apply server fields to a record with a pending operation, nor recreate a record whose delete is still queued. Without this, an edit made offline visibly rolls back and a deleted record reappears until the queue catches up
 - `Photo.imageData` holds local bytes only until the upload is confirmed, then it is cleared and display falls back to `RemotePhotoView`. `removeOrphans` protects unsynced work by `remoteId == nil` alone — do not re-add a local-bytes exemption, which pinned uploaded photos on the device forever
 - A queue operation whose own record is gone `return`s (moot, drop it); one whose *parent* is merely unsynced throws `SyncError.missingRemoteId` so it is retried rather than dequeued as a success — and is charged a blocked run, not a retry, so it cannot wait forever
 - `Person.birthday` is required by the server (`validateAddPersonRequest`); the push path throws `SyncError.missingBirthday` rather than substituting a date

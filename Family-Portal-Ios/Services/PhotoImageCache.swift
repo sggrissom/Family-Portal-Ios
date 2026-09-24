@@ -44,6 +44,8 @@ final class PhotoImageCache {
             directory: cacheDirectory()
         )
         configuration.requestCachePolicy = .useProtocolCachePolicy
+        // Matches `APIClient.defaultSession`: on a weak signal a tile should fall back to its cached copy rather than spin for the system's full minute.
+        configuration.timeoutIntervalForRequest = 20
         return URLSession(configuration: configuration)
     }
 
@@ -177,7 +179,16 @@ final class PhotoImageCache {
             AppLog.ui.error(
                 "Photo fetch failed: \(String(describing: error), privacy: .public)"
             )
-            return .failed
+            return await staleCopy(for: request) ?? .failed
         }
+    }
+
+    /// The copy on disk, however old. `useProtocolCachePolicy` will not answer from a response past its `max-age` without revalidating it, which offline means no photo at all — and a photo that might have been reprocessed since is still far better than a blank tile.
+    private func staleCopy(for request: URLRequest) async -> FetchOutcome? {
+        guard let cached = httpCache?.cachedResponse(for: request),
+              let image = UIImage(data: cached.data) else {
+            return nil
+        }
+        return .decoded(await image.byPreparingForDisplay() ?? image)
     }
 }

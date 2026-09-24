@@ -138,7 +138,14 @@ actor APIClient {
 
     private nonisolated static let defaultURL = URL(string: AppConstants.defaultServerURL)!
 
-    init(baseURL: URL? = nil, session: URLSession = .shared) {
+    /// The system default waits 60 seconds for a stalled connection. Everything this client sends is either queued for a retry or backed by local data, so a weak signal should give up and fall back well before that.
+    nonisolated static let defaultSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 20
+        return URLSession(configuration: configuration)
+    }()
+
+    init(baseURL: URL? = nil, session: URLSession = APIClient.defaultSession) {
         let initialBaseURL = baseURL ?? Self.defaultURL
         self.session = session
 
@@ -433,9 +440,11 @@ actor APIClient {
     }
 
     /// Coalesces overlapping refreshes onto one round-trip. The server rotates the refresh token on every use, so two in flight can each invalidate the other's credential.
-    private var refreshTask: Task<Void, Error>?
+    private var refreshTask: Task<AuthResponseDTO?, Error>?
 
-    func refreshAccessToken() async throws {
+    /// Returns the identity the server sent alongside the new token, when it sent one.
+    @discardableResult
+    func refreshAccessToken() async throws -> AuthResponseDTO? {
         if let refreshTask {
             return try await refreshTask.value
         }
@@ -447,7 +456,7 @@ actor APIClient {
         return try await task.value
     }
 
-    private func performRefresh() async throws {
+    private func performRefresh() async throws -> AuthResponseDTO? {
         guard hasRefreshCredential else {
             throw APIError.missingRefreshToken
         }
@@ -493,6 +502,7 @@ actor APIClient {
             }
 
             setAccessToken(token)
+            return refreshResponse.auth
         } catch let error as APIError {
             throw error
         } catch {

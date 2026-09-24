@@ -79,6 +79,8 @@ struct Family_Portal_IosApp: App {
                 .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
                     if isAuthenticated {
                         Task {
+                            // A session restored from the cache may be holding an expired token; refreshing first saves every request below a 401 round trip.
+                            await APIClient.shared.ensureFreshAccessToken()
                             await syncService.performFullSync()
                             await initializeChatService()
                             await PushNotificationService.shared.registerForPushNotifications()
@@ -127,16 +129,13 @@ struct Family_Portal_IosApp: App {
             await self.eraseLocalData(.everything)
         }
 
-        // Runs alongside session restore rather than before it: the check must never delay a signed-in user.
-        async let versionCheck: Void = mobileVersionService.check()
-
+        // Local only, so the tabs are up before anything touches the network. Signing in here fires the `isAuthenticated` handler, which starts sync, chat and push — they are not started again below.
         await authService.restoreSession()
+
+        // Both run behind the tabs rather than in front of them: neither is a reason to keep someone from their own family's data.
+        async let versionCheck: Void = mobileVersionService.check()
+        await authService.revalidateSession()
         await versionCheck
-        if authService.isAuthenticated {
-            await syncService.performFullSync()
-            await initializeChatService()
-            await PushNotificationService.shared.registerForPushNotifications()
-        }
     }
 
     @MainActor

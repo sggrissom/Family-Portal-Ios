@@ -59,6 +59,9 @@ final class SyncService {
                 payload: EmptyPayload()
             )
 
+            // Read after the responses land, so a change made while they were in flight is still protected.
+            let pending = await pendingLocalChanges()
+
             var seenPersonIds = Set<String>()
             var seenGrowthDataIds = Set<String>()
             var seenMilestoneIds = Set<String>()
@@ -69,43 +72,58 @@ final class SyncService {
                 seenPersonIds.insert(personRemoteId)
 
                 let person = findOrCreatePerson(remoteId: personRemoteId)
-                applyPersonDTO(item.person, to: person)
+                if !pending.isEdited(person.id) {
+                    applyPersonDTO(item.person, to: person)
+                }
 
                 for growthDTO in item.growthData {
                     let gdRemoteId = String(growthDTO.id)
+                    guard !pending.deletedGrowthDataIds.contains(gdRemoteId) else { continue }
                     seenGrowthDataIds.insert(gdRemoteId)
                     let growthData = findOrCreateGrowthData(remoteId: gdRemoteId)
-                    applyGrowthDataDTO(growthDTO, to: growthData)
+                    if !pending.isEdited(growthData.id) {
+                        applyGrowthDataDTO(growthDTO, to: growthData)
+                    }
                     growthData.person = person
                 }
 
                 for milestoneDTO in item.milestones {
                     let msRemoteId = String(milestoneDTO.id)
+                    guard !pending.deletedMilestoneIds.contains(msRemoteId) else { continue }
                     seenMilestoneIds.insert(msRemoteId)
                     let milestone = findOrCreateMilestone(remoteId: msRemoteId)
-                    applyMilestoneDTO(milestoneDTO, to: milestone)
+                    if !pending.isEdited(milestone.id) {
+                        applyMilestoneDTO(milestoneDTO, to: milestone)
+                    }
                     milestone.person = person
                 }
 
                 for imageDTO in item.photos {
                     let photoRemoteId = String(imageDTO.id)
+                    guard !pending.deletedPhotoIds.contains(photoRemoteId) else { continue }
                     seenPhotoIds.insert(photoRemoteId)
                     let photo = findOrCreatePhoto(remoteId: photoRemoteId)
-                    applyPhotoDTO(imageDTO, to: photo)
+                    if !pending.isEdited(photo.id) {
+                        applyPhotoDTO(imageDTO, to: photo)
+                    }
                 }
             }
 
             for photoWithPeople in photoResponse.photos {
                 let photoRemoteId = String(photoWithPeople.image.id)
+                guard !pending.deletedPhotoIds.contains(photoRemoteId) else { continue }
                 seenPhotoIds.insert(photoRemoteId)
                 let photo = findOrCreatePhoto(remoteId: photoRemoteId)
-                applyPhotoDTO(photoWithPeople.image, to: photo)
                 let taggedPeople = photoWithPeople.people.map { personDTO in
                     let personRemoteId = String(personDTO.id)
                     let person = findOrCreatePerson(remoteId: personRemoteId)
-                    applyPersonDTO(personDTO, to: person)
+                    if !pending.isEdited(person.id) {
+                        applyPersonDTO(personDTO, to: person)
+                    }
                     return person
                 }
+                guard !pending.isEdited(photo.id) else { continue }
+                applyPhotoDTO(photoWithPeople.image, to: photo)
                 photo.taggedPeople = taggedPeople
             }
 
@@ -137,6 +155,38 @@ final class SyncService {
         }
 
         isSyncing = false
+    }
+
+    /// What the queue still owes the server. A pull is a snapshot from before those operations land, so applying it as-is would roll back an edit made offline and bring a deleted record back until the queue caught up.
+    private struct PendingLocalChanges {
+        var editedLocalIds = Set<String>()
+        var deletedGrowthDataIds = Set<String>()
+        var deletedMilestoneIds = Set<String>()
+        var deletedPhotoIds = Set<String>()
+
+        func isEdited(_ localId: UUID) -> Bool {
+            editedLocalIds.contains(localId.uuidString)
+        }
+    }
+
+    private func pendingLocalChanges() async -> PendingLocalChanges {
+        var changes = PendingLocalChanges()
+        for operation in await syncQueue.allOperations() {
+            switch operation.type {
+            case .deleteGrowthData, .deleteMilestone, .deletePhoto:
+                // The local record is already gone, so the only handle left on it is the server id the delete carries.
+                guard let payload = try? JSONDecoder().decode(DeletePayload.self, from: operation.payload) else { continue }
+                let remoteId = String(payload.remoteId)
+                switch operation.type {
+                case .deleteGrowthData: changes.deletedGrowthDataIds.insert(remoteId)
+                case .deleteMilestone: changes.deletedMilestoneIds.insert(remoteId)
+                default: changes.deletedPhotoIds.insert(remoteId)
+                }
+            default:
+                changes.editedLocalIds.insert(operation.localId)
+            }
+        }
+        return changes
     }
 
     private func pullTags() async {

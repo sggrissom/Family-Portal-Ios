@@ -155,6 +155,60 @@ struct SyncServicePullTests {
         #expect(measurements.first?.value == 106.0)
     }
 
+    // MARK: - Changes the queue still owes the server
+
+    private static func seededTimeline() -> [String: Any] {
+        Fixture.timeline([
+            Fixture.timelineItem(
+                person: Fixture.person(id: 12, name: "Rowan"),
+                growthData: [Fixture.growthData(id: 3, personId: 12, value: 104.5)],
+                milestones: [Fixture.milestone(id: 4, personId: 12, description: "First steps")]
+            )
+        ])
+    }
+
+    @Test("A pull does not roll back an edit made offline")
+    func pullKeepsPendingEdit() async throws {
+        let harness = try TestSync.harness()
+        harness.server.route("rpc/GetFamilyTimeline", respond: .json(Self.seededTimeline()))
+        harness.server.route("rpc/ListFamilyPhotos", respond: .json(Self.noPhotos()))
+        await harness.service.pullFamilyData()
+
+        harness.monitor.isConnected = false
+        let milestone = try #require(try harness.context.fetch(FetchDescriptor<Milestone>()).first)
+        milestone.descriptionText = "First steps, unaided"
+        try harness.context.save()
+        try await harness.service.updateMilestone(milestone)
+
+        // The server has not seen the edit yet, so it still answers with the old wording.
+        harness.monitor.isConnected = true
+        await harness.service.pullFamilyData()
+
+        let milestones = try harness.context.fetch(FetchDescriptor<Milestone>())
+        #expect(milestones.count == 1)
+        #expect(milestones.first?.descriptionText == "First steps, unaided")
+        #expect(await harness.service.syncQueue.count() == 1)
+    }
+
+    @Test("A pull does not bring back a record deleted offline")
+    func pullKeepsPendingDelete() async throws {
+        let harness = try TestSync.harness()
+        harness.server.route("rpc/GetFamilyTimeline", respond: .json(Self.seededTimeline()))
+        harness.server.route("rpc/ListFamilyPhotos", respond: .json(Self.noPhotos()))
+        await harness.service.pullFamilyData()
+
+        harness.monitor.isConnected = false
+        let measurement = try #require(try harness.context.fetch(FetchDescriptor<GrowthData>()).first)
+        try await harness.service.deleteGrowthData(measurement)
+
+        harness.monitor.isConnected = true
+        await harness.service.pullFamilyData()
+
+        #expect(try harness.context.fetch(FetchDescriptor<GrowthData>()).isEmpty)
+        #expect(try harness.context.fetch(FetchDescriptor<Milestone>()).count == 1)
+        #expect(await harness.service.syncQueue.count() == 1)
+    }
+
     @Test("Tagged people from ListFamilyPhotos are attached to the photo")
     func pullAppliesPhotoTags() async throws {
         let harness = try TestSync.harness()

@@ -330,10 +330,9 @@ final class AuthService {
         return nil
     }
 
+    /// Signs back in from what the device already holds, without touching the network: the family's data is local, so a launch on a weak or missing signal must not wait on a server round trip to show it. `revalidateSession()` then checks the session with the server.
     @MainActor
     func restoreSession() async {
-        defer { hasCheckedStoredSession = true }
-
         let onSessionExpired: @MainActor () async -> Void = { [weak self] in
             guard let self else { return }
             self.endSessionLocally()
@@ -342,29 +341,30 @@ final class AuthService {
 
         guard await APIClient.shared.hasRefreshCredential else {
             endSessionLocally()
+            hasCheckedStoredSession = true
             return
         }
 
+        // With no cached identity there is nothing to show yet, so the launch placeholder stays up until `revalidateSession()` answers.
+        if let cached = Self.cachedUser() {
+            await adoptSession(cached)
+            hasCheckedStoredSession = true
+        }
+    }
+
+    /// Refreshes the restored session. Goes through the client's single-flight refresh, since a sync started by the restore may be refreshing at the same moment and the server rotates the refresh token on every use.
+    /// Only the server refusing the credential ends the session — the client's expiry handler does that. A network failure keeps the cached identity, and the next request's 401 handling catches a genuinely dead session.
+    @MainActor
+    func revalidateSession() async {
+        defer { hasCheckedStoredSession = true }
+        guard await APIClient.shared.hasRefreshCredential else { return }
+
         do {
-            struct EmptyBody: Encodable {}
-            let response: RefreshResponseDTO = try await APIClient.shared.request(
-                path: "api/refresh",
-                method: .post,
-                body: EmptyBody?.none,
-                requiresAuth: false,
-                retryOnAuthFailure: false
-            )
-            if response.success, let token = response.token {
-                await APIClient.shared.setAccessToken(token)
-                await adoptSession(response.auth ?? Self.cachedUser())
-            } else {
-                await endSession()
+            if let auth = try await APIClient.shared.refreshAccessToken() {
+                await adoptSession(auth)
             }
-        } catch APIError.unauthorized {
-            await endSession()
         } catch {
-            // A network failure says nothing about whether the session is good: keep the tokens, and let the 401 handling catch a genuinely dead one.
-            await adoptSession(Self.cachedUser())
+            AppLog.auth.info("Session revalidation deferred: \(String(describing: error), privacy: .public)")
         }
     }
 
