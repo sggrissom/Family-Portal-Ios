@@ -1,10 +1,8 @@
-import AuthenticationServices
 import SwiftUI
 
 struct LoginView: View {
     @Environment(AuthService.self) private var authService
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
     @State private var email = ""
     @State private var password = ""
 
@@ -25,7 +23,11 @@ struct LoginView: View {
                     .padding(.vertical, 8)
                 }
 
-                Section("Credentials") {
+                Section {
+                    SocialSignInButtons()
+                }
+
+                Section("Or with email") {
                     TextField("Email", text: $email)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
@@ -62,42 +64,6 @@ struct LoginView: View {
                         }
                     }
                     .disabled(email.isEmpty || password.isEmpty || authService.isLoading)
-                }
-
-                Section {
-                    Button {
-                        Task {
-                            await authService.loginWithGoogle()
-                        }
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if authService.isGoogleSigningIn {
-                                ProgressView()
-                            } else {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "g.circle.fill")
-                                        .font(.title2)
-                                    Text("Sign in with Google")
-                                        .bold()
-                                }
-                            }
-                            Spacer()
-                        }
-                    }
-                    .disabled(authService.isLoading)
-
-                    // Apple's own button rather than a lookalike: App Review checks that the
-                    // system-drawn one is what a Sign in with Apple app presents.
-                    SignInWithAppleButton(.signIn) { request in
-                        authService.configureAppleRequest(request)
-                    } onCompletion: { result in
-                        Task { await authService.loginWithApple(result) }
-                    }
-                    .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-                    .frame(height: 44)
-                    .disabled(authService.isLoading)
-                    .accessibilityLabel("Sign in with Apple")
                 }
 
                 Section {

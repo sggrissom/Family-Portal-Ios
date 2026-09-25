@@ -16,13 +16,15 @@ struct AppleSignInTests {
         let fields = try encodedFields(AppleTokenLoginRequestDTO(
             idToken: "identity-token",
             name: "Ada Lovelace",
-            authorizationCode: "auth-code"
+            authorizationCode: "auth-code",
+            familyCode: "ABCD1234"
         ))
 
-        #expect(fields.count == 3)
+        #expect(fields.count == 4)
         #expect(fields["idToken"] as? String == "identity-token")
         #expect(fields["name"] as? String == "Ada Lovelace")
         #expect(fields["authorizationCode"] as? String == "auth-code")
+        #expect(fields["familyCode"] as? String == "ABCD1234")
     }
 
     @Test("Forwards the authorization code the backend revokes the account with")

@@ -138,7 +138,7 @@ final class AuthService {
     }
 
     @MainActor
-    func loginWithGoogle() async {
+    func loginWithGoogle(familyCode: String = "") async {
         isLoading = true
         errorMessage = nil
 
@@ -148,7 +148,7 @@ final class AuthService {
             let response: LoginResponseDTO = try await APIClient.shared.request(
                 path: "api/login/google/token",
                 method: .post,
-                body: GoogleTokenLoginRequestDTO(idToken: idToken),
+                body: GoogleTokenLoginRequestDTO(idToken: idToken, familyCode: familyCode),
                 requiresAuth: false
             )
 
@@ -172,6 +172,12 @@ final class AuthService {
         isLoading = false
     }
 
+    /// Lets a screen that shows `errorMessage` start clean rather than showing another screen's failure.
+    @MainActor
+    func clearError() {
+        errorMessage = nil
+    }
+
     @MainActor
     func configureAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
         appleSignInService.configure(request)
@@ -180,7 +186,7 @@ final class AuthService {
     /// Takes the button's raw result so cancellation — which Apple reports as a failure — is
     /// classified in one place rather than in the view.
     @MainActor
-    func loginWithApple(_ result: Result<ASAuthorization, Error>) async {
+    func loginWithApple(_ result: Result<ASAuthorization, Error>, familyCode: String = "") async {
         isLoading = true
         isAppleSigningIn = true
         errorMessage = nil
@@ -198,7 +204,8 @@ final class AuthService {
                 body: AppleTokenLoginRequestDTO(
                     idToken: credential.identityToken,
                     name: credential.name,
-                    authorizationCode: credential.authorizationCode
+                    authorizationCode: credential.authorizationCode,
+                    familyCode: familyCode
                 ),
                 requiresAuth: false
             )

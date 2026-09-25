@@ -32,9 +32,35 @@ struct CreateAccountView: View {
         return nil
     }
 
+    private var trimmedFamilyCode: String {
+        familyCode.trimmingCharacters(in: .whitespaces)
+    }
+
     var body: some View {
         Form {
-            Section("Your Account") {
+            Section {
+                TextField("Invite Code (optional)", text: $familyCode)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.characters)
+            } header: {
+                Text("Family")
+            } footer: {
+                Text("Leave this blank to start a new family. Enter an invite code to join one that already exists.")
+            }
+
+            Section {
+                SocialSignInButtons(familyCode: trimmedFamilyCode)
+            }
+
+            if let socialError = authService.errorMessage {
+                Section {
+                    Text(socialError)
+                        .foregroundStyle(.red)
+                        .font(.callout)
+                }
+            }
+
+            Section("Or sign up with email") {
                 TextField("Name", text: $name)
                     .textContentType(.name)
 
@@ -49,16 +75,6 @@ struct CreateAccountView: View {
 
                 SecureField("Confirm Password", text: $confirmPassword)
                     .textContentType(.newPassword)
-            }
-
-            Section {
-                TextField("Invite Code (optional)", text: $familyCode)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.characters)
-            } header: {
-                Text("Family")
-            } footer: {
-                Text("Leave this blank to start a new family. Enter an invite code to join one that already exists.")
             }
 
             Section {
@@ -108,6 +124,7 @@ struct CreateAccountView: View {
                 .disabled(validationMessage != nil || isSubmitting)
             }
         }
+        .onAppear { authService.clearError() }
         .navigationTitle("Create Account")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -128,7 +145,7 @@ struct CreateAccountView: View {
             email: email.trimmingCharacters(in: .whitespaces),
             password: password,
             confirmPassword: confirmPassword,
-            familyCode: familyCode.trimmingCharacters(in: .whitespaces),
+            familyCode: trimmedFamilyCode,
             initialPerson: addSelfToFamily
                 ? InitialPerson(name: trimmedName, gender: gender, birthdate: birthdate)
                 : nil

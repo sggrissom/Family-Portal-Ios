@@ -568,6 +568,8 @@ nonisolated struct GetFamilyTimelineResponseDTO: Codable, Sendable {
 
 nonisolated struct GoogleTokenLoginRequestDTO: Encodable, Sendable {
     let idToken: String
+    /// An invite code to join with; empty means none.
+    let familyCode: String
 }
 
 /// `AppleTokenLoginRequest` in backend/apple_auth.go. `name` is only ever non-empty on a user's
@@ -578,6 +580,8 @@ nonisolated struct AppleTokenLoginRequestDTO: Encodable, Sendable {
     /// Exchanged server-side for the refresh token account deletion revokes, as App Store Review
     /// Guideline 5.1.1(v) requires. The server treats an empty one as "nothing to exchange".
     let authorizationCode: String
+    /// An invite code to join with; empty means none.
+    let familyCode: String
 }
 
 nonisolated struct AddPersonRequestDTO: Encodable, Sendable {
