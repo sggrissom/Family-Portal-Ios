@@ -436,7 +436,7 @@ actor APIClient {
             return
         }
 
-        try? await refreshAccessToken()
+        _ = try? await refreshAccessToken()
     }
 
     /// Coalesces overlapping refreshes onto one round-trip. The server rotates the refresh token on every use, so two in flight can each invalidate the other's credential.

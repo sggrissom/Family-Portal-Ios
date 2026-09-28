@@ -133,7 +133,7 @@ final class PhotoImageCache {
         var outcome = await fetch(url)
         if case .unauthorized = outcome {
             // A 401 despite the check above means the token went stale inside the margin. One forced refresh and retry.
-            try? await apiClient.refreshAccessToken()
+            _ = try? await apiClient.refreshAccessToken()
             outcome = await fetch(url)
         }
 

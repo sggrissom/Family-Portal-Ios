@@ -166,7 +166,7 @@ struct AddMeasurementView: View {
     private func helper(for type: MeasurementType) -> some View {
         if let person {
             let last = Checkup.latest(of: person.growthData, type: type)
-            let text = Checkup.describeLast(last, ageMonthsThen: last.flatMap(MeasurementConversion.ageMonths(of:)), now: Date())
+            let text = Checkup.describeLast(last, ageMonthsThen: last.flatMap { MeasurementConversion.ageMonths(of: $0) }, now: Date())
             if !text.isEmpty {
                 Text(text)
             }

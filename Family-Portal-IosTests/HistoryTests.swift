@@ -41,14 +41,14 @@ struct HistoryTests {
             ]))
         }
 
-        func view(_ filters: HistoryFilters = HistoryFilters()) -> HistoryContent {
+        func view(_ filters: HistoryFilters? = nil) -> HistoryContent {
             History.view(
                 people: [clara, jake],
                 milestones: [tagged, old],
                 growth: [growth],
                 photos: [shared, solo, untagged],
                 appearances: [appearance],
-                filters: filters,
+                filters: filters ?? HistoryFilters(),
                 today: "2026-09-27"
             )
         }

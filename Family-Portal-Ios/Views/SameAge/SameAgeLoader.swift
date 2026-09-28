@@ -49,9 +49,9 @@ final class SameAgeLoader {
     private let apiClient: APIClient
     private let cache: SameAgeCache
 
-    init(apiClient: APIClient = .shared, cache: SameAgeCache = .shared) {
+    init(apiClient: APIClient = .shared, cache: SameAgeCache? = nil) {
         self.apiClient = apiClient
-        self.cache = cache
+        self.cache = cache ?? .shared
     }
 
     /// `ageMonths` nil asks for the anchor's current age — or, with no anchor (0), the youngest own child's.

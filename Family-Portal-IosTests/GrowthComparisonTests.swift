@@ -6,7 +6,7 @@ import Testing
 @Suite("Growth comparison")
 struct GrowthComparisonTests {
 
-    private static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
+    nonisolated private static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
         Calendar(identifier: .gregorian).date(from: DateComponents(year: year, month: month, day: day))!
     }
 
@@ -17,7 +17,7 @@ struct GrowthComparisonTests {
     private static let mia = UUID()
     private static let ben = UUID()
     private static let miaBorn = date(2016, 4, 11)
-    private static let benBorn = date(2019, 8, 1)
+    nonisolated private static let benBorn = date(2019, 8, 1)
 
     /// Mia measured 30 in at twelve months; the question is always how Ben stood against that.
     private static let miaAtOne = sample(30, .inches, on: date(2017, 4, 11))

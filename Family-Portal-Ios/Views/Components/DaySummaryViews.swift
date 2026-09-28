@@ -71,7 +71,7 @@ struct DaySummaryView: View {
 
     private func checkupRow(_ checkup: DayCheckup) -> some View {
         let person = people[checkup.personId]
-        let values = [checkup.height, checkup.weight].compactMap { $0 }.map(MeasurementConversion.format)
+        let values = [checkup.height, checkup.weight].compactMap { $0 }.map { MeasurementConversion.format($0) }
         let who = (subjectId == checkup.personId ? nil : person.map(firstName))
         let lead = who.map { "\($0) \(Copy.home.checkup)" } ?? Copy.home.checkupTitle
         let extra = checkup.extra > 0 ? " (+\(checkup.extra))" : ""
