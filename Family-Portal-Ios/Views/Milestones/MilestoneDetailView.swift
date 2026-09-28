@@ -56,6 +56,8 @@ struct MilestoneDetailSheetView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
+                    PersonSameAgeStrip(person: milestone.person, date: milestone.date)
+
                     // Given a heading because the chip up top already shows the milestone's *category* behind a tag-shaped glyph.
                     TagChipsView(tagRemoteIds: milestone.tagRemoteIds, title: "Tags")
 

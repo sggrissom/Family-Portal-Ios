@@ -88,6 +88,7 @@ struct MeasurementInsightsView: View {
             facts
             percentileSection
             familySection
+            PersonSameAgeStrip(person: measurement.person, date: measurement.date)
         }
     }
 

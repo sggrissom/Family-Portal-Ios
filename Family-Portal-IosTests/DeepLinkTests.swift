@@ -17,6 +17,11 @@ struct DeepLinkTests {
         ("/history", DeepLink.history),
         // Legacy paths land on their replacements, as `appNav.legacyRedirect` sends them on the web.
         ("/family-timeline", DeepLink.history),
+        ("/growth", DeepLink.growth),
+        ("/family-chart", DeepLink.growth),
+        ("/same-age?age=40m&from=7", DeepLink.sameAge(ageMonths: 40, from: 7)),
+        ("/same-age", DeepLink.sameAge(ageMonths: nil, from: 0)),
+        ("/compare", DeepLink.sameAge(ageMonths: nil, from: 0)),
         ("/profile/7", DeepLink.person(remoteId: 7)),
         ("/profile/7?tab=growth", DeepLink.person(remoteId: 7, tab: .growth)),
         // Legacy: a person's activities are now a tab of their page.

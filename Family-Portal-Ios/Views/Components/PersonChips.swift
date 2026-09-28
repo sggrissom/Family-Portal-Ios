@@ -12,19 +12,23 @@ struct PersonChips: View {
     private let selection: Selection
     /// People the row may not offer — nobody, usually.
     private let excluding: Set<UUID>
+    /// When set, the only people the row offers — the people in a photo.
+    private let only: Set<UUID>?
 
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
     @Environment(AuthService.self) private var authService: AuthService?
 
-    init(selection: Binding<UUID?>, excluding: Set<UUID> = []) {
+    init(selection: Binding<UUID?>, excluding: Set<UUID> = [], only: Set<UUID>? = nil) {
         self.selection = .single(selection)
         self.excluding = excluding
+        self.only = only
     }
 
-    init(selection: Binding<Set<UUID>>, excluding: Set<UUID> = []) {
+    init(selection: Binding<Set<UUID>>, excluding: Set<UUID> = [], only: Set<UUID>? = nil) {
         self.selection = .multiple(selection)
         self.excluding = excluding
+        self.only = only
     }
 
     static func ordered(_ people: [Person], relations: [PersonRelation], ownFamilyId: Int?) -> [Person] {
@@ -33,7 +37,7 @@ struct PersonChips: View {
 
     var body: some View {
         let ordered = Self.ordered(people, relations: relations, ownFamilyId: authService?.currentUser?.familyId)
-            .filter { !excluding.contains($0.id) }
+            .filter { !excluding.contains($0.id) && (only?.contains($0.id) ?? true) }
         let labels = FamilyGroups.chipLabels(ordered)
 
         ScrollView(.horizontal, showsIndicators: false) {
