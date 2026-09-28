@@ -31,6 +31,15 @@ final class ActivityService {
         )
     }
 
+    /// Home. Cached like every activity read: the last good dashboard shows at once, marked stale when offline, and is replaced when a fetch lands.
+    func dashboard(today: String) -> ActivityRead<GetDashboardResponseDTO> {
+        read(
+            .getDashboard,
+            payload: TodayRequestDTO(today: today),
+            key: ActivitySnapshotKey(.getDashboard)
+        )
+    }
+
     /// Events whose results can be entered now, for the add sheet's Result rows. `today` is the device's day.
     func openEvents(today: String) -> ActivityRead<ListOpenEventsResponseDTO> {
         read(
