@@ -38,14 +38,24 @@ enum AppRoute: Hashable {
     case photoSet(ids: [UUID], title: String)
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
     case event(id: Int, name: String)
+
+    /// The account menu's screens. They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back.
+    var isBorrowed: Bool {
+        switch self {
+        case .history, .chat, .activities, .settings: return true
+        default: return false
+        }
+    }
 }
 
 /// Which tab is showing and what each tab's stack holds. App-scoped and in the environment, so the account menu, the add flow and the deep-link router can all push onto whatever tab the user is standing on.
 @MainActor
 @Observable
 final class AppNavigator {
-    var selectedTab: MainTab = .home
+    private(set) var selectedTab: MainTab = .home
     private var paths: [MainTab: NavigationPath] = [:]
+    /// How deep each tab's own stack was when a borrowed screen (`AppRoute.isBorrowed`) went on top of it. Leaving the tab pops back to that depth, so coming back to Growth later finds Growth — and whatever was opened from it — not the History opened over it an hour ago.
+    private var borrowedFrom: [MainTab: Int] = [:]
 
     /// History's filters and the Photos tab's, held here — above every navigation stack — so opening a record and coming back finds them as they were.
     var historyFilters = HistoryFilters()
@@ -56,8 +66,21 @@ final class AppNavigator {
         var filter = PhotoFilter()
         filter.personLocalIds = [personId]
         photoFilter = filter
-        paths[.photos] = NavigationPath()
-        selectedTab = .photos
+        popToRoot(.photos)
+        select(.photos)
+    }
+
+    /// Switches tabs, handing back whatever the tab being left had borrowed.
+    func select(_ tab: MainTab) {
+        guard tab != selectedTab else { return }
+        returnBorrowed(on: selectedTab)
+        selectedTab = tab
+    }
+
+    private func returnBorrowed(on tab: MainTab) {
+        guard let depth = borrowedFrom.removeValue(forKey: tab), var path = paths[tab], path.count > depth else { return }
+        path.removeLast(path.count - depth)
+        paths[tab] = path
     }
 
     /// Photos with faces to review, from `GetFaceReview`; nil when face tagging is off or the count has not arrived.
@@ -66,25 +89,42 @@ final class AppNavigator {
     func path(for tab: MainTab) -> Binding<NavigationPath> {
         Binding(
             get: { self.paths[tab] ?? NavigationPath() },
-            set: { self.paths[tab] = $0 }
+            set: { path in
+                self.paths[tab] = path
+                // Backed out of the borrowed screens by hand: nothing left to hand back.
+                if let depth = self.borrowedFrom[tab], path.count <= depth {
+                    self.borrowedFrom[tab] = nil
+                }
+            }
         )
     }
 
     /// Pushes onto the current tab's stack. History, Chat and Activities are pushed rather than switched to: they are not tabs.
     func push(_ route: AppRoute) {
+        let path = paths[selectedTab, default: NavigationPath()]
+        if route.isBorrowed, borrowedFrom[selectedTab] == nil {
+            borrowedFrom[selectedTab] = path.count
+        }
         paths[selectedTab, default: NavigationPath()].append(route)
     }
 
     /// Replaces the current tab's stack — a link asks to be looking at something, not to be several screens deep with it on top.
     func show(_ routes: [AppRoute], on tab: MainTab? = nil) {
-        if let tab { selectedTab = tab }
+        if let tab { select(tab) }
         var path = NavigationPath()
         for route in routes { path.append(route) }
         paths[selectedTab] = path
+        borrowedFrom[selectedTab] = routes.firstIndex(where: \.isBorrowed)
     }
 
     func popToRoot(_ tab: MainTab) {
         paths[tab] = NavigationPath()
+        borrowedFrom[tab] = nil
+    }
+
+    /// How many screens deep a tab's stack is.
+    func depth(of tab: MainTab) -> Int {
+        paths[tab]?.count ?? 0
     }
 
     func refreshFaceReviewCount(apiClient: APIClient = .shared) async {

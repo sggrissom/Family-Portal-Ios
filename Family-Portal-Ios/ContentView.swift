@@ -49,7 +49,7 @@ struct ContentView: View {
                     // A second tap on the current tab goes back to its root, as tab bars do.
                     navigator.popToRoot(tab)
                 } else {
-                    navigator.selectedTab = tab
+                    navigator.select(tab)
                 }
             }
         )

@@ -148,7 +148,8 @@ struct SameAgeStrip: View {
     @State private var loader = SameAgeLoader()
 
     var body: some View {
-        Group {
+        // A container, not a `Group`: a `Group` hands its modifiers to its children, and before the answer arrives there are none, so the `.task` that fetches it would never run.
+        VStack(alignment: .leading, spacing: 0) {
             if let response = loader.response {
                 let others = response.rows.filter { $0.person.id != anchorRemoteId && !$0.isEmpty }
                 if !(hideWhenEmpty && others.isEmpty) {
