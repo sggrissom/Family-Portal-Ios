@@ -65,6 +65,7 @@ struct SyncDTODecodingTests {
         let person = personFromDTO(try APIClient.decode(PersonDTO.self, from: Data(json.utf8)))
 
         #expect(person.remoteId == "12")
+        #expect(person.familyRemoteId == 7)
         #expect(person.name == "Rowan")
         #expect(person.relationship == "daughter")
         #expect(person.gender == .other)

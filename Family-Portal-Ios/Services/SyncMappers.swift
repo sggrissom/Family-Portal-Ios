@@ -59,16 +59,11 @@ func unitFromString(_ value: String) -> MeasurementUnit {
 
 // MARK: - Date Formatting
 
-private let apiDateFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy-MM-dd"
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.timeZone = TimeZone(secondsFromGMT: 0)
-    return formatter
-}()
-
-func dateToAPIString(_ date: Date) -> String {
-    apiDateFormatter.string(from: date)
+/// The calendar day a write sends, as `YYYY-MM-DD`.
+/// Two kinds of `Date` reach here. One the server sent is midnight UTC of its day, and reading it in any other zone would move it — a US evening reads it as the day before. One picked on this device is an instant somewhere in the family's own day ("Today" is now, a picked date is local midnight), and reading *that* in UTC is the bug the redesign plan names: an evening entry in the US goes out dated tomorrow. So a date sitting exactly on a UTC midnight keeps its UTC day and anything else is read in the device's zone.
+/// The one ambiguous case — a device-picked instant that is also exactly a UTC midnight — is local midnight in a zone at UTC+0, where both readings agree.
+func dateToAPIString(_ date: Date, in timeZone: TimeZone = .current) -> String {
+    date.dayKey(in: timeZone)
 }
 
 private func normalizeBirthdayDate(_ date: Date) -> Date {
@@ -82,6 +77,7 @@ private func normalizeBirthdayDate(_ date: Date) -> Date {
 
 func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
     person.remoteId = String(dto.id)
+    person.familyRemoteId = dto.familyId == 0 ? nil : dto.familyId
     person.name = dto.name
     person.gender = intToGender(dto.gender)
     person.relationship = nonEmpty(dto.relationship)

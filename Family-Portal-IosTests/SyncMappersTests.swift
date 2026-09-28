@@ -69,45 +69,41 @@ struct SyncMappersTests {
 
     // MARK: - dateToAPIString
 
-    @Test("Formats as a UTC calendar day")
-    func dateToAPIStringUsesUTC() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        var components = DateComponents()
-        components.year = 2026
-        components.month = 3
-        components.day = 15
-        components.hour = 12
-        let noon = calendar.date(from: components)!
+    private static let chicago = TimeZone(identifier: "America/Chicago")!
+    private static let sydney = TimeZone(identifier: "Australia/Sydney")!
 
-        #expect(dateToAPIString(noon) == "2026-03-15")
+    private static func instant(_ zone: TimeZone, _ year: Int, _ month: Int, _ day: Int, hour: Int = 0, minute: Int = 0) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
     }
 
-    @Test("Late-evening US times don't roll back a day")
-    func dateToAPIStringNearMidnight() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        var components = DateComponents()
-        components.year = 2026
-        components.month = 3
-        components.day = 15
-        components.hour = 23
-        components.minute = 30
-        let lateEvening = calendar.date(from: components)!
+    @Test("A date the server sent keeps its own day in every zone")
+    func serverDatesKeepTheirUTCDay() {
+        let serverDate = Self.instant(.gmt, 2026, 3, 15)
 
-        #expect(dateToAPIString(lateEvening) == "2026-03-15")
+        #expect(dateToAPIString(serverDate, in: Self.chicago) == "2026-03-15")
+        #expect(dateToAPIString(serverDate, in: Self.sydney) == "2026-03-15")
+    }
+
+    @Test("An evening entry in the US is sent as that evening's day, not the UTC one")
+    func eveningEntriesUseTheLocalDay() {
+        // 21:30 in Chicago is already the 16th in UTC.
+        let evening = Self.instant(Self.chicago, 2026, 3, 15, hour: 21, minute: 30)
+
+        #expect(dateToAPIString(evening, in: Self.chicago) == "2026-03-15")
+    }
+
+    @Test("A local midnight east of UTC is not sent as the day before")
+    func localMidnightEastOfUTC() {
+        let midnight = Self.instant(Self.sydney, 2026, 3, 15)
+
+        #expect(dateToAPIString(midnight, in: Self.sydney) == "2026-03-15")
     }
 
     @Test("Formats a single-digit month and day with leading zeros")
     func dateToAPIStringPadsComponents() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        var components = DateComponents()
-        components.year = 2026
-        components.month = 1
-        components.day = 5
-        let date = calendar.date(from: components)!
-
-        #expect(dateToAPIString(date) == "2026-01-05")
+        #expect(dateToAPIString(Self.instant(.gmt, 2026, 1, 5)) == "2026-01-05")
+        #expect(dateToAPIString(Self.instant(Self.chicago, 2026, 1, 5, hour: 9), in: Self.chicago) == "2026-01-05")
     }
 }

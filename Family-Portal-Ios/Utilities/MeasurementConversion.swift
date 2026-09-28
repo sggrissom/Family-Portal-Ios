@@ -155,6 +155,53 @@ enum MeasurementConversion {
         return "\(pounds) lb \(oneDecimal(ounces)) oz"
     }
 
+    // MARK: - Feet and inches
+
+    private static let inchesPerFoot = 12.0
+    private static let feetAndInchesMinAgeMonths = 24.0
+    private static let feetAndInchesMinInches = 36.0
+
+    /// Inches read as feet and inches from two years old; with no age to go on, from three feet. The web's `prefersFtIn`.
+    static func prefersFeetAndInches(_ value: Double, unit: MeasurementUnit, ageMonths: Double? = nil) -> Bool {
+        guard unit == .inches else { return false }
+        if let ageMonths, ageMonths >= 0 {
+            return ageMonths >= feetAndInchesMinAgeMonths
+        }
+        return value >= feetAndInchesMinInches
+    }
+
+    /// "3 ft 1.75 in", with the inches to two places as `formatFtIn` has them.
+    static func formatFeetAndInches(_ inches: Double) -> String {
+        var feet = Int((inches / inchesPerFoot).rounded(.down))
+        var rest = ((inches - Double(feet) * inchesPerFoot) * 100).rounded() / 100
+        if rest >= inchesPerFoot {
+            feet += 1
+            rest -= inchesPerFoot
+        }
+        if feet == 0 { return "\(twoDecimals(rest)) in" }
+        if rest == 0 { return "\(feet) ft" }
+        return "\(feet) ft \(twoDecimals(rest)) in"
+    }
+
+    /// The web's `formatMeasurement`: pounds and ounces for a baby, feet and inches from two, otherwise the value and its unit. Used where the app repeats the web's own sentences — the checkup's "last:" helper — so both say the same thing.
+    static func formatLikeWeb(_ value: Double, unit: MeasurementUnit, ageMonths: Double? = nil) -> String {
+        if prefersPoundsAndOunces(value, unit: unit, ageMonths: ageMonths) {
+            return formatPoundsAndOunces(value)
+        }
+        if prefersFeetAndInches(value, unit: unit, ageMonths: ageMonths) {
+            return formatFeetAndInches(value)
+        }
+        return "\(twoDecimals(value)) \(abbreviation(unit))"
+    }
+
+    static func twoDecimals(_ value: Double) -> String {
+        let rounded = (value * 100).rounded() / 100
+        var text = String(format: "%.2f", rounded)
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
+
     static func oneDecimal(_ value: Double) -> String {
         let rounded = (value * 10).rounded() / 10
         return rounded.truncatingRemainder(dividingBy: 1) == 0

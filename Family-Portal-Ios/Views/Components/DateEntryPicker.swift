@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The three ways the backend lets a date be given — `inputType` is `"today" | "date" | "age"`.
+/// How a date is given. Whatever the mode, the write sends the resolved **local** calendar day as `inputType: "date"` (see `dateToAPIString`) — never `"today"`, which the server reads as its own UTC day.
 enum DateEntryMode: String, CaseIterable, Identifiable {
     case today
     case date
