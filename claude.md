@@ -23,32 +23,43 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── MobileVersionService.swift
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
+│   ├── Shell/         AppNavigator (tabs, per-tab paths, AppRoute, filters),
+│   │                  AddFlow (the one add sheet), AccountMenu (account
+│   │                  button + TabRoot)
+│   ├── Home/          HomeView (GetDashboard: strip, nudges, in season,
+│   │                  on this day, recent)
+│   ├── History/       HistoryView (day summaries by month)
+│   ├── Growth/        GrowthRootView (family age chart)
+│   ├── SameAge/       SameAgeView, SameAgeRows (+ strips), SameAgeLoader
 │   ├── Auth/          LoginView, CreateAccountView, ForgotPasswordView,
 │   │                  UpdateRequiredView
-│   ├── Family/        FamilyMembersView, AddPersonView, EditPersonView,
-│   │                  PersonDetailView, PersonRelationsSection, TimelineView,
+│   ├── Family/        AddPersonView, EditPersonView, PersonDetailView,
+│   │                  PersonTabs (Story/Photos/Growth), PersonRelationsSection,
 │   │                  ProfilePhotoPickerView
 │   ├── Photos/        PhotoGalleryView, PhotoDetailView, TagPeopleView,
-│   │                  PhotoRoute, PhotoFilter, PhotoFilterView
-│   ├── Measurements/  MeasurementListView, AddMeasurementView,
-│   │                  MeasurementDetailView, EditMeasurementView,
-│   │                  GrowthChartView
-│   ├── Milestones/    MilestoneListView, AddMilestoneView,
-│   │                  MilestoneDetailView, EditMilestoneView,
-│   │                  MilestonePhotoPickerView
+│   │                  PhotoRoute, PhotoFilter, PhotoFilterView,
+│   │                  PhotoBatchFormView
+│   ├── Measurements/  AddMeasurementView (checkup), CheckupResultView,
+│   │                  MeasurementDetailView, EditMeasurementView
+│   ├── Milestones/    AddMilestoneView, MilestoneDetailView,
+│   │                  EditMilestoneView, MilestonePhotoPickerView
+│   ├── Activities/    ActivitiesRootView, SeasonView, CompetitionView, …
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
 │   │                  DateSeparatorView, UserAvatarView
 │   ├── Settings/      SettingsView, FamilyManagementView, FamilyInfoView,
 │   │                  FamilyMembershipView
-│   └── Components/    PersonAvatarView, PersonRowView, PersonPickerRow,
-│                      MeasurementRowView, MilestoneRowView, PhotoThumbnailView,
-│                      RemotePhotoView, SyncStatusView, FlowLayout, ZoomableView,
-│                      DateEntryPicker, TagChipsView, TagPickerView,
-│                      FamilyRosterSections, CoAnchorPicker, QuickAddMenu,
-│                      DetailSheetComponents, RecordStyle
+│   └── Components/    PersonAvatarView, PersonRowView, PersonChips,
+│                      WhenControl, MeasurementRowView, MilestoneRowView,
+│                      PhotoThumbnailView, RemotePhotoView, SyncStatusView,
+│                      FlowLayout, ZoomableView, TagChipsView, TagPickerView,
+│                      FamilyRosterSections, CoAnchorPicker, AgeChartView,
+│                      DaySummaryViews, DetailSheetComponents, RecordStyle
 └── Utilities/
     ├── Constants.swift, AgeCalculator.swift, PreviewData.swift
+    ├── Copy.swift                    # every user-facing string the web has words for (copy.ts)
+    ├── WhenEntry, Checkup, AgeSteps, DaySummary, Story, HistoryFilter,
+    │   AgeChart, FamilyStrip          # ports of the web's frontend/lib grouping, with its fixtures
     ├── RelationGraph.swift           # walks the stored edges
     ├── FamilyGroups.swift            # bands the roster by generation
     ├── AppLog.swift                  # OSLog categories
@@ -58,7 +69,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 
 ## Architecture
 
-- **UI**: SwiftUI, tab-based (Family, Timeline, Photos, Settings)
+- **UI**: SwiftUI, tab-based: Home · Photos · **+** · Growth (the web's phone bar without Chat). **+** presents the add sheet; History, Chat, Activities and Settings are pushed from the account menu onto the current tab. See `redesign-plan.md`
 - **State**: `@Observable` classes, `@Query` for SwiftData reads
 - **Persistence**: SwiftData with models: Family, Person, PersonRelation, GrowthData, Milestone, Photo, User, ChatMessage, FamilyTag
 - **Networking**: `APIClient` actor with JWT auth, auto-refresh on 401
@@ -136,7 +147,7 @@ types, shared with previews and tests.
 ### FamilyMembershipService
 Membership self-service against `backend/membership_procs.go`: `ListFamilyMembers`, `RemoveFamilyMember`, `LeaveFamily`, `RotateInviteCode`. Takes an injectable `APIClient` (`init(apiClient:)`, defaulting to `.shared`) the way `PhotoSyncService` does.
 
-- *Members* are user accounts; `FamilyManagementView` and `FamilyMembersView` list `Person` records. The two sets never line up — a child is a person and never a member
+- *Members* are user accounts; `FamilyManagementView` and Home's family strip list `Person` records. The two sets never line up — a child is a person and never a member
 - Deliberately **not** queued. A membership change is a permission change: it means nothing until the server agrees, and a queued "leave family" replayed hours later would report a success that never happened. Online only, like `JoinFamily`
 - These procs answer refusals as HTTP **200** with `{ success: false, error: … }` (owner-only removal, leaving as the last member), so the service lifts the message into `MembershipError.refused` — a status-code check alone would report a leave that did not happen
 - Go's `omitempty` does nothing for a struct field, so `LeaveFamilyResponse.auth` arrives zero-valued when there is nothing to say. `leaveFamily` returns nil rather than handing the app a user with id 0
@@ -289,8 +300,8 @@ network answers.
 ### Photo gallery (`PhotoGalleryView`, `PhotoImporter`, `PhotoFilter`, `PhotoFilterView`)
 
 - The import itself is `PhotoImporter` (`@Observable`, `@MainActor`), not the
-  gallery: the quick-add menu offers photos from the Family and Timeline tabs
-  too, and all three need the same run. Its dependencies — context, sync service,
+  gallery: there is one instance, held by `AddFlow`, so every **+** imports the
+  same way and one progress bar covers every batch. Its dependencies — context, sync service,
   error presenter — arrive **on the call**, because a view's `@State` is built
   before its `@Environment` can be read, so `@State private var importer =
   PhotoImporter()` is the whole wiring
@@ -332,70 +343,51 @@ network answers.
 
 ### Adding records
 
-- `AddMilestoneView` and `AddMeasurementView` take `personId: UUID?`. **Nil means
-  the sheet asks**, which is what lets anything open one without already standing
-  on somebody — the whole reason adding used to be four taps deep
-- Neither can narrow its `@Query` to the person any more: a predicate is fixed at
-  `init` and cannot follow a `@State` selection, so both fetch the roster and pick
-  in memory. A household is small, and `TimelineView` and `AddPersonView` already
-  query all of it
-- The **For** row (`PersonPickerRow`) is shown whether or not the caller named
-  somebody, so a sheet opened on the wrong person is fixable in place. Its
-  "Choose someone" option exists only while nothing is chosen — there is nothing
-  to go back to, since neither sheet can save without a person
-- `DateEntryPicker` is given `.id(person?.id)`: its age steppers resolve against
-  the birthday it was handed, so a picker carried over to somebody else would hold
-  a date worked out from the wrong birthday. A new person gets a fresh picker back
-  on "Today"
-- The milestone sheet clears its photo selection when the person changes. `save()`
-  filters the selection through `photoChoices` and so could never *send* a stale
-  id, but the count beside "Attach Photos" would go on claiming them
-- The `+` on the **Family** and **Timeline** roots is `QuickAddMenu`, hung there
-  by the `.quickAdd(people:)` modifier — one modifier rather than a copy per tab,
-  so the two cannot offer different things or word them differently. It carries
-  the three sheets, the photo picker and the import's progress bar with it
-- Milestone and measurement are *about* somebody, so they are **disabled** on an
-  empty roster rather than opening a sheet that could never save. Photos and
-  person are not
-- Photos is the one choice that is not a sheet: it is `.photosPicker`, handed to
-  the same `PhotoImporter` the gallery uses, so a photo added from the Family tab
-  imports exactly as one added from Photos
-- **The Photos and Activities tabs keep the single-purpose `+` they have.** Each
-  already opens the one thing that tab adds, and a menu there would spend a tap on
-  the commonest action to reach three that have a home elsewhere
-- `QuickAddDefaults` decides what a sheet opens with. The person is: the one last
-  written for **if the roster still holds them**, else the only person, else the
-  first of the youngest generation — `FamilyGroups` bands from the bottom, so its
-  last generation is always the "Children" one. A household that has stated no
-  relationships has no youngest band and is **asked**
+The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
+
+- **One add sheet.** `AddFlow` is app-scoped (like `ErrorPresenter`) and presented
+  from the shell, so every **+** — the tab bar's, a person page's — opens the same
+  sheet: "Who is this for?" chips, Photos · Measurement · Milestone, and up to two
+  "Result — {event}" rows from `ListOpenEvents` (which open the event's page on the
+  current tab). The sheet closes before its form opens; forms are sheets over the
+  origin, so Done returns there
+- **Explicit context, never silent inheritance.** A person is preselected only from
+  the screen underneath or `QuickAddDefaults`' remembered person, always as a
+  visible chip that a tap clears. The chosen person is written back as the
+  remembered one. Photos from the global **+** start with nobody tagged
+- `PersonChips` orders people with `FamilyGroups.chipOrder` (children first, then
+  older generations, unlinked, then linked households — `Person.familyRemoteId`)
+- `WhenControl` ("Today ▾": Today, Yesterday, Pick a date…, By age…) is keyed with
+  `.id(person?.id)`: an age resolves against the birthday it was handed.
+  `WhenEntry.resolvedDate` turns an age into a date on the device, and every write
+  sends the **local** calendar day (`dateToAPIString` / `Date.dayKey`) as
+  `inputType: "date"` — never `"today"`, which is the server's UTC day
+- **Measurement is one checkup** (`Checkup`): height and weight together, either
+  blank. Units are remembered per person, then per family (`QuickAddDefaults.unitPrefs`),
+  and a unit is only ever used for a type it can measure. Save queues one
+  `AddGrowthData` per field and pushes `CheckupResultView` — Saved / Waiting to
+  sync from `remoteId`, a field whose enqueue failed retried on its own, **Add
+  another measurement** (person cleared, date kept) and Done
+- **Milestone:** chips, "What happened?", category chips, When, and an "Add
+  photos / tags" disclosure. Save shows the milestone in the same sheet
+- **Photos upload first.** The pick goes straight to `PhotoImporter`; the batch
+  form (`PhotoBatchFormView`) opens over the import with Who's in these?, Caption
+  and Tags for the whole batch and each photo's date and status.
+  `PhotoImporter` reports when a file had no capture date ("No date in photo:
+  using today"). Done queues `AddPeopleToPhoto`, `UpdatePhotoTags` and
+  `UpdatePhoto` (`inputType: "keep"` unless the date changed) behind each
+  upload, including for photos still being read; it never cancels an upload
+- Milestone and measurement are **disabled** on an empty roster rather than
+  opening a form that could never save
 - An unrecognised remembered id resolves to *nobody*, never to somebody near it: a
-  local id outlives an account erase, and a record landing on whoever inherited
-  the slot would be silent and wrong. `LocalDataReset` therefore needs no sweep
-  for it
-- The remembered unit is only used for a type it can measure. A height last taken
-  in inches says nothing about how a family weighs anybody, and the sheet must
-  never open on "12 inches" of weight
-- **Save and Add Another** on the measurement sheet keeps the person and the date
-  and clears only the value: height and weight are taken in the same minute for
-  the same person, and that was otherwise two full trips through the sheet
-- Standing on a person is half the answer, so `PersonDetailView` carries its own
-  `+` (`.quickAdd(for:)`) and every roster row a `.contextMenu`, both offering
-  measurement and milestone with the person already filled in. The person `+` is
-  **not** gated on `allowsManagementActions`: recording a measurement is the
-  day-to-day use of that screen, not management of the record
-- The roster's sheet is owned by the **host** (`FamilyMembersView`,
-  `FamilyManagementView`), not by `FamilyRosterSections`: a `.sheet` attached
-  inside the row `ForEach` would be one per row bound to the same state, and every
-  one of them would try to present it
-- Photos imported from a person's `+` are **tagged with that person**, queued
-  after the upload so the queue's dependency gate holds the tag until the photo
-  has a remote id. Their screen lists the photos they are tagged in, so an
-  untagged one would look like nothing had happened
+  local id outlives an account erase. `LocalDataReset` therefore needs no sweep
+- A roster row's long press opens the forms directly (`AddFlow.open`), with the
+  person already chosen
 
 ### Viewing records
 
-- Tapping a milestone or a measurement anywhere — the list, the timeline, the
-  person screen — opens a **view** sheet, not the editor. These records are read
+- Tapping a milestone or a measurement anywhere — History, a person's Story or
+  Growth tab, Home — opens a **view** sheet, not the editor. These records are read
   many times and changed almost never, so the editor sits one step further in,
   behind the sheet's Edit button
 - `MilestoneDetailSheetView` and `MeasurementDetailSheetView` are built from the

@@ -14,6 +14,22 @@ version wins, and the difference is noted. The one intentional difference
 between the app and the web is that Chat is not a top-level destination in the
 app, though it is on the web.
 
+## Status — 27 September 2026
+
+All seven phases are built, one stacked PR each (#70–#76), each building and
+passing its tests in CI. Where the build differs from the text below:
+
+- The add sheet's Result rows open the event's page (`CompetitionView`), since
+  `ResultsEditorView` is per appearance and there is no per-event results form.
+- Story follows the web as built: overview plus age chapters, without the Jump
+  to age / All–Milestones / search / order controls the text lists.
+- History renders every year from the store and fetches appearances in one
+  unwindowed call, since there is no year paging to follow.
+- Home's Recent is built from the store over the dashboard's window.
+- Offline Home (open question 4): a cached dashboard from an earlier day holds
+  back Nudges, In season and On this day.
+- Same age's direct entry is years and months; there is no weeks entry.
+
 ---
 
 ## 1. Where the app stands
