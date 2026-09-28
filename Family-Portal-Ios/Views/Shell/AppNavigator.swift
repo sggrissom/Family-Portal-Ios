@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 /// The tab bar's identities — the web's phone bar without Chat. A raw value rather than an index, so a tab inserted later cannot silently change what a deep link selects.
