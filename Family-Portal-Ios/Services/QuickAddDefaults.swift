@@ -9,6 +9,7 @@ struct QuickAddDefaults {
     private static let personKey = "com.familyrecord.quickAdd.personId"
     private static let measurementTypeKey = "com.familyrecord.quickAdd.measurementType"
     private static let measurementUnitKey = "com.familyrecord.quickAdd.measurementUnit"
+    private static let unitPrefsKey = "com.familyrecord.quickAdd.unitPrefs"
 
     private let defaults: UserDefaults
 
@@ -47,6 +48,36 @@ struct QuickAddDefaults {
             return type.defaultUnit
         }
         return remembered
+    }
+
+    // MARK: - Checkup units
+
+    /// Units per person, then for the family — what the checkup opens on. Keyed by local person id, like the remembered person, so an erase needs no sweep: an id nobody holds any more is simply never asked for.
+    var unitPrefs: UnitPrefs {
+        guard let data = defaults.data(forKey: Self.unitPrefsKey),
+              let prefs = try? JSONDecoder().decode(UnitPrefs.self, from: data) else {
+            return legacyUnitPrefs
+        }
+        return prefs
+    }
+
+    func saveUnitPrefs(_ prefs: UnitPrefs) {
+        guard let data = try? JSONEncoder().encode(prefs) else { return }
+        defaults.set(data, forKey: Self.unitPrefsKey)
+    }
+
+    /// A device that only ever used the one-type sheet remembered a single unit. It seeds the family default for the type it can measure — never the other, for the reason `unit(for:)` gives.
+    private var legacyUnitPrefs: UnitPrefs {
+        var prefs = UnitPrefs()
+        guard let raw = defaults.string(forKey: Self.measurementUnitKey),
+              let unit = MeasurementUnit(rawValue: raw) else { return prefs }
+        switch unit {
+        case .centimeters: prefs.lastHeight = .centimeters
+        case .inches: prefs.lastHeight = .inches
+        case .kilograms: prefs.lastWeight = .kilograms
+        case .pounds: prefs.lastWeight = .pounds
+        }
+        return prefs
     }
 
     // MARK: - Resolving a person

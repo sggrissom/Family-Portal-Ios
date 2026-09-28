@@ -17,6 +17,8 @@ enum AppRoute: Hashable {
     case person(UUID, manages: Bool = false)
     /// A person's season, addressed by the server id `GetPersonSeason` takes; the name rides along so the screen need not look it up.
     case personSeason(remoteId: Int, name: String)
+    /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
+    case event(id: Int, name: String)
 }
 
 /// Which tab is showing and what each tab's stack holds. App-scoped and in the environment, so the account menu, the add flow and the deep-link router can all push onto whatever tab the user is standing on.
@@ -93,6 +95,8 @@ private struct AppRouteDestination: View {
             PersonDetailView(personId: id, allowsManagementActions: manages)
         case .personSeason(let remoteId, let name):
             PersonSeasonView(personId: remoteId, personName: name)
+        case .event(let id, let name):
+            CompetitionView(eventId: id, eventName: name)
         }
     }
 }

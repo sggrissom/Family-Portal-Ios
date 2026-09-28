@@ -18,22 +18,29 @@ enum AddForm: Identifiable, Equatable {
 }
 
 /// The one add sheet, presented from the shell like `ErrorPresenter`'s alert, so every **+** in the app opens the same thing and words it the same way.
-/// A person is preselected only from the screen underneath — a person page passes itself — and never inherited silently.
+/// A person is preselected only from the screen underneath — a person page passes itself — or from the remembered choice, and it is always a visible chip that can be cleared.
+/// Each form is a sheet over whatever screen was showing, so its **Done** returns there.
 @MainActor
 @Observable
 final class AddFlow {
     var isSheetPresented = false
-    /// The person the sheet was opened for, if the screen underneath named one.
+    /// The person the sheet was opened for, if the screen underneath named one. Only this reaches the photo form's **Who's in these?** — a remembered person never does.
     private(set) var contextPersonId: UUID?
 
     /// The form showing after the sheet closed.
     var form: AddForm?
+    /// The photo batch form, over an import already under way.
+    var photoBatch: PhotoBatch?
     /// Waiting for the sheet to finish dismissing: SwiftUI will not present a second sheet while the first is still animating away.
     private var pendingForm: AddForm?
     private var pendingPhotos = false
+    private var pendingEvent: OpenEventDTO?
 
     var isPickingPhotos = false
     let importer = PhotoImporter()
+
+    /// Pushes the chosen event onto the current tab once the sheet is gone. Set by the shell, which owns navigation.
+    var openEvent: ((OpenEventDTO) -> Void)?
 
     func present(for personId: UUID? = nil) {
         contextPersonId = personId
@@ -56,6 +63,11 @@ final class AddFlow {
         isSheetPresented = false
     }
 
+    func chooseResult(for event: OpenEventDTO) {
+        pendingEvent = event
+        isSheetPresented = false
+    }
+
     func sheetDidDismiss() {
         if let pendingForm {
             form = pendingForm
@@ -63,12 +75,25 @@ final class AddFlow {
         } else if pendingPhotos {
             isPickingPhotos = true
             pendingPhotos = false
+        } else if let pendingEvent {
+            openEvent?(pendingEvent)
+            self.pendingEvent = nil
         }
+    }
+
+    /// Starts the import at once and opens the batch form over it. Photos are tagged with nobody at import; the form asks, preselecting only the person whose page the batch came from.
+    func startBatch(_ items: [PhotosPickerItem], context: ModelContext, syncService: SyncService?, errorPresenter: ErrorPresenter?) {
+        let entryIds = importer.importPicked(items, into: context, syncService: syncService, errorPresenter: errorPresenter)
+        guard !entryIds.isEmpty else { return }
+        photoBatch = PhotoBatch(
+            entryIds: entryIds,
+            preselectedPersonIds: contextPersonId.map { [$0] } ?? []
+        )
     }
 }
 
 extension View {
-    /// Everything the add flow presents: the sheet, the forms it leads to, and the photo picker. Applied once, at the shell.
+    /// Everything the add flow presents: the sheet, the forms it leads to, the photo picker and the batch form. Applied once, at the shell.
     func addFlowPresentation(_ flow: AddFlow) -> some View {
         modifier(AddFlowPresentation(flow: flow))
     }
@@ -82,15 +107,6 @@ private struct AddFlowPresentation: ViewModifier {
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     @State private var pickedItems: [PhotosPickerItem] = []
-
-    /// Photos picked from a person's own **+** are tagged with them; from anywhere else, with nobody.
-    private var contextPerson: Person? {
-        guard let personId = flow.contextPersonId else { return nil }
-        let descriptor = FetchDescriptor<Person>(predicate: #Predicate<Person> { person in
-            person.id == personId
-        })
-        return try? modelContext.fetch(descriptor).first
-    }
 
     func body(content: Content) -> some View {
         content
@@ -107,6 +123,9 @@ private struct AddFlowPresentation: ViewModifier {
                     AddPersonView()
                 }
             }
+            .sheet(item: $flow.photoBatch) { batch in
+                PhotoBatchFormView(batch: batch, importer: flow.importer)
+            }
             .photosPicker(
                 isPresented: $flow.isPickingPhotos,
                 selection: $pickedItems,
@@ -116,46 +135,77 @@ private struct AddFlowPresentation: ViewModifier {
                 matching: .images
             )
             .onChange(of: pickedItems) { _, newItems in
-                // Clearing the binding re-enters this with an empty array, which the importer absorbs. Without it, picking the same photo twice in a row never fires.
+                // Clearing the binding re-enters this with an empty array, which `startBatch` ignores. Without it, picking the same photo twice in a row never fires.
                 pickedItems = []
-                flow.importer.importPicked(
-                    newItems,
-                    into: modelContext,
-                    syncService: syncService,
-                    errorPresenter: errorPresenter,
-                    taggingTo: contextPerson
-                )
+                flow.startBatch(newItems, context: modelContext, syncService: syncService, errorPresenter: errorPresenter)
             }
     }
 }
 
-/// Photos · Measurement · Milestone. Measurement and Milestone are *about* somebody, so they are disabled on an empty roster rather than opening a form that could never save.
+/// **Who is this for?**, then Photos · Measurement · Milestone, then up to two **Result — {event}** rows for events open for results. Backfilling older events goes through Activities.
 struct AddSheetView: View {
     let flow: AddFlow
 
     @Query private var people: [Person]
+    @Query private var relations: [PersonRelation]
     @Environment(\.dismiss) private var dismiss
+    @Environment(ActivityService.self) private var activityService: ActivityService?
+
+    @State private var personId: UUID?
+    @State private var openEvents = ActivityScreenState<ListOpenEventsResponseDTO>()
+    @State private var didSeed = false
+
+    private let defaults = QuickAddDefaults()
 
     var body: some View {
         NavigationStack {
             List {
-                Button {
-                    flow.choosePhotos()
-                } label: {
-                    Label(Copy.addSheet.photos, systemImage: "photo.on.rectangle")
+                if !people.isEmpty {
+                    Section(Copy.addSheet.whoFor) {
+                        PersonChips(selection: $personId)
+                    }
                 }
-                Button {
-                    flow.choose(.measurement(personId: flow.contextPersonId))
-                } label: {
-                    Label(Copy.addSheet.measurement, systemImage: MeasurementType.height.icon)
+
+                Section {
+                    Button {
+                        flow.choosePhotos()
+                    } label: {
+                        Label(Copy.addSheet.photos, systemImage: "photo.on.rectangle")
+                    }
+                    Button {
+                        remember()
+                        flow.choose(.measurement(personId: personId))
+                    } label: {
+                        Label(Copy.addSheet.measurement, systemImage: MeasurementType.height.icon)
+                    }
+                    .disabled(people.isEmpty)
+                    Button {
+                        remember()
+                        flow.choose(.milestone(personId: personId))
+                    } label: {
+                        Label(Copy.addSheet.milestone, systemImage: MilestoneCategory.first.icon)
+                    }
+                    .disabled(people.isEmpty)
                 }
-                .disabled(people.isEmpty)
-                Button {
-                    flow.choose(.milestone(personId: flow.contextPersonId))
-                } label: {
-                    Label(Copy.addSheet.milestone, systemImage: MilestoneCategory.first.icon)
+
+                if let events = openEvents.value?.events, !events.isEmpty {
+                    Section {
+                        ForEach(events.prefix(2)) { open in
+                            Button {
+                                flow.chooseResult(for: open)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Label("\(Copy.result) — \(open.event.name)", systemImage: "trophy")
+                                    if let day = ActivityDateText.range(from: open.event.startDate, to: open.event.endDate) {
+                                        Text(day)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-                .disabled(people.isEmpty)
             }
             .navigationTitle(Copy.addSheet.title)
             .navigationBarTitleDisplayMode(.inline)
@@ -164,7 +214,30 @@ struct AddSheetView: View {
                     Button(Copy.addSheet.close) { dismiss() }
                 }
             }
+            .onAppear(perform: seed)
+            .task {
+                guard let activityService else { return }
+                await openEvents.load(activityService.openEvents(today: WhenEntry.localDateString(Date())))
+            }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    /// The screen underneath first, then the remembered person — as a chip the user can see and clear.
+    private func seed() {
+        guard !didSeed else { return }
+        didSeed = true
+        personId = flow.contextPersonId ?? QuickAddDefaults.person(
+            in: people,
+            remembered: defaults.rememberedPersonId,
+            relations: relations.map(\.edge)
+        )?.id
+    }
+
+    /// Written back as the remembered person, the way the web writes `last-person-id`.
+    private func remember() {
+        if let personId {
+            defaults.rememberPerson(personId)
+        }
     }
 }
