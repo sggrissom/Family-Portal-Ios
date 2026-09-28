@@ -18,10 +18,23 @@ struct DeepLinkTests {
         // Legacy paths land on their replacements, as `appNav.legacyRedirect` sends them on the web.
         ("/family-timeline", DeepLink.history),
         ("/profile/7", DeepLink.person(remoteId: 7)),
-        ("/person-activities/7", DeepLink.personActivities(remoteId: 7)),
+        ("/profile/7?tab=growth", DeepLink.person(remoteId: 7, tab: .growth)),
+        // Legacy: a person's activities are now a tab of their page.
+        ("/person-activities/7", DeepLink.person(remoteId: 7, tab: .activities)),
     ])
     func knownPaths(path: String, expected: DeepLink) {
         #expect(DeepLink.parse(path: path) == expected)
+    }
+
+    @Test("An unknown tab opens the person's Story")
+    func unknownTabIsStory() {
+        #expect(DeepLink.parse(path: "/profile/7?tab=nonsense") == .person(remoteId: 7))
+    }
+
+    @Test("A universal link keeps the person's tab")
+    func universalLinkKeepsTab() throws {
+        let url = try #require(URL(string: "https://familyrecord.app/profile/7?tab=photos"))
+        #expect(DeepLink.parse(url: url) == .person(remoteId: 7, tab: .photos))
     }
 
     @Test("A query or fragment does not change where a link goes")

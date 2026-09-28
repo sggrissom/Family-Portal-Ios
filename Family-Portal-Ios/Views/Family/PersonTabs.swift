@@ -1,0 +1,370 @@
+import SwiftUI
+import SwiftData
+
+// MARK: - Story
+
+/// A short overview, then everything recorded for the person grouped into age chapters (`Story.chapters`) with a "Grew …" line each. The web's Story tab as built.
+struct PersonStoryTab: View {
+    let person: Person
+    let onShowActivities: () -> Void
+
+    @Environment(ActivityService.self) private var activityService: ActivityService?
+    @State private var season = ActivityScreenState<GetPersonSeasonResponseDTO>()
+
+    private var today: String { WhenEntry.localDateString(Date()) }
+
+    var body: some View {
+        let days = DaySummaries.summarize(
+            DayRecords(
+                photos: person.photos,
+                growth: person.growthData,
+                milestones: person.milestones,
+                appearances: (season.value?.appearances ?? []).map { TimelineAppearanceDTO(detail: $0, personIds: []) }
+            ),
+            people: [person],
+            range: birthdayRange
+        )
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                PersonOverview(person: person, season: season.value, onShowActivities: onShowActivities)
+
+                if days.isEmpty {
+                    Text(Copy.person.nothingYet(firstName))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(chapters(days)) { chapter in
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(Story.chapterTitle(chapter.age))
+                                    .font(.title3.weight(.bold))
+                                Spacer()
+                                if !chapter.grew.isEmpty {
+                                    Text(chapter.grew)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            DaySummaryList(days: chapter.days, today: today, subjectId: person.id)
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+        .task(id: person.remoteId) {
+            guard let activityService, let remoteId = person.remoteId.flatMap(Int.init) else { return }
+            await season.load(activityService.personSeason(personId: remoteId))
+        }
+    }
+
+    private var firstName: String {
+        person.name.split(separator: " ").first.map(String.init) ?? person.name
+    }
+
+    private var birthdayRange: (from: String, to: String)? {
+        guard let birthday = person.birthday, !person.isPregnancy else { return nil }
+        return (birthday.dayKey(), today)
+    }
+
+    private func chapters(_ days: [DaySummary]) -> [StoryChapter] {
+        guard let birthday = person.birthday else {
+            return [StoryChapter(age: nil, days: days, grew: "")]
+        }
+        return Story.chapters(days, birthday: birthday)
+    }
+}
+
+/// The top of Story: latest height and weight with how long ago they were taken, and the season in progress.
+struct PersonOverview: View {
+    let person: Person
+    let season: GetPersonSeasonResponseDTO?
+    let onShowActivities: () -> Void
+
+    /// A reading older than this next to a fresh one is no longer "latest" — the web's `STALE_METRIC_MONTHS`.
+    private static let staleMonths = 12
+
+    @State private var openMeasurement: GrowthData?
+
+    var body: some View {
+        let readings = MeasurementType.allCases.compactMap { Checkup.latest(of: person.growthData, type: $0) }
+        let lastMeasured = readings.map(\.date).max()
+        let latest = readings.filter { reading in
+            guard let lastMeasured else { return false }
+            return AgeSteps.monthsOld(birthday: reading.date, at: lastMeasured) <= Self.staleMonths
+        }
+        let seasons = activeSeasons
+
+        if !latest.isEmpty || !seasons.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(latest) { record in
+                    Button {
+                        openMeasurement = record
+                    } label: {
+                        HStack {
+                            Text(record.measurementType.label)
+                                .foregroundStyle(.secondary)
+                            Text(MeasurementConversion.format(record))
+                                .fontWeight(.semibold)
+                            if let label = percentile(record) {
+                                Text(label)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if let lastMeasured {
+                    Text(Copy.person.measured(Checkup.timeAgo(lastMeasured, now: Date())))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach(seasons) { summary in
+                    Button(action: onShowActivities) {
+                        Text(seasonLine(summary))
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(12)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+            .sheet(item: $openMeasurement) { MeasurementDetailSheetView(measurement: $0) }
+        }
+    }
+
+    private func percentile(_ record: GrowthData) -> String? {
+        guard let months = MeasurementConversion.ageMonths(of: record), months <= GrowthPercentiles.maxAgeMonths else { return nil }
+        return GrowthPercentiles.percentileLabel(
+            value: record.value,
+            unit: record.unit,
+            ageMonths: months,
+            gender: person.gender,
+            type: record.measurementType
+        )
+    }
+
+    private var activeSeasons: [SeasonSummaryDTO] {
+        guard let season else { return [] }
+        let now = Date()
+        return season.seasons.filter { summary in
+            guard let start = summary.startDate.serverDate, start <= now else { return false }
+            return summary.endDate.serverDate.map { $0 >= Calendar.current.startOfDay(for: now) } ?? true
+        }
+    }
+
+    /// "🏆 Competition Season · 3 entries · next: Nuvo Nashville"
+    private func seasonLine(_ summary: SeasonSummaryDTO) -> String {
+        let entries = season?.entries.filter { $0.entry.seasonId == summary.id }.count ?? 0
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let next = season?.appearances
+            .filter { $0.entry.seasonId == summary.id && $0.event.startDate >= startOfToday }
+            .min { $0.event.startDate < $1.event.startDate }
+        var parts = ["🏆 \(summary.name)", Copy.person.entries(entries)]
+        if let next { parts.append(Copy.person.next(next.event.name)) }
+        return parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - Photos
+
+/// The gallery scoped to this person, with date and tag filters, and a way into the Photos tab already filtered to them.
+struct PersonPhotosTab: View {
+    let person: Person
+
+    @Environment(AppNavigator.self) private var navigator
+    @State private var filter = PhotoFilter()
+    @State private var isFilterPresented = false
+
+    private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
+
+    /// SwiftData does not order to-many relationships.
+    private var photos: [Photo] {
+        filter.apply(to: person.photos.sorted { $0.photoDate > $1.photoDate })
+    }
+
+    var body: some View {
+        ScrollView {
+            HStack {
+                Button(Copy.person.openInPhotos) { navigator.openPhotos(of: person.id) }
+                    .font(.subheadline)
+                Spacer()
+                Button {
+                    isFilterPresented = true
+                } label: {
+                    Image(systemName: filter.hasPanelFilters
+                          ? "line.3.horizontal.decrease.circle.fill"
+                          : "line.3.horizontal.decrease.circle")
+                }
+                .accessibilityLabel("Filter photos")
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            if photos.isEmpty {
+                Text(Copy.person.noPhotos)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 24)
+            } else {
+                LazyVGrid(columns: columns, spacing: 4) {
+                    ForEach(photos) { photo in
+                        NavigationLink(value: PhotoRoute(id: photo.id)) {
+                            PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
+                        }
+                    }
+                }
+                .padding(4)
+            }
+        }
+        .sheet(isPresented: $isFilterPresented) {
+            NavigationStack {
+                PhotoFilterView(filter: $filter)
+            }
+        }
+    }
+}
+
+// MARK: - Growth
+
+/// Latest height and weight with their own dates and percentiles, the chart with optional faint sibling curves, the measurement list, and **Measure**.
+struct PersonGrowthTab: View {
+    let person: Person
+
+    @Query private var people: [Person]
+    @Query private var relations: [PersonRelation]
+    @Environment(AddFlow.self) private var addFlow
+
+    @State private var type: MeasurementType = .height
+    @State private var showSiblings = false
+    @State private var zoom: AgeRange?
+    @State private var openMeasurement: GrowthData?
+
+    /// Children under eighteen, other than this person — the web's `CHILD_MONTHS`.
+    private var siblings: [Person] {
+        people.filter { other in
+            guard other.id != person.id, !other.isPregnancy, let birthday = other.birthday else { return false }
+            return AgeSteps.monthsOld(birthday: birthday, at: Date()) < 18 * 12
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                latest
+
+                HStack {
+                    Picker(Copy.person.metric, selection: $type) {
+                        ForEach(MeasurementType.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    Button(Copy.person.measure) {
+                        addFlow.open(.measurement(personId: person.id))
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                if !siblings.isEmpty {
+                    Toggle(Copy.person.showSiblings, isOn: $showSiblings)
+                        .font(.subheadline)
+                }
+
+                chart
+
+                list
+            }
+            .padding()
+        }
+        .onChange(of: type) { _, _ in zoom = nil }
+        .sheet(item: $openMeasurement) { MeasurementDetailSheetView(measurement: $0) }
+    }
+
+    private var latest: some View {
+        HStack(spacing: 12) {
+            ForEach(MeasurementType.allCases, id: \.self) { kind in
+                if let record = Checkup.latest(of: person.growthData, type: kind) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(kind.label)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(MeasurementConversion.format(record))
+                            .font(.headline)
+                        Text(record.date.localDay().formatted(date: .abbreviated, time: .omitted))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let months = MeasurementConversion.ageMonths(of: record),
+                           let label = GrowthPercentiles.percentileLabel(value: record.value, unit: record.unit, ageMonths: months, gender: person.gender, type: kind) {
+                            Text(label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var chart: some View {
+        if let birthday = person.birthday, !person.isPregnancy {
+            let main = AgeSeries(
+                id: person.id,
+                label: person.name.split(separator: " ").first.map(String.init) ?? person.name,
+                color: AgeSeries.palette[0],
+                points: AgeChart.chartPoints(person.growthData, birthday: birthday, type: type)
+            )
+            let nowMonths = Double(AgeSteps.monthsOld(birthday: birthday, at: Date()))
+            let maxAge = max(nowMonths + 1, 12)
+            let others: [AgeSeries] = showSiblings ? siblings.enumerated().compactMap { index, sibling in
+                guard let siblingBirthday = sibling.birthday else { return nil }
+                let points = AgeChart.chartPoints(sibling.growthData, birthday: siblingBirthday, type: type).filter { $0.ageMonths <= maxAge }
+                guard !points.isEmpty else { return nil }
+                return AgeSeries(
+                    id: sibling.id,
+                    label: sibling.name.split(separator: " ").first.map(String.init) ?? sibling.name,
+                    color: AgeSeries.palette[(index + 1) % AgeSeries.palette.count],
+                    points: points,
+                    faint: true
+                )
+            } : []
+            let band = nowMonths <= 240 ? AgeChart.percentileBand(gender: person.gender, type: type, from: 0, to: maxAge) : []
+
+            if main.points.isEmpty && others.isEmpty {
+                Text(Copy.person.noMeasurements)
+                    .foregroundStyle(.secondary)
+            } else {
+                AgeChartView(series: others + [main], band: band, type: type, zoom: $zoom) { id in
+                    openMeasurement = (person.growthData + siblings.flatMap(\.growthData)).first { $0.id == id }
+                }
+            }
+        }
+    }
+
+    private var list: some View {
+        let records = person.growthData
+            .filter { $0.measurementType == type }
+            .sorted { $0.date > $1.date }
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(records) { record in
+                Button {
+                    openMeasurement = record
+                } label: {
+                    MeasurementRowView(measurement: record)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                Divider()
+            }
+        }
+    }
+}
