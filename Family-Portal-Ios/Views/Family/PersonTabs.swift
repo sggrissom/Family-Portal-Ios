@@ -10,6 +10,16 @@ struct PersonStoryTab: View {
 
     @Environment(ActivityService.self) private var activityService: ActivityService?
     @State private var season = ActivityScreenState<GetPersonSeasonResponseDTO>()
+    @Query private var people: [Person]
+
+    /// Whether nobody under eighteen was born before this person.
+    private var isOldestChild: Bool {
+        guard let birthday = person.birthday else { return true }
+        return !people.contains { other in
+            guard other.id != person.id, !other.isPregnancy, let otherBirthday = other.birthday else { return false }
+            return otherBirthday < birthday && AgeSteps.monthsOld(birthday: otherBirthday, at: Date()) < 18 * 12
+        }
+    }
 
     private var today: String { WhenEntry.localDateString(Date()) }
 
@@ -28,6 +38,11 @@ struct PersonStoryTab: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 PersonOverview(person: person, season: season.value, onShowActivities: onShowActivities)
+
+                // The oldest child has nobody older to compare with, so the strip would only ever be empty.
+                if !isOldestChild {
+                    PersonSameAgeStrip(person: person, date: Date(), hideWhenEmpty: true)
+                }
 
                 if days.isEmpty {
                     Text(Copy.person.nothingYet(firstName))
@@ -215,7 +230,7 @@ struct PersonPhotosTab: View {
             } else {
                 LazyVGrid(columns: columns, spacing: 4) {
                     ForEach(photos) { photo in
-                        NavigationLink(value: PhotoRoute(id: photo.id)) {
+                        NavigationLink(value: PhotoRoute(id: photo.id, openedFrom: person.id)) {
                             PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
                         }
                     }

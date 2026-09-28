@@ -1,0 +1,71 @@
+import Foundation
+import Testing
+@testable import Family_Portal_Ios
+
+@MainActor
+@Suite("Same age")
+struct SameAgeTests {
+
+    private let a = UUID()
+    private let b = UUID()
+
+    // MARK: - Anchor for a photo
+
+    @Test("A photo opened from a person's page anchors on them")
+    func openedFromAnchors() {
+        #expect(SameAgeAnchor.initial(tagged: [a, b], openedFrom: b) == b)
+    }
+
+    @Test("A group photo opened from Photos picks nobody invisibly")
+    func groupPhotoPicksNobody() {
+        #expect(SameAgeAnchor.initial(tagged: [a, b], openedFrom: nil) == nil)
+    }
+
+    @Test("A photo of one person anchors on them")
+    func onePersonAnchors() {
+        #expect(SameAgeAnchor.initial(tagged: [a], openedFrom: nil) == a)
+    }
+
+    @Test("A page the photo's people don't include is not an anchor")
+    func openedFromSomeoneElse() {
+        #expect(SameAgeAnchor.initial(tagged: [a, b], openedFrom: UUID()) == nil)
+    }
+
+    // MARK: - Rows
+
+    private func row(birthday: String = "2020-08-04T00:00:00Z", date: String) throws -> SameAgeRowDTO {
+        try APIClient.decode(SameAgeRowDTO.self, from: Fixture.data([
+            "person": Fixture.person(id: 4, birthday: birthday),
+            "date": date,
+            "height": Fixture.growthData(id: 1, personId: 4, measurementType: 0, value: 38.5, unit: "in", measurementDate: "2023-12-10T00:00:00Z"),
+            "weight": NSNull(),
+            "milestones": [],
+            "photoIds": [],
+        ]))
+    }
+
+    @Test("A row says the month the person reached the age")
+    func whenIsAMonth() throws {
+        let row = try row(date: "2023-12-04T00:00:00Z")
+        let today = ISO8601DateFormatter().date(from: "2026-09-27T12:00:00Z")!
+        #expect(SameAgeText.when(row, ageMonths: 40, today: today) == "Dec 2023")
+    }
+
+    @Test("A row for someone that age today says now")
+    func whenIsNow() throws {
+        let row = try row(date: "2023-12-04T00:00:00Z")
+        let today = ISO8601DateFormatter().date(from: "2023-12-20T12:00:00Z")!
+        #expect(SameAgeText.when(row, ageMonths: 40, today: today) == Copy.sameAge.now)
+    }
+
+    @Test("Measurements read at the age they were taken")
+    func measurements() throws {
+        #expect(SameAgeText.measurements(try row(date: "2023-12-04T00:00:00Z")) == "3 ft 2.5 in")
+    }
+
+    @Test("The strip's heading names birth as birth")
+    func heading() {
+        #expect(Copy.sameAge.atThisAge(AgeSteps.ageTitle(0)) == "At birth")
+        #expect(Copy.sameAge.atThisAge(AgeSteps.ageTitle(40)) == "At 3 years 4 months")
+    }
+}

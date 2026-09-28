@@ -10,8 +10,10 @@ struct PhotoDetailView: View {
     @State private var showDeleteConfirmation = false
 
     private var photo: Photo? { photos.first }
+    private let openedFrom: UUID?
 
-    init(photoId: UUID) {
+    init(photoId: UUID, openedFrom: UUID? = nil) {
+        self.openedFrom = openedFrom
         _photos = Query(filter: #Predicate<Photo> { photo in
             photo.id == photoId
         })
@@ -19,7 +21,7 @@ struct PhotoDetailView: View {
 
     var body: some View {
         if let photo {
-            PhotoDetailContent(photo: photo, showDeleteConfirmation: $showDeleteConfirmation)
+            PhotoDetailContent(photo: photo, openedFrom: openedFrom, showDeleteConfirmation: $showDeleteConfirmation)
                 .navigationBarTitleDisplayMode(.inline)
                 .confirmationDialog("Delete Photo", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
                     Button("Delete", role: .destructive) {
@@ -46,6 +48,7 @@ private struct PhotoDetailContent: View {
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
     @Bindable var photo: Photo
+    let openedFrom: UUID?
     @Binding var showDeleteConfirmation: Bool
 
     /// Values last handed to the sync queue, so leaving an untouched field doesn't enqueue a redundant update.
@@ -163,6 +166,9 @@ private struct PhotoDetailContent: View {
                     }
                     .padding(.horizontal)
                 }
+
+                PhotoSameAgeSection(photo: photo, openedFrom: openedFrom)
+                    .padding(.horizontal)
 
                 Button(role: .destructive) {
                     showDeleteConfirmation = true

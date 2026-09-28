@@ -32,6 +32,8 @@ enum AppRoute: Hashable {
     case settings
     /// A person by local id, on one of their tabs. `manages` shows the edit affordances, which only the Settings directory offers.
     case person(UUID, tab: PersonTab = .story, manages: Bool = false)
+    /// Everyone at one age. `fromRemoteId` 0 lets the server choose the anchor.
+    case sameAge(ageMonths: Int?, fromRemoteId: Int)
     /// Photos opened from a day's mosaic.
     case photoSet(ids: [UUID], title: String)
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
@@ -103,7 +105,7 @@ extension View {
             AppRouteDestination(route: route)
         }
         .navigationDestination(for: PhotoRoute.self) { route in
-            PhotoDetailView(photoId: route.id)
+            PhotoDetailView(photoId: route.id, openedFrom: route.openedFrom)
         }
     }
 }
@@ -123,6 +125,8 @@ private struct AppRouteDestination: View {
             SettingsView()
         case .person(let id, let tab, let manages):
             PersonDetailView(personId: id, tab: tab, allowsManagementActions: manages)
+        case .sameAge(let ageMonths, let fromRemoteId):
+            SameAgeView(ageMonths: ageMonths, fromRemoteId: fromRemoteId)
         case .photoSet(let ids, let title):
             PhotoSetView(ids: ids, title: title)
         case .event(let id, let name):

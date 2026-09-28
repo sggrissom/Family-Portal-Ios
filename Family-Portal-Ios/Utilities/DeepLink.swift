@@ -10,6 +10,10 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case home
     /// `/history`, and the legacy `/family-timeline` it replaced.
     case history
+    /// `/growth`, and the legacy `/family-chart`.
+    case growth
+    /// `/same-age?age=40m&from=7`, and the legacy `/compare`. `ageMonths` nil is the anchor's current age; `from` 0 lets the server choose.
+    case sameAge(ageMonths: Int?, from: Int)
     /// `/profile/<serverId>?tab=` — the id the server knows them by, not the local `UUID`; resolving one to the other is the router's job and can fail. `tab` nil is the person's Story.
     case person(remoteId: Int, tab: PersonTab? = nil)
 
@@ -36,6 +40,13 @@ nonisolated enum DeepLink: Equatable, Sendable {
         // Legacy paths map to their replacements, as `appNav.legacyRedirect` does on the web.
         case "family-timeline" where segments.count == 1:
             return .history
+        case "growth" where segments.count == 1, "family-chart" where segments.count == 1:
+            return .growth
+        case "same-age" where segments.count == 1, "compare" where segments.count == 1:
+            return .sameAge(
+                ageMonths: AgeSteps.parseAgeParam(queryValue("age", in: query)),
+                from: queryValue("from", in: query).flatMap(Int.init) ?? 0
+            )
         case "profile" where segments.count == 2:
             return Int(segments[1]).map { DeepLink.person(remoteId: $0, tab: queryValue("tab", in: query).flatMap(PersonTab.init(rawValue:))) }
         case "person-activities" where segments.count == 2:
