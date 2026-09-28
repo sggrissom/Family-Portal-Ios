@@ -546,21 +546,37 @@ nonisolated struct FamilyTimelineItemDTO: Codable, Sendable {
     }
 }
 
-nonisolated struct GetFamilyTimelineResponseDTO: Codable, Sendable {
+nonisolated struct GetFamilyTimelineResponseDTO: Decodable, Sendable {
     let people: [FamilyTimelineItemDTO]
     /// The stored edges among `people`, the same set `ListPeople` returns. The app syncs through this one proc, so without them the roster would have no way to band a family by generation short of a call per person.
     let relations: [RelationDTO]
+    /// Every year with an entry, newest first, whatever the window — History's **Jump to year** menu.
+    let years: [Int]
+    /// Empty unless the request set `includeActivities`. Appearances are not in SwiftData; History fetches them per window and caches them beside the activity snapshots.
+    let appearances: [TimelineAppearanceDTO]
 
-    nonisolated init(people: [FamilyTimelineItemDTO], relations: [RelationDTO] = []) {
+    nonisolated init(
+        people: [FamilyTimelineItemDTO],
+        relations: [RelationDTO] = [],
+        years: [Int] = [],
+        appearances: [TimelineAppearanceDTO] = []
+    ) {
         self.people = people
         self.relations = relations
+        self.years = years
+        self.appearances = appearances
     }
+
+    private enum CodingKeys: String, CodingKey { case people, relations, years, appearances }
 
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         people = try container.decodeIfPresent([FamilyTimelineItemDTO].self, forKey: .people) ?? []
         // A server predating the field, and Go marshalling an empty slice as `null`, both read as "no edges" rather than failing the whole pull.
         relations = try container.decodeIfPresent([RelationDTO].self, forKey: .relations) ?? []
+        // Both newer than the pull, so both optional for the same reason.
+        years = try container.decodeIfPresent([Int].self, forKey: .years) ?? []
+        appearances = try container.decodeIfPresent([TimelineAppearanceDTO].self, forKey: .appearances) ?? []
     }
 }
 

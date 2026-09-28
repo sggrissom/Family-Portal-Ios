@@ -22,6 +22,9 @@ final class Person {
 
     var family: Family? = nil
 
+    /// The server id of the household this person belongs to. The pull includes linked households' people too, and chip rows list the caller's own household first (`FamilyGroups.chipOrder`). `nil` until the first pull after upgrading, and for anyone added offline — both read as "ours".
+    var familyRemoteId: Int? = nil
+
     @Relationship(deleteRule: .cascade)
     var growthData: [GrowthData] = []
 

@@ -145,6 +145,34 @@ enum FamilyGroups {
             : olderTitle
     }
 
+    /// The order people appear in a chip row — `chipOrder` in familyGroups.ts. The youngest generation first (the children are who a family logs), then each generation above, then the unlinked; due dates are left out, since nothing is recorded *for* a pregnancy. Linked households follow the caller's own.
+    /// `ownFamilyId` nil (not known yet) keeps everybody in one run rather than guessing whose household is whose.
+    static func chipOrder(people: [Person], relations: [RelationEdge], ownFamilyId: Int?) -> [Person] {
+        let groups = group(people: people, relations: relations)
+        let generations = groups.filter { $0.key != "unlinked" }.reversed()
+        let unlinked = groups.filter { $0.key == "unlinked" }
+        let ordered = (Array(generations) + unlinked).flatMap(\.people).filter { !$0.isPregnancy }
+        guard let ownFamilyId else { return ordered }
+        let isOurs: (Person) -> Bool = { ($0.familyRemoteId ?? ownFamilyId) == ownFamilyId }
+        return ordered.filter(isOurs) + ordered.filter { !isOurs($0) }
+    }
+
+    /// First names, unless two people in the row share one — `chipLabels`.
+    static func chipLabels(_ people: [Person]) -> [UUID: String] {
+        func first(_ person: Person) -> String {
+            person.name.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? person.name
+        }
+        var counts: [String: Int] = [:]
+        for person in people {
+            counts[first(person), default: 0] += 1
+        }
+        var labels: [UUID: String] = [:]
+        for person in people {
+            labels[person.id] = (counts[first(person)] ?? 0) > 1 ? person.name : first(person)
+        }
+        return labels
+    }
+
     /// Oldest first. A person with no birthday sorts last, then by name so the order is stable.
     static func isOlder(_ left: Person, _ right: Person) -> Bool {
         switch (left.birthday, right.birthday) {

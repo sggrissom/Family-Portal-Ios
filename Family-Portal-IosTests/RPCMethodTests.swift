@@ -128,6 +128,13 @@ struct RPCMethodTests {
         #expect(RPCMethod.setEventPhotos.rawValue == "SetEventPhotos")
     }
 
+    @Test("Overview proc names match the backend")
+    func overviewProcNames() {
+        #expect(RPCMethod.getDashboard.rawValue == "GetDashboard")
+        #expect(RPCMethod.listOpenEvents.rawValue == "ListOpenEvents")
+        #expect(RPCMethod.getSameAge.rawValue == "GetSameAge")
+    }
+
     @Test("Every proc name is distinct and non-empty")
     func procNamesAreDistinct() {
         let names = RPCMethod.allCases.map(\.rawValue)
