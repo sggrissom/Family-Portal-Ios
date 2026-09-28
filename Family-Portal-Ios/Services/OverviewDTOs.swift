@@ -4,6 +4,13 @@ import Foundation
 // The server decides what is in them: which nudges exist, which events are open, which records count as "at this age". The app renders the answer and never re-derives it.
 // Every list is decoded with `decodeList`, since Go marshals a nil slice as `null`.
 
+/// The same helper `ActivityDTOs.swift` keeps to itself: a Go nil slice arrives as `null`, and an absent key the same way.
+fileprivate extension KeyedDecodingContainer {
+    nonisolated func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
+        try decodeIfPresent([T].self, forKey: key) ?? []
+    }
+}
+
 // MARK: - Requests
 
 /// `today` is the **device's** calendar day. The server's own date is a UTC day and can be one off for the family.
