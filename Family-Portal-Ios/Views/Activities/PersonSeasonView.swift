@@ -6,6 +6,8 @@ import SwiftData
 struct PersonSeasonView: View {
     let personId: Int
     let personName: String
+    /// False when folded into the person page's Activities tab, whose own title is the person.
+    var setsTitle = true
 
     @Environment(ActivityService.self) private var service
     @Query private var people: [Person]
@@ -13,11 +15,19 @@ struct PersonSeasonView: View {
     @State private var state = ActivityScreenState<GetPersonSeasonResponseDTO>()
 
     var body: some View {
+        if setsTitle {
+            screen
+                .navigationTitle("\(personName)'s Seasons")
+                .navigationBarTitleDisplayMode(.inline)
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
         ActivityScreen(state: state, read: { service.personSeason(personId: personId) }) { response in
             content(response)
         }
-        .navigationTitle("\(personName)'s Seasons")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder

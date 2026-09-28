@@ -256,6 +256,12 @@ nonisolated struct TimelineAppearanceDTO: Decodable, Sendable, Identifiable {
 
     var id: Int { detail.id }
 
+    /// For a person's own appearances (`GetPersonSeason`), which arrive without the wrapper.
+    init(detail: AppearanceDetailDTO, personIds: [Int]) {
+        self.detail = detail
+        self.personIds = personIds
+    }
+
     private enum CodingKeys: String, CodingKey { case detail, personIds }
 
     init(from decoder: Decoder) throws {

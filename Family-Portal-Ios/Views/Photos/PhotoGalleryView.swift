@@ -6,7 +6,17 @@ struct PhotoGalleryView: View {
     @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
     @Query(sort: \Person.name) private var people: [Person]
 
-    @State private var filter = PhotoFilter()
+    @Environment(AppNavigator.self) private var navigator
+
+    /// Lives on the navigator, so a person page's "Open in Photos →" can set it and it survives leaving the tab.
+    private var filter: PhotoFilter {
+        get { navigator.photoFilter }
+        nonmutating set { navigator.photoFilter = newValue }
+    }
+
+    private var filterBinding: Binding<PhotoFilter> {
+        Binding(get: { navigator.photoFilter }, set: { navigator.photoFilter = $0 })
+    }
     @State private var isFilterPresented = false
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
@@ -18,7 +28,7 @@ struct PhotoGalleryView: View {
     var body: some View {
         content
             .navigationTitle(Copy.nav.photos)
-            .searchable(text: $filter.searchText, prompt: "Title or description")
+            .searchable(text: filterBinding.searchText, prompt: "Title or description")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     filterButton
@@ -26,7 +36,7 @@ struct PhotoGalleryView: View {
             }
             .sheet(isPresented: $isFilterPresented) {
                 NavigationStack {
-                    PhotoFilterView(filter: $filter)
+                    PhotoFilterView(filter: filterBinding)
                 }
             }
     }

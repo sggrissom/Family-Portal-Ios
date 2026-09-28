@@ -10,15 +10,15 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case home
     /// `/history`, and the legacy `/family-timeline` it replaced.
     case history
-    /// `/profile/<serverId>` — the id the server knows them by, not the local `UUID`; resolving one to the other is the router's job and can fail.
-    case person(remoteId: Int)
-    case personActivities(remoteId: Int)
+    /// `/profile/<serverId>?tab=` — the id the server knows them by, not the local `UUID`; resolving one to the other is the router's job and can fail. `tab` nil is the person's Story.
+    case person(remoteId: Int, tab: PersonTab? = nil)
 
-    /// Parses a site-relative path. Query and fragment are ignored.
+    /// Parses a site-relative path. The fragment is ignored, and the query only where a destination reads one (`/profile`'s `tab`).
     static func parse(path rawPath: String) -> DeepLink? {
-        let path = rawPath
-            .split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)[0]
-            .split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]
+        let withoutFragment = rawPath.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]
+        let halves = withoutFragment.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
+        let path = halves[0]
+        let query = halves.count > 1 ? String(halves[1]) : ""
 
         let segments = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
 
@@ -37,12 +37,16 @@ nonisolated enum DeepLink: Equatable, Sendable {
         case "family-timeline" where segments.count == 1:
             return .history
         case "profile" where segments.count == 2:
-            return Int(segments[1]).map(DeepLink.person)
+            return Int(segments[1]).map { DeepLink.person(remoteId: $0, tab: queryValue("tab", in: query).flatMap(PersonTab.init(rawValue:))) }
         case "person-activities" where segments.count == 2:
-            return Int(segments[1]).map(DeepLink.personActivities)
+            return Int(segments[1]).map { DeepLink.person(remoteId: $0, tab: .activities) }
         default:
             return nil
         }
+    }
+
+    private static func queryValue(_ name: String, in query: String) -> String? {
+        URLComponents(string: "?" + query)?.queryItems?.first { $0.name == name }?.value
     }
 
     /// Parses a universal link. The host is checked because `onOpenURL` also receives the Google sign-in callback and anything else the app is registered for.
@@ -54,7 +58,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
         else {
             return nil
         }
-        return parse(path: components.path)
+        let query = components.percentEncodedQuery.map { "?" + $0 } ?? ""
+        return parse(path: components.path + query)
     }
 
     /// Reads the routing half of a push payload. `data.type` and `data.record_id` are deliberately not consulted — the server picks the destination from one spec table.

@@ -106,15 +106,10 @@ struct ContentView: View {
         case .settings:
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.settings])
-        case .person(let remoteId), .personActivities(let remoteId):
+        case .person(let remoteId, let tab):
             guard let person = people.first(where: { $0.remoteId.flatMap(Int.init) == remoteId }) else { return }
             _ = deepLinkRouter.claim { $0 == link }
-            if case .personActivities = link {
-                // Pushed on top of the person, not instead of them, so backing out lands where the screen is reached from by hand.
-                navigator.show([.person(person.id), .personSeason(remoteId: remoteId, name: person.name)], on: .home)
-            } else {
-                navigator.show([.person(person.id)], on: .home)
-            }
+            navigator.show([.person(person.id, tab: tab ?? .story)], on: .home)
         }
     }
 }

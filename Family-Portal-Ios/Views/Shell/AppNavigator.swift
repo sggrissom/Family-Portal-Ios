@@ -7,16 +7,33 @@ enum MainTab: String, Hashable, CaseIterable {
     case home, photos, add, growth
 }
 
+/// The person page's tabs. The raw value is the `?tab=` a link carries, so it matches the web's.
+/// `nonisolated` because `DeepLink`, which is, carries one.
+nonisolated enum PersonTab: String, Hashable, CaseIterable, Identifiable, Sendable {
+    case story, photos, growth, activities
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .story: return Copy.person.tabs.story
+        case .photos: return Copy.person.tabs.photos
+        case .growth: return Copy.person.tabs.growth
+        case .activities: return Copy.person.tabs.activities
+        }
+    }
+}
+
 /// Somewhere a tab's stack can be pushed to. One enum for the whole app, so History, Chat and Activities — reached from the account menu on *any* tab — are registered once at every tab root instead of once per screen that might link to them.
 enum AppRoute: Hashable {
     case history
     case chat
     case activities
     case settings
-    /// A person by local id. `manages` shows the edit affordances, which only the Settings directory offers.
-    case person(UUID, manages: Bool = false)
-    /// A person's season, addressed by the server id `GetPersonSeason` takes; the name rides along so the screen need not look it up.
-    case personSeason(remoteId: Int, name: String)
+    /// A person by local id, on one of their tabs. `manages` shows the edit affordances, which only the Settings directory offers.
+    case person(UUID, tab: PersonTab = .story, manages: Bool = false)
+    /// Photos opened from a day's mosaic.
+    case photoSet(ids: [UUID], title: String)
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
     case event(id: Int, name: String)
 }
@@ -27,6 +44,19 @@ enum AppRoute: Hashable {
 final class AppNavigator {
     var selectedTab: MainTab = .home
     private var paths: [MainTab: NavigationPath] = [:]
+
+    /// History's filters and the Photos tab's, held here — above every navigation stack — so opening a record and coming back finds them as they were.
+    var historyFilters = HistoryFilters()
+    var photoFilter = PhotoFilter()
+
+    /// "Open in Photos →": the Photos tab, filtered to one person.
+    func openPhotos(of personId: UUID) {
+        var filter = PhotoFilter()
+        filter.personLocalIds = [personId]
+        photoFilter = filter
+        paths[.photos] = NavigationPath()
+        selectedTab = .photos
+    }
 
     /// Photos with faces to review, from `GetFaceReview`; nil when face tagging is off or the count has not arrived.
     private(set) var faceReviewCount: Int?
@@ -84,17 +114,17 @@ private struct AppRouteDestination: View {
     var body: some View {
         switch route {
         case .history:
-            TimelineView()
+            HistoryView()
         case .chat:
             ChatView()
         case .activities:
             ActivitiesRootView()
         case .settings:
             SettingsView()
-        case .person(let id, let manages):
-            PersonDetailView(personId: id, allowsManagementActions: manages)
-        case .personSeason(let remoteId, let name):
-            PersonSeasonView(personId: remoteId, personName: name)
+        case .person(let id, let tab, let manages):
+            PersonDetailView(personId: id, tab: tab, allowsManagementActions: manages)
+        case .photoSet(let ids, let title):
+            PhotoSetView(ids: ids, title: title)
         case .event(let id, let name):
             CompetitionView(eventId: id, eventName: name)
         }

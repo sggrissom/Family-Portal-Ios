@@ -21,6 +21,16 @@ final class ActivityService {
 
     // MARK: - Reads
 
+    /// Every activity appearance, for History's event cards. Appearances are not in SwiftData and are not added to the sync pull; this is fetched on its own and cached next to the activity snapshots, so History still shows events offline.
+    /// Milestones and photos are skipped; the growth data the proc always returns is ignored, since the store already holds it.
+    func timelineAppearances() -> ActivityRead<GetFamilyTimelineResponseDTO> {
+        read(
+            .getFamilyTimeline,
+            payload: GetFamilyTimelineRequestDTO(skipMilestones: true, skipPhotos: true, includeActivities: true),
+            key: ActivitySnapshotKey(.getFamilyTimeline)
+        )
+    }
+
     /// Events whose results can be entered now, for the add sheet's Result rows. `today` is the device's day.
     func openEvents(today: String) -> ActivityRead<ListOpenEventsResponseDTO> {
         read(
