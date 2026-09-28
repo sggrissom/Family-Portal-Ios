@@ -4,15 +4,12 @@ import SwiftData
 struct ContentView: View {
     @Environment(AuthService.self) private var authService
     @Environment(MobileVersionService.self) private var mobileVersionService
-    @Environment(ChatService.self) private var chatService: ChatService?
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
 
-    @State private var selectedTab: MainTab = .family
+    @Environment(AppNavigator.self) private var navigator
+    @Environment(AddFlow.self) private var addFlow
 
-    /// The tab bar's identities. A raw value rather than an index, so a tab inserted later cannot silently change what a deep link selects.
-    private enum MainTab: String, Hashable {
-        case family, timeline, photos, activities, settings
-    }
+    @Query private var people: [Person]
 
     var body: some View {
         // The version gate sits outside the auth gate on purpose: the policy endpoint is pre-auth, so an unsupported build never reaches login.
@@ -40,59 +37,80 @@ struct ContentView: View {
         .accessibilityLabel("Restoring your session")
     }
 
+    /// Home · Photos · **+** · Growth — the web's phone bar without Chat, which lives in the account menu.
+    /// **+** is a tab only so it sits in the bar: selecting it presents the add sheet and leaves the previous tab selected, because the binding never lets the selection become `.add`.
     private var mainTabs: some View {
-        TabView(selection: $selectedTab) {
-            FamilyMembersView()
-                .tabItem {
-                    Label("Family", systemImage: "person.3")
+        let selection = Binding<MainTab>(
+            get: { navigator.selectedTab },
+            set: { tab in
+                if tab == .add {
+                    addFlow.present()
+                } else if tab == navigator.selectedTab {
+                    // A second tap on the current tab goes back to its root, as tab bars do.
+                    navigator.popToRoot(tab)
+                } else {
+                    navigator.selectedTab = tab
                 }
-                .tag(MainTab.family)
+            }
+        )
 
-            TimelineView()
-                .tabItem {
-                    Label("Timeline", systemImage: "clock.fill")
-                }
-                .tag(MainTab.timeline)
+        return TabView(selection: selection) {
+            TabRoot(tab: .home) { HomeView() }
+                .tabItem { Label(Copy.nav.home, systemImage: "house") }
+                .tag(MainTab.home)
 
-            PhotoGalleryView()
-                .tabItem {
-                    Label("Photos", systemImage: "photo.on.rectangle")
-                }
+            TabRoot(tab: .photos) { PhotoGalleryView() }
+                .tabItem { Label(Copy.nav.photos, systemImage: "photo.on.rectangle") }
                 .tag(MainTab.photos)
 
-            ActivitiesRootView()
-                .tabItem {
-                    Label("Activities", systemImage: "trophy")
-                }
-                .tag(MainTab.activities)
+            Color.clear
+                .tabItem { Label(Copy.nav.add, systemImage: "plus.circle.fill") }
+                .tag(MainTab.add)
 
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
-                .badge(chatService?.unreadCount ?? 0)
-                .tag(MainTab.settings)
+            TabRoot(tab: .growth) { GrowthRootView() }
+                .tabItem { Label(Copy.nav.growth, systemImage: "chart.line.uptrend.xyaxis") }
+                .tag(MainTab.growth)
         }
+        .addFlowPresentation(addFlow)
         // Both, because a link can arrive before the tabs exist — a cold launch from a tapped notification — or while they are already on screen.
-        .task { selectTabForPendingLink() }
-        .onChange(of: deepLinkRouter.pending) { _, _ in selectTabForPendingLink() }
+        .task {
+            openPendingLink()
+            await navigator.refreshFaceReviewCount()
+        }
+        .onChange(of: deepLinkRouter.pending) { _, _ in openPendingLink() }
+        // A person link names a server id; one this device has not seen yet stays pending until the sync after a cold launch brings it.
+        .onChange(of: people.count) { _, _ in openPendingLink() }
     }
 
-    /// Moves to the tab that owns the pending destination and leaves the link in place for the screen under it. `/photos` and `/family-timeline` are tab roots, so those are claimed here.
-    private func selectTabForPendingLink() {
+    /// Every link is routed here, in one place. Tab roots are selected; History, Chat and Settings are pushed onto the current tab, as the account menu pushes them.
+    private func openPendingLink() {
         guard let link = deepLinkRouter.pending else { return }
 
         switch link {
+        case .home:
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([], on: .home)
         case .photos:
-            selectedTab = .photos
-            _ = deepLinkRouter.claim { $0 == .photos }
-        case .timeline:
-            selectedTab = .timeline
-            _ = deepLinkRouter.claim { $0 == .timeline }
-        case .chat, .settings:
-            selectedTab = .settings
-        case .person, .personActivities:
-            selectedTab = .family
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([], on: .photos)
+        case .history:
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([.history])
+        case .chat:
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([.chat])
+        case .settings:
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([.settings])
+        case .person(let remoteId), .personActivities(let remoteId):
+            guard let person = people.first(where: { $0.remoteId.flatMap(Int.init) == remoteId }) else { return }
+            _ = deepLinkRouter.claim { $0 == link }
+            if case .personActivities = link {
+                // Pushed on top of the person, not instead of them, so backing out lands where the screen is reached from by hand.
+                navigator.show([.person(person.id), .personSeason(remoteId: remoteId, name: person.name)], on: .home)
+            } else {
+                navigator.show([.person(person.id)], on: .home)
+            }
         }
     }
 }
@@ -103,5 +121,7 @@ struct ContentView: View {
         .environment(MobileVersionService())
         .environment(ActivityService())
         .environment(DeepLinkRouter())
+        .environment(AppNavigator())
+        .environment(AddFlow())
         .modelContainer(for: Person.self, inMemory: true)
 }

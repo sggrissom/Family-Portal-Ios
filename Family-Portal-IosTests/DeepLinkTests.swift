@@ -13,7 +13,10 @@ struct DeepLinkTests {
         ("/settings", DeepLink.settings),
         // The rest of the association's path list.
         ("/photos", DeepLink.photos),
-        ("/family-timeline", DeepLink.timeline),
+        ("/dashboard", DeepLink.home),
+        ("/history", DeepLink.history),
+        // Legacy paths land on their replacements, as `appNav.legacyRedirect` sends them on the web.
+        ("/family-timeline", DeepLink.history),
         ("/profile/7", DeepLink.person(remoteId: 7)),
         ("/person-activities/7", DeepLink.personActivities(remoteId: 7)),
     ])

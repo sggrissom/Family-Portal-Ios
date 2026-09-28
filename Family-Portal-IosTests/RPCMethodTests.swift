@@ -133,6 +133,7 @@ struct RPCMethodTests {
         #expect(RPCMethod.getDashboard.rawValue == "GetDashboard")
         #expect(RPCMethod.listOpenEvents.rawValue == "ListOpenEvents")
         #expect(RPCMethod.getSameAge.rawValue == "GetSameAge")
+        #expect(RPCMethod.getFaceReview.rawValue == "GetFaceReview")
     }
 
     @Test("Every proc name is distinct and non-empty")

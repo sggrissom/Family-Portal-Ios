@@ -33,6 +33,8 @@ struct Family_Portal_IosApp: App {
     @State private var errorPresenter = ErrorPresenter()
     @State private var activityService = ActivityService()
     @State private var deepLinkRouter = DeepLinkRouter()
+    @State private var navigator = AppNavigator()
+    @State private var addFlow = AddFlow()
     @State private var networkMonitor: NetworkMonitor
     @State private var syncService: SyncService
     @State private var chatService: ChatService?
@@ -61,6 +63,8 @@ struct Family_Portal_IosApp: App {
                 .environment(syncService)
                 .environment(activityService)
                 .environment(deepLinkRouter)
+                .environment(navigator)
+                .environment(addFlow)
                 .environment(chatService)
                 .task {
                     await setupServices()
@@ -87,6 +91,9 @@ struct Family_Portal_IosApp: App {
                         }
                     } else {
                         chatService = nil
+                        // The next account starts on Home with empty stacks, not on the last one's screens.
+                        navigator = AppNavigator()
+                        addFlow = AddFlow()
                     }
                 }
                 .onOpenURL { url in

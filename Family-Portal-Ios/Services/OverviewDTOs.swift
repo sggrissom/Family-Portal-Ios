@@ -264,3 +264,24 @@ nonisolated struct TimelineAppearanceDTO: Decodable, Sendable, Identifiable {
         personIds = try container.decodeList(Int.self, forKey: .personIds)
     }
 }
+
+// MARK: - GetFaceReview
+
+/// The only part of `GetFaceReview` the app reads: whether face tagging is on, and how many photos wait for review. Face review itself is web-only; the account menu links to it with this count.
+nonisolated struct FaceReviewSummaryDTO: Decodable, Sendable {
+    let enabled: Bool
+    let unknownCount: Int
+    let autoCount: Int
+
+    private enum CodingKeys: String, CodingKey { case enabled, unknownCount, autoCount }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        unknownCount = try container.decodeIfPresent(Int.self, forKey: .unknownCount) ?? 0
+        autoCount = try container.decodeIfPresent(Int.self, forKey: .autoCount) ?? 0
+    }
+}
+
+/// The body for an argument-less proc — vbeam still requires one.
+nonisolated struct EmptyRequestDTO: Encodable, Sendable {}

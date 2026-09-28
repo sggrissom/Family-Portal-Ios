@@ -68,36 +68,28 @@ struct TimelineView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if !hasAnyActivity {
-                    ContentUnavailableView(
-                        "No activity yet",
-                        systemImage: "clock",
-                        description: Text("Milestones and measurements will appear here")
+        Group {
+            if !hasAnyActivity {
+                ContentUnavailableView(
+                    "No activity yet",
+                    systemImage: "clock",
+                    description: Text("Milestones and measurements will appear here")
+                )
+            } else {
+                VStack(spacing: 0) {
+                    filterChips
+                    TimelineResultsView(
+                        personId: selectedPersonId,
+                        itemType: selectedItemType,
+                        year: selectedYear,
+                        category: selectedMilestoneCategory,
+                        measurementType: selectedMeasurementType,
+                        searchText: debouncedSearchText
                     )
-                } else {
-                    VStack(spacing: 0) {
-                        filterChips
-                        TimelineResultsView(
-                            personId: selectedPersonId,
-                            itemType: selectedItemType,
-                            year: selectedYear,
-                            category: selectedMilestoneCategory,
-                            measurementType: selectedMeasurementType,
-                            searchText: debouncedSearchText
-                        )
-                    }
                 }
             }
-            .navigationTitle("Timeline")
-            // The timeline is where a family notices something has not been recorded, so it is where adding it has to be reachable.
-            .quickAdd(people: people)
-            // Registered on the stack rather than on the list, so a photo stays pushed while the row behind it is filtered away or deleted.
-            .navigationDestination(for: PhotoRoute.self) { route in
-                PhotoDetailView(photoId: route.id)
-            }
         }
+        .navigationTitle(Copy.nav.history)
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search timeline")
         // `task(id:)` cancels the pending run on the next keystroke, which is the whole debounce. Clearing is immediate.
         .task(id: searchText) {
