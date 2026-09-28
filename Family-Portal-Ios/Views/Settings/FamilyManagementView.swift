@@ -4,7 +4,6 @@ import SwiftData
 struct FamilyManagementView: View {
     @Query(sort: \Person.name) private var people: [Person]
     @State private var showingAddPerson = false
-    @State private var rowQuickAdd: PersonQuickAdd?
 
     var body: some View {
         List {
@@ -15,13 +14,10 @@ struct FamilyManagementView: View {
                     description: Text("Tap Add Member to start setting up your family.")
                 )
             } else {
-                FamilyRosterSections(people: people) { rowQuickAdd = $0 }
+                FamilyRosterSections(people: people, manages: true)
             }
         }
         .navigationTitle("Family Management")
-        .navigationDestination(for: UUID.self) { personId in
-            PersonDetailView(personId: personId)
-        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -34,6 +30,5 @@ struct FamilyManagementView: View {
         .sheet(isPresented: $showingAddPerson) {
             AddPersonView()
         }
-        .sheet(item: $rowQuickAdd) { PersonQuickAddSheet(request: $0) }
     }
 }

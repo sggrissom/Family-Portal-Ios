@@ -1,16 +1,11 @@
 import SwiftUI
 import SwiftData
-import PhotosUI
 
 struct PhotoGalleryView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(AddFlow.self) private var addFlow
     @Query(sort: \Photo.photoDate, order: .reverse) private var photos: [Photo]
     @Query(sort: \Person.name) private var people: [Person]
 
-    @State private var pickedItems: [PhotosPickerItem] = []
-    @State private var importer = PhotoImporter()
     @State private var filter = PhotoFilter()
     @State private var isFilterPresented = false
 
@@ -21,56 +16,24 @@ struct PhotoGalleryView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Photos")
-                .searchable(text: $filter.searchText, prompt: "Title or description")
-                .navigationDestination(for: PhotoRoute.self) { route in
-                    PhotoDetailView(photoId: route.id)
+        content
+            .navigationTitle(Copy.nav.photos)
+            .searchable(text: $filter.searchText, prompt: "Title or description")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    filterButton
                 }
-                .safeAreaInset(edge: .bottom) {
-                    if let progress = importer.progress {
-                        PhotoImportProgressBar(progress: progress)
-                    }
+            }
+            .sheet(isPresented: $isFilterPresented) {
+                NavigationStack {
+                    PhotoFilterView(filter: $filter)
                 }
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        filterButton
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        // `.ordered` numbers the picks and delivers them in the order the user made them, not library order.
-                        PhotosPicker(
-                            selection: $pickedItems,
-                            maxSelectionCount: nil,
-                            selectionBehavior: .ordered,
-                            matching: .images
-                        ) {
-                            Image(systemName: "plus")
-                        }
-                        .accessibilityLabel("Add photos")
-                    }
-                }
-                .sheet(isPresented: $isFilterPresented) {
-                    NavigationStack {
-                        PhotoFilterView(filter: $filter)
-                    }
-                }
-                .onChange(of: pickedItems) { _, newItems in
-                    // Clearing the binding re-enters this with an empty array, which the importer absorbs. Without it, picking the same photo twice in a row never fires.
-                    pickedItems = []
-                    importer.importPicked(
-                        newItems,
-                        into: modelContext,
-                        syncService: syncService,
-                        errorPresenter: errorPresenter
-                    )
-                }
-        }
+            }
     }
 
     @ViewBuilder
     private var content: some View {
-        if photos.isEmpty && importer.progress == nil {
+        if photos.isEmpty && addFlow.importer.progress == nil {
             ContentUnavailableView(
                 "No Photos",
                 systemImage: "photo.on.rectangle",

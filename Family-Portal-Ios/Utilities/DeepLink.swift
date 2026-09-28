@@ -6,7 +6,10 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case chat
     case settings
     case photos
-    case timeline
+    /// `/dashboard`, the Home tab.
+    case home
+    /// `/history`, and the legacy `/family-timeline` it replaced.
+    case history
     /// `/profile/<serverId>` — the id the server knows them by, not the local `UUID`; resolving one to the other is the router's job and can fail.
     case person(remoteId: Int)
     case personActivities(remoteId: Int)
@@ -26,8 +29,13 @@ nonisolated enum DeepLink: Equatable, Sendable {
             return .settings
         case "photos" where segments.count == 1:
             return .photos
+        case "dashboard" where segments.count == 1:
+            return .home
+        case "history" where segments.count == 1:
+            return .history
+        // Legacy paths map to their replacements, as `appNav.legacyRedirect` does on the web.
         case "family-timeline" where segments.count == 1:
-            return .timeline
+            return .history
         case "profile" where segments.count == 2:
             return Int(segments[1]).map(DeepLink.person)
         case "person-activities" where segments.count == 2:

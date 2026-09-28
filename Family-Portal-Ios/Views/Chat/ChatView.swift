@@ -8,10 +8,9 @@ struct ChatView: View {
     @State private var scrollProxy: ScrollViewProxy?
     @FocusState private var isInputFocused: Bool
 
+    /// Always pushed — from the account menu, or by a `/chat` link onto the current tab — so it brings no stack of its own.
     var body: some View {
-        NavigationStack {
-            bodyContent()
-        }
+        bodyContent()
     }
 
     @ViewBuilder

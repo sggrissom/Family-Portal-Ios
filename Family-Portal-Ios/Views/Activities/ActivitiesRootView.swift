@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Activities tab: the family's programs, and the seasons under each.
+/// Activities, pushed from the account menu: the family's programs, and the seasons under each.
 /// One call for the programs plus one per program for its seasons — there is no proc that lists seasons across activities, and N is about 1.
 struct ActivitiesRootView: View {
     @Environment(ActivityService.self) private var service
@@ -9,40 +9,36 @@ struct ActivitiesRootView: View {
     @State private var isAddingActivity = false
 
     var body: some View {
-        NavigationStack {
-            ActivityScreen(state: state, read: { service.activities() }) { response in
-                if response.activities.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Activities", systemImage: "trophy")
-                    } description: {
-                        Text("An activity is a program the family is in — dance, soccer, swim. Its seasons, competitions and routines hang off it.")
-                    } actions: {
-                        Button("New Activity") { isAddingActivity = true }
-                    }
-                    .padding(.top, 40)
-                } else {
-                    VStack(spacing: 16) {
-                        ForEach(response.activities) { activity in
-                            ActivitySeasonsSection(activity: activity, onChanged: { await state.reload() })
-                        }
-                    }
-                    .padding(.horizontal)
+        ActivityScreen(state: state, read: { service.activities() }) { response in
+            if response.activities.isEmpty {
+                ContentUnavailableView {
+                    Label("No Activities", systemImage: "trophy")
+                } description: {
+                    Text("An activity is a program the family is in — dance, soccer, swim. Its seasons, competitions and routines hang off it.")
+                } actions: {
+                    Button("New Activity") { isAddingActivity = true }
                 }
-            }
-            .navigationTitle("Activities")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                .padding(.top, 40)
+            } else {
+                VStack(spacing: 16) {
+                    ForEach(response.activities) { activity in
+                        ActivitySeasonsSection(activity: activity, onChanged: { await state.reload() })
+                    }
+
+                    // A text button rather than a toolbar `+`: the one **+** in the app is the add sheet's, and a second one here would mean something else.
                     Button {
                         isAddingActivity = true
                     } label: {
-                        Image(systemName: "plus")
+                        Label("New Activity", systemImage: "plus.circle")
                     }
-                    .accessibilityLabel("New Activity")
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .padding(.horizontal)
             }
-            .sheet(isPresented: $isAddingActivity) {
-                ActivityEditorView(onSaved: { await state.reload() })
-            }
+        }
+        .navigationTitle(Copy.account.activities)
+        .sheet(isPresented: $isAddingActivity) {
+            ActivityEditorView(onSaved: { await state.reload() })
         }
     }
 }

@@ -119,4 +119,9 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case getDashboard = "GetDashboard"
     case listOpenEvents = "ListOpenEvents"
     case getSameAge = "GetSameAge"
+
+    // MARK: - Faces (backend/faces.go)
+    // Review is web-only; the app reads the count for the account menu's badge.
+
+    case getFaceReview = "GetFaceReview"
 }

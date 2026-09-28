@@ -5,6 +5,7 @@ struct PersonDetailView: View {
     @Query private var people: [Person]
 
     @State private var showEditSheet = false
+    @Environment(AddFlow.self) private var addFlow
     let allowsManagementActions: Bool
 
     private var person: Person? { people.first }
@@ -221,12 +222,16 @@ struct PersonDetailView: View {
             }
             .navigationTitle(person.name)
             .navigationBarTitleDisplayMode(.inline)
-            // Not gated on `allowsManagementActions`: recording a measurement is the day-to-day use of this screen, not management of the record.
-            .quickAdd(for: person)
-            .navigationDestination(for: PhotoRoute.self) { route in
-                PhotoDetailView(photoId: route.id)
-            }
             .toolbar {
+                // The contextual add: the same sheet as the tab bar's **+**, with this person chosen. Not gated on `allowsManagementActions` — recording a measurement is the day-to-day use of this screen, not management of the record.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        addFlow.present(for: person.id)
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Add for \(person.name)")
+                }
                 if allowsManagementActions {
                     // No delete affordance: the backend has no DeletePerson proc, so a local delete is undone by the next pull.
                     ToolbarItem(placement: .topBarTrailing) {
