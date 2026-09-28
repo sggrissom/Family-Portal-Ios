@@ -767,8 +767,8 @@ nonisolated struct AddGrowthDataRequestDTO: Encodable, Sendable {
     let measurementType: String  // "height" or "weight"
     let value: Double
     let unit: String             // "cm", "in", "kg", "lbs"
-    let inputType: String        // "date" or "today"
-    let measurementDate: String? // "yyyy-MM-dd" if inputType="date"
+    let inputType: String        // always "date": the device's local day, never the server's UTC "today"
+    let measurementDate: String? // "yyyy-MM-dd"
 }
 
 nonisolated struct UpdateGrowthDataRequestDTO: Encodable, Sendable {
@@ -792,8 +792,8 @@ nonisolated struct AddMilestoneRequestDTO: Encodable, Sendable {
     let personId: Int
     let description: String
     let category: String
-    let inputType: String        // "date" or "today"
-    let milestoneDate: String?   // "yyyy-MM-dd" if inputType="date"
+    let inputType: String        // always "date": the device's local day, never the server's UTC "today"
+    let milestoneDate: String?   // "yyyy-MM-dd"
     /// Photos to attach. `nil` omits the key entirely.
     let photoIds: [Int]?
 }

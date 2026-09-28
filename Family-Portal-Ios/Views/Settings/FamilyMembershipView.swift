@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Who can sign in and see one family. Distinct from `FamilyMembersView` and `FamilyManagementView`, which list `Person` records — the family's people, not its accounts.
+/// Who can sign in and see one family. Distinct from `FamilyManagementView`, which lists `Person` records — the family's people, not its accounts.
 struct FamilyMembershipView: View {
     let family: FamilyInfoDTO
 

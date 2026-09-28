@@ -441,6 +441,9 @@ and Same age should show their cached or offline states.
   on iOS is the main way results get recorded. The add sheet's Result shortcuts
   cover open events. Check that moving Activities under the account menu
   doesn't make backfilling noticeably harder before removing the tab.
+  *Still open (September 2026):* Activities and History both have a case for
+  a tab, possibly in place of Photos, or the bar could be user-configurable.
+  Deferred until the current bar has been used for a while.
 - **Nudge dismissal across devices.** Dismissals are per-browser on the web and
   would be per-device here. A nudge dismissed on the phone would come back on
   the web. That's acceptable for now, and a server-side dismissal would fix both.

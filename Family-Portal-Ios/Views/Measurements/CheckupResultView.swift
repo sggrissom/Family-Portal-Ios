@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 import SwiftData
 
-/// Where a checkup lands: each value it saved, with its percentile and the family comparison, marked **Saved** once the server has it and **Waiting to sync** until then.
+/// Where a checkup lands: each value it saved, with its percentile and the family comparison, then the Same age strip, each value marked **Saved** once the server has it and **Waiting to sync** until then.
 /// A value whose enqueue failed is shown as not saved and retried on its own — never by re-sending the other. A queued value that is later discarded already reaches the user through `discardedChangeWarning`, so there is no failure path here for that.
 struct CheckupResultView: View {
     let onAddAnother: () -> Void
@@ -36,6 +36,11 @@ struct CheckupResultView: View {
                         status(for: record)
                         MeasurementInsightsView(measurement: record)
                     }
+                }
+
+                // One person on one day, so one strip for the whole checkup rather than one per value.
+                if let first = ordered.first {
+                    PersonSameAgeStrip(person: first.person, date: first.date)
                 }
 
                 VStack(spacing: 12) {
