@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "Today ▾" — a menu labelled with the current choice, offering Today, Yesterday, Pick a date… and By age…. Replaces `DateEntryPicker`.
+/// "Today ▾" — a menu labelled with the current choice, offering Today, Yesterday, Pick a date… and By age…. Replaced the old segmented `DateEntryPicker`.
 /// Callers key it with `.id(person?.id)`: an age is resolved against the birthday it was handed, so a control carried over to somebody else would hold a date worked out from the wrong one.
 struct WhenControl: View {
     @Binding var entry: WhenEntry

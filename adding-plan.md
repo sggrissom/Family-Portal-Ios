@@ -1,5 +1,13 @@
 # Family Portal iOS — Making Adding Easy
 
+> **Superseded in part by `redesign-plan.md` (September 2026).** The redesign
+> changed three decisions made here: the per-tab `+` (`QuickAddMenu`) is gone in
+> favour of one add sheet behind the tab bar's **+**; **Save and Add Another** is
+> replaced by the checkup's result screen and its **Add another measurement**; and
+> photos added from a person's `+` are no longer auto-tagged — the photo batch form
+> asks "Who's in these?", preselecting that person as a visible chip. The rest of
+> this plan's reasoning still holds.
+
 The app reads well and writes badly. Everything it shows is one or two taps
 away; half of what it stores is four taps and a scroll away, behind a screen
 whose job is to *show* that kind of record rather than to take a new one.
