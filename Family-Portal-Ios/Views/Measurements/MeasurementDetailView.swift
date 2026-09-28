@@ -12,6 +12,37 @@ struct MeasurementDetailSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isEditing = false
 
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                MeasurementInsightsView(measurement: measurement)
+                    .padding()
+            }
+            .navigationTitle("Measurement")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Edit") {
+                        isEditing = true
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .sheet(isPresented: $isEditing) {
+                EditMeasurementView(measurement: measurement)
+            }
+        }
+    }
+}
+
+/// The body of a measurement's page — its value, facts, percentile and the family comparison — shared by the detail sheet and the checkup's result screen, so a measurement reads the same wherever it was just saved or later opened.
+struct MeasurementInsightsView: View {
+    let measurement: GrowthData
+
     /// The whole roster and graph, for the family comparison. A sheet can't narrow a `@Query` to one family any better than the add sheets can, and the store only ever holds the signed-in family.
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
@@ -45,40 +76,18 @@ struct MeasurementDetailSheetView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    DetailSheetHeader(
-                        icon: measurement.measurementType.icon,
-                        tint: measurement.measurementType.color,
-                        badge: measurement.measurementType.label,
-                        title: MeasurementConversion.format(measurement),
-                        titleFont: .largeTitle
-                    )
+        VStack(alignment: .leading, spacing: 20) {
+            DetailSheetHeader(
+                icon: measurement.measurementType.icon,
+                tint: measurement.measurementType.color,
+                badge: measurement.measurementType.label,
+                title: MeasurementConversion.format(measurement),
+                titleFont: .largeTitle
+            )
 
-                    facts
-                    percentileSection
-                    familySection
-                }
-                .padding()
-            }
-            .navigationTitle("Measurement")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Edit") {
-                        isEditing = true
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-            .sheet(isPresented: $isEditing) {
-                EditMeasurementView(measurement: measurement)
-            }
+            facts
+            percentileSection
+            familySection
         }
     }
 

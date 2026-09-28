@@ -21,6 +21,15 @@ final class ActivityService {
 
     // MARK: - Reads
 
+    /// Events whose results can be entered now, for the add sheet's Result rows. `today` is the device's day.
+    func openEvents(today: String) -> ActivityRead<ListOpenEventsResponseDTO> {
+        read(
+            .listOpenEvents,
+            payload: TodayRequestDTO(today: today),
+            key: ActivitySnapshotKey(.listOpenEvents)
+        )
+    }
+
     func activities(familyId: Int = 0) -> ActivityRead<ListActivitiesResponseDTO> {
         read(
             .listActivities,

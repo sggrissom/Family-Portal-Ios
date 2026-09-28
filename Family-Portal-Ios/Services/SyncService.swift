@@ -614,12 +614,13 @@ final class SyncService {
             throw SyncError.missingRemoteId("Photo must be uploaded before updating")
         }
 
+        let keepsDate = payload.keepDate == true
         let request = UpdatePhotoRequestDTO(
             id: id,
             title: payload.title,
             description: payload.description,
-            inputType: "date",
-            photoDate: payload.photoDate
+            inputType: keepsDate ? "keep" : "date",
+            photoDate: keepsDate ? nil : payload.photoDate
         )
         let response: UpdatePhotoResponseDTO = try await apiClient.callRPC(.updatePhoto, payload: request)
         applyPhotoDTO(response.image, to: photo)
@@ -945,11 +946,13 @@ final class SyncService {
         )
     }
 
-    func updatePhoto(_ photo: Photo) async throws {
+    /// `keepingDate` sends `inputType: "keep"`: the server keeps whatever date the photo has, which after an upload is the one it read from the file itself.
+    func updatePhoto(_ photo: Photo, keepingDate: Bool = false) async throws {
         let payload = UpdatePhotoPayload(
             title: photo.title,
             description: photo.descriptionText,
-            photoDate: dateToAPIString(photo.photoDate)
+            photoDate: dateToAPIString(photo.photoDate),
+            keepDate: keepingDate
         )
 
         let dependsOnLocalId = photo.remoteId == nil ? photo.id.uuidString : nil

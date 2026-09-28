@@ -83,7 +83,7 @@ struct MeasurementListView: View {
             }
         }
         .sheet(isPresented: $showingAddMeasurement) {
-            AddMeasurementView(personId: personId, initialType: selectedType)
+            AddMeasurementView(personId: personId)
         }
         .sheet(item: $selectedMeasurement) { measurement in
             MeasurementDetailSheetView(measurement: measurement)

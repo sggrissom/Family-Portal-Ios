@@ -221,6 +221,8 @@ nonisolated struct UpdatePhotoPayload: Codable, Sendable {
     let title: String
     let description: String
     let photoDate: String
+    /// Sends `inputType: "keep"` so the server leaves the photo's date alone — what the photo batch form sends for a caption when nobody changed the date. Optional so an operation queued by an older build still decodes, as `false`.
+    var keepDate: Bool? = nil
 }
 
 /// The record's complete tag set, for both `updatePhotoTags` and `updateMilestoneTags`. These are *remote* ids: iOS creates no tags, so there is nothing to resolve at execution.

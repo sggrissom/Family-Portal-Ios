@@ -169,4 +169,33 @@ struct QuickAddDefaultsTests {
         #expect(defaults.unit(for: .height) == MeasurementType.height.defaultUnit)
         #expect(defaults.unit(for: .weight) == MeasurementType.weight.defaultUnit)
     }
+
+    // MARK: - Checkup units
+
+    private static func scratchDefaults() -> UserDefaults {
+        let name = "QuickAddDefaultsTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return defaults
+    }
+
+    @Test("Checkup units round-trip per person")
+    func unitPrefsRoundTrip() {
+        let defaults = QuickAddDefaults(defaults: Self.scratchDefaults())
+        let prefs = UnitPrefs(height: ["a": .feetInches], weight: ["a": .poundsOunces], lastHeight: .feetInches, lastWeight: .poundsOunces)
+
+        defaults.saveUnitPrefs(prefs)
+
+        #expect(defaults.unitPrefs == prefs)
+    }
+
+    @Test("A unit remembered by the old one-type sheet seeds only its own type")
+    func legacyUnitSeedsItsOwnType() {
+        let store = Self.scratchDefaults()
+        let defaults = QuickAddDefaults(defaults: store)
+        defaults.rememberMeasurement(type: .height, unit: .centimeters)
+
+        #expect(defaults.unitPrefs.lastHeight == .centimeters)
+        #expect(defaults.unitPrefs.lastWeight == nil)
+    }
 }
