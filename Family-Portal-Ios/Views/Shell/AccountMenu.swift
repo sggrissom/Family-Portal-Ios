@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// The account button on every tab root: the user's initial, badged with unread chat so a new message is visible from anywhere. Its menu is the web's account menu without Import/Export and Admin — History, Chat and Activities are pushed onto the current tab; Tags and Face review are web-only and open the site.
+/// Also deliberately web-only, with no entry here: naming and managing family places, tag auto-phrases (on the Tags page this menu already opens), and the age-in-text parser on the milestone form. Places live on the web's `/settings`, a universal-link path, so a link from the app would only open the app again.
 struct AccountMenuButton: View {
     @Environment(AuthService.self) private var authService
     @Environment(ChatService.self) private var chatService: ChatService?
