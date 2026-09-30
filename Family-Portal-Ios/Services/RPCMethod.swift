@@ -45,6 +45,13 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case updateMilestone = "UpdateMilestone"
     case deleteMilestone = "DeleteMilestone"
 
+    // MARK: - Milestone analysis (backend/milestone_analysis.go)
+    // Online reads, never queued. Each comes back empty where the vision daemon isn't running.
+
+    case suggestMilestoneCategory = "SuggestMilestoneCategory"
+    case suggestMilestonePhotos = "SuggestMilestonePhotos"
+    case getMilestoneMatches = "GetMilestoneMatches"
+
     // MARK: - Photos (backend/photos.go)
 
     case listFamilyPhotos = "ListFamilyPhotos"

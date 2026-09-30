@@ -21,6 +21,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── SyncService.swift, SyncQueue.swift, SyncMappers.swift
 │   ├── PhotoSyncService.swift, PushNotificationService.swift
 │   ├── MobileVersionService.swift
+│   ├── AnalysisService.swift, AnalysisDTOs.swift   # offline-analysis reads: online-only, never queued
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
 │   ├── Shell/         AppNavigator (tabs, per-tab paths, AppRoute, filters),
@@ -192,6 +193,13 @@ The relationship graph (`backend/relation.go`): `GetPersonRelations`, `AddRelati
   than one per parent. The server skips ids that are 0, the subject, repeated, or
   already stored — but fails the *whole* call over one it cannot see, committing
   nothing, so only ever pass ids that came back with the people themselves
+
+### AnalysisService (`@MainActor`)
+The offline-analysis procs (`backend/milestone_analysis.go` and friends), all **online-only and never queued** — the server owns the answer, and a suggestion that arrives late is worth nothing. The vision daemon runs only on staging, so every proc degrades to an empty answer in production; every caller treats a failure as "no suggestion" and every screen must look normal with nothing to show. Answers worth reusing are cached in memory for the session (cleared by `LocalDataReset`), never in SwiftData.
+
+- `suggestMilestoneCategory` → `AddMilestoneView` pre-selects a chip only while `categoryTouched` is false and marks the header "· suggested". `suggestMilestonePhotos` fills "Photos from around then", unattached until tapped. Both run from one `.task(id: lookupKey)` that sleeps 600 ms first, so a keystroke cancels the previous lookup — the web's debounce. Not on the edit form, as on the web
+- `milestoneMatches` → `MilestoneMatchesSection` on the milestone page ("Clara at 1 year 2 months"); each row pushes `MilestoneDetailContent` for the local milestone when it resolves by `remoteId`
+- `RemotePhotoResolution.resolve` maps server photo ids to local `Photo`s in the server's order and drops any this device doesn't hold yet
 
 ### RelationGraph and FamilyGroups
 
@@ -452,6 +460,7 @@ Go + vbeam RPC server.
 - `ListFamilyMembers`, `RemoveFamilyMember`, `LeaveFamily`, `RotateInviteCode`
 - `SendMessage`, `GetChatMessages`, `DeleteMessage` (chat; live delivery is the
   WebSocket, these three are the REST half)
+- `SuggestMilestoneCategory`, `SuggestMilestonePhotos`, `GetMilestoneMatches` (online-only analysis reads; see AnalysisService)
 - `ListTags`, `UpdatePhotoTags`, `UpdateMilestoneTags` (the three tag procs iOS calls — the vocabulary itself is web-only; see the notes under SyncService). The two writes are registered from `backend/photos.go` and `backend/milestone.go`, not `backend/tags.go`
 
 `tagIds` on `Image` and `Milestone` carries `omitempty`, so a record with no tags

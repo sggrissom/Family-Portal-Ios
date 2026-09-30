@@ -58,6 +58,10 @@ enum LocalDataReset {
             // Cached photo bytes are keyed by photo id, and photo ids are global, so without this the cache could still answer for the old account.
             photoCache.removeAll()
 
+            // In memory only, but keyed by server ids the next account could share.
+            AnalysisService.shared.removeAll()
+            SameAgeCache.shared.removeAll()
+
             // Every type is swept explicitly rather than leaning on `Family`'s cascade: the pull creates records without attaching a `Family`.
             delete(Family.self, from: context)
             delete(Person.self, from: context)

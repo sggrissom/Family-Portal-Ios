@@ -79,6 +79,10 @@ nonisolated enum Copy {
         static let cancel = "Cancel"
         static let pickPerson = "Pick who this is about"
         static let needsText = "Say what happened"
+        static let suggested = "suggested"
+        static let photosAroundThen = "Photos from around then. Attach any?"
+        static let attachPhoto = "Attach this photo"
+        static let detachPhoto = "Don't attach this photo"
     }
 
     enum photos {
@@ -158,6 +162,15 @@ nonisolated enum Copy {
 
         static func atAge(_ age: String) -> String {
             "at \(age)"
+        }
+
+        static let matchesTitle = "The same milestone in the family"
+
+        /// "Clara at 14 months" — first name only, as the web writes it; the age is left off for someone with no birthday.
+        static func match(name: String, ageMonths: Int) -> String {
+            let first = name.split(separator: " ").first.map(String.init) ?? name
+            guard ageMonths >= 0 else { return first }
+            return ageMonths == 0 ? "\(first) at birth" : "\(first) at \(AgeSteps.ageTitle(ageMonths))"
         }
     }
 
