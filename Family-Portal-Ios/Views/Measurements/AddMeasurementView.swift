@@ -3,7 +3,7 @@ import SwiftUI
 import SwiftData
 
 /// One checkup: a height and a weight for one person on one day, either of which may be blank — a port of the web's measurement form over `Checkup`.
-/// Save queues one `AddGrowthData` per filled field and moves on to the result screen, which replaced **Save and Add Another**: height and weight are now one trip, and the result screen's **Add another measurement** covers the next person.
+/// Save queues the checkup as one `AddCheckup` — both values or neither — and moves on to the result screen, which replaced **Save and Add Another**: height and weight are now one trip, and the result screen's **Add another measurement** covers the next person.
 struct AddMeasurementView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -220,14 +220,12 @@ struct AddMeasurementView: View {
 
         Task {
             var failed = Set<UUID>()
-            // One enqueue per field, each on its own: a weight that fails to queue must not take the height with it.
-            for record in records {
-                do {
-                    try await syncService?.addGrowthData(record, for: person)
-                } catch {
-                    AppLog.ui.error("Couldn't queue measurement: \(String(describing: error), privacy: .public)")
-                    failed.insert(record.id)
-                }
+            // One operation for the pair, so the two values share a fate: the server saves both or neither, and so does the queue.
+            do {
+                try await syncService?.addCheckup(records, for: person)
+            } catch {
+                AppLog.ui.error("Couldn't queue checkup: \(String(describing: error), privacy: .public)")
+                failed = Set(records.map(\.id))
             }
             isSaving = false
             result = CheckupResult(personId: person.id, recordIds: records.map(\.id), failedIds: failed)
@@ -247,7 +245,7 @@ struct AddMeasurementView: View {
 struct CheckupResult: Hashable, Identifiable {
     let personId: UUID
     let recordIds: [UUID]
-    /// Records whose enqueue threw. Shown as not saved, each retryable on its own.
+    /// Records whose enqueue threw — all of them or none, since the checkup is queued as one. Shown as not saved and retried together.
     var failedIds: Set<UUID>
 
     var id: [UUID] { recordIds }

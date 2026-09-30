@@ -34,6 +34,8 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     // MARK: - Growth data (backend/growth.go)
 
     case addGrowthData = "AddGrowthData"
+    /// A height and a weight on one day, saved both or neither.
+    case addCheckup = "AddCheckup"
     case updateGrowthData = "UpdateGrowthData"
     case deleteGrowthData = "DeleteGrowthData"
 

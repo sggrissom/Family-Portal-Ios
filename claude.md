@@ -279,6 +279,8 @@ network answers.
 - The tag **vocabulary** is read-only on iOS: tags are created, renamed, recoloured and deleted on the web (`CreateTag`, `UpdateTag`, `DeleteTag` have no iOS caller). `TagChipsView` renders `tagRemoteIds` and skips any id the local vocabulary can't resolve, exactly as `view-photo.tsx` does
 - **Applying** tags is not: `updatePhotoTags(_:tagRemoteIds:)` / `updateMilestoneTags(_:tagRemoteIds:)` queue whole-set writes, since `UpdatePhotoTags`/`UpdateMilestoneTags` detach every tag they are not sent. The payload holds *remote* ids — a tag exists only because a pull produced it, so unlike a milestone's photo ids there is nothing to resolve at execution — and the local write happens after a successful enqueue, so a failure leaves nothing to undo. Milestone tag ops declare no dependency: milestones are absent from `fetchAllSyncedLocalIds`, so a dependency on one would never be satisfied; an unsynced milestone throws `missingRemoteId` at execution instead
 - An id the local vocabulary can't resolve is **sent back untouched**, both by `TagPickerView` and by the service. Unresolvable means "created on the web since the last pull" far more often than "deleted", and dropping it from a whole-set write would untag a record because this device is a few minutes behind
+- `addCheckup(_:for:)` queues a height and a weight from one checkup as one `createCheckup` operation → `AddCheckup`, which the server saves both or neither. It is keyed on the height's local id and carries the weight's in the payload, so `pendingLocalChanges()` protects **both** local ids; execution maps `growthData` back by `measurementType`, never by position. A checkup with one value falls back to `createGrowthData`, and `createGrowthData` operations queued by older builds still run unchanged
+- A milestone's tags travel **in** `AddMilestone`/`UpdateMilestone` (`tagRemoteIds:`) rather than as a follow-up `updateMilestoneTags`, so a create never lands untagged. `nil` leaves tags alone and `[]` clears them — send `nil` from any editor that did not show the tag picker. `updateMilestoneTags` remains for the detail page's tags-only editor
 - Milestone photo attachments (`addMilestone(…, photos:)` / `updateMilestone(_:photos:)`) are the *complete* set, not a delta: `nil` omits `photoIds` and leaves the server's attachments alone, `[]` detaches all of them. The queue payload holds photo *local* ids and resolves them at execution — a photo still uploading throws `missingRemoteId` (park and retry) rather than attaching fewer photos than the user chose, and a photo deleted locally drops out of the list
 
 ### Testing
@@ -442,7 +444,7 @@ Go + vbeam RPC server.
 - `GetFamilyTimeline` → `GetFamilyTimelineResponseDTO`
 - `GetFamilyInfo` → `FamilyInfoDTO`
 - `ListPeople` → `ListPeopleResponseDTO`
-- `AddPerson`, `AddGrowthData`, `UpdateGrowthData`, `DeleteGrowthData`
+- `AddPerson`, `AddGrowthData`, `AddCheckup`, `UpdateGrowthData`, `DeleteGrowthData`
 - `GetPersonRelations`, `AddRelation`, `RemoveRelation` (backend/relation.go)
 - `AddMilestone`, `UpdateMilestone`, `DeleteMilestone`
 - `AddPeopleToPhoto`, `RemovePersonFromPhoto`, `DeletePhoto`
@@ -502,10 +504,11 @@ GetPersonRelations: { personId: Int }
 AddRelation: { personId: Int, anchorId: Int, stated: Int, additionalAnchorIds: [Int] }   // stated says what personId is to anchorId
 RemoveRelation: { relationId: Int }   // a stored row's id; implied rows have none
 AddGrowthData: { personId: Int, measurementType: "height"|"weight", value: Double, unit: "cm"|"in"|"kg"|"lbs", inputType: "date"|"age"|"today", measurementDate: "YYYY-MM-DD"? }
+AddCheckup: { personId: Int, inputType: "date", measurementDate: "YYYY-MM-DD", height: {value, unit}?, weight: {value, unit}? }  // → { growthData: [only those sent, height first] }
 UpdateGrowthData: { id: Int, measurementType: "height"|"weight", value: Double, unit: String, inputType: String, measurementDate: String? }
 DeleteGrowthData: { id: Int }
-AddMilestone: { personId: Int, description: String, category: String, inputType: String, milestoneDate: "YYYY-MM-DD"?, photoIds: [Int]? }
-UpdateMilestone: { id: Int, description: String, category: String, inputType: String, milestoneDate: String?, photoIds: [Int]? }
+AddMilestone: { personId: Int, description: String, category: String, inputType: String, milestoneDate: "YYYY-MM-DD"?, photoIds: [Int]?, tagIds: [Int]? }
+UpdateMilestone: { id: Int, description: String, category: String, inputType: String, milestoneDate: String?, photoIds: [Int]?, tagIds: [Int]? }  // absent tagIds leaves tags alone
 DeleteMilestone: { id: Int }
 DeletePhoto: { id: Int }
 AddPeopleToPhoto: { photoId: Int, personIds: [Int] }

@@ -124,6 +124,16 @@ func applyGrowthDataDTO(_ dto: GrowthDataDTO, to growthData: GrowthData) {
     growthData.date = dto.measurementDate
 }
 
+/// Maps an `AddCheckup` answer back onto the records that asked for it, by measurement type rather than position: the response holds only the values sent.
+func applyCheckupResponse(_ response: AddCheckupResponseDTO, height: GrowthData?, weight: GrowthData?) {
+    for dto in response.growthData {
+        let record = intToMeasurementType(dto.measurementType) == .height ? height : weight
+        if let record {
+            applyGrowthDataDTO(dto, to: record)
+        }
+    }
+}
+
 func applyMilestoneDTO(_ dto: MilestoneDTO, to milestone: Milestone) {
     milestone.remoteId = String(dto.id)
     milestone.descriptionText = dto.descriptionText

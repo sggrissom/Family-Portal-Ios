@@ -8,6 +8,8 @@ nonisolated enum SyncOperationType: String, Codable, Sendable {
     case updatePerson
     case setProfilePhoto
     case createGrowthData
+    /// A height and a weight saved together through `AddCheckup`. Keyed on the height's local id when there is one.
+    case createCheckup
     case createMilestone
     case uploadPhoto
     case addPeopleToPhoto
@@ -29,6 +31,8 @@ nonisolated enum SyncOperationType: String, Codable, Sendable {
             return "a profile photo"
         case .createGrowthData, .updateGrowthData, .deleteGrowthData:
             return "a measurement"
+        case .createCheckup:
+            return "a checkup"
         case .createMilestone, .updateMilestone, .deleteMilestone:
             return "a milestone"
         case .updatePhotoTags, .updateMilestoneTags:
@@ -178,6 +182,22 @@ nonisolated struct CreateGrowthDataPayload: Codable, Sendable {
     let measurementDate: String
 }
 
+/// Both values of a checkup. The operation is keyed on one record's local id, so the other's travels here; each half is `nil` when that field was blank.
+nonisolated struct CreateCheckupPayload: Codable, Sendable {
+    let personLocalId: String
+    let measurementDate: String
+    let heightLocalId: String?
+    let heightValue: Double?
+    let heightUnit: String?
+    let weightLocalId: String?
+    let weightValue: Double?
+    let weightUnit: String?
+
+    var recordLocalIds: [String] {
+        [heightLocalId, weightLocalId].compactMap { $0 }
+    }
+}
+
 nonisolated struct CreateMilestonePayload: Codable, Sendable {
     let personLocalId: String
     let description: String
@@ -185,6 +205,8 @@ nonisolated struct CreateMilestonePayload: Codable, Sendable {
     let milestoneDate: String
     /// Local ids, resolved to remote ids when the operation runs. Optional so operations written by a build without this field still decode.
     let photoLocalIds: [String]?
+    /// Remote ids, as in `UpdateTagsPayload`. Optional for the same reason as `photoLocalIds`; `nil` sends no tags.
+    var tagRemoteIds: [Int]? = nil
 }
 
 nonisolated struct UploadPhotoPayload: Codable, Sendable {
@@ -215,6 +237,8 @@ nonisolated struct UpdateMilestonePayload: Codable, Sendable {
     let milestoneDate: String
     /// `nil` leaves the attachments alone, an empty array detaches everything. See `CreateMilestonePayload` for why these are local ids.
     let photoLocalIds: [String]?
+    /// `nil` leaves the tags alone, an empty array clears them. An operation queued by an older build decodes as `nil`.
+    var tagRemoteIds: [Int]? = nil
 }
 
 nonisolated struct UpdatePhotoPayload: Codable, Sendable {

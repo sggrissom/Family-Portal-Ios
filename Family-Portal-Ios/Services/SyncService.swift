@@ -182,6 +182,12 @@ final class SyncService {
                 case .deleteMilestone: changes.deletedMilestoneIds.insert(remoteId)
                 default: changes.deletedPhotoIds.insert(remoteId)
                 }
+            case .createCheckup:
+                // One operation, two records: the one it is not keyed on needs protecting just the same, or a pull landing mid-flight would create a duplicate of it.
+                changes.editedLocalIds.insert(operation.localId)
+                if let payload = try? JSONDecoder().decode(CreateCheckupPayload.self, from: operation.payload) {
+                    changes.editedLocalIds.formUnion(payload.recordLocalIds)
+                }
             default:
                 changes.editedLocalIds.insert(operation.localId)
             }
@@ -304,6 +310,8 @@ final class SyncService {
             try await executeSetProfilePhoto(operation)
         case .createGrowthData:
             try await executeCreateGrowthData(operation)
+        case .createCheckup:
+            try await executeCreateCheckup(operation)
         case .createMilestone:
             try await executeCreateMilestone(operation)
         case .uploadPhoto:
@@ -453,6 +461,40 @@ final class SyncService {
         try modelContext.save()
     }
 
+    private func executeCreateCheckup(_ operation: PendingOperation) async throws {
+        let payload = try JSONDecoder().decode(CreateCheckupPayload.self, from: operation.payload)
+
+        // A half deleted locally since is left out; the other still goes.
+        let height = payload.heightLocalId.flatMap { findGrowthData(byLocalId: $0) }
+        let weight = payload.weightLocalId.flatMap { findGrowthData(byLocalId: $0) }
+        guard height != nil || weight != nil else { return }
+
+        guard let person = findPerson(byLocalId: payload.personLocalId) else {
+            return
+        }
+
+        guard let personRemoteId = person.remoteId,
+              let personId = Int(personRemoteId) else {
+            throw SyncError.missingRemoteId("Person must be synced before adding measurements")
+        }
+
+        func value(_ record: GrowthData?, _ value: Double?, _ unit: String?) -> CheckupValueDTO? {
+            guard record != nil, let value, let unit else { return nil }
+            return CheckupValueDTO(value: value, unit: unit)
+        }
+
+        let request = AddCheckupRequestDTO(
+            personId: personId,
+            inputType: "date",
+            measurementDate: payload.measurementDate,
+            height: value(height, payload.heightValue, payload.heightUnit),
+            weight: value(weight, payload.weightValue, payload.weightUnit)
+        )
+        let response: AddCheckupResponseDTO = try await apiClient.callRPC(.addCheckup, payload: request)
+        applyCheckupResponse(response, height: height, weight: weight)
+        try modelContext.save()
+    }
+
     private func executeCreateMilestone(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(CreateMilestonePayload.self, from: operation.payload)
 
@@ -475,7 +517,8 @@ final class SyncService {
             category: payload.category,
             inputType: "date",
             milestoneDate: payload.milestoneDate,
-            photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds)
+            photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds),
+            tagIds: payload.tagRemoteIds
         )
         let response: AddMilestoneResponseDTO = try await apiClient.callRPC(.addMilestone, payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -598,7 +641,8 @@ final class SyncService {
             category: payload.category,
             inputType: "date",
             milestoneDate: payload.milestoneDate,
-            photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds)
+            photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds),
+            tagIds: payload.tagRemoteIds
         )
         let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC(.updateMilestone, payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -817,6 +861,36 @@ final class SyncService {
         )
     }
 
+    /// Queues the records of one checkup — one person, one day — as a single `AddCheckup`, so the server saves both or neither. A checkup with one value is an ordinary `AddGrowthData`.
+    func addCheckup(_ records: [GrowthData], for person: Person) async throws {
+        let height = records.first { $0.measurementType == .height }
+        let weight = records.first { $0.measurementType == .weight }
+        guard let height, let weight else {
+            for record in records {
+                try await addGrowthData(record, for: person)
+            }
+            return
+        }
+
+        let payload = CreateCheckupPayload(
+            personLocalId: person.id.uuidString,
+            measurementDate: dateToAPIString(height.date),
+            heightLocalId: height.id.uuidString,
+            heightValue: height.value,
+            heightUnit: unitToString(height.unit),
+            weightLocalId: weight.id.uuidString,
+            weightValue: weight.value,
+            weightUnit: unitToString(weight.unit)
+        )
+
+        try await enqueueOperation(
+            type: .createCheckup,
+            localId: height.id.uuidString,
+            payload: payload,
+            dependsOnLocalId: person.remoteId == nil ? person.id.uuidString : nil
+        )
+    }
+
     func updateGrowthData(_ data: GrowthData) async throws {
         let payload = UpdateGrowthDataPayload(
             measurementType: measurementTypeToString(data.measurementType),
@@ -856,19 +930,21 @@ final class SyncService {
 
     // MARK: - Push: Milestones
 
-    /// `photos` is the milestone's complete attachment set, or `nil` to say nothing about attachments.
-    func addMilestone(_ milestone: Milestone, for person: Person, photos: [Photo]? = nil) async throws {
+    /// `photos` is the milestone's complete attachment set, or `nil` to say nothing about attachments. `tagRemoteIds` travels in the same call, so the milestone never exists on the server without its tags.
+    func addMilestone(_ milestone: Milestone, for person: Person, photos: [Photo]? = nil, tagRemoteIds: [Int]? = nil) async throws {
         let payload = CreateMilestonePayload(
             personLocalId: person.id.uuidString,
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
             milestoneDate: dateToAPIString(milestone.date),
-            photoLocalIds: photos?.map { $0.id.uuidString }
+            photoLocalIds: photos?.map { $0.id.uuidString },
+            tagRemoteIds: tagRemoteIds
         )
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
 
         try applyPhotosOptimistically(photos, to: milestone)
+        try applyTagsOptimistically(tagRemoteIds, to: milestone)
 
         try await enqueueOperation(
             type: .createMilestone,
@@ -878,15 +954,18 @@ final class SyncService {
         )
     }
 
-    func updateMilestone(_ milestone: Milestone, photos: [Photo]? = nil) async throws {
+    /// `tagRemoteIds` is `nil` from any editor that did not show the tag picker: `[]` would clear the tags.
+    func updateMilestone(_ milestone: Milestone, photos: [Photo]? = nil, tagRemoteIds: [Int]? = nil) async throws {
         let payload = UpdateMilestonePayload(
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
             milestoneDate: dateToAPIString(milestone.date),
-            photoLocalIds: photos?.map { $0.id.uuidString }
+            photoLocalIds: photos?.map { $0.id.uuidString },
+            tagRemoteIds: tagRemoteIds
         )
 
         try applyPhotosOptimistically(photos, to: milestone)
+        try applyTagsOptimistically(tagRemoteIds, to: milestone)
 
         try await enqueueOperation(
             type: .updateMilestone,
@@ -899,6 +978,12 @@ final class SyncService {
     private func applyPhotosOptimistically(_ photos: [Photo]?, to milestone: Milestone) throws {
         guard let photos else { return }
         milestone.photoRemoteIds = photos.compactMap { $0.remoteId.flatMap(Int.init) }
+        try modelContext.save()
+    }
+
+    private func applyTagsOptimistically(_ tagRemoteIds: [Int]?, to milestone: Milestone) throws {
+        guard let tagRemoteIds else { return }
+        milestone.tagRemoteIds = tagRemoteIds
         try modelContext.save()
     }
 
