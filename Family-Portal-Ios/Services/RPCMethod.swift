@@ -52,6 +52,11 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case suggestMilestonePhotos = "SuggestMilestonePhotos"
     case getMilestoneMatches = "GetMilestoneMatches"
 
+    // MARK: - Person photo insights (backend/person_photo_insights.go)
+    // Face data, not the vision daemon, so this one answers in production too. Online read, never queued.
+
+    case getPersonPhotoInsights = "GetPersonPhotoInsights"
+
     // MARK: - Photos (backend/photos.go)
 
     case listFamilyPhotos = "ListFamilyPhotos"

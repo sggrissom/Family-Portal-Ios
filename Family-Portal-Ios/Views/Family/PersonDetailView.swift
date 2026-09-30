@@ -8,11 +8,16 @@ struct PersonDetailView: View {
 
     @Environment(AddFlow.self) private var addFlow
     @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
     @State private var personId: UUID
     @State private var tab: PersonTab
     @State private var showEditSheet = false
     @State private var showProfilePhotoPicker = false
+    /// `GetPersonPhotoInsights` for the person on screen: the cached answer first, then a fresh one when online.
+    @State private var insights: GetPersonPhotoInsightsResponseDTO?
     let allowsManagementActions: Bool
 
     init(personId: UUID, tab: PersonTab = .story, allowsManagementActions: Bool = true) {
@@ -75,6 +80,13 @@ struct PersonDetailView: View {
                                     Label("Choose Profile Photo", systemImage: "person.crop.circle")
                                 }
                             }
+                            if let suggested = suggestedProfilePhoto(for: person) {
+                                Button {
+                                    useAsProfilePhoto(suggested, for: person)
+                                } label: {
+                                    Label(Copy.person.useAsProfilePhoto, systemImage: "face.smiling")
+                                }
+                            }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                         }
@@ -88,6 +100,9 @@ struct PersonDetailView: View {
             .navigationDestination(isPresented: $showProfilePhotoPicker) {
                 ProfilePhotoPickerView(person: person)
             }
+            .task(id: person.remoteId) {
+                await loadInsights(for: person)
+            }
         } else {
             ContentUnavailableView("Person Not Found", systemImage: "person.slash")
         }
@@ -97,7 +112,14 @@ struct PersonDetailView: View {
 
     private func header(_ person: Person) -> some View {
         HStack(spacing: 14) {
-            PersonAvatarView(person: person, size: 64)
+            // The server's pick of a recent face stands in for the initials, and stays a suggestion: nothing is written to the person.
+            if person.profilePhotoId == nil, let header = insights?.header {
+                FaceCropView(photoId: header.photoId, box: header.box, size: 64)
+                    .clipShape(Circle())
+                    .accessibilityLabel("\(person.name), from a recent photo")
+            } else {
+                PersonAvatarView(person: person, size: 64)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Menu {
                     ForEach(roster) { other in
@@ -139,6 +161,37 @@ struct PersonDetailView: View {
         }
     }
 
+    // MARK: - Insights
+
+    private func loadInsights(for person: Person) async {
+        guard let remoteId = person.remoteId.flatMap(Int.init) else {
+            insights = nil
+            return
+        }
+        let analysis = AnalysisService.shared
+        insights = analysis.cachedPersonPhotoInsights(personId: remoteId)
+        guard network?.isConnected ?? true else { return }
+        if let fresh = await analysis.refreshPersonPhotoInsights(personId: remoteId), !Task.isCancelled {
+            insights = fresh
+        }
+    }
+
+    /// The header face as a local photo the person is tagged in — what `setProfilePhoto` needs. `nil` while the person already has a profile photo, or the photo hasn't reached this device.
+    private func suggestedProfilePhoto(for person: Person) -> Photo? {
+        guard person.profilePhotoId == nil, let header = insights?.header else { return nil }
+        return RemotePhotoResolution.resolve([header.photoId], in: person.photos).first
+    }
+
+    private func useAsProfilePhoto(_ photo: Photo, for person: Person) {
+        Task {
+            do {
+                try await syncService?.setProfilePhoto(photo, for: person)
+            } catch {
+                errorPresenter?.report(error, title: "Couldn't Set Profile Photo")
+            }
+        }
+    }
+
     // MARK: - Tabs
 
     @ViewBuilder
@@ -147,7 +200,7 @@ struct PersonDetailView: View {
         case .story:
             PersonStoryTab(person: person, onShowActivities: { tab = .activities })
         case .photos:
-            PersonPhotosTab(person: person)
+            PersonPhotosTab(person: person, insights: insights)
         case .growth:
             PersonGrowthTab(person: person)
         case .activities:

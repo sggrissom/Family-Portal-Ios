@@ -193,8 +193,11 @@ struct PersonOverview: View {
 /// The gallery scoped to this person, with date and tag filters, and a way into the Photos tab already filtered to them.
 struct PersonPhotosTab: View {
     let person: Person
+    /// Growing up and Often photographed with, above the grid. `nil` until the server answers, and never offline without a cached answer.
+    var insights: GetPersonPhotoInsightsResponseDTO? = nil
 
     @Environment(AppNavigator.self) private var navigator
+    @Query private var people: [Person]
     @State private var filter = PhotoFilter()
     @State private var isFilterPresented = false
 
@@ -223,6 +226,10 @@ struct PersonPhotosTab: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
+            if let insights {
+                insightsSection(insights)
+            }
+
             if photos.isEmpty {
                 Text(Copy.person.noPhotos)
                     .foregroundStyle(.secondary)
@@ -243,6 +250,105 @@ struct PersonPhotosTab: View {
                 PhotoFilterView(filter: $filter)
             }
         }
+    }
+}
+
+/// Someone from Often photographed with, resolved to the local roster.
+private struct Companion {
+    let person: Person
+    let count: Int
+}
+
+extension PersonPhotosTab {
+    @ViewBuilder
+    fileprivate func insightsSection(_ insights: GetPersonPhotoInsightsResponseDTO) -> some View {
+        // One face is not a timeline, so the web waits for two.
+        if insights.growingUp.count > 1 {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Copy.person.growingUp)
+                    .font(.headline)
+                    .padding(.horizontal)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(insights.growingUp, id: \.photoId) { portrait in
+                            growingUpItem(portrait)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            .padding(.top, 8)
+        }
+
+        let companions = insights.oftenWith.compactMap { with in
+            localPerson(remoteId: with.person.id).map { Companion(person: $0, count: with.count) }
+        }
+        if !companions.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Copy.person.oftenWith)
+                    .font(.headline)
+                FlowLayout(spacing: 8) {
+                    ForEach(companions, id: \.person.id) { companion in
+                        companionChip(companion.person, count: companion.count)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+            .padding(.top, 8)
+        }
+    }
+
+    @ViewBuilder
+    private func growingUpItem(_ portrait: PortraitPhotoDTO) -> some View {
+        let label = GetPersonPhotoInsightsResponseDTO.label(for: portrait)
+        let content = VStack(spacing: 4) {
+            FaceCropView(photoId: portrait.photoId, box: portrait.box, size: 76)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(width: 76)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
+
+        if let photo = RemotePhotoResolution.resolve([portrait.photoId], in: person.photos).first {
+            NavigationLink(value: PhotoRoute(id: photo.id, openedFrom: person.id)) {
+                content
+            }
+            .buttonStyle(.plain)
+        } else {
+            content
+        }
+    }
+
+    /// The photos of both of them. The tab already shows only this person's photos, so filtering on the other person alone is the intersection; a second tap clears it.
+    private func companionChip(_ other: Person, count: Int) -> some View {
+        let selected = filter.personLocalIds == [other.id]
+        return Button {
+            filter.personLocalIds = selected ? [] : [other.id]
+        } label: {
+            HStack(spacing: 4) {
+                Text(other.name)
+                Text("\(count)")
+                    .foregroundStyle(selected ? .white.opacity(0.8) : .secondary)
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .foregroundStyle(selected ? .white : .primary)
+            .background(selected ? Color.accentColor : Color.secondary.opacity(0.12), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(other.name), \(count) photos together")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func localPerson(remoteId: Int) -> Person? {
+        let key = String(remoteId)
+        return people.first { $0.remoteId == key }
     }
 }
 

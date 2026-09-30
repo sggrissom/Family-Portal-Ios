@@ -184,6 +184,9 @@ nonisolated enum Copy {
 
         static let noPhotos = "No photos yet."
         static let openInPhotos = "Open in Photos →"
+        static let growingUp = "Growing up"
+        static let oftenWith = "Often photographed with"
+        static let useAsProfilePhoto = "Use as Profile Photo"
         static let metric = "Measurement"
         static let showSiblings = "Show siblings"
         static let measure = "Measure"

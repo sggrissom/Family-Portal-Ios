@@ -51,7 +51,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Settings/      SettingsView, FamilyManagementView, FamilyInfoView,
 │   │                  FamilyMembershipView
 │   └── Components/    PersonAvatarView, PersonRowView, PersonChips,
-│                      WhenControl, MeasurementRowView, MilestoneRowView,
+│                      WhenControl, FaceCropView, MeasurementRowView, MilestoneRowView,
 │                      PhotoThumbnailView, RemotePhotoView, SyncStatusView,
 │                      FlowLayout, ZoomableView, TagChipsView, TagPickerView,
 │                      FamilyRosterSections, CoAnchorPicker, AgeChartView,
@@ -199,6 +199,8 @@ The offline-analysis procs (`backend/milestone_analysis.go` and friends), all **
 
 - `suggestMilestoneCategory` → `AddMilestoneView` pre-selects a chip only while `categoryTouched` is false and marks the header "· suggested". `suggestMilestonePhotos` fills "Photos from around then", unattached until tapped. Both run from one `.task(id: lookupKey)` that sleeps 600 ms first, so a keystroke cancels the previous lookup — the web's debounce. Not on the edit form, as on the web
 - `milestoneMatches` → `MilestoneMatchesSection` on the milestone page ("Clara at 1 year 2 months"); each row pushes `MilestoneDetailContent` for the local milestone when it resolves by `remoteId`
+- `cachedPersonPhotoInsights` / `refreshPersonPhotoInsights` (`GetPersonPhotoInsights`, built on face data, so it answers in production too): `PersonDetailView` shows the cached answer first and refreshes on appear when online. `header` stands in for the initials avatar when the person has no profile photo, and is **never written to the model**; "Use as Profile Photo" in the manage menu hands it to `setProfilePhoto` once the photo resolves locally. `PersonPhotosTab` shows Growing up (face crops, only with two or more) and Often photographed with — a chip filters the tab to that other person, which on a tab already limited to this person *is* the all-of intersection
+- `FaceCropView` crops a server photo's medium size to a `FaceBoxDTO`. `FaceCropLayout.cropRect` pads the box as the web's `faceCropLayout` does but keeps a square in pixels rather than stretching; an empty box falls back to the thumbnail
 - `RemotePhotoResolution.resolve` maps server photo ids to local `Photo`s in the server's order and drops any this device doesn't hold yet
 
 ### RelationGraph and FamilyGroups
@@ -460,7 +462,7 @@ Go + vbeam RPC server.
 - `ListFamilyMembers`, `RemoveFamilyMember`, `LeaveFamily`, `RotateInviteCode`
 - `SendMessage`, `GetChatMessages`, `DeleteMessage` (chat; live delivery is the
   WebSocket, these three are the REST half)
-- `SuggestMilestoneCategory`, `SuggestMilestonePhotos`, `GetMilestoneMatches` (online-only analysis reads; see AnalysisService)
+- `SuggestMilestoneCategory`, `SuggestMilestonePhotos`, `GetMilestoneMatches`, `GetPersonPhotoInsights` (online-only analysis reads; see AnalysisService)
 - `ListTags`, `UpdatePhotoTags`, `UpdateMilestoneTags` (the three tag procs iOS calls — the vocabulary itself is web-only; see the notes under SyncService). The two writes are registered from `backend/photos.go` and `backend/milestone.go`, not `backend/tags.go`
 
 `tagIds` on `Image` and `Milestone` carries `omitempty`, so a record with no tags

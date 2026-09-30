@@ -80,3 +80,60 @@ nonisolated struct GetMilestoneMatchesResponseDTO: Decodable, Sendable {
         matches = try c.decodeList(MilestoneMatchDTO.self, forKey: .matches)
     }
 }
+
+// MARK: - Person photo insights (backend/person_photo_insights.go)
+// Built on face data rather than the vision daemon, so these work in production too.
+
+/// A face's box within its photo, each edge a fraction of the photo's width or height.
+nonisolated struct FaceBoxDTO: Codable, Sendable, Equatable {
+    let left: Double
+    let top: Double
+    let right: Double
+    let bottom: Double
+
+    /// Face analysis found nothing when the box is empty; the server sends it zeroed rather than absent.
+    var hasArea: Bool {
+        right > left && bottom > top
+    }
+}
+
+/// A photo chosen to show the person, with their face box when face analysis found one.
+nonisolated struct PortraitPhotoDTO: Decodable, Sendable {
+    let photoId: Int
+    let box: FaceBoxDTO
+    let date: Date
+    /// The month under two, the year (in months) after, or -1 without a birthday.
+    let ageMonths: Int
+    let year: Int
+}
+
+nonisolated struct OftenWithDTO: Decodable, Sendable {
+    let person: PersonDTO
+    let count: Int
+    let lastDate: Date
+}
+
+nonisolated struct GetPersonPhotoInsightsRequestDTO: Encodable, Sendable {
+    let personId: Int
+}
+
+nonisolated struct GetPersonPhotoInsightsResponseDTO: Decodable, Sendable {
+    let growingUp: [PortraitPhotoDTO]
+    let oftenWith: [OftenWithDTO]
+    /// A face to show in place of the initials when the person has no profile photo. A suggestion only; never stored.
+    let header: PortraitPhotoDTO?
+
+    private enum CodingKeys: String, CodingKey { case growingUp, oftenWith, header }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        growingUp = try c.decodeList(PortraitPhotoDTO.self, forKey: .growingUp)
+        oftenWith = try c.decodeList(OftenWithDTO.self, forKey: .oftenWith)
+        header = try c.decodeIfPresent(PortraitPhotoDTO.self, forKey: .header)
+    }
+
+    /// The label under a growing-up face: the age, or the year for someone with no birthday.
+    static func label(for portrait: PortraitPhotoDTO) -> String {
+        portrait.ageMonths < 0 ? String(portrait.year) : AgeSteps.ageTitle(portrait.ageMonths)
+    }
+}
