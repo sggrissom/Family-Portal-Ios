@@ -3,7 +3,7 @@ import SwiftUI
 import SwiftData
 
 /// Where a checkup lands: each value it saved, with its percentile and the family comparison, then the Same age strip, each value marked **Saved** once the server has it and **Waiting to sync** until then.
-/// A value whose enqueue failed is shown as not saved and retried on its own — never by re-sending the other. A queued value that is later discarded already reaches the user through `discardedChangeWarning`, so there is no failure path here for that.
+/// The checkup is queued as one operation, so a failed enqueue marks every value not saved and **Retry** queues them again together. A queued value that is later discarded already reaches the user through `discardedChangeWarning`, so there is no failure path here for that.
 struct CheckupResultView: View {
     let onAddAnother: () -> Void
     let onDone: () -> Void
@@ -11,7 +11,7 @@ struct CheckupResultView: View {
     @State private var result: CheckupResult
     @Query private var records: [GrowthData]
     @Environment(SyncService.self) private var syncService: SyncService?
-    @State private var retrying: Set<UUID> = []
+    @State private var isRetrying = false
 
     init(result: CheckupResult, onAddAnother: @escaping () -> Void, onDone: @escaping () -> Void) {
         _result = State(initialValue: result)
@@ -75,8 +75,8 @@ struct CheckupResultView: View {
                 Label("Not saved", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
                 Spacer()
-                Button("Retry") { retry(record) }
-                    .disabled(retrying.contains(record.id))
+                Button("Retry") { retry() }
+                    .disabled(isRetrying)
             }
             .font(.subheadline)
         } else if record.remoteId != nil {
@@ -90,16 +90,17 @@ struct CheckupResultView: View {
         }
     }
 
-    private func retry(_ record: GrowthData) {
-        guard let person = record.person else { return }
-        retrying.insert(record.id)
+    private func retry() {
+        let failed = ordered.filter { result.failedIds.contains($0.id) }
+        guard let person = failed.first?.person else { return }
+        isRetrying = true
         Task {
-            defer { retrying.remove(record.id) }
+            defer { isRetrying = false }
             do {
-                try await syncService?.addGrowthData(record, for: person)
-                result.failedIds.remove(record.id)
+                try await syncService?.addCheckup(failed, for: person)
+                result.failedIds.subtract(failed.map(\.id))
             } catch {
-                AppLog.ui.error("Retrying a measurement failed again: \(String(describing: error), privacy: .public)")
+                AppLog.ui.error("Retrying a checkup failed again: \(String(describing: error), privacy: .public)")
             }
         }
     }

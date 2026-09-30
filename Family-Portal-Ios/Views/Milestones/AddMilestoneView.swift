@@ -181,10 +181,13 @@ struct AddMilestoneView: View {
 
         Task {
             do {
-                try await syncService?.addMilestone(milestone, for: person, photos: photos.isEmpty ? nil : photos)
-                if !tags.isEmpty {
-                    try await syncService?.updateMilestoneTags(milestone, tagRemoteIds: tags)
-                }
+                // The tags go in the create itself, so there is no window where the milestone is on the server without them.
+                try await syncService?.addMilestone(
+                    milestone,
+                    for: person,
+                    photos: photos.isEmpty ? nil : photos,
+                    tagRemoteIds: tags.isEmpty ? nil : tags
+                )
                 saved = milestone
             } catch {
                 dismiss()

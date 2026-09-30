@@ -502,6 +502,18 @@ nonisolated struct AddGrowthDataResponseDTO: Codable, Sendable {
     let growthData: GrowthDataDTO
 }
 
+/// Only the values the request sent, height first.
+nonisolated struct AddCheckupResponseDTO: Decodable, Sendable {
+    let growthData: [GrowthDataDTO]
+
+    private enum CodingKeys: String, CodingKey { case growthData }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        growthData = try container.decodeIfPresent([GrowthDataDTO].self, forKey: .growthData) ?? []
+    }
+}
+
 nonisolated struct UpdateGrowthDataResponseDTO: Codable, Sendable {
     let growthData: GrowthDataDTO
 }
@@ -771,6 +783,21 @@ nonisolated struct AddGrowthDataRequestDTO: Encodable, Sendable {
     let measurementDate: String? // "yyyy-MM-dd"
 }
 
+/// One value of a checkup. The type is the key it is sent under, not a field.
+nonisolated struct CheckupValueDTO: Encodable, Sendable {
+    let value: Double
+    let unit: String
+}
+
+/// `AddCheckup`: a height and a weight for one person on one day, in one transaction. Either value may be left out, never both.
+nonisolated struct AddCheckupRequestDTO: Encodable, Sendable {
+    let personId: Int
+    let inputType: String        // always "date", as for `AddGrowthData`
+    let measurementDate: String? // "yyyy-MM-dd"
+    let height: CheckupValueDTO?
+    let weight: CheckupValueDTO?
+}
+
 nonisolated struct UpdateGrowthDataRequestDTO: Encodable, Sendable {
     let id: Int
     let measurementType: String
@@ -796,6 +823,8 @@ nonisolated struct AddMilestoneRequestDTO: Encodable, Sendable {
     let milestoneDate: String?   // "yyyy-MM-dd"
     /// Photos to attach. `nil` omits the key entirely.
     let photoIds: [Int]?
+    /// Tags to attach in the same transaction, so a milestone never lands without them. `nil` omits the key.
+    let tagIds: [Int]?
 }
 
 nonisolated struct UpdateMilestoneRequestDTO: Encodable, Sendable {
@@ -806,6 +835,8 @@ nonisolated struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let milestoneDate: String?
     /// The complete attachment set, not a delta. `nil` vs `[]` is the distinction that matters: absent leaves attachments alone, empty detaches them all.
     let photoIds: [Int]?
+    /// The complete tag set, with the same `nil`-vs-`[]` rule as `photoIds`. An editor that did not show the tag picker sends `nil`.
+    let tagIds: [Int]?
 }
 
 nonisolated struct UpdatePhotoRequestDTO: Encodable, Sendable {

@@ -39,6 +39,7 @@ struct RPCMethodTests {
     @Test("Growth data proc names match the backend")
     func growthProcNames() {
         #expect(RPCMethod.addGrowthData.rawValue == "AddGrowthData")
+        #expect(RPCMethod.addCheckup.rawValue == "AddCheckup")
         #expect(RPCMethod.updateGrowthData.rawValue == "UpdateGrowthData")
         #expect(RPCMethod.deleteGrowthData.rawValue == "DeleteGrowthData")
     }
