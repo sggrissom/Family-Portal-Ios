@@ -7,6 +7,7 @@ struct PhotoGalleryView: View {
     @Query(sort: \Person.name) private var people: [Person]
 
     @Environment(AppNavigator.self) private var navigator
+    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
 
     /// Lives on the navigator, so a person page's "Open in Photos →" can set it and it survives leaving the tab.
     private var filter: PhotoFilter {
@@ -18,6 +19,8 @@ struct PhotoGalleryView: View {
         Binding(get: { navigator.photoFilter }, set: { navigator.photoFilter = $0 })
     }
     @State private var isFilterPresented = false
+    /// The tag-suggestion review, for the toolbar link. `nil` hides it — offline, analysis off, or nothing to review.
+    @State private var suggestionReview: GetTagSuggestionsResponseDTO?
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
@@ -32,6 +35,34 @@ struct PhotoGalleryView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     filterButton
+                }
+                if let review = suggestionReview, review.hasSuggestions {
+                    ToolbarItem(placement: .topBarLeading) {
+                        NavigationLink {
+                            TagSuggestionsView()
+                        } label: {
+                            Image(systemName: "sparkles")
+                                .overlay(alignment: .topTrailing) {
+                                    Text("\(review.total)")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 4)
+                                        .background(Color.accentColor, in: Capsule())
+                                        .offset(x: 10, y: -8)
+                                }
+                        }
+                        .accessibilityLabel("\(Copy.tagSuggestions.title), \(review.total)")
+                    }
+                }
+            }
+            // Keyed on connectivity, so the link appears once a signal returns.
+            .task(id: network?.isConnected ?? true) {
+                await loadSuggestionCount()
+            }
+            // Coming back from the review, whose last fetch is the freshest count there is.
+            .onAppear {
+                if network?.isConnected ?? true, let cached = AnalysisService.shared.cachedTagSuggestions {
+                    suggestionReview = cached
                 }
             }
             .sheet(isPresented: $isFilterPresented) {
@@ -88,6 +119,20 @@ struct PhotoGalleryView: View {
             }
         } else {
             ContentUnavailableView.search(text: filter.trimmedSearch)
+        }
+    }
+
+    private func loadSuggestionCount() async {
+        let analysis = AnalysisService.shared
+        guard network?.isConnected ?? true else {
+            suggestionReview = nil
+            return
+        }
+        if suggestionReview == nil {
+            suggestionReview = analysis.cachedTagSuggestions
+        }
+        if let fresh = await analysis.tagSuggestions() {
+            suggestionReview = fresh
         }
     }
 

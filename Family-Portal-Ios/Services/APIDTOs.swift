@@ -534,9 +534,28 @@ nonisolated struct UpdatePhotoResponseDTO: Codable, Sendable {
     let image: ImageDTO
 }
 
-nonisolated struct GetPhotoResponseDTO: Codable, Sendable {
+nonisolated struct GetPhotoRequestDTO: Encodable, Sendable {
+    let id: Int
+}
+
+/// One photo with what the analysis knows about it. The app mirrors photos through `ListFamilyPhotos`, so this is fetched only by the photo page, for `place` and `suggestions`.
+nonisolated struct GetPhotoResponseDTO: Decodable, Sendable {
     let image: ImageDTO
     let people: [PersonDTO]
+    /// Only for members of the family that owns the photo, and only when it carries a location.
+    let place: PhotoPlaceDTO?
+    /// Pending tag suggestions, for people who can tag the photo. Empty wherever the vision daemon isn't running.
+    let suggestions: [SuggestedTagDTO]
+
+    private enum CodingKeys: String, CodingKey { case image, people, place, suggestions }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        image = try c.decode(ImageDTO.self, forKey: .image)
+        people = try c.decodeIfPresent([PersonDTO].self, forKey: .people) ?? []
+        place = try c.decodeIfPresent(PhotoPlaceDTO.self, forKey: .place)
+        suggestions = try c.decodeIfPresent([SuggestedTagDTO].self, forKey: .suggestions) ?? []
+    }
 }
 
 nonisolated struct ListFamilyPhotosResponseDTO: Codable, Sendable {

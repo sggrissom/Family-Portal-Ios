@@ -137,3 +137,103 @@ nonisolated struct GetPersonPhotoInsightsResponseDTO: Decodable, Sendable {
         portrait.ageMonths < 0 ? String(portrait.year) : AgeSteps.ageTitle(portrait.ageMonths)
     }
 }
+
+// MARK: - Photos: place and tag suggestions (backend/places.go, backend/tag_suggestions.go)
+
+nonisolated struct PhotoPlaceDTO: Decodable, Sendable {
+    /// `f<id>` for a place the family named, `c<id>` for a city. What `ListFamilyPhotos`' `placeKey` filters on.
+    let key: String
+    let name: String
+    let familyPlaceId: Int
+    let latitude: Double
+    let longitude: Double
+}
+
+/// A pending suggestion on one photo, as the photo page shows it.
+nonisolated struct SuggestedTagDTO: Decodable, Sendable, Identifiable {
+    /// A **suggestion** id, which is what accept and reject take — never a tag id.
+    let id: Int
+    let label: String
+    let color: String
+
+    private enum CodingKeys: String, CodingKey { case id, label, color }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(Int.self, forKey: .id)
+        label = try c.decodeIfPresent(String.self, forKey: .label) ?? ""
+        color = try c.decodeIfPresent(String.self, forKey: .color) ?? ""
+    }
+}
+
+/// `AcceptTagSuggestions` and `RejectTagSuggestions`. Suggestion ids, not tag ids.
+nonisolated struct SuggestionIdsRequestDTO: Encodable, Sendable {
+    let ids: [Int]
+}
+
+nonisolated struct SuggestionIdsResponseDTO: Decodable, Sendable {
+    let updated: Int
+
+    private enum CodingKeys: String, CodingKey { case updated }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        updated = try c.decodeIfPresent(Int.self, forKey: .updated) ?? 0
+    }
+}
+
+/// One suggestion in the review, with the photo it is about.
+nonisolated struct TagSuggestionDTO: Decodable, Sendable, Identifiable {
+    let id: Int
+    let photoId: Int
+    let familyId: Int
+    /// 0 until a catalog label is first accepted and becomes a family tag.
+    let tagId: Int
+    let label: String
+    let score: Double
+}
+
+/// Every pending suggestion for one tag or catalog label, best first.
+nonisolated struct SuggestionGroupDTO: Decodable, Sendable, Identifiable {
+    let key: String
+    let label: String
+    let tagId: Int
+    let color: String
+    let familyId: Int
+    let suggestions: [TagSuggestionDTO]
+
+    var id: String { key }
+
+    private enum CodingKeys: String, CodingKey { case key, label, tagId, color, familyId, suggestions }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        key = try c.decode(String.self, forKey: .key)
+        label = try c.decodeIfPresent(String.self, forKey: .label) ?? ""
+        tagId = try c.decodeIfPresent(Int.self, forKey: .tagId) ?? 0
+        color = try c.decodeIfPresent(String.self, forKey: .color) ?? ""
+        familyId = try c.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
+        suggestions = try c.decodeList(TagSuggestionDTO.self, forKey: .suggestions)
+    }
+}
+
+nonisolated struct GetTagSuggestionsResponseDTO: Decodable, Sendable {
+    /// False where photo analysis isn't running at all, as opposed to having nothing to suggest.
+    let enabled: Bool
+    let groups: [SuggestionGroupDTO]
+    let total: Int
+
+    private enum CodingKeys: String, CodingKey { case enabled, groups, total }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        groups = try c.decodeList(SuggestionGroupDTO.self, forKey: .groups)
+        total = try c.decodeIfPresent(Int.self, forKey: .total) ?? 0
+    }
+
+    /// The review is worth a link only when there is something in it.
+    var hasSuggestions: Bool {
+        enabled && total > 0
+    }
+}

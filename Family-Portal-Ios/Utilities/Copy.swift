@@ -150,6 +150,46 @@ nonisolated enum Copy {
         }
     }
 
+    /// The web's `suggestions.tsx` and the suggested-tag chips on `view-photo.tsx`.
+    enum tagSuggestions {
+        static let title = "Suggested Tags"
+        static let subtitle = "Tags the app thinks fit your photos. Nothing is tagged until you say so, and anything you turn down won't be suggested again."
+        static let onPhotoTitle = "Suggested tags"
+        static let hint = "Tap a photo to leave it out."
+        static let notThis = "Not this"
+        static let emptyEnabled = "No suggestions right now. New photos are checked after they upload. You can teach the app your own tags by describing them on the tags page."
+        static let emptyDisabled = "Photo analysis isn't running on this server, so there's nothing to suggest."
+        static let offline = "Suggestions need a connection."
+        static let acceptFailed = "Couldn't Add Tag"
+        static let rejectFailed = "Couldn't Dismiss Suggestion"
+        static let loadFailed = "Failed to reload suggestions"
+
+        static func addTag(_ label: String) -> String {
+            "Add tag \u{201C}\(label)\u{201D}"
+        }
+
+        static func suggestedLabel(_ label: String) -> String {
+            "Suggested tag \(label)"
+        }
+
+        static func tagPhotos(_ count: Int, label: String) -> String {
+            "Tag \(count) photo\(count == 1 ? "" : "s") \u{201C}\(label)\u{201D}"
+        }
+
+        /// "Not these" while every shown photo is included, "Not the selected" once some are left out.
+        static func reject(all: Bool) -> String {
+            all ? "Not these" : "Not the selected"
+        }
+
+        static func tagged(_ count: Int, label: String) -> String {
+            "Tagged \(count) photo\(count == 1 ? "" : "s") \u{201C}\(label)\u{201D}."
+        }
+
+        static func more(_ count: Int) -> String {
+            "\(count) more after these."
+        }
+    }
+
     enum milestoneDetail {
         static let back = "Back"
         static let edit = "Edit"

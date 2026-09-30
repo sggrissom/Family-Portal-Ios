@@ -58,6 +58,7 @@ struct RPCMethodTests {
     @Test("Photo proc names match the backend")
     func photoProcNames() {
         #expect(RPCMethod.listFamilyPhotos.rawValue == "ListFamilyPhotos")
+        #expect(RPCMethod.getPhoto.rawValue == "GetPhoto")
         #expect(RPCMethod.updatePhoto.rawValue == "UpdatePhoto")
         #expect(RPCMethod.deletePhoto.rawValue == "DeletePhoto")
         #expect(RPCMethod.addPeopleToPhoto.rawValue == "AddPeopleToPhoto")
@@ -73,6 +74,9 @@ struct RPCMethodTests {
         #expect(RPCMethod.listTags.rawValue == "ListTags")
         #expect(RPCMethod.updatePhotoTags.rawValue == "UpdatePhotoTags")
         #expect(RPCMethod.updateMilestoneTags.rawValue == "UpdateMilestoneTags")
+        #expect(RPCMethod.getTagSuggestions.rawValue == "GetTagSuggestions")
+        #expect(RPCMethod.acceptTagSuggestions.rawValue == "AcceptTagSuggestions")
+        #expect(RPCMethod.rejectTagSuggestions.rawValue == "RejectTagSuggestions")
     }
 
     @Test("Chat proc names match the backend")
