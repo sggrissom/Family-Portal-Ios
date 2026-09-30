@@ -8,6 +8,7 @@ struct AddMilestoneView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
 
     /// The whole roster rather than one person: a `@Query` predicate is fixed at `init` and cannot follow a `@State` selection.
     @Query(sort: \Person.name) private var people: [Person]
@@ -26,6 +27,12 @@ struct AddMilestoneView: View {
     @State private var error: String?
     @State private var isSaving = false
     @State private var saved: Milestone?
+    /// Set by the user's own tap on a chip; after that a suggestion never moves the selection.
+    @State private var categoryTouched = false
+    /// The selected chip came from `SuggestMilestoneCategory`, and is marked as such.
+    @State private var categorySuggested = false
+    /// `SuggestMilestonePhotos`' answer, as server ids, best first. Unattached until tapped.
+    @State private var suggestedPhotoRemoteIds: [Int] = []
     @FocusState private var isTextFocused: Bool
 
     private var person: Person? {
@@ -34,6 +41,18 @@ struct AddMilestoneView: View {
 
     private var photoChoices: [Photo] {
         milestonePhotoChoices(for: nil, person: person, allPhotos: [])
+    }
+
+    /// The suggested photos this device holds and could attach, in the server's order.
+    private var suggestedPhotos: [Photo] {
+        RemotePhotoResolution.resolve(suggestedPhotoRemoteIds, in: photoChoices)
+    }
+
+    /// What the suggestions depend on. A change restarts the lookup after a pause, the way the web waits for typing to stop.
+    private var lookupKey: String {
+        let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let date = when.problem == nil ? when.resolvedDate(birthday: person?.birthday).map { dateToAPIString($0) } : nil
+        return [person?.remoteId ?? "-", text, date ?? "-", String(network?.isConnected ?? true)].joined(separator: "|")
     }
 
     init(personId: UUID? = nil) {
@@ -61,18 +80,26 @@ struct AddMilestoneView: View {
                         .focused($isTextFocused)
                 }
 
-                Section(Copy.milestone.category) {
+                Section {
                     FlowLayout(spacing: 8) {
                         ForEach(MilestoneCategory.allCases, id: \.self) { option in
                             categoryChip(option)
                         }
                     }
                     .padding(.vertical, 4)
+                } header: {
+                    Text(categorySuggested ? "\(Copy.milestone.category) · \(Copy.milestone.suggested)" : Copy.milestone.category)
                 }
 
                 Section {
                     WhenControl(entry: $when, birthday: person?.birthday)
                         .id(person?.id)
+                }
+
+                if !suggestedPhotos.isEmpty {
+                    Section(Copy.milestone.photosAroundThen) {
+                        suggestedPhotoRow
+                    }
                 }
 
                 Section {
@@ -120,6 +147,9 @@ struct AddMilestoneView: View {
                 selectedPhotoIds.removeAll()
                 error = nil
             }
+            .task(id: lookupKey) {
+                await lookUpSuggestions()
+            }
             .onAppear {
                 if selectedPersonId == nil {
                     selectedPersonId = QuickAddDefaults.person(
@@ -137,6 +167,8 @@ struct AddMilestoneView: View {
         let selected = category == option
         return Button {
             category = option
+            categoryTouched = true
+            categorySuggested = false
         } label: {
             Label(option.label, systemImage: option.icon)
                 .font(.subheadline)
@@ -147,6 +179,72 @@ struct AddMilestoneView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var suggestedPhotoRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(suggestedPhotos) { photo in
+                    let selected = selectedPhotoIds.contains(photo.id)
+                    Button {
+                        if selected {
+                            selectedPhotoIds.remove(photo.id)
+                        } else {
+                            selectedPhotoIds.insert(photo.id)
+                        }
+                    } label: {
+                        RemotePhotoView(remoteId: photo.remoteId.flatMap(Int.init) ?? 0, size: .thumb)
+                            .frame(width: 72, height: 72)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(alignment: .topTrailing) {
+                                if selected {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.title3)
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.white, Color.accentColor)
+                                        .padding(4)
+                                }
+                            }
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 3)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(selected ? Copy.milestone.detachPhoto : Copy.milestone.attachPhoto)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    /// A category (unless the user picked one) and photos from around then. Waits for the inputs to settle first; a newer key cancels this one mid-wait. Offline, or on any failure, nothing changes.
+    private func lookUpSuggestions() async {
+        try? await Task.sleep(for: .milliseconds(600))
+        guard !Task.isCancelled, network?.isConnected ?? true else { return }
+
+        let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let personId = person?.remoteId.flatMap(Int.init)
+        let analysis = AnalysisService.shared
+
+        if text.count >= 3, !categoryTouched,
+           let suggestion = await analysis.suggestMilestoneCategory(description: text, personId: personId),
+           !Task.isCancelled, !categoryTouched {
+            category = suggestion
+            categorySuggested = true
+        }
+
+        guard let personId, text.count >= 3, when.problem == nil,
+              let date = when.resolvedDate(birthday: person?.birthday) else {
+            suggestedPhotoRemoteIds = []
+            return
+        }
+        // Nothing excluded, as on the web: a photo attached from the row stays in it, checked, so it can be unattached again.
+        let ids = await analysis.suggestMilestonePhotos(personId: personId, description: text, date: date)
+        if !Task.isCancelled {
+            suggestedPhotoRemoteIds = ids
+        }
     }
 
     private func save() {
