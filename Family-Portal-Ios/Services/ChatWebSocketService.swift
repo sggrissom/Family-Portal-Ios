@@ -148,8 +148,8 @@ actor ChatWebSocketService {
             await self?.receiveLoop()
         }
 
+        // Optimistic: the handshake is still in flight. The backoff is only reset once something actually arrives (see `receiveLoop`), or a handshake the server refuses would retry every second forever.
         connectionState = .connected
-        reconnectAttempt = 0
 
         startHeartbeat()
         startWatchdog()
@@ -162,6 +162,7 @@ actor ChatWebSocketService {
             do {
                 let message = try await task.receive()
                 lastMessageTime = Date()
+                reconnectAttempt = 0
 
                 switch message {
                 case .string(let text):
@@ -174,6 +175,13 @@ actor ChatWebSocketService {
                     break
                 }
             } catch {
+                // A refused handshake is not a dropped connection. The server answers 403 to an account with no membership row for its family, and retrying cannot fix that.
+                if let status = (task.response as? HTTPURLResponse)?.statusCode, Self.isPermanentRefusal(status) {
+                    AppLog.chat.error("Chat socket refused with HTTP \(status); not reconnecting")
+                    cleanupConnection()
+                    connectionState = .failed
+                    break
+                }
                 if !isManuallyDisconnected {
                     await handleDisconnection()
                 }
@@ -255,6 +263,11 @@ actor ChatWebSocketService {
     private struct Envelope<Payload: Decodable>: Decodable {
         let type: String
         let payload: Payload
+    }
+
+    /// Handshake statuses that another attempt won't change. 401 is left to the normal path, since the token may simply need refreshing before the next connect.
+    nonisolated static func isPermanentRefusal(_ status: Int) -> Bool {
+        status == 403 || status == 404
     }
 
     private func handleDisconnection() async {

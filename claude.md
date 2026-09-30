@@ -205,6 +205,10 @@ The offline-analysis procs (`backend/milestone_analysis.go` and friends), all **
 - `tagSuggestions` (`GetTagSuggestions`) → `TagSuggestionsView`, the web's `/suggestions`, linked from the gallery toolbar with a count only when `enabled && total > 0`. A tap leaves a photo out; the bulk buttons act on the first 24 shown (`TagSuggestionReview`). After a change it re-fetches the review and runs a full pull for the photos' new tag ids
 - `RemotePhotoResolution.resolve` maps server photo ids to local `Photo`s in the server's order and drops any this device doesn't hold yet
 
+**Deliberately web-only** (from the offline-analysis work; write down, don't build): naming and managing family places (`SaveFamilyPlace`, `DeleteFamilyPlace`, `ListFamilyPlaces` — they live on the web's `/settings`, which the universal-link association claims, so the app cannot link out to them), tag auto-phrases (the web's Tags page, which the account menu already opens), and the age-in-text parser (`parseAgeFromText`; `WhenControl` makes age entry quick already).
+
+**Not built yet, waiting on the backend:** similar-photo stacks and a local place filter. The full pull can't reproduce either — `similar` is only filled with `collapseSimilar: true`, which drops the stack's other members from the list, and list items carry no place — so both need a per-item field (`similarGroupId`, `placeKey`) on the non-collapsed `ListFamilyPhotos` first. See `analysis-plan.md` §4b/4c.
+
 ### RelationGraph and FamilyGroups
 
 Ports of `frontend/lib/relations.ts` and `frontend/lib/familyGroups.ts`, so the
@@ -231,6 +235,8 @@ phone and the dashboard answer the same questions from the same graph.
   why the graph can band a roster where `Person.relationship` cannot
 
 ### ChatService (`@Observable`, `@MainActor`)
+- `ChatWebSocketService` resets its reconnect backoff only when a frame actually arrives, not when `performConnect` returns — the handshake is still in flight then, and resetting there turned a refused handshake into a reconnect every second. A 403 or 404 handshake (the server refuses an account with no membership row for its family) is permanent: the socket goes `.failed` without retrying
+
 
 One family room, backed by three procs (`SendMessage`, `GetChatMessages`,
 `DeleteMessage`) and a WebSocket (`ChatWebSocketService`) for live delivery,
