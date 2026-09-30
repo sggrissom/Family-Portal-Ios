@@ -9,6 +9,7 @@ final class AnalysisService {
 
     private let apiClient: APIClient
     private var milestoneMatches: [Int: GetMilestoneMatchesResponseDTO] = [:]
+    private var personInsights: [Int: GetPersonPhotoInsightsResponseDTO] = [:]
 
     init(apiClient: APIClient = .shared) {
         self.apiClient = apiClient
@@ -16,6 +17,7 @@ final class AnalysisService {
 
     func removeAll() {
         milestoneMatches = [:]
+        personInsights = [:]
     }
 
     // MARK: - Milestones
@@ -69,6 +71,31 @@ final class AnalysisService {
             return response
         } catch {
             AppLog.ui.error("Milestone matches failed: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+}
+
+extension AnalysisService {
+
+    // MARK: - People
+
+    /// The last answer this session, for a first frame that doesn't wait on the network.
+    func cachedPersonPhotoInsights(personId: Int) -> GetPersonPhotoInsightsResponseDTO? {
+        personInsights[personId]
+    }
+
+    /// A fresh answer, stored for `cachedPersonPhotoInsights`. `nil` on failure, leaving the cached one alone.
+    func refreshPersonPhotoInsights(personId: Int) async -> GetPersonPhotoInsightsResponseDTO? {
+        do {
+            let response: GetPersonPhotoInsightsResponseDTO = try await apiClient.callRPC(
+                .getPersonPhotoInsights,
+                payload: GetPersonPhotoInsightsRequestDTO(personId: personId)
+            )
+            personInsights[personId] = response
+            return response
+        } catch {
+            AppLog.ui.error("Photo insights failed: \(String(describing: error), privacy: .public)")
             return nil
         }
     }

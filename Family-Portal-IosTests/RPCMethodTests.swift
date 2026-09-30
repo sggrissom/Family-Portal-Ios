@@ -52,6 +52,7 @@ struct RPCMethodTests {
         #expect(RPCMethod.suggestMilestoneCategory.rawValue == "SuggestMilestoneCategory")
         #expect(RPCMethod.suggestMilestonePhotos.rawValue == "SuggestMilestonePhotos")
         #expect(RPCMethod.getMilestoneMatches.rawValue == "GetMilestoneMatches")
+        #expect(RPCMethod.getPersonPhotoInsights.rawValue == "GetPersonPhotoInsights")
     }
 
     @Test("Photo proc names match the backend")
