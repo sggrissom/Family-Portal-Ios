@@ -195,6 +195,27 @@ final class SyncService {
         return changes
     }
 
+    /// Takes on tags the server added to a photo outside the queue — an accepted suggestion. The vocabulary is re-pulled first, since accepting a catalog label can create the tag.
+    /// A queued whole-set tag write for the photo would untag what the server just added, so the new ids (`after` minus `before`) are folded into it instead of replacing the local set.
+    func adoptServerTags(before: [Int], after: [Int], for photo: Photo) async {
+        await pullTags()
+        let hasPendingTagWrite = await syncQueue.allOperations().contains {
+            $0.type == .updatePhotoTags && $0.localId == photo.id.uuidString
+        }
+        do {
+            if hasPendingTagWrite {
+                let added = Set(after).subtracting(before)
+                let merged = photo.tagRemoteIds + added.sorted().filter { !photo.tagRemoteIds.contains($0) }
+                try await updatePhotoTags(photo, tagRemoteIds: merged)
+            } else {
+                photo.tagRemoteIds = after
+                try modelContext.save()
+            }
+        } catch {
+            AppLog.sync.error("Adopting server tags failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
     private func pullTags() async {
         do {
             struct EmptyPayload: Encodable {}

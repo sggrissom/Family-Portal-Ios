@@ -10,6 +10,7 @@ final class AnalysisService {
     private let apiClient: APIClient
     private var milestoneMatches: [Int: GetMilestoneMatchesResponseDTO] = [:]
     private var personInsights: [Int: GetPersonPhotoInsightsResponseDTO] = [:]
+    private var tagSuggestionReview: GetTagSuggestionsResponseDTO?
 
     init(apiClient: APIClient = .shared) {
         self.apiClient = apiClient
@@ -18,6 +19,7 @@ final class AnalysisService {
     func removeAll() {
         milestoneMatches = [:]
         personInsights = [:]
+        tagSuggestionReview = nil
     }
 
     // MARK: - Milestones
@@ -98,6 +100,54 @@ extension AnalysisService {
             AppLog.ui.error("Photo insights failed: \(String(describing: error), privacy: .public)")
             return nil
         }
+    }
+}
+
+extension AnalysisService {
+
+    // MARK: - Photos
+
+    /// The photo page's extras — place and pending tag suggestions. `nil` on failure.
+    func photoDetails(photoId: Int) async -> GetPhotoResponseDTO? {
+        do {
+            return try await apiClient.callRPC(.getPhoto, payload: GetPhotoRequestDTO(id: photoId))
+        } catch {
+            AppLog.ui.error("GetPhoto failed: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    // MARK: - Tag suggestions
+
+    /// The review, and the badge count on the way to it. `nil` on failure.
+    func tagSuggestions() async -> GetTagSuggestionsResponseDTO? {
+        do {
+            struct EmptyPayload: Encodable {}
+            let response: GetTagSuggestionsResponseDTO = try await apiClient.callRPC(.getTagSuggestions, payload: EmptyPayload())
+            tagSuggestionReview = response
+            return response
+        } catch {
+            AppLog.ui.error("Tag suggestions failed: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    /// The last review fetched this session, so the gallery's link can show before a fresh one answers.
+    var cachedTagSuggestions: GetTagSuggestionsResponseDTO? {
+        tagSuggestionReview
+    }
+
+    /// Tags the suggestions' photos. Throws, unlike the reads: the user asked for this and has to hear that it didn't happen.
+    @discardableResult
+    func acceptTagSuggestions(_ ids: [Int]) async throws -> Int {
+        let response: SuggestionIdsResponseDTO = try await apiClient.callRPC(.acceptTagSuggestions, payload: SuggestionIdsRequestDTO(ids: ids))
+        return response.updated
+    }
+
+    @discardableResult
+    func rejectTagSuggestions(_ ids: [Int]) async throws -> Int {
+        let response: SuggestionIdsResponseDTO = try await apiClient.callRPC(.rejectTagSuggestions, payload: SuggestionIdsRequestDTO(ids: ids))
+        return response.updated
     }
 }
 

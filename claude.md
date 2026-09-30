@@ -201,6 +201,8 @@ The offline-analysis procs (`backend/milestone_analysis.go` and friends), all **
 - `milestoneMatches` → `MilestoneMatchesSection` on the milestone page ("Clara at 1 year 2 months"); each row pushes `MilestoneDetailContent` for the local milestone when it resolves by `remoteId`
 - `cachedPersonPhotoInsights` / `refreshPersonPhotoInsights` (`GetPersonPhotoInsights`, built on face data, so it answers in production too): `PersonDetailView` shows the cached answer first and refreshes on appear when online. `header` stands in for the initials avatar when the person has no profile photo, and is **never written to the model**; "Use as Profile Photo" in the manage menu hands it to `setProfilePhoto` once the photo resolves locally. `PersonPhotosTab` shows Growing up (face crops, only with two or more) and Often photographed with — a chip filters the tab to that other person, which on a tab already limited to this person *is* the all-of intersection
 - `FaceCropView` crops a server photo's medium size to a `FaceBoxDTO`. `FaceCropLayout.cropRect` pads the box as the web's `faceCropLayout` does but keeps a square in pixels rather than stretching; an empty box falls back to the thumbnail
+- `photoDetails` (`GetPhoto`) → the photo page's place name under the date and its pending suggestions as **dashed** `SuggestedTagChips` after the real tags. Accept/Reject (`AcceptTagSuggestions`/`RejectTagSuggestions`, which take **suggestion** ids, never tag ids) are online-only and never queued — the server owns the outcome, since accepting a catalog label can create a family tag. Afterwards the page re-fetches `GetPhoto` and hands the before/after tag ids to `SyncService.adoptServerTags`, which re-pulls the vocabulary and either takes the server's set or, when a whole-set `updatePhotoTags` is still queued, folds only the newly added ids into it so the queued write doesn't untag them
+- `tagSuggestions` (`GetTagSuggestions`) → `TagSuggestionsView`, the web's `/suggestions`, linked from the gallery toolbar with a count only when `enabled && total > 0`. A tap leaves a photo out; the bulk buttons act on the first 24 shown (`TagSuggestionReview`). After a change it re-fetches the review and runs a full pull for the photos' new tag ids
 - `RemotePhotoResolution.resolve` maps server photo ids to local `Photo`s in the server's order and drops any this device doesn't hold yet
 
 ### RelationGraph and FamilyGroups
@@ -462,7 +464,7 @@ Go + vbeam RPC server.
 - `ListFamilyMembers`, `RemoveFamilyMember`, `LeaveFamily`, `RotateInviteCode`
 - `SendMessage`, `GetChatMessages`, `DeleteMessage` (chat; live delivery is the
   WebSocket, these three are the REST half)
-- `SuggestMilestoneCategory`, `SuggestMilestonePhotos`, `GetMilestoneMatches`, `GetPersonPhotoInsights` (online-only analysis reads; see AnalysisService)
+- `SuggestMilestoneCategory`, `SuggestMilestonePhotos`, `GetMilestoneMatches`, `GetPersonPhotoInsights`, `GetPhoto`, `GetTagSuggestions`, `AcceptTagSuggestions`, `RejectTagSuggestions` (online-only analysis calls; see AnalysisService)
 - `ListTags`, `UpdatePhotoTags`, `UpdateMilestoneTags` (the three tag procs iOS calls — the vocabulary itself is web-only; see the notes under SyncService). The two writes are registered from `backend/photos.go` and `backend/milestone.go`, not `backend/tags.go`
 
 `tagIds` on `Image` and `Milestone` carries `omitempty`, so a record with no tags

@@ -47,6 +47,7 @@ struct PhotoDetailView: View {
 private struct PhotoDetailContent: View {
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
     @Bindable var photo: Photo
     let openedFrom: UUID?
     @Binding var showDeleteConfirmation: Bool
@@ -56,6 +57,8 @@ private struct PhotoDetailContent: View {
     @State private var syncedDescription: String?
     @State private var saveError: String?
     @FocusState private var editingMetadata: Bool
+    /// `GetPhoto`'s place and pending tag suggestions, fetched when online. Never stored: the mirrored list doesn't carry them, and they are the server's to change.
+    @State private var details: GetPhotoResponseDTO?
 
     var body: some View {
         ScrollView {
@@ -80,9 +83,14 @@ private struct PhotoDetailContent: View {
                         .padding(.horizontal)
                 }
 
-                Text(photo.photoDate.formatted(date: .long, time: .shortened))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                VStack(spacing: 4) {
+                    Text(photo.photoDate.formatted(date: .long, time: .shortened))
+                    if let place = details?.place, !place.name.isEmpty {
+                        Label(place.name, systemImage: "mappin.and.ellipse")
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 16) {
                     TextField("Title", text: $photo.title)
@@ -136,6 +144,13 @@ private struct PhotoDetailContent: View {
                 TagChipsView(tagRemoteIds: photo.tagRemoteIds, title: "Tags")
                     .padding(.horizontal)
 
+                SuggestedTagChips(
+                    suggestions: details?.suggestions ?? [],
+                    onAccept: accept,
+                    onReject: reject
+                )
+                .padding(.horizontal)
+
                 NavigationLink {
                     TagPickerView(tagRemoteIds: photo.tagRemoteIds) { tagRemoteIds in
                         guard let syncService else { return }
@@ -187,6 +202,48 @@ private struct PhotoDetailContent: View {
             if !isEditing { commitEdits() }
         }
         .onDisappear { commitEdits() }
+        .task(id: photo.remoteId) {
+            await loadDetails()
+        }
+    }
+
+    // MARK: - Analysis
+
+    private func loadDetails() async {
+        guard let id = photo.remoteId.flatMap(Int.init), network?.isConnected ?? true else {
+            details = nil
+            return
+        }
+        if let fresh = await AnalysisService.shared.photoDetails(photoId: id), !Task.isCancelled {
+            details = fresh
+        }
+    }
+
+    /// Online only and never queued: the server creates the tag if it has to, so the photo's tags are taken from its answer afterwards rather than guessed at here.
+    private func accept(_ suggestion: SuggestedTagDTO) {
+        let before = details?.image.tagIds ?? photo.tagRemoteIds
+        Task {
+            do {
+                try await AnalysisService.shared.acceptTagSuggestions([suggestion.id])
+                await loadDetails()
+                if let after = details?.image.tagIds {
+                    await syncService?.adoptServerTags(before: before, after: after, for: photo)
+                }
+            } catch {
+                errorPresenter?.report(error, title: Copy.tagSuggestions.acceptFailed)
+            }
+        }
+    }
+
+    private func reject(_ suggestion: SuggestedTagDTO) {
+        Task {
+            do {
+                try await AnalysisService.shared.rejectTagSuggestions([suggestion.id])
+                await loadDetails()
+            } catch {
+                errorPresenter?.report(error, title: Copy.tagSuggestions.rejectFailed)
+            }
+        }
     }
 
     /// SwiftData leaves to-many relationships unordered, so both the chips and the profile-photo menu would otherwise reshuffle between redraws.

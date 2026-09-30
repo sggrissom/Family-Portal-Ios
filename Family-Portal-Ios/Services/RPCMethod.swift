@@ -60,6 +60,8 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     // MARK: - Photos (backend/photos.go)
 
     case listFamilyPhotos = "ListFamilyPhotos"
+    /// Fetched by the photo page only, for the place and tag suggestions the mirrored list doesn't carry.
+    case getPhoto = "GetPhoto"
     case updatePhoto = "UpdatePhoto"
     case deletePhoto = "DeletePhoto"
     case addPeopleToPhoto = "AddPeopleToPhoto"
@@ -73,6 +75,13 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
 
     case updatePhotoTags = "UpdatePhotoTags"
     case updateMilestoneTags = "UpdateMilestoneTags"
+
+    // MARK: - Tag suggestions (backend/tag_suggestions.go)
+    // Online only and never queued, like membership changes: the server owns the outcome (accepting a catalog label can create a family tag).
+
+    case getTagSuggestions = "GetTagSuggestions"
+    case acceptTagSuggestions = "AcceptTagSuggestions"
+    case rejectTagSuggestions = "RejectTagSuggestions"
 
     // MARK: - Chat (backend/chat.go)
 
