@@ -313,6 +313,8 @@ network answers.
 
 ### Photo gallery (`PhotoGalleryView`, `PhotoImporter`, `PhotoFilter`, `PhotoFilterView`)
 
+- **Search is the one gallery mode that depends on the server** (`PhotoSearch.swift`). Typing filters the local mirror live, as before; submitting (return) while online sends `ListFamilyPhotos` with `query`, `limit: 60` and the panel filters (`PhotoSearchRequest`, people by server id). The results show **in server order**, resolved to local photos by `remoteId` (unknown ids drop out), with "Best matches for “…” with Clara and Mia" from `matchedPersonIds`, the web's note when `searchMode == "text"`, and paging on `nextCursor` as the last cell appears. Editing the text drops back to the local filter; changing panel filters re-asks. Offline, or when the call fails, the local filter stays and a caption says only titles and descriptions were searched
+
 - The import itself is `PhotoImporter` (`@Observable`, `@MainActor`), not the
   gallery: there is one instance, held by `AddFlow`, so every **+** imports the
   same way and one progress bar covers every batch. Its dependencies — context, sync service,

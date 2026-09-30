@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import SwiftData
 
@@ -21,6 +22,13 @@ struct PhotoGalleryView: View {
     @State private var isFilterPresented = false
     /// The tag-suggestion review, for the toolbar link. `nil` hides it — offline, analysis off, or nothing to review.
     @State private var suggestionReview: GetTagSuggestionsResponseDTO?
+    /// A submitted server search. While set, the grid shows its ranked results instead of the local filter; editing the text away from its query drops it.
+    @State private var search: PhotoSearchResults?
+    @State private var isSearching = false
+    @State private var isLoadingMore = false
+    @State private var searchError: String?
+
+    private var isOnline: Bool { network?.isConnected ?? true }
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
@@ -31,7 +39,22 @@ struct PhotoGalleryView: View {
     var body: some View {
         content
             .navigationTitle(Copy.nav.photos)
-            .searchable(text: filterBinding.searchText, prompt: "Title or description")
+            .searchable(text: filterBinding.searchText, prompt: isOnline ? Copy.photoSearch.prompt : Copy.photoSearch.offlinePrompt)
+            .onSubmit(of: .search) {
+                Task { await submitSearch() }
+            }
+            // A search answers one question. New words drop it back to the live local filter until they are submitted; new panel filters ask it again.
+            .onChange(of: filter.trimmedSearch) { _, text in
+                if let search, search.query != text {
+                    self.search = nil
+                    searchError = nil
+                }
+            }
+            .onChange(of: PhotoSearchRequest(filter: filter, people: people)) { _, _ in
+                if search != nil {
+                    Task { await submitSearch() }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     filterButton
@@ -74,7 +97,9 @@ struct PhotoGalleryView: View {
 
     @ViewBuilder
     private var content: some View {
-        if photos.isEmpty && addFlow.importer.progress == nil {
+        if let search {
+            searchResults(search)
+        } else if photos.isEmpty && addFlow.importer.progress == nil {
             ContentUnavailableView(
                 "No Photos",
                 systemImage: "photo.on.rectangle",
@@ -84,6 +109,14 @@ struct PhotoGalleryView: View {
             noMatchesView
         } else {
             ScrollView {
+                if let note = localSearchNote {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.top, 4)
+                }
                 if filter.isActive {
                     Text(countCaption)
                         .font(.footnote)
@@ -120,6 +153,115 @@ struct PhotoGalleryView: View {
         } else {
             ContentUnavailableView.search(text: filter.trimmedSearch)
         }
+    }
+
+    // MARK: - Server search
+
+    /// Said while the grid is the local filter over typed words: offline, that is all there is; online, the words haven't been submitted yet, or the search failed.
+    private var localSearchNote: String? {
+        guard !filter.trimmedSearch.isEmpty else { return nil }
+        if !isOnline { return Copy.photoSearch.offlineNote }
+        if let searchError { return searchError }
+        if isSearching { return Copy.photoSearch.searching }
+        return nil
+    }
+
+    private func submitSearch() async {
+        let query = filter.trimmedSearch
+        guard !query.isEmpty, isOnline else {
+            search = nil
+            return
+        }
+        let request = PhotoSearchRequest(filter: filter, people: people)
+        isSearching = true
+        searchError = nil
+        defer { isSearching = false }
+        do {
+            let response = try await AnalysisService.shared.searchPhotos(query: query, request: request)
+            // The text may have moved on while the answer was in flight.
+            guard filter.trimmedSearch == query else { return }
+            var results = PhotoSearchResults(query: query, request: request)
+            results.append(response)
+            search = results
+        } catch {
+            AppLog.ui.error("Photo search failed: \(String(describing: error), privacy: .public)")
+            search = nil
+            searchError = Copy.photoSearch.failed
+        }
+    }
+
+    private func loadMore() async {
+        guard var results = search, results.hasMore, !isLoadingMore, isOnline else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let response = try await AnalysisService.shared.searchPhotos(query: results.query, request: results.request, cursor: results.nextCursor)
+            guard search?.query == results.query, search?.request == results.request else { return }
+            results.append(response)
+            search = results
+        } catch {
+            AppLog.ui.error("Photo search paging failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private func searchResults(_ results: PhotoSearchResults) -> some View {
+        let resolved = RemotePhotoResolution.resolve(results.photoIds, in: photos)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Copy.photoSearch.bestMatches(results.query, with: matchedNames(results.matchedPersonIds)))
+                    .font(.subheadline.weight(.semibold))
+                if results.isTextOnly {
+                    Text(Copy.photoSearch.textOnlyNote)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Button(Copy.photoSearch.clear) {
+                    filter.searchText = ""
+                    search = nil
+                }
+                .font(.footnote)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
+
+            if resolved.isEmpty && !results.hasMore {
+                ContentUnavailableView.search(text: results.query)
+            }
+
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(resolved) { photo in
+                    NavigationLink(value: PhotoRoute(id: photo.id)) {
+                        PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
+                    }
+                    .onAppear {
+                        if photo.id == resolved.last?.id {
+                            Task { await loadMore() }
+                        }
+                    }
+                }
+            }
+            .padding(4)
+
+            if isLoadingMore {
+                ProgressView()
+                    .padding()
+            } else if results.hasMore && resolved.isEmpty {
+                // Every result on this page was a photo this device doesn't hold yet, so no cell will appear to ask for the next one.
+                Button(Copy.photoSearch.more) {
+                    Task { await loadMore() }
+                }
+                .padding()
+            }
+        }
+    }
+
+    /// "Clara and Mia" — the first names of the people the query named, as the web writes them.
+    private func matchedNames(_ remoteIds: [Int]) -> String {
+        let names = remoteIds.compactMap { id in
+            people.first { $0.remoteId == String(id) }?.name.split(separator: " ").first.map(String.init)
+        }
+        return names.joined(separator: " and ")
     }
 
     private func loadSuggestionCount() async {
