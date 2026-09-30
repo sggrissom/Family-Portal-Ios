@@ -558,8 +558,37 @@ nonisolated struct GetPhotoResponseDTO: Decodable, Sendable {
     }
 }
 
-nonisolated struct ListFamilyPhotosResponseDTO: Codable, Sendable {
+/// The sync pull sends this empty and gets every photo in one page. Search fills `query` and pages through `cursor`.
+nonisolated struct ListFamilyPhotosRequestDTO: Encodable, Sendable {
+    var query: String? = nil
+    /// 0 or absent returns every match in one response.
+    var limit: Int? = nil
+    var cursor: String? = nil
+    /// Any-of, like `PhotoFilter`'s people. A name in `query` narrows to all-of on the server's side.
+    var personIds: [Int]? = nil
+    var tagIds: [Int]? = nil
+    var dateFrom: String? = nil  // "yyyy-MM-dd"
+    var dateTo: String? = nil
+}
+
+nonisolated struct ListFamilyPhotosResponseDTO: Decodable, Sendable {
     let photos: [PhotoWithPeopleDTO]
+    /// Empty on the last page. A search's cursors look like `s60`.
+    let nextCursor: String
+    /// For a search: the people named in the query, whom every result shows.
+    let matchedPersonIds: [Int]
+    /// `"semantic"`, or `"text"` when the vision daemon is unavailable and only titles and descriptions were searched. Empty for a plain listing.
+    let searchMode: String
+
+    private enum CodingKeys: String, CodingKey { case photos, nextCursor, matchedPersonIds, searchMode }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        photos = try c.decodeIfPresent([PhotoWithPeopleDTO].self, forKey: .photos) ?? []
+        nextCursor = try c.decodeIfPresent(String.self, forKey: .nextCursor) ?? ""
+        matchedPersonIds = try c.decodeIfPresent([Int].self, forKey: .matchedPersonIds) ?? []
+        searchMode = try c.decodeIfPresent(String.self, forKey: .searchMode) ?? ""
+    }
 }
 
 nonisolated struct FamilyTimelineItemDTO: Codable, Sendable {

@@ -150,6 +150,23 @@ nonisolated enum Copy {
         }
     }
 
+    /// The web's search box on `family-photos.tsx`.
+    enum photoSearch {
+        static let prompt = "Search names, places, moments…"
+        static let offlinePrompt = "Title or description"
+        static let offlineNote = "Offline, so only titles and descriptions on this device were searched."
+        static let textOnlyNote = "Image search is unavailable right now, so only titles and descriptions were searched."
+        static let searching = "Searching…"
+        static let failed = "Search didn't go through, so only titles and descriptions on this device were searched."
+        static let clear = "Clear search"
+        static let more = "Show more"
+
+        static func bestMatches(_ query: String, with names: String) -> String {
+            let base = "Best matches for \u{201C}\(query)\u{201D}"
+            return names.isEmpty ? base : "\(base) with \(names)"
+        }
+    }
+
     /// The web's `suggestions.tsx` and the suggested-tag chips on `view-photo.tsx`.
     enum tagSuggestions {
         static let title = "Suggested Tags"

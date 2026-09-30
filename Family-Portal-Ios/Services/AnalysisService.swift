@@ -7,7 +7,7 @@ import OSLog
 final class AnalysisService {
     static let shared = AnalysisService()
 
-    private let apiClient: APIClient
+    let apiClient: APIClient
     private var milestoneMatches: [Int: GetMilestoneMatchesResponseDTO] = [:]
     private var personInsights: [Int: GetPersonPhotoInsightsResponseDTO] = [:]
     private var tagSuggestionReview: GetTagSuggestionsResponseDTO?
