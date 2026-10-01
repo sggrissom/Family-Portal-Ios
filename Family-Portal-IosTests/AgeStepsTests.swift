@@ -81,4 +81,38 @@ struct AgeStepsTests {
 
         #expect(AgeSteps.monthsOld(birthday: born, at: then, timeZone: sydney) == 43)
     }
+
+    // MARK: - Photo age
+
+    private func photoAge(_ at: String) -> String {
+        let iso = ISO8601DateFormatter()
+        return AgeSteps.photoAge(birthday: iso.date(from: "2014-03-02T00:00:00Z")!, at: iso.date(from: at)!, timeZone: .gmt)
+    }
+
+    @Test("A photo's age counts days past the month under two")
+    func photoAgeDays() {
+        #expect(photoAge("2014-09-10T15:30:00Z") == "6 months, 8 days")
+        #expect(photoAge("2014-09-02T08:00:00Z") == "6 months")
+        #expect(photoAge("2014-03-03T00:00:00Z") == "1 day")
+        #expect(photoAge("2014-03-02T00:00:00Z") == "Newborn")
+        #expect(photoAge("2015-04-01T00:00:00Z") == "1 year, 30 days")
+    }
+
+    @Test("A photo's age drops the days from two on")
+    func photoAgeYears() {
+        #expect(photoAge("2019-05-20T00:00:00Z") == "5 years 2 months")
+    }
+
+    @Test("A photo before the birthday has no age")
+    func photoAgeBeforeBirth() {
+        #expect(photoAge("2014-01-01T00:00:00Z") == "")
+    }
+
+    @Test("A 31st birthday rolls into the next month the way the web's does")
+    func photoAgeMonthEnd() {
+        let iso = ISO8601DateFormatter()
+        let born = iso.date(from: "2020-01-31T00:00:00Z")!
+        // Jan 31 + 1 month is Mar 2 in 2020, so Mar 5 is 3 days past it.
+        #expect(AgeSteps.photoAge(birthday: born, at: iso.date(from: "2020-03-05T00:00:00Z")!, timeZone: .gmt) == "1 month, 3 days")
+    }
 }

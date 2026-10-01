@@ -144,9 +144,16 @@ nonisolated enum Copy {
         static let seeAll = "See everything at this age →"
         static let nobodyElse = "Nobody else has anything from this age yet."
         static let empty = "Add birthdays to compare everyone at the same age."
+        static let sideBySide = "Side by side"
+        static let viewPhoto = "View photo"
+        static let anotherPhoto = "Another photo"
 
         static func atThisAge(_ age: String) -> String {
             age == "Newborn" ? "At birth" : "At \(age)"
+        }
+
+        static func noPhoto(_ names: String) -> String {
+            "No photo near this age: \(names)"
         }
     }
 

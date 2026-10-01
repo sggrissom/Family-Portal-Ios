@@ -97,6 +97,8 @@ struct SameAgeView: View {
             Text(Copy.sameAge.empty)
                 .foregroundStyle(.secondary)
         } else {
+            SameAgeMontage(rows: response.rows)
+                .id(response.ageMonths)
             SameAgeRows(rows: response.rows, ageMonths: response.ageMonths)
         }
     }

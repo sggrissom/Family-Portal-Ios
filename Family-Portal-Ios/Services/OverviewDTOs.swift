@@ -206,6 +206,8 @@ nonisolated struct SameAgeRowDTO: Decodable, Sendable, Identifiable {
     let weight: GrowthDataDTO?
     let milestones: [MilestoneDTO]
     let photoIds: [Int]
+    /// The photos in the window that best show this person, best first, for the side-by-side montage. Empty from a server that predates it.
+    let portraits: [PortraitPhotoDTO]
 
     var id: Int { person.id }
 
@@ -213,7 +215,7 @@ nonisolated struct SameAgeRowDTO: Decodable, Sendable, Identifiable {
         height == nil && weight == nil && milestones.isEmpty && photoIds.isEmpty
     }
 
-    private enum CodingKeys: String, CodingKey { case person, date, height, weight, milestones, photoIds }
+    private enum CodingKeys: String, CodingKey { case person, date, height, weight, milestones, photoIds, portraits }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -223,6 +225,7 @@ nonisolated struct SameAgeRowDTO: Decodable, Sendable, Identifiable {
         weight = try container.decodeIfPresent(GrowthDataDTO.self, forKey: .weight)
         milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
         photoIds = try container.decodeList(Int.self, forKey: .photoIds)
+        portraits = try container.decodeList(PortraitPhotoDTO.self, forKey: .portraits)
     }
 }
 
