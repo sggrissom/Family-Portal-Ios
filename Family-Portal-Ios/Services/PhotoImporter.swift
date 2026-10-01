@@ -1,6 +1,7 @@
 import Foundation
 import ImageIO
 import OSLog
+import Photos
 import PhotosUI
 import SwiftData
 import SwiftUI
@@ -33,12 +34,12 @@ final class PhotoImporter {
     /// Nil when nothing is importing. Hosts show a progress bar while it isn't.
     private(set) var progress: ImportProgress?
 
-    /// One picked item as the photo batch form shows it: the photo it became, whether its date came from the file, or that it could not be read.
+    /// One picked item as the photo batch form shows it: the photo it became, whether a capture date was available, or that it could not be read.
     struct ImportEntry: Identifiable {
         let id: UUID
         let item: PhotosPickerItem
         var photoId: UUID?
-        /// False when the file carried no capture date and "now" stood in for it — which the form says, rather than silently dating the photo today.
+        /// False when neither the library nor the file supplied a capture date and "now" stood in for it — which the form says, rather than silently dating the photo today.
         var hasCaptureDate = true
         var failed = false
         var isReading: Bool { photoId == nil && !failed }
@@ -82,6 +83,11 @@ final class PhotoImporter {
         }
 
         Task {
+            // The picker itself needs no permission. Library access is optional,
+            // but lets us read dates Photos stores separately from the image file.
+            if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .notDetermined {
+                _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+            }
             // Sequential on purpose: twenty full-resolution images decoded at once is the kind of memory spike that gets an app killed mid-import.
             for entry in batch {
                 await read(entry.id, into: context, syncService: syncService)
@@ -180,7 +186,7 @@ final class PhotoImporter {
             if !caption.isEmpty { photo.title = caption }
             if let changedDate { photo.photoDate = changedDate }
             try context.save()
-            // "keep" unless the date was changed: the server already holds the date it read from the file.
+            // "keep" unless the date was changed: the upload already sent the resolved date.
             try await syncService?.updatePhoto(photo, keepingDate: changedDate == nil)
         }
     }
@@ -195,7 +201,7 @@ final class PhotoImporter {
             throw ImportFailure.unreadable
         }
 
-        let captureDate = Self.captureDate(from: data)
+        let captureDate = Self.captureDate(from: data, libraryDate: Self.libraryDate(for: item))
         let photo = Photo(
             title: "",
             descriptionText: "",
@@ -234,8 +240,20 @@ final class PhotoImporter {
         }
     }
 
-    /// Reads the capture date out of the picked image's own EXIF, avoiding `PHAsset`, which needs photo-library authorization the picker itself does not.
-    static func captureDate(from data: Data) -> Date? {
+    /// A limited library grant only covers assets the user explicitly allowed;
+    /// selecting something in PhotosPicker does not extend that grant.
+    private static func libraryDate(for item: PhotosPickerItem) -> Date? {
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        guard status == .authorized || status == .limited,
+              let identifier = item.itemIdentifier else { return nil }
+        return PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
+            .firstObject?.creationDate
+    }
+
+    /// Prefer the library's date, which can include corrections made in Photos,
+    /// over the original date embedded in the file. Denied access is harmless.
+    static func captureDate(from data: Data, libraryDate: Date? = nil) -> Date? {
+        if let libraryDate { return libraryDate }
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],

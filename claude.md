@@ -343,11 +343,13 @@ network answers.
 - A failed run reports **once**, not per photo — a dozen alerts stacked behind
   each other is what per-photo reporting looks like for an iCloud batch. A single
   failure still reports its own error, so the iCloud hint survives
-- The capture date is read from the picked image's own EXIF rather than from
-  `PHAsset`, which needs photo-library authorization the picker does not, and is
-  parsed against a fixed POSIX locale. No EXIF date answers **nil**, not an
-  epoch: the caller falls back to "now", and a photo dated 1970 would sort to the
-  bottom of every gallery forever
+- Photo import requests optional Photos library access once on the first batch.
+  The picker uses `.shared()` to expose item identifiers. When the selected asset
+  is authorized (including limited access), its `PHAsset.creationDate` takes
+  precedence over EXIF so Photos date corrections survive import. Denied access
+  or an unavailable asset falls back to EXIF, then "now" with the existing warning.
+  EXIF is parsed against a fixed POSIX locale. Upload already sends this resolved
+  date explicitly; the server does not have to extract it again.
 - `PhotoFilter` is a value type holding people (local ids), tags (remote ids, as
   `Photo.tagRemoteIds` carries them), a date window and search text. Choices
   within a category OR, categories AND — the rule in
