@@ -125,6 +125,7 @@ struct ContentView: View {
         .environment(AuthService())
         .environment(MobileVersionService())
         .environment(ActivityService())
+        .environment(BookService())
         .environment(DeepLinkRouter())
         .environment(AppNavigator())
         .environment(AddFlow())

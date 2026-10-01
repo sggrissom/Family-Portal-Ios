@@ -20,6 +20,7 @@ nonisolated enum Copy {
     enum account {
         static let signedInAs = "Signed in as"
         static let activities = "Activities"
+        static let books = "Books"
         static let tags = "Tags"
         static let faceReview = "Face review"
         static let settings = "Settings"
