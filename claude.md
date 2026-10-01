@@ -24,6 +24,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── AnalysisService.swift, AnalysisDTOs.swift   # offline-analysis reads: online-only, never queued
 │   ├── TagService.swift                            # tag vocabulary writes: online-only, never queued
 │   ├── FaceReviewService.swift, FaceReviewDTOs.swift # face review: online-only, never queued
+│   ├── BookService.swift, BookDTOs.swift           # books: read-only, cached like activities
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
 │   ├── Shell/         AppNavigator (tabs, per-tab paths, AppRoute, filters),
@@ -49,6 +50,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  EditMilestoneView, MilestonePhotoPickerView,
 │   │                  ArtworkPhotosSection
 │   ├── Activities/    ActivitiesRootView, SeasonView, CompetitionView, …
+│   ├── Books/         BooksView (shelf), BookReaderView, BookBlocks
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
 │   │                  DateSeparatorView, UserAvatarView
@@ -435,6 +437,15 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
 - `Person.age(on:)` (in `AgeCalculator.swift`) is how both sheets say how old
   somebody was on the day the record is dated
 
+### Books (`BookService`, `BookAssembler`, `Views/Books/`)
+
+The web's `/books` and `/book/<id>`, read-only for now: books are created and edited on the web. Reached from the account menu and a person's toolbar.
+
+- `ListBooks` and `GetBook` are read through `ActivityRead` and cached in `ActivitySnapshotCache` (so `LocalDataReset` already sweeps them, and a book opened once reads offline). Never in SwiftData: a book is references the server resolves against its own permissions, and `GetBook` sends the records with it
+- A saved book is only references and order. `BookAssembler` (`Utilities/BookAssembly.swift`) is a port of `assembleBook` in `frontend/lib/book.ts` and turns them into a cover, chapters and blocks exactly as the web does — change both together. The suggesting half (`suggestItems`, `additionsSince`) is editor work and not ported yet
+- The book DTOs keep dates as the server's ISO **strings**, and `BookDay` does its arithmetic on `YYYY-MM-DD` the way the web's `dayOf` does, so no time zone enters a book's chapters
+- The reader is set on its own paper (`BookPalette`) in the system serif, with no editing chrome. The growth chart runs birth → one year in a first-year book and the book's own first → last day otherwise (the web clamps every book to the first year)
+
 ### Error presentation and logging
 - `ErrorPresenter` (`@Observable`, app scope, injected into the environment) plus the `.appErrorAlert()` modifier applied once at the root. Views report failures through it rather than swallowing them
 - App-scoped rather than per view because the views raising these errors dismiss themselves in the same breath; an alert owned by a closing sheet never appears. Sheets `dismiss()` first, then report
@@ -484,6 +495,7 @@ Go + vbeam RPC server.
 - `SendMessage`, `GetChatMessages`, `DeleteMessage` (chat; live delivery is the
   WebSocket, these three are the REST half)
 - `SuggestMilestoneCategory`, `SuggestMilestonePhotos`, `GetMilestoneMatches`, `GetPersonPhotoInsights`, `GetPhoto`, `GetTagSuggestions`, `AcceptTagSuggestions`, `RejectTagSuggestions` (online-only analysis calls; see AnalysisService)
+- `ListBooks`, `GetBook` (backend/book.go; read-only, see Books)
 - `ListTags`, `UpdatePhotoTags`, `UpdateMilestoneTags` (see the notes under SyncService). The two writes are registered from `backend/photos.go` and `backend/milestone.go`, not `backend/tags.go`
 - `CreateTag`, `UpdateTag`, `DeleteTag` (the Tags screen, via `TagService`; online only — the server refuses a duplicate name, so a queued create could not be trusted. After each, `SyncService.refreshTags()` re-pulls the `FamilyTag` mirror. `UpdateTag`'s `autoPhrase` is a Go pointer, so the screen always sends it: absent would leave the phrase, empty clears it)
 - `GetFaceReview`, `AssignFaces`, `RejectFaces`, `DismissFaces` (the Faces screen, via `FaceReviewService`; online only. Each change reloads the review, because naming a face re-matches the family on the server; leaving after a change runs `pullFamilyData` so photos pick up their new people. The review's counts also feed the account-menu badge through `AppNavigator.updateFaceReviewCount`)
