@@ -8,9 +8,12 @@ struct BookReaderView: View {
 
     @Environment(BookService.self) private var service
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dismiss) private var dismiss
 
     @State private var state = ActivityScreenState<GetBookResponseDTO>()
     @State private var assembled: AssembledBook?
+    @State private var editing: GetBookResponseDTO?
+    @State private var wasDeleted = false
 
     private static let gutter: CGFloat = 24
 
@@ -34,6 +37,25 @@ struct BookReaderView: View {
             if state.isShowingCached, !state.isLoading, state.value != nil {
                 ActivityStaleNote(fetchedAt: state.fetchedAt)
             }
+        }
+        .toolbar {
+            // Only over a fresh copy: a save carries the revision it opened, and a cached one may be behind.
+            if let response = state.value, response.canEdit {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Edit") { editing = response }
+                        .disabled(state.isShowingCached || state.isLoading)
+                }
+            }
+        }
+        .sheet(item: $editing, onDismiss: {
+            // A deleted book has nothing left to read.
+            if wasDeleted { dismiss() }
+        }) { response in
+            BookEditorView(
+                response: response,
+                onSaved: { await state.reload() },
+                onDeleted: { wasDeleted = true }
+            )
         }
         .task { await state.load(service.book(id: bookId)) }
         // Assembled once per payload rather than in `body`: it formats every date in the book.

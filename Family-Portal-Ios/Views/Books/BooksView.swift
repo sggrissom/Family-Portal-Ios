@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// The family's books on a shelf, newest-edited first — the web's `/books`. Pushed from the account menu and from a person's page.
-/// Making and editing books is web-only for now, so the shelf holds only what has been saved there.
+/// A viewer who may change books also gets "Start a book", one choice per preset.
 struct BooksView: View {
     @Environment(BookService.self) private var service
+    @Environment(AppNavigator.self) private var navigator
 
     @State private var state = ActivityScreenState<ListBooksResponseDTO>()
+    @State private var starting: BookPlans.Preset?
 
     private let columns = [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 18, alignment: .top)]
 
@@ -20,9 +22,11 @@ struct BooksView: View {
                     ContentUnavailableView {
                         Label("No Books Yet", systemImage: "book.closed")
                     } description: {
-                        Text("Books are made on the web for now — a first year, a year of one person, a family year, or any stretch of dates. Once one is saved, it can be read here.")
+                        Text(response.canEdit
+                            ? "A first year, a year of one person, a family year, or any stretch of dates — drafted from what the family has already recorded."
+                            : "Once a book is saved, it can be read here.")
                     }
-                    .padding(.top, 24)
+                    .padding(.top, 8)
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 26) {
                         ForEach(response.books) { book in
@@ -33,10 +37,61 @@ struct BooksView: View {
                         }
                     }
                 }
+
+                if response.canEdit {
+                    Text("Start a book")
+                        .font(BookType.serif(.title3).weight(.semibold))
+                        .padding(.top, 12)
+                    VStack(spacing: 10) {
+                        ForEach(BookPlans.presets) { preset in
+                            Button {
+                                starting = preset
+                            } label: {
+                                PresetRow(preset: preset)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
             .padding(.horizontal)
         }
         .navigationTitle(Copy.account.books)
+        .sheet(item: $starting) { preset in
+            NewBookView(preset: preset) { book in
+                Task { await state.reload() }
+                navigator.push(.book(id: book.id, title: book.title))
+            }
+        }
+    }
+}
+
+private struct PresetRow: View {
+    let preset: BookPlans.Preset
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: preset.symbol)
+                .font(.title3)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(preset.label)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(preset.blurb)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color(.separator), lineWidth: 0.5))
+        .contentShape(Rectangle())
     }
 }
 

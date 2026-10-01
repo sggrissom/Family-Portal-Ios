@@ -205,20 +205,26 @@ nonisolated struct GrowthAxis: Hashable, Sendable {
 
 struct BookAssembler {
 
-    private static let birthdaySlot = -1
+    static let birthdaySlot = -1
 
     let book: BookDTO
     let sources: BookSourcesDTO
 
-    private let people: [BookPersonDTO]
-    private let person: [Int: BookPersonDTO]
-    private let start: String
-    private let end: String
-    private let limit: String
-    private let firstYear: Bool
-    private let months: Int
-    private let photos: [Int: BookImageDTO]
-    private let milestones: [Int: BookMilestoneDTO]
+    let people: [BookPersonDTO]
+    let person: [Int: BookPersonDTO]
+    let start: String
+    let end: String
+    let limit: String
+    let firstYear: Bool
+    let months: Int
+    /// Ready, dated photos only: the rest can be neither read nor chosen.
+    let photos: [Int: BookImageDTO]
+    let milestones: [Int: BookMilestoneDTO]
+    /// The chosen kinds of content; every kind when the book names none.
+    let categories: Set<String>
+    /// "all": only photos with every one of the book's people in them.
+    let match: String
+    let untagged: Set<Int>
 
     init(book: BookDTO, sources: BookSourcesDTO) {
         self.book = book
@@ -238,6 +244,10 @@ struct BookAssembler {
         for p in sources.people { person[p.id] = p }
         self.person = person
 
+        categories = Set(book.categories.isEmpty ? BookCategory.all.map(\.value) : book.categories)
+        match = book.match == "all" ? "all" : "any"
+        untagged = Set(sources.untagged)
+
         start = BookDay.dayOf(book.startDate)
         end = BookDay.dayOf(book.endDate)
         firstYear = book.preset == BookPreset.firstYear
@@ -245,14 +255,14 @@ struct BookAssembler {
         months = firstYear ? 12 : max(1, BookDay.monthIndex(BookDay.addDays(end, -1)) - BookDay.monthIndex(start) + 1)
     }
 
-    private var isMulti: Bool { people.count > 1 }
+    var isMulti: Bool { people.count > 1 }
 
-    private func inRange(_ day: String) -> Bool {
+    func inRange(_ day: String) -> Bool {
         BookDay.isRealDay(day) && day >= start && day < limit
     }
 
     /// The month a record falls in: months of age in a first-year book (the birthday slot for the day itself), calendar months from the start otherwise.
-    private func slotOf(_ day: String) -> Int {
+    func slotOf(_ day: String) -> Int {
         if firstYear {
             if day >= end { return Self.birthdaySlot }
             if day < start { return 0 }
@@ -312,7 +322,7 @@ struct BookAssembler {
         return isGeneratedTitle(image) ? "" : image.title
     }
 
-    private func photoDetail(_ image: BookImageDTO) -> String {
+    func photoDetail(_ image: BookImageDTO) -> String {
         let day = BookDay.dayOf(image.photoDate)
         if isMulti {
             let names = (sources.photoPeople[image.id] ?? []).compactMap { person[$0]?.name }.filter { !$0.isEmpty }
