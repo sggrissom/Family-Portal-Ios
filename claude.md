@@ -22,6 +22,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── PhotoSyncService.swift, PushNotificationService.swift
 │   ├── MobileVersionService.swift
 │   ├── AnalysisService.swift, AnalysisDTOs.swift   # offline-analysis reads: online-only, never queued
+│   ├── TagService.swift                            # tag vocabulary writes: online-only, never queued
+│   ├── FaceReviewService.swift, FaceReviewDTOs.swift # face review: online-only, never queued
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
 │   ├── Shell/         AppNavigator (tabs, per-tab paths, AppRoute, filters),
@@ -50,6 +52,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  DateSeparatorView, UserAvatarView
 │   ├── Settings/      SettingsView, FamilyManagementView, FamilyInfoView,
 │   │                  FamilyMembershipView
+│   ├── Tags/          ManageTagsView (+ TagEditorView sheet)
+│   ├── Faces/         FaceReviewView (+ FaceGroupRow)
 │   └── Components/    PersonAvatarView, PersonRowView, PersonChips,
 │                      WhenControl, FaceCropView, MeasurementRowView, MilestoneRowView,
 │                      PhotoThumbnailView, RemotePhotoView, SyncStatusView,
@@ -205,7 +209,7 @@ The offline-analysis procs (`backend/milestone_analysis.go` and friends), all **
 - `tagSuggestions` (`GetTagSuggestions`) → `TagSuggestionsView`, the web's `/suggestions`, linked from the gallery toolbar with a count only when `enabled && total > 0`. A tap leaves a photo out; the bulk buttons act on the first 24 shown (`TagSuggestionReview`). After a change it re-fetches the review and runs a full pull for the photos' new tag ids
 - `RemotePhotoResolution.resolve` maps server photo ids to local `Photo`s in the server's order and drops any this device doesn't hold yet
 
-**Deliberately web-only** (from the offline-analysis work; write down, don't build): naming and managing family places (`SaveFamilyPlace`, `DeleteFamilyPlace`, `ListFamilyPlaces` — they live on the web's `/settings`, which the universal-link association claims, so the app cannot link out to them), tag auto-phrases (the web's Tags page, which the account menu already opens), and the age-in-text parser (`parseAgeFromText`; `WhenControl` makes age entry quick already).
+**Deliberately web-only** (from the offline-analysis work; write down, don't build): naming and managing family places (`SaveFamilyPlace`, `DeleteFamilyPlace`, `ListFamilyPlaces` — they live on the web's `/settings`, which the universal-link association claims, so the app cannot link out to them), and the age-in-text parser (`parseAgeFromText`; `WhenControl` makes age entry quick already).
 
 **Not built yet, waiting on the backend:** similar-photo stacks and a local place filter. The full pull can't reproduce either — `similar` is only filled with `collapseSimilar: true`, which drops the stack's other members from the list, and list items carry no place — so both need a per-item field (`similarGroupId`, `placeKey`) on the non-collapsed `ListFamilyPhotos` first. See `analysis-plan.md` §4b/4c.
 
@@ -475,7 +479,9 @@ Go + vbeam RPC server.
 - `SendMessage`, `GetChatMessages`, `DeleteMessage` (chat; live delivery is the
   WebSocket, these three are the REST half)
 - `SuggestMilestoneCategory`, `SuggestMilestonePhotos`, `GetMilestoneMatches`, `GetPersonPhotoInsights`, `GetPhoto`, `GetTagSuggestions`, `AcceptTagSuggestions`, `RejectTagSuggestions` (online-only analysis calls; see AnalysisService)
-- `ListTags`, `UpdatePhotoTags`, `UpdateMilestoneTags` (the three tag procs iOS calls — the vocabulary itself is web-only; see the notes under SyncService). The two writes are registered from `backend/photos.go` and `backend/milestone.go`, not `backend/tags.go`
+- `ListTags`, `UpdatePhotoTags`, `UpdateMilestoneTags` (see the notes under SyncService). The two writes are registered from `backend/photos.go` and `backend/milestone.go`, not `backend/tags.go`
+- `CreateTag`, `UpdateTag`, `DeleteTag` (the Tags screen, via `TagService`; online only — the server refuses a duplicate name, so a queued create could not be trusted. After each, `SyncService.refreshTags()` re-pulls the `FamilyTag` mirror. `UpdateTag`'s `autoPhrase` is a Go pointer, so the screen always sends it: absent would leave the phrase, empty clears it)
+- `GetFaceReview`, `AssignFaces`, `RejectFaces`, `DismissFaces` (the Faces screen, via `FaceReviewService`; online only. Each change reloads the review, because naming a face re-matches the family on the server; leaving after a change runs `pullFamilyData` so photos pick up their new people. The review's counts also feed the account-menu badge through `AppNavigator.updateFaceReviewCount`)
 
 `tagIds` on `Image` and `Milestone` carries `omitempty`, so a record with no tags
 omits the key rather than sending `[]` — absent and empty mean the same thing on

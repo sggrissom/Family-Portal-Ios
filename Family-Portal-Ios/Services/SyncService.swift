@@ -216,6 +216,16 @@ final class SyncService {
         }
     }
 
+    /// The Tags screen's hook after each change, so pickers and chips see the new vocabulary without waiting for a full pull.
+    func refreshTags() async {
+        await pullTags()
+        do {
+            try modelContext.save()
+        } catch {
+            AppLog.sync.error("Saving tags failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
     private func pullTags() async {
         do {
             struct EmptyPayload: Encodable {}

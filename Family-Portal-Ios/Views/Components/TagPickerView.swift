@@ -32,7 +32,7 @@ struct TagPickerView: View {
                 ContentUnavailableView(
                     "No Tags",
                     systemImage: "tag",
-                    description: Text("This family hasn't created any tags yet. Tags are created on the web.")
+                    description: Text("This family hasn't created any tags yet. Add them from Tags in the account menu.")
                 )
             } else {
                 List {
