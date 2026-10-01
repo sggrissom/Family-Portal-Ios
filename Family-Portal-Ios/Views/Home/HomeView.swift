@@ -15,7 +15,6 @@ struct HomeView: View {
     @Environment(AppNavigator.self) private var navigator
     @Environment(AddFlow.self) private var addFlow
     @Environment(ActivityService.self) private var activityService: ActivityService?
-    @Environment(\.openURL) private var openURL
 
     @State private var dashboard = ActivityScreenState<GetDashboardResponseDTO>()
     @State private var dismissedVersion = 0
@@ -150,14 +149,14 @@ struct HomeView: View {
         }
     }
 
-    /// Where a nudge leads: a measurement for the person, their page, or the web's face review.
+    /// Where a nudge leads: a measurement for the person, their page, or face review.
     private func act(on nudge: DashboardNudgeDTO) {
         let person = people.first { $0.remoteId == String(nudge.personId) }
         switch nudge.kind {
         case "measure":
             addFlow.open(.measurement(personId: person?.id))
         case "faces":
-            if let url = URL(string: AppConstants.defaultServerURL + "/faces") { openURL(url) }
+            navigator.push(.faces)
         default:
             if let person { navigator.push(.person(person.id)) }
         }

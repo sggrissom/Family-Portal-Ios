@@ -442,11 +442,13 @@ nonisolated struct ImageDTO: Codable, Sendable {
     }
 }
 
-nonisolated struct TagDTO: Codable, Sendable {
+nonisolated struct TagDTO: Codable, Sendable, Identifiable {
     let id: Int
     let familyId: Int
     let name: String
     let color: String
+    /// What photos this tag should be suggested for, e.g. "kids at the lake cabin". Only the Tags screen shows it; it is not mirrored into `FamilyTag`.
+    let autoPhrase: String
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -454,11 +456,40 @@ nonisolated struct TagDTO: Codable, Sendable {
         familyId = try c.decode(Int.self, forKey: .familyId)
         name = try c.decode(String.self, forKey: .name)
         color = try c.decodeIfPresent(String.self, forKey: .color) ?? ""
+        autoPhrase = try c.decodeIfPresent(String.self, forKey: .autoPhrase) ?? ""
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, familyId, name, color
+        case id, familyId, name, color, autoPhrase
     }
+}
+
+// MARK: - Tag vocabulary (backend/tags.go)
+// Online only, like membership changes: a duplicate name is refused by the server, so nothing is queued.
+
+nonisolated struct CreateTagRequestDTO: Encodable, Sendable {
+    let name: String
+    let color: String
+    /// 0 lets the server pick the caller's primary family.
+    let familyId: Int
+    let autoPhrase: String
+}
+
+nonisolated struct UpdateTagRequestDTO: Encodable, Sendable {
+    let id: Int
+    let name: String
+    let color: String
+    /// A pointer on the server: absent leaves the phrase alone, empty clears it. The Tags screen always sends what its field holds.
+    let autoPhrase: String
+}
+
+nonisolated struct DeleteTagRequestDTO: Encodable, Sendable {
+    let id: Int
+}
+
+/// `CreateTag` and `UpdateTag` both answer with the saved tag.
+nonisolated struct TagResponseDTO: Decodable, Sendable {
+    let tag: TagDTO
 }
 
 nonisolated struct ListTagsResponseDTO: Codable, Sendable {

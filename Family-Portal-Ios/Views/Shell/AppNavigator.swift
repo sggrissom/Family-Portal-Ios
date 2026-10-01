@@ -30,6 +30,8 @@ enum AppRoute: Hashable {
     case chat
     case activities
     case settings
+    case tags
+    case faces
     /// A person by local id, on one of their tabs. `manages` shows the edit affordances, which only the Settings directory offers.
     case person(UUID, tab: PersonTab = .story, manages: Bool = false)
     /// Everyone at one age. `fromRemoteId` 0 lets the server choose the anchor.
@@ -39,10 +41,10 @@ enum AppRoute: Hashable {
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
     case event(id: Int, name: String)
 
-    /// The account menu's screens. They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back.
+    /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back.
     var isBorrowed: Bool {
         switch self {
-        case .history, .chat, .activities, .settings: return true
+        case .history, .chat, .activities, .settings, .tags, .faces: return true
         default: return false
         }
     }
@@ -108,6 +110,11 @@ final class AppNavigator {
         paths[selectedTab, default: NavigationPath()].append(route)
     }
 
+    /// Opens a photo on the current tab — for screens whose rows hold several buttons, where a `NavigationLink` would swallow the row.
+    func push(_ route: PhotoRoute) {
+        paths[selectedTab, default: NavigationPath()].append(route)
+    }
+
     /// Replaces the current tab's stack — a link asks to be looking at something, not to be several screens deep with it on top.
     func show(_ routes: [AppRoute], on tab: MainTab? = nil) {
         if let tab { select(tab) }
@@ -127,10 +134,15 @@ final class AppNavigator {
         paths[tab]?.count ?? 0
     }
 
+    /// The Faces screen already holds a fresh review after each change; it hands the counts over rather than asking again.
+    func updateFaceReviewCount(enabled: Bool, unknownCount: Int, autoCount: Int) {
+        faceReviewCount = enabled ? unknownCount + autoCount : nil
+    }
+
     func refreshFaceReviewCount(apiClient: APIClient = .shared) async {
         do {
             let response: FaceReviewSummaryDTO = try await apiClient.callRPC(.getFaceReview, payload: EmptyRequestDTO())
-            faceReviewCount = response.enabled ? response.unknownCount + response.autoCount : nil
+            updateFaceReviewCount(enabled: response.enabled, unknownCount: response.unknownCount, autoCount: response.autoCount)
         } catch {
             // A badge is not worth an alert. The last count stays.
             AppLog.ui.info("Face review count unavailable: \(String(describing: error), privacy: .public)")
@@ -163,6 +175,10 @@ private struct AppRouteDestination: View {
             ActivitiesRootView()
         case .settings:
             SettingsView()
+        case .tags:
+            ManageTagsView()
+        case .faces:
+            FaceReviewView()
         case .person(let id, let tab, let manages):
             PersonDetailView(personId: id, tab: tab, allowsManagementActions: manages)
         case .sameAge(let ageMonths, let fromRemoteId):

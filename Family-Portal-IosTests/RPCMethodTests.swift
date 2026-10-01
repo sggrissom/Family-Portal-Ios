@@ -72,6 +72,9 @@ struct RPCMethodTests {
     @Test("Tag proc names match the backend")
     func tagProcNames() {
         #expect(RPCMethod.listTags.rawValue == "ListTags")
+        #expect(RPCMethod.createTag.rawValue == "CreateTag")
+        #expect(RPCMethod.updateTag.rawValue == "UpdateTag")
+        #expect(RPCMethod.deleteTag.rawValue == "DeleteTag")
         #expect(RPCMethod.updatePhotoTags.rawValue == "UpdatePhotoTags")
         #expect(RPCMethod.updateMilestoneTags.rawValue == "UpdateMilestoneTags")
         #expect(RPCMethod.getTagSuggestions.rawValue == "GetTagSuggestions")
@@ -143,6 +146,13 @@ struct RPCMethodTests {
         #expect(RPCMethod.listOpenEvents.rawValue == "ListOpenEvents")
         #expect(RPCMethod.getSameAge.rawValue == "GetSameAge")
         #expect(RPCMethod.getFaceReview.rawValue == "GetFaceReview")
+    }
+
+    @Test("Face proc names match the backend")
+    func faceProcNames() {
+        #expect(RPCMethod.assignFaces.rawValue == "AssignFaces")
+        #expect(RPCMethod.rejectFaces.rawValue == "RejectFaces")
+        #expect(RPCMethod.dismissFaces.rawValue == "DismissFaces")
     }
 
     @Test("Every proc name is distinct and non-empty")

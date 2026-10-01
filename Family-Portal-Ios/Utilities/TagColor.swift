@@ -11,6 +11,19 @@ nonisolated enum TagColor {
         return Color(red: components.red, green: components.green, blue: components.blue)
     }
 
+    /// What the Tags screen writes back: `#rrggbb`, lowercase like the web's `<input type="color">`.
+    static func hex(red: Double, green: Double, blue: Double) -> String {
+        func byte(_ value: Double) -> Int { Int((min(max(value, 0), 1) * 255).rounded()) }
+        return String(format: "#%02x%02x%02x", byte(red), byte(green), byte(blue))
+    }
+
+    /// A `ColorPicker`'s choice as hex, in sRGB. A colour outside sRGB is clamped rather than refused.
+    static func hex(for color: Color) -> String {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return hex(red: Double(red), green: Double(green), blue: Double(blue))
+    }
+
     /// The parse itself, kept separate from `Color` so it can be asserted on without rendering. Accepts `#RRGGBB` and the three-digit shorthand, with or without the `#`.
     static func components(forHex hex: String) -> (red: Double, green: Double, blue: Double)? {
         var digits = hex.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -75,7 +75,7 @@ struct PhotoFilterView: View {
     private var tagsSection: some View {
         Section("Tags") {
             if sortedTags.isEmpty {
-                Text("This family hasn't created any tags yet. Tags are created on the web.")
+                Text("This family hasn't created any tags yet. Add them from Tags in the account menu.")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(sortedTags) { tag in

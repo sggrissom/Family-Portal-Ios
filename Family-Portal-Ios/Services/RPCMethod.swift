@@ -72,6 +72,9 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     // MARK: - Tags (backend/tags.go)
 
     case listTags = "ListTags"
+    case createTag = "CreateTag"
+    case updateTag = "UpdateTag"
+    case deleteTag = "DeleteTag"
 
     case updatePhotoTags = "UpdatePhotoTags"
     case updateMilestoneTags = "UpdateMilestoneTags"
@@ -144,7 +147,10 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case getSameAge = "GetSameAge"
 
     // MARK: - Faces (backend/faces.go)
-    // Review is web-only; the app reads the count for the account menu's badge.
+    // Online only and never queued: naming a face makes the server re-match the family.
 
     case getFaceReview = "GetFaceReview"
+    case assignFaces = "AssignFaces"
+    case rejectFaces = "RejectFaces"
+    case dismissFaces = "DismissFaces"
 }

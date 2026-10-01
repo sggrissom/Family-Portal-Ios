@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// The account button on every tab root: the user's initial, badged with unread chat so a new message is visible from anywhere. Its menu is the web's account menu without Import/Export and Admin — History, Chat and Activities are pushed onto the current tab; Tags and Face review are web-only and open the site.
-/// Also deliberately web-only, with no entry here: naming and managing family places, tag auto-phrases (on the Tags page this menu already opens), and the age-in-text parser on the milestone form. Places live on the web's `/settings`, a universal-link path, so a link from the app would only open the app again.
+/// The account button on every tab root: the user's initial, badged with unread chat so a new message is visible from anywhere. Its menu is the web's account menu without Import/Export and Admin — every entry is a native screen pushed onto the current tab.
+/// Deliberately web-only, with no entry here: naming and managing family places, and the age-in-text parser on the milestone form. Places live on the web's `/settings`, a universal-link path, so a link from the app would only open the app again.
 struct AccountMenuButton: View {
     @Environment(AuthService.self) private var authService
     @Environment(ChatService.self) private var chatService: ChatService?
     @Environment(AppNavigator.self) private var navigator
-    @Environment(\.openURL) private var openURL
 
     @State private var isConfirmingLogOut = false
 
@@ -41,13 +40,13 @@ struct AccountMenuButton: View {
 
             Section {
                 Button {
-                    openWeb("/manage-tags")
+                    navigator.push(.tags)
                 } label: {
                     Label(Copy.account.tags, systemImage: "tag")
                 }
                 if let faces = navigator.faceReviewCount {
                     Button {
-                        openWeb("/faces")
+                        navigator.push(.faces)
                     } label: {
                         Label(faces > 0 ? "\(Copy.account.faceReview) (\(faces))" : Copy.account.faceReview, systemImage: "person.crop.square")
                     }
@@ -96,12 +95,6 @@ struct AccountMenuButton: View {
                         .offset(x: 6, y: -6)
                 }
             }
-    }
-
-    /// Tags and Face review have no native screen. Neither path is claimed by the universal-link association, so they open in the browser rather than bouncing back here.
-    private func openWeb(_ path: String) {
-        guard let url = URL(string: AppConstants.defaultServerURL + path) else { return }
-        openURL(url)
     }
 }
 
