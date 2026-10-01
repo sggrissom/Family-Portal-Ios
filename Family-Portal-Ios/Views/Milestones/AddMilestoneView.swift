@@ -21,6 +21,7 @@ struct AddMilestoneView: View {
     @State private var descriptionText = ""
     @State private var category: MilestoneCategory = .development
     @State private var context = ""
+    @State private var artwork: [PickedArtwork] = []
     @State private var when = WhenEntry()
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var tagRemoteIds: [Int] = []
@@ -75,9 +76,9 @@ struct AddMilestoneView: View {
                     PersonChips(selection: $selectedPersonId)
                 }
 
-                Section(category == .quote ? Copy.milestone.whatTheySaid : Copy.milestone.whatHappened) {
+                Section(category.entryPrompt.label) {
                     TextField(
-                        category == .quote ? Copy.milestone.quotePlaceholder : Copy.milestone.placeholder,
+                        category.entryPrompt.placeholder,
                         text: $descriptionText,
                         axis: .vertical
                     )
@@ -105,6 +106,10 @@ struct AddMilestoneView: View {
                 Section {
                     WhenControl(entry: $when, birthday: person?.birthday)
                         .id(person?.id)
+                }
+
+                if category == .artwork {
+                    ArtworkPhotosSection(picked: $artwork)
                 }
 
                 if !suggestedPhotos.isEmpty {
@@ -290,11 +295,15 @@ struct AddMilestoneView: View {
         defaults.rememberPerson(person.id)
 
         // Resolved here rather than in the picker, so a photo untagged or deleted while the form was open drops out instead of being sent as an id the server rejects.
-        let photos = photoChoices.filter { selectedPhotoIds.contains($0.id) }
+        let chosen = photoChoices.filter { selectedPhotoIds.contains($0.id) }
         let tags = tagRemoteIds
+        let picked = category == .artwork ? artwork : []
 
         Task {
             do {
+                let photos = chosen + (try await ArtworkPhotos.queue(
+                    picked, artist: person, context: modelContext, syncService: syncService
+                ))
                 // The tags go in the create itself, so there is no window where the milestone is on the server without them.
                 try await syncService?.addMilestone(
                     milestone,

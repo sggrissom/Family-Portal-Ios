@@ -12,6 +12,7 @@ extension MilestoneCategory {
         case .achievement: "trophy.fill"
         case .first: "star.fill"
         case .quote: "quote.bubble.fill"
+        case .artwork: "paintpalette.fill"
         case .other: "note.text"
         }
     }
@@ -24,11 +25,21 @@ extension MilestoneCategory {
         case .achievement: .yellow
         case .first: .purple
         case .quote: .indigo
+        case .artwork: .pink
         case .other: .gray
         }
     }
 
     var label: String { rawValue.capitalized }
+
+    /// The question the milestone form asks, and its example answer.
+    var entryPrompt: (label: String, placeholder: String) {
+        switch self {
+        case .quote: (Copy.milestone.whatTheySaid, Copy.milestone.quotePlaceholder)
+        case .artwork: (Copy.milestone.whatTheyMade, Copy.milestone.artworkPlaceholder)
+        default: (Copy.milestone.whatHappened, Copy.milestone.placeholder)
+        }
+    }
 }
 
 extension MeasurementType {

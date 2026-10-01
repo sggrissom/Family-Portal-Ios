@@ -246,6 +246,90 @@ struct PersonQuotesTab: View {
     }
 }
 
+// MARK: - Artwork
+
+/// What the person has made, newest first, each piece shown by the first photo of it with the age they made it at. The web's Artwork tab.
+struct PersonArtworkTab: View {
+    let person: Person
+
+    @State private var openMilestone: Milestone?
+
+    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 16)]
+
+    private var pieces: [Milestone] {
+        person.milestones.filter { $0.category == .artwork }.sorted { $0.date > $1.date }
+    }
+
+    var body: some View {
+        ScrollView {
+            if pieces.isEmpty {
+                Text(Copy.person.noArtwork(person.name.split(separator: " ").first.map(String.init) ?? person.name))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+            }
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+                ForEach(pieces) { piece in
+                    Button {
+                        openMilestone = piece
+                    } label: {
+                        card(piece)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding()
+        }
+        .sheet(item: $openMilestone) { milestone in
+            MilestoneDetailSheetView(milestone: milestone)
+        }
+    }
+
+    private func card(_ piece: Milestone) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay { cover(piece) }
+                .overlay(alignment: .bottomTrailing) {
+                    if piece.photoRemoteIds.count > 1 {
+                        Text("+\(piece.photoRemoteIds.count - 1)")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(.black.opacity(0.6), in: Capsule())
+                            .foregroundStyle(.white)
+                            .padding(8)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            Text(piece.descriptionText)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(3)
+            Text(person.age(on: piece.date) ?? piece.date.formatted(date: .abbreviated, time: .omitted))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// The local copy when this device has one, so a piece photographed here shows before the server has thumbnails.
+    @ViewBuilder
+    private func cover(_ piece: Milestone) -> some View {
+        if let remoteId = piece.photoRemoteIds.first {
+            let local = person.photos.first { $0.remoteId == String(remoteId) }
+            PhotoThumbnailView(imageData: local?.imageData, title: "", remoteId: String(remoteId))
+        } else {
+            Rectangle()
+                .fill(MilestoneCategory.artwork.color.opacity(0.12))
+                .overlay {
+                    Image(systemName: MilestoneCategory.artwork.icon)
+                        .font(.largeTitle)
+                        .foregroundStyle(MilestoneCategory.artwork.color)
+                }
+        }
+    }
+}
+
 // MARK: - Photos
 
 /// The gallery scoped to this person, with date and tag filters, and a way into the Photos tab already filtered to them.

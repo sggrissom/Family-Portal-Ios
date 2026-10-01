@@ -71,6 +71,10 @@ nonisolated enum Copy {
         static let whatHappened = "What happened?"
         static let placeholder = "Wrote her name for the first time"
         static let whatTheySaid = "What did they say?"
+        static let whatTheyMade = "What did they make?"
+        static let artworkPlaceholder = "Drew the whole family as dinosaurs"
+        static let artworkPhotos = "Photos of it"
+        static let addArtworkPhoto = "Add a photo of it"
         static let quotePlaceholder = "The moon is following our car!"
         static let context = "Context (optional)"
         static let contextPlaceholder = "On the drive home from Grandma's"
@@ -246,6 +250,7 @@ nonisolated enum Copy {
         enum tabs {
             static let story = "Story"
             static let quotes = "Quotes"
+            static let artwork = "Artwork"
             static let photos = "Photos"
             static let growth = "Growth"
             static let activities = "Activities"
@@ -288,6 +293,10 @@ nonisolated enum Copy {
 
         static func noQuotes(_ name: String) -> String {
             "No quotes from \(name) yet."
+        }
+
+        static func noArtwork(_ name: String) -> String {
+            "No artwork from \(name) yet."
         }
     }
 

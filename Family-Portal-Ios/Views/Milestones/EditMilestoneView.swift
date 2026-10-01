@@ -3,6 +3,7 @@ import SwiftData
 
 struct EditMilestoneView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
 
@@ -14,6 +15,7 @@ struct EditMilestoneView: View {
     @State private var date: Date
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var didSeedSelection = false
+    @State private var artwork: [PickedArtwork] = []
 
     /// Every photo in the store, so an attachment made elsewhere can be matched back to a local record — see `milestonePhotoChoices`.
     @Query private var allPhotos: [Photo]
@@ -45,7 +47,7 @@ struct EditMilestoneView: View {
                     }
                 }
 
-                Section(category == .quote ? Copy.milestone.whatTheySaid : Copy.milestone.whatHappened) {
+                Section(category.entryPrompt.label) {
                     TextField("Description", text: $descriptionText, axis: .vertical)
                         .lineLimit(3...6)
                 }
@@ -58,6 +60,10 @@ struct EditMilestoneView: View {
 
                 Section {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
+                }
+
+                if category == .artwork {
+                    ArtworkPhotosSection(picked: $artwork)
                 }
 
                 MilestonePhotosSection(
@@ -106,12 +112,23 @@ struct EditMilestoneView: View {
         milestone.date = date
 
         // `photoIds` is the complete set the milestone should end up with, so an empty selection detaches everything — safe only once the seed has run, since before that an empty selection means "not loaded yet".
-        let photos = didSeedSelection ? photoChoices.filter { selectedPhotoIds.contains($0.id) } : nil
+        let chosen = didSeedSelection ? photoChoices.filter { selectedPhotoIds.contains($0.id) } : nil
+        let picked = category == .artwork ? artwork : []
 
         dismiss()
 
-        Task { [milestone] in
+        Task { [milestone, modelContext] in
             do {
+                var photos = chosen
+                if let artist = milestone.person, !picked.isEmpty {
+                    let added = try await ArtworkPhotos.queue(picked, artist: artist, context: modelContext, syncService: syncService)
+                    // Without a seeded selection there is no complete set to add to, so the attached photos come from what the milestone already has.
+                    let attached = Set(milestone.photoRemoteIds)
+                    photos = (photos ?? photoChoices.filter { photo in
+                        guard let remoteId = photo.remoteId.flatMap(Int.init) else { return false }
+                        return attached.contains(remoteId)
+                    }) + added
+                }
                 try await syncService?.updateMilestone(milestone, photos: photos)
             } catch {
                 errorPresenter?.report(error, title: "Couldn't Save Milestone")

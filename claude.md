@@ -38,7 +38,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Auth/          LoginView, CreateAccountView, ForgotPasswordView,
 │   │                  UpdateRequiredView
 │   ├── Family/        AddPersonView, EditPersonView, PersonDetailView,
-│   │                  PersonTabs (Story/Quotes/Photos/Growth), PersonRelationsSection,
+│   │                  PersonTabs (Story/Quotes/Artwork/Photos/Growth), PersonRelationsSection,
 │   │                  ProfilePhotoPickerView
 │   ├── Photos/        PhotoGalleryView, PhotoDetailView, TagPeopleView,
 │   │                  PhotoRoute, PhotoFilter, PhotoFilterView,
@@ -46,7 +46,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Measurements/  AddMeasurementView (checkup), CheckupResultView,
 │   │                  MeasurementDetailView, EditMeasurementView
 │   ├── Milestones/    AddMilestoneView, MilestoneDetailView,
-│   │                  EditMilestoneView, MilestonePhotoPickerView
+│   │                  EditMilestoneView, MilestonePhotoPickerView,
+│   │                  ArtworkPhotosSection
 │   ├── Activities/    ActivitiesRootView, SeasonView, CompetitionView, …
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
@@ -398,7 +399,10 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   sync from `remoteId`, a field whose enqueue failed retried on its own, **Add
   another measurement** (person cleared, date kept) and Done
 - **Milestone:** chips, "What happened?", category chips, When, and an "Add
-  photos / tags" disclosure. Save shows the milestone in the same sheet
+  photos / tags" disclosure. Save shows the milestone in the same sheet.
+  Artwork adds "Photos of it" (`ArtworkPhotosSection`): picks stay in the form
+  until Save, then become photos tagged to the artist, queued ahead of the
+  milestone that attaches them
 - **Photos upload first.** The pick goes straight to `PhotoImporter`; the batch
   form (`PhotoBatchFormView`) opens over the import with Who's in these?, Caption
   and Tags for the whole batch and each photo's date and status.
