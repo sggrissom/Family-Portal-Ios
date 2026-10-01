@@ -33,7 +33,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  on this day, recent)
 │   ├── History/       HistoryView (day summaries by month)
 │   ├── Growth/        GrowthRootView (family age chart)
-│   ├── SameAge/       SameAgeView, SameAgeRows (+ strips), SameAgeLoader
+│   ├── SameAge/       SameAgeView, SameAgeMontage, SameAgeRows (+ strips),
+│   │                  SameAgeLoader
 │   ├── Auth/          LoginView, CreateAccountView, ForgotPasswordView,
 │   │                  UpdateRequiredView
 │   ├── Family/        AddPersonView, EditPersonView, PersonDetailView,

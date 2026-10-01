@@ -76,4 +76,26 @@ nonisolated enum AgeSteps {
         if (then.day ?? 0) < (born.day ?? 0) { months -= 1 }
         return months
     }
+
+    /// How old someone actually was in a photo — "6 months, 8 days" — to the day under two, as `photoAge` words it. Empty for a photo before the birthday.
+    static func photoAge(birthday: Date, at date: Date, timeZone: TimeZone = .current) -> String {
+        let months = monthsOld(birthday: birthday, at: date, timeZone: timeZone)
+        if months < 0 { return "" }
+        if months >= 24 { return ageTitle(months) }
+
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = .gmt
+        let born = birthday.calendarDay(in: timeZone)
+        // The month's first day plus the birthday's day, so a 31st rolls into the next month the way `Date.UTC` does.
+        let monthIndex = (born.month ?? 1) - 1 + months
+        guard let monthStart = utc.date(from: DateComponents(year: (born.year ?? 0) + monthIndex / 12, month: monthIndex % 12 + 1, day: 1)),
+              let anchor = utc.date(byAdding: .day, value: (born.day ?? 1) - 1, to: monthStart),
+              let then = utc.date(from: date.calendarDay(in: timeZone)),
+              let days = utc.dateComponents([.day], from: anchor, to: then).day
+        else { return ageTitle(months) }
+
+        if days <= 0 { return ageTitle(months) }
+        let d = days == 1 ? "1 day" : "\(days) days"
+        return months == 0 ? d : "\(ageTitle(months)), \(d)"
+    }
 }
