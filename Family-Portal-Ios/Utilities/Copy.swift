@@ -70,6 +70,10 @@ nonisolated enum Copy {
         static let who = "Who is this about?"
         static let whatHappened = "What happened?"
         static let placeholder = "Wrote her name for the first time"
+        static let whatTheySaid = "What did they say?"
+        static let quotePlaceholder = "The moon is following our car!"
+        static let context = "Context (optional)"
+        static let contextPlaceholder = "On the drive home from Grandma's"
         static let category = "Category"
         static let more = "Add photos / tags"
         static let photos = "Photos"
@@ -241,12 +245,14 @@ nonisolated enum Copy {
     enum person {
         enum tabs {
             static let story = "Story"
+            static let quotes = "Quotes"
             static let photos = "Photos"
             static let growth = "Growth"
             static let activities = "Activities"
         }
 
         static let noPhotos = "No photos yet."
+        static let contextLabel = "Context"
         static let openInPhotos = "Open in Photos →"
         static let growingUp = "Growing up"
         static let oftenWith = "Often photographed with"
@@ -278,6 +284,10 @@ nonisolated enum Copy {
 
         static func nothingYet(_ name: String) -> String {
             "Nothing recorded for \(name) yet. Use + to add something."
+        }
+
+        static func noQuotes(_ name: String) -> String {
+            "No quotes from \(name) yet."
         }
     }
 

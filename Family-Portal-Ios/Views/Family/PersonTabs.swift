@@ -188,6 +188,64 @@ struct PersonOverview: View {
     }
 }
 
+// MARK: - Quotes
+
+/// Everything the person has said that was worth writing down, oldest first, with the age they said it at. The web's Quotes tab.
+struct PersonQuotesTab: View {
+    let person: Person
+
+    @State private var openMilestone: Milestone?
+
+    private var quotes: [Milestone] {
+        person.milestones.filter { $0.category == .quote }.sorted { $0.date < $1.date }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if quotes.isEmpty {
+                    Text(Copy.person.noQuotes(person.name.split(separator: " ").first.map(String.init) ?? person.name))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                ForEach(quotes) { quote in
+                    Button {
+                        openMilestone = quote
+                    } label: {
+                        card(quote)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding()
+        }
+        .sheet(item: $openMilestone) { milestone in
+            MilestoneDetailSheetView(milestone: milestone)
+        }
+    }
+
+    private func card(_ quote: Milestone) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(quote.displayText)
+                .font(.title3)
+                .italic()
+            if !quote.context.isEmpty {
+                Text(quote.context)
+                    .foregroundStyle(.secondary)
+            }
+            Text([person.age(on: quote.date), quote.date.formatted(date: .abbreviated, time: .omitted)]
+                .compactMap { $0 }
+                .joined(separator: " · "))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(MilestoneCategory.quote.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
+    }
+}
+
 // MARK: - Photos
 
 /// The gallery scoped to this person, with date and tag filters, and a way into the Photos tab already filtered to them.

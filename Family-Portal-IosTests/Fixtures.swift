@@ -85,7 +85,8 @@ nonisolated enum Fixture {
         milestoneDate: String = "2026-01-05T00:00:00Z",
         familyId: Int = 7,
         photoIds: [Int] = [],
-        tagIds: [Int]? = nil
+        tagIds: [Int]? = nil,
+        context: String? = nil
     ) -> [String: Any] {
         var milestone: [String: Any] = [
             "id": id,
@@ -99,6 +100,9 @@ nonisolated enum Fixture {
         ]
         if let tagIds {
             milestone["tagIds"] = tagIds
+        }
+        if let context {
+            milestone["context"] = context
         }
         return milestone
     }

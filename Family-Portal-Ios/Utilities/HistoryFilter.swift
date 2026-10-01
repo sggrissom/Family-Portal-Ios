@@ -72,7 +72,9 @@ enum History {
             records.milestones = milestones.filter { milestone in
                 wantPerson(milestone.person)
                     && tagged(milestone.tagRemoteIds)
-                    && (search.isEmpty || milestone.descriptionText.localizedCaseInsensitiveContains(search))
+                    && (search.isEmpty
+                        || milestone.descriptionText.localizedCaseInsensitiveContains(search)
+                        || milestone.context.localizedCaseInsensitiveContains(search))
             }
         }
 

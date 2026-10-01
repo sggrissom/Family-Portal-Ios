@@ -10,13 +10,14 @@ enum MainTab: String, Hashable, CaseIterable {
 /// The person page's tabs. The raw value is the `?tab=` a link carries, so it matches the web's.
 /// `nonisolated` because `DeepLink`, which is, carries one.
 nonisolated enum PersonTab: String, Hashable, CaseIterable, Identifiable, Sendable {
-    case story, photos, growth, activities
+    case story, quotes, photos, growth, activities
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .story: return Copy.person.tabs.story
+        case .quotes: return Copy.person.tabs.quotes
         case .photos: return Copy.person.tabs.photos
         case .growth: return Copy.person.tabs.growth
         case .activities: return Copy.person.tabs.activities

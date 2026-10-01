@@ -207,6 +207,8 @@ nonisolated struct CreateMilestonePayload: Codable, Sendable {
     let photoLocalIds: [String]?
     /// Remote ids, as in `UpdateTagsPayload`. Optional for the same reason as `photoLocalIds`; `nil` sends no tags.
     var tagRemoteIds: [Int]? = nil
+    /// Optional so an operation queued by an older build still decodes, as no context.
+    var context: String? = nil
 }
 
 nonisolated struct UploadPhotoPayload: Codable, Sendable {
@@ -239,6 +241,8 @@ nonisolated struct UpdateMilestonePayload: Codable, Sendable {
     let photoLocalIds: [String]?
     /// `nil` leaves the tags alone, an empty array clears them. An operation queued by an older build decodes as `nil`.
     var tagRemoteIds: [Int]? = nil
+    /// Optional so an operation queued by an older build still decodes, as no context.
+    var context: String? = nil
 }
 
 nonisolated struct UpdatePhotoPayload: Codable, Sendable {

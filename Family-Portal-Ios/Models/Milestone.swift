@@ -7,6 +7,8 @@ final class Milestone {
     var remoteId: String?
     var descriptionText: String
     var category: MilestoneCategory
+    /// Where or why a quote was said. Empty for every other category.
+    var context: String = ""
     var date: Date
     var photoRemoteIds: [Int] = []
     /// Ids of the `FamilyTag`s on this milestone; see `Photo.tagRemoteIds`.

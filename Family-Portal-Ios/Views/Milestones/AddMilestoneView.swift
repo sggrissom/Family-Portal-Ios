@@ -20,6 +20,7 @@ struct AddMilestoneView: View {
     @State private var selectedPersonId: UUID?
     @State private var descriptionText = ""
     @State private var category: MilestoneCategory = .development
+    @State private var context = ""
     @State private var when = WhenEntry()
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var tagRemoteIds: [Int] = []
@@ -74,10 +75,20 @@ struct AddMilestoneView: View {
                     PersonChips(selection: $selectedPersonId)
                 }
 
-                Section(Copy.milestone.whatHappened) {
-                    TextField(Copy.milestone.placeholder, text: $descriptionText, axis: .vertical)
-                        .lineLimit(2...6)
-                        .focused($isTextFocused)
+                Section(category == .quote ? Copy.milestone.whatTheySaid : Copy.milestone.whatHappened) {
+                    TextField(
+                        category == .quote ? Copy.milestone.quotePlaceholder : Copy.milestone.placeholder,
+                        text: $descriptionText,
+                        axis: .vertical
+                    )
+                    .lineLimit(2...6)
+                    .focused($isTextFocused)
+                }
+
+                if category == .quote {
+                    Section(Copy.milestone.context) {
+                        TextField(Copy.milestone.contextPlaceholder, text: $context)
+                    }
                 }
 
                 Section {
@@ -268,7 +279,12 @@ struct AddMilestoneView: View {
 
         error = nil
         isSaving = true
-        let milestone = Milestone(descriptionText: text, category: category, date: date)
+        let milestone = Milestone(
+            descriptionText: category == .quote ? Quotes.unquote(text) : text,
+            category: category,
+            date: date
+        )
+        milestone.context = category == .quote ? context.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         milestone.person = person
         modelContext.insert(milestone)
         defaults.rememberPerson(person.id)

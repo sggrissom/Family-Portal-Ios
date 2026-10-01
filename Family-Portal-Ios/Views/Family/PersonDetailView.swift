@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// A person's page: a header, then **Story · Photos · Growth · Activities**. Switching person keeps the tab, and the tab is part of the deep link (`/profile/<id>?tab=`).
+/// A person's page: a header, then **Story · Quotes · Photos · Growth · Activities**, Quotes only once there are some. Switching person keeps the tab, and the tab is part of the deep link (`/profile/<id>?tab=`).
 struct PersonDetailView: View {
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
@@ -41,7 +41,7 @@ struct PersonDetailView: View {
                     .padding(.bottom, 8)
 
                 Picker(Copy.person.tabs.story, selection: $tab) {
-                    ForEach(PersonTab.allCases) { Text($0.label).tag($0) }
+                    ForEach(tabs(for: person)) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
@@ -194,11 +194,19 @@ struct PersonDetailView: View {
 
     // MARK: - Tabs
 
+    /// Quotes only for somebody who has said something worth keeping, as on the web.
+    private func tabs(for person: Person) -> [PersonTab] {
+        let hasQuotes = person.milestones.contains { milestone in milestone.category == .quote }
+        return PersonTab.allCases.filter { option in option != .quotes || hasQuotes || tab == .quotes }
+    }
+
     @ViewBuilder
     private func tabContent(_ person: Person) -> some View {
         switch tab {
         case .story:
             PersonStoryTab(person: person, onShowActivities: { tab = .activities })
+        case .quotes:
+            PersonQuotesTab(person: person)
         case .photos:
             PersonPhotosTab(person: person, insights: insights)
         case .growth:

@@ -13,8 +13,9 @@ struct MilestoneRowView: View {
                 .padding(.vertical, 4)
                 .background(milestone.category.color.opacity(0.15), in: Capsule())
 
-            Text(milestone.descriptionText)
+            Text(milestone.displayText)
                 .font(.body)
+                .italic(milestone.category == .quote)
                 .lineLimit(2)
 
             if !milestone.photoRemoteIds.isEmpty {

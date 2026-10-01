@@ -10,6 +10,7 @@ struct EditMilestoneView: View {
 
     @State private var descriptionText: String
     @State private var category: MilestoneCategory
+    @State private var context: String
     @State private var date: Date
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var didSeedSelection = false
@@ -21,6 +22,7 @@ struct EditMilestoneView: View {
         self.milestone = milestone
         _descriptionText = State(initialValue: milestone.descriptionText)
         _category = State(initialValue: milestone.category)
+        _context = State(initialValue: milestone.context)
         _date = State(initialValue: milestone.date)
     }
 
@@ -38,14 +40,20 @@ struct EditMilestoneView: View {
                 Section {
                     Picker("Category", selection: $category) {
                         ForEach(MilestoneCategory.allCases, id: \.self) { option in
-                            Text(option.rawValue.capitalized)
+                            Text(option.label)
                         }
                     }
                 }
 
-                Section {
+                Section(category == .quote ? Copy.milestone.whatTheySaid : Copy.milestone.whatHappened) {
                     TextField("Description", text: $descriptionText, axis: .vertical)
                         .lineLimit(3...6)
+                }
+
+                if category == .quote {
+                    Section(Copy.milestone.context) {
+                        TextField(Copy.milestone.contextPlaceholder, text: $context)
+                    }
                 }
 
                 Section {
@@ -91,8 +99,10 @@ struct EditMilestoneView: View {
     }
 
     private func save() {
-        milestone.descriptionText = descriptionText.trimmingCharacters(in: .whitespaces)
+        let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        milestone.descriptionText = category == .quote ? Quotes.unquote(text) : text
         milestone.category = category
+        milestone.context = category == .quote ? context.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         milestone.date = date
 
         // `photoIds` is the complete set the milestone should end up with, so an empty selection detaches everything — safe only once the seed has run, since before that an empty selection means "not loaded yet".
