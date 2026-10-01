@@ -11,6 +11,7 @@ extension MilestoneCategory {
         case .health: "heart.fill"
         case .achievement: "trophy.fill"
         case .first: "star.fill"
+        case .quote: "quote.bubble.fill"
         case .other: "note.text"
         }
     }
@@ -22,6 +23,7 @@ extension MilestoneCategory {
         case .health: .red
         case .achievement: .yellow
         case .first: .purple
+        case .quote: .indigo
         case .other: .gray
         }
     }

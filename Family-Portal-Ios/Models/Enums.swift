@@ -91,5 +91,6 @@ enum MilestoneCategory: String, Codable, CaseIterable {
     case health
     case achievement
     case first
+    case quote
     case other
 }

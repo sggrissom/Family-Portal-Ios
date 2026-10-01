@@ -546,6 +546,7 @@ final class SyncService {
             personId: personId,
             description: payload.description,
             category: payload.category,
+            context: payload.context ?? "",
             inputType: "date",
             milestoneDate: payload.milestoneDate,
             photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds),
@@ -670,6 +671,7 @@ final class SyncService {
             id: id,
             description: payload.description,
             category: payload.category,
+            context: payload.context ?? "",
             inputType: "date",
             milestoneDate: payload.milestoneDate,
             photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds),
@@ -969,7 +971,8 @@ final class SyncService {
             category: milestone.category.rawValue,
             milestoneDate: dateToAPIString(milestone.date),
             photoLocalIds: photos?.map { $0.id.uuidString },
-            tagRemoteIds: tagRemoteIds
+            tagRemoteIds: tagRemoteIds,
+            context: milestone.context
         )
 
         let dependsOnLocalId = person.remoteId == nil ? person.id.uuidString : nil
@@ -992,7 +995,8 @@ final class SyncService {
             category: milestone.category.rawValue,
             milestoneDate: dateToAPIString(milestone.date),
             photoLocalIds: photos?.map { $0.id.uuidString },
-            tagRemoteIds: tagRemoteIds
+            tagRemoteIds: tagRemoteIds,
+            context: milestone.context
         )
 
         try applyPhotosOptimistically(photos, to: milestone)

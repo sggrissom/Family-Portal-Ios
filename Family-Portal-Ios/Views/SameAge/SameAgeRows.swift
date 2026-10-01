@@ -127,7 +127,7 @@ struct SameAgeRows: View {
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: category.icon)
                 .foregroundStyle(category.color)
-            Text(milestone.descriptionText)
+            Text(milestone.displayText)
                 .lineLimit(2)
             Text(Copy.milestoneDetail.atAge(SameAgeText.actualAge(row, at: milestone.milestoneDate)))
                 .foregroundStyle(.secondary)

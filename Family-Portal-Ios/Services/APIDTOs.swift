@@ -360,6 +360,7 @@ nonisolated struct MilestoneDTO: Codable, Sendable {
     let familyId: Int
     let descriptionText: String
     let category: String
+    let context: String
     let milestoneDate: Date
     let createdAt: Date
     let photoIds: [Int]
@@ -367,7 +368,7 @@ nonisolated struct MilestoneDTO: Codable, Sendable {
     let tagIds: [Int]
 
     enum CodingKeys: String, CodingKey {
-        case id, personId, familyId, category, milestoneDate, createdAt
+        case id, personId, familyId, category, context, milestoneDate, createdAt
         case descriptionText = "description"
         case photoIds
         case tagIds
@@ -380,6 +381,7 @@ nonisolated struct MilestoneDTO: Codable, Sendable {
         familyId = try c.decode(Int.self, forKey: .familyId)
         descriptionText = try c.decode(String.self, forKey: .descriptionText)
         category = try c.decode(String.self, forKey: .category)
+        context = try c.decodeIfPresent(String.self, forKey: .context) ?? ""
         milestoneDate = try c.decode(Date.self, forKey: .milestoneDate)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         photoIds = try c.decodeIfPresent([Int].self, forKey: .photoIds) ?? []
@@ -898,6 +900,8 @@ nonisolated struct AddMilestoneRequestDTO: Encodable, Sendable {
     let personId: Int
     let description: String
     let category: String
+    /// Kept only for quotes; the server clears it for any other category.
+    let context: String
     let inputType: String        // always "date": the device's local day, never the server's UTC "today"
     let milestoneDate: String?   // "yyyy-MM-dd"
     /// Photos to attach. `nil` omits the key entirely.
@@ -910,6 +914,8 @@ nonisolated struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let id: Int
     let description: String
     let category: String
+    /// Sent every time: an update without it clears the context.
+    let context: String
     let inputType: String
     let milestoneDate: String?
     /// The complete attachment set, not a delta. `nil` vs `[]` is the distinction that matters: absent leaves attachments alone, empty detaches them all.

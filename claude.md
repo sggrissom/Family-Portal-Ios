@@ -38,7 +38,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Auth/          LoginView, CreateAccountView, ForgotPasswordView,
 │   │                  UpdateRequiredView
 │   ├── Family/        AddPersonView, EditPersonView, PersonDetailView,
-│   │                  PersonTabs (Story/Photos/Growth), PersonRelationsSection,
+│   │                  PersonTabs (Story/Quotes/Photos/Growth), PersonRelationsSection,
 │   │                  ProfilePhotoPickerView
 │   ├── Photos/        PhotoGalleryView, PhotoDetailView, TagPeopleView,
 │   │                  PhotoRoute, PhotoFilter, PhotoFilterView,
@@ -93,7 +93,7 @@ All models are `@Model` classes with `remoteId: String?` for backend sync.
 | Person | name, gender: Gender, birthday: Date?, isPregnancy: Bool, relationship: String? | family: Family?, growthData: [GrowthData] (cascade), milestones: [Milestone] (cascade), photos: [Photo] |
 | PersonRelation | fromId: Int, toId: Int, kind: RelationKind | — (holds *server* person ids, not a relationship) |
 | GrowthData | measurementType, value: Double, unit: MeasurementUnit, date | person: Person? |
-| Milestone | descriptionText, category: MilestoneCategory, date | person: Person? |
+| Milestone | descriptionText, category: MilestoneCategory, context (quotes only), date | person: Person? |
 | Photo | imageData: Data? (externalStorage), title, descriptionText, photoDate, tagRemoteIds: [Int] | taggedPeople: [Person] |
 | User | name, email, familyId: UUID? | — |
 | FamilyTag | name, colorHex, familyId | — (records hold tag ids, not a relationship) |
@@ -537,8 +537,8 @@ AddGrowthData: { personId: Int, measurementType: "height"|"weight", value: Doubl
 AddCheckup: { personId: Int, inputType: "date", measurementDate: "YYYY-MM-DD", height: {value, unit}?, weight: {value, unit}? }  // → { growthData: [only those sent, height first] }
 UpdateGrowthData: { id: Int, measurementType: "height"|"weight", value: Double, unit: String, inputType: String, measurementDate: String? }
 DeleteGrowthData: { id: Int }
-AddMilestone: { personId: Int, description: String, category: String, inputType: String, milestoneDate: "YYYY-MM-DD"?, photoIds: [Int]?, tagIds: [Int]? }
-UpdateMilestone: { id: Int, description: String, category: String, inputType: String, milestoneDate: String?, photoIds: [Int]?, tagIds: [Int]? }  // absent tagIds leaves tags alone
+AddMilestone: { personId: Int, description: String, category: String, context: String, inputType: String, milestoneDate: "YYYY-MM-DD"?, photoIds: [Int]?, tagIds: [Int]? }
+UpdateMilestone: { id: Int, description: String, category: String, context: String, inputType: String, milestoneDate: String?, photoIds: [Int]?, tagIds: [Int]? }  // absent tagIds leaves tags alone
 DeleteMilestone: { id: Int }
 DeletePhoto: { id: Int }
 AddPeopleToPhoto: { photoId: Int, personIds: [Int] }

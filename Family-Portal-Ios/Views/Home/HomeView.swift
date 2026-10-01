@@ -235,7 +235,7 @@ struct HomeView: View {
                                 Image(systemName: category.icon)
                                     .foregroundStyle(category.color)
                                 Text(names[milestone.personId] ?? "").fontWeight(.semibold)
-                                    + Text(" \(milestone.descriptionText)")
+                                    + Text(" \(milestone.displayText)")
                             }
                             .font(.subheadline)
                         }

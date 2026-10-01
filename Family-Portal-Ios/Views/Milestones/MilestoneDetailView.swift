@@ -47,10 +47,15 @@ struct MilestoneDetailContent: View {
                     icon: milestone.category.icon,
                     tint: milestone.category.color,
                     badge: milestone.category.label,
-                    title: milestone.descriptionText
+                    title: milestone.displayText
                 )
 
                 DetailFieldGroup {
+                    if !milestone.context.isEmpty {
+                        DetailFieldRow(label: Copy.person.contextLabel, value: milestone.context)
+                        Divider()
+                    }
+
                     DetailFieldRow(
                         label: "Date",
                         value: milestone.date.formatted(date: .long, time: .omitted)
@@ -154,7 +159,7 @@ struct MilestoneMatchesSection: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(Copy.milestoneDetail.match(name: match.person.name, ageMonths: match.ageMonths))
                 .font(.subheadline.weight(.semibold))
-            Text(match.milestone.descriptionText)
+            Text(match.milestone.displayText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
