@@ -1,3 +1,4 @@
+import Photos
 import PhotosUI
 import SwiftData
 import SwiftUI
@@ -132,7 +133,8 @@ private struct AddFlowPresentation: ViewModifier {
                 maxSelectionCount: nil,
                 // `.ordered` numbers the picks and delivers them in the order the user made them, not library order.
                 selectionBehavior: .ordered,
-                matching: .images
+                matching: .images,
+                photoLibrary: .shared()
             )
             .onChange(of: pickedItems) { _, newItems in
                 // Clearing the binding re-enters this with an empty array, which `startBatch` ignores. Without it, picking the same photo twice in a row never fires.

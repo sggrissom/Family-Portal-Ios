@@ -31,6 +31,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>GIDClientID</key>
 	<string>$(GOOGLE_CLIENT_ID)</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Family Record reads dates from your selected photos so older memories appear at the right time, even when the image file has no date.</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>UIApplicationSceneManifest</key>
