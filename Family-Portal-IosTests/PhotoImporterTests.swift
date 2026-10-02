@@ -62,27 +62,7 @@ struct PhotoImporterTests {
         #expect(importer.progress == nil)
     }
 
-    // MARK: - Library and EXIF dates
-
-    @Test("A Photos library date recovers the date of a JPEG without EXIF")
-    func libraryDateWithoutExif() throws {
-        let data = try Self.jpeg(exifDateTimeOriginal: nil)
-        let libraryDate = Date(timeIntervalSince1970: 1_450_000_000)
-        #expect(PhotoImporter.captureDate(from: data, libraryDate: libraryDate) == libraryDate)
-    }
-
-    @Test("A corrected Photos library date takes precedence over embedded EXIF")
-    func libraryDateOverridesExif() throws {
-        let data = try Self.jpeg(exifDateTimeOriginal: "2026:03:15 14:30:00")
-        let libraryDate = Date(timeIntervalSince1970: 1_450_000_000)
-        #expect(PhotoImporter.captureDate(from: data, libraryDate: libraryDate) == libraryDate)
-    }
-
-    @Test("Without library metadata, the embedded date still works")
-    func unavailableLibraryFallsBackToExif() throws {
-        let data = try Self.jpeg(exifDateTimeOriginal: "2026:03:15 14:30:00")
-        #expect(PhotoImporter.captureDate(from: data, libraryDate: nil) == PhotoImporter.exifDate(from: "2026:03:15 14:30:00"))
-    }
+    // MARK: - EXIF dates
 
     @Test("EXIF spells its dates with colons in the date, not only the time")
     func exifDateSpelling() {

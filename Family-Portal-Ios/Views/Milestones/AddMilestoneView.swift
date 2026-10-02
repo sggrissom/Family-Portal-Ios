@@ -77,13 +77,9 @@ struct AddMilestoneView: View {
                 }
 
                 Section(category.entryPrompt.label) {
-                    TextField(
-                        category.entryPrompt.placeholder,
-                        text: $descriptionText,
-                        axis: .vertical
-                    )
-                    .lineLimit(2...6)
-                    .focused($isTextFocused)
+                    TextField(category.entryPrompt.placeholder, text: $descriptionText, axis: .vertical)
+                        .lineLimit(2...6)
+                        .focused($isTextFocused)
                 }
 
                 if category == .quote {
@@ -284,12 +280,8 @@ struct AddMilestoneView: View {
 
         error = nil
         isSaving = true
-        let milestone = Milestone(
-            descriptionText: category == .quote ? Quotes.unquote(text) : text,
-            category: category,
-            date: date
-        )
-        milestone.context = category == .quote ? context.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let milestone = Milestone(descriptionText: "", category: category, date: date)
+        milestone.setEntry(text, context: context)
         milestone.person = person
         modelContext.insert(milestone)
         defaults.rememberPerson(person.id)

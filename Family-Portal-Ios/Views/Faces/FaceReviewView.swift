@@ -224,14 +224,11 @@ struct FaceReviewView: View {
     }
 
     private func photoIndex() -> [Int: UUID] {
-        guard let photos = try? modelContext.fetch(FetchDescriptor<Photo>()) else { return [:] }
-        var index: [Int: UUID] = [:]
-        for photo in photos {
-            if let remoteId = photo.remoteId.flatMap(Int.init) {
-                index[remoteId] = photo.id
-            }
-        }
-        return index
+        let photos = (try? modelContext.fetch(FetchDescriptor<Photo>())) ?? []
+        return Dictionary(
+            photos.compactMap { photo in photo.remoteId.flatMap(Int.init).map { ($0, photo.id) } },
+            uniquingKeysWith: { _, last in last }
+        )
     }
 }
 

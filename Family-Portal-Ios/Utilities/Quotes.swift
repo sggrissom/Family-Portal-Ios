@@ -22,6 +22,13 @@ enum Quotes {
 
 extension Milestone {
     var displayText: String { Quotes.display(descriptionText, category: category) }
+
+    /// What the add and edit forms typed, as stored: trimmed, a quote without quotation marks around it, and context kept only for a quote. Set `category` first.
+    func setEntry(_ text: String, context: String) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        descriptionText = category == .quote ? Quotes.unquote(text) : text
+        self.context = category == .quote ? context.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+    }
 }
 
 extension MilestoneDTO {

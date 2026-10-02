@@ -259,7 +259,7 @@ struct PhotoGalleryView: View {
     /// "Clara and Mia" — the first names of the people the query named, as the web writes them.
     private func matchedNames(_ remoteIds: [Int]) -> String {
         let names = remoteIds.compactMap { id in
-            people.first { $0.remoteId == String(id) }?.name.split(separator: " ").first.map(String.init)
+            people.first { $0.remoteId == String(id) }?.name.firstName
         }
         return names.joined(separator: " and ")
     }

@@ -3,6 +3,10 @@ import Foundation
 /// The family's tag vocabulary (backend/tags.go): list, create, rename, recolour, delete.
 /// Online only, like membership: the server refuses a duplicate name, so a queued create could never be trusted to land. The Tags screen re-pulls the local `FamilyTag` mirror after each change.
 struct TagService {
+    /// The server's limits, so the Tags screen stops a long entry while typing rather than having it refused on save.
+    static let nameLimit = 40
+    static let phraseLimit = 120
+
     private let apiClient: APIClient
 
     init(apiClient: APIClient = .shared) {

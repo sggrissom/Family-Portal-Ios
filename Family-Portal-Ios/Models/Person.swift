@@ -62,3 +62,10 @@ final class Person {
         self.photos = photos
     }
 }
+
+extension String {
+    /// "Clara" for "Clara Jane Smith" — how chips, charts and copy name someone, as the web does.
+    nonisolated var firstName: String {
+        split(separator: " ").first.map(String.init) ?? self
+    }
+}

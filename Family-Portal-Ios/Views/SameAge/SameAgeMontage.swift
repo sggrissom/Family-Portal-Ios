@@ -1,30 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// Who the montage shows — a port of the web's `SameAgeMontage` choices.
-enum SameAgeMontageRows {
-    /// The people with a portrait near the age, in row order.
-    static func pictured(_ rows: [SameAgeRowDTO]) -> [SameAgeRowDTO] {
-        rows.filter { !$0.portraits.isEmpty }
-    }
-
-    /// The people without one, listed as a gap rather than left out.
-    static func missing(_ rows: [SameAgeRowDTO]) -> [SameAgeRowDTO] {
-        rows.filter { $0.portraits.isEmpty }
-    }
-
-    /// One face is not a comparison, so the montage needs two.
-    static func shows(_ rows: [SameAgeRowDTO]) -> Bool {
-        pictured(rows).count >= 2
-    }
-
-    /// The pick after `current`, wrapping round to the best.
-    static func nextPick(_ current: Int, count: Int) -> Int {
-        count > 0 ? (current + 1) % count : 0
-    }
-}
-
-/// **Side by side** — one face per person at the age, each with the age and day it was actually taken. **Another photo** cycles a person's picks, kept in view state only, so key the view on the age to start each age from the best.
+/// **Side by side** — one face per person at the age, each with the age and day it was actually taken, and the people without a photo named as a gap rather than left out. One face is not a comparison, so it needs two. A port of the web's `SameAgeMontage`.
+/// **Another photo** cycles a person's picks, kept in view state only, so key the view on the age to start each age from the best.
 struct SameAgeMontage: View {
     let rows: [SameAgeRowDTO]
 
@@ -36,14 +14,15 @@ struct SameAgeMontage: View {
     private static let tileSize: CGFloat = 112
 
     var body: some View {
-        if SameAgeMontageRows.shows(rows) {
+        let pictured = rows.filter { !$0.portraits.isEmpty }
+        if pictured.count >= 2 {
             let labels = FamilyGroups.chipLabels(rows.compactMap { localPerson($0.person.id) })
             let name = { (row: SameAgeRowDTO) in localPerson(row.person.id).flatMap { labels[$0.id] } ?? row.person.name }
-            let missing = SameAgeMontageRows.missing(rows)
+            let missing = rows.filter { $0.portraits.isEmpty }
 
             VStack(alignment: .leading, spacing: 8) {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 124), spacing: 12, alignment: .top)], spacing: 12) {
-                    ForEach(SameAgeMontageRows.pictured(rows)) { row in
+                    ForEach(pictured) { row in
                         tile(row, name: name(row))
                     }
                 }
@@ -83,7 +62,7 @@ struct SameAgeMontage: View {
             .multilineTextAlignment(.center)
             if row.portraits.count > 1 {
                 Button(Copy.sameAge.anotherPhoto) {
-                    picks[row.person.id] = SameAgeMontageRows.nextPick(pick, count: row.portraits.count)
+                    picks[row.person.id] = (pick + 1) % row.portraits.count
                 }
                 .font(.caption)
                 .buttonStyle(.borderless)
