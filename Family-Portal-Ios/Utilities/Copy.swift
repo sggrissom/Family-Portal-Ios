@@ -241,7 +241,7 @@ nonisolated enum Copy {
 
         /// "Clara at 14 months" — first name only, as the web writes it; the age is left off for someone with no birthday.
         static func match(name: String, ageMonths: Int) -> String {
-            let first = name.split(separator: " ").first.map(String.init) ?? name
+            let first = name.firstName
             guard ageMonths >= 0 else { return first }
             return ageMonths == 0 ? "\(first) at birth" : "\(first) at \(AgeSteps.ageTitle(ageMonths))"
         }

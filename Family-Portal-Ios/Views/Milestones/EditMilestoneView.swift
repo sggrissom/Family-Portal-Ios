@@ -29,11 +29,17 @@ struct EditMilestoneView: View {
     }
 
     private var isValid: Bool {
-        !descriptionText.trimmingCharacters(in: .whitespaces).isEmpty
+        !descriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var photoChoices: [Photo] {
         milestonePhotoChoices(for: milestone, person: milestone.person, allPhotos: allPhotos)
+    }
+
+    /// The choices the milestone has attached right now.
+    private var attachedChoices: [Photo] {
+        let attached = Set(milestone.photoRemoteIds)
+        return photoChoices.filter { photo in photo.remoteId.flatMap(Int.init).map { attached.contains($0) } ?? false }
     }
 
     var body: some View {
@@ -48,7 +54,7 @@ struct EditMilestoneView: View {
                 }
 
                 Section(category.entryPrompt.label) {
-                    TextField("Description", text: $descriptionText, axis: .vertical)
+                    TextField(category.entryPrompt.placeholder, text: $descriptionText, axis: .vertical)
                         .lineLimit(3...6)
                 }
 
@@ -76,15 +82,7 @@ struct EditMilestoneView: View {
             .task {
                 guard !didSeedSelection else { return }
                 didSeedSelection = true
-                let attached = Set(milestone.photoRemoteIds)
-                selectedPhotoIds = Set(
-                    photoChoices
-                        .filter { photo in
-                            guard let remoteId = photo.remoteId.flatMap(Int.init) else { return false }
-                            return attached.contains(remoteId)
-                        }
-                        .map { $0.id }
-                )
+                selectedPhotoIds = Set(attachedChoices.map(\.id))
             }
             .navigationTitle("Edit Milestone")
             .navigationBarTitleDisplayMode(.inline)
@@ -105,14 +103,13 @@ struct EditMilestoneView: View {
     }
 
     private func save() {
-        let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        milestone.descriptionText = category == .quote ? Quotes.unquote(text) : text
         milestone.category = category
-        milestone.context = category == .quote ? context.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        milestone.setEntry(descriptionText, context: context)
         milestone.date = date
 
         // `photoIds` is the complete set the milestone should end up with, so an empty selection detaches everything — safe only once the seed has run, since before that an empty selection means "not loaded yet".
         let chosen = didSeedSelection ? photoChoices.filter { selectedPhotoIds.contains($0.id) } : nil
+        let attached = attachedChoices
         let picked = category == .artwork ? artwork : []
 
         dismiss()
@@ -121,13 +118,9 @@ struct EditMilestoneView: View {
             do {
                 var photos = chosen
                 if let artist = milestone.person, !picked.isEmpty {
-                    let added = try await ArtworkPhotos.queue(picked, artist: artist, context: modelContext, syncService: syncService)
-                    // Without a seeded selection there is no complete set to add to, so the attached photos come from what the milestone already has.
-                    let attached = Set(milestone.photoRemoteIds)
-                    photos = (photos ?? photoChoices.filter { photo in
-                        guard let remoteId = photo.remoteId.flatMap(Int.init) else { return false }
-                        return attached.contains(remoteId)
-                    }) + added
+                    // New pieces join the selection — or, without a seeded one, what the milestone already has.
+                    photos = (chosen ?? attached)
+                        + (try await ArtworkPhotos.queue(picked, artist: artist, context: modelContext, syncService: syncService))
                 }
                 try await syncService?.updateMilestone(milestone, photos: photos)
             } catch {

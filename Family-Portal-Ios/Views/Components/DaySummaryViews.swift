@@ -22,7 +22,7 @@ struct DaySummaryView: View {
 
             ForEach(day.birthdays, id: \.personId) { birthday in
                 if let person = people[birthday.personId] {
-                    birthdayDivider(Copy.home.turned(name: firstName(person), age: birthday.age))
+                    birthdayDivider(Copy.home.turned(name: person.name.firstName, age: birthday.age))
                 }
             }
 
@@ -54,10 +54,6 @@ struct DaySummaryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func firstName(_ person: Person) -> String {
-        person.name.split(separator: " ").first.map(String.init) ?? person.name
-    }
-
     private func birthdayDivider(_ text: String) -> some View {
         HStack(spacing: 8) {
             Rectangle().frame(height: 1).foregroundStyle(.quaternary)
@@ -72,7 +68,7 @@ struct DaySummaryView: View {
     private func checkupRow(_ checkup: DayCheckup) -> some View {
         let person = people[checkup.personId]
         let values = [checkup.height, checkup.weight].compactMap { $0 }.map { MeasurementConversion.format($0) }
-        let who = (subjectId == checkup.personId ? nil : person.map(firstName))
+        let who = (subjectId == checkup.personId ? nil : person?.name.firstName)
         let lead = who.map { "\($0) \(Copy.home.checkup)" } ?? Copy.home.checkupTitle
         let extra = checkup.extra > 0 ? " (+\(checkup.extra))" : ""
         return Button {
@@ -114,7 +110,7 @@ struct DaySummaryView: View {
     }
 
     private func photoMosaic(_ group: DayPhotoGroup) -> some View {
-        let names = group.personIds.compactMap { people[$0] }.map(firstName)
+        let names = group.personIds.compactMap { people[$0]?.name.firstName }
         let caption = ([Copy.home.photoCount(group.count)] + (names.isEmpty ? [] : [names.joined(separator: ", ")]))
             .joined(separator: " · ")
         return NavigationLink(value: AppRoute.photoSet(ids: group.allIds, title: DaySummaries.dayLabel(day.day, today: today))) {

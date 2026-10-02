@@ -3,24 +3,15 @@ import Foundation
 // Face review (backend/faces.go). Online only and never queued: assigning a face makes the server re-match the whole family, so the outcome is the server's to report.
 // Every list is decoded with `decodeList`, since Go marshals a nil slice as `null`.
 
-fileprivate extension KeyedDecodingContainer {
-    nonisolated func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
-        try decodeIfPresent([T].self, forKey: key) ?? []
-    }
-}
-
 /// One face found in one photo. `personId` is 0 until someone names it or the server auto-tags it.
 nonisolated struct PhotoFaceDTO: Decodable, Sendable, Identifiable, Equatable {
     let id: Int
     let photoId: Int
     let familyId: Int
     let personId: Int
-    let status: Int
-    /// How far the face was from the person it was auto-tagged as; larger is less certain.
-    let distance: Double
     let box: FaceBoxDTO
 
-    private enum CodingKeys: String, CodingKey { case id, photoId, familyId, personId, status, distance, box }
+    private enum CodingKeys: String, CodingKey { case id, photoId, familyId, personId, box }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -28,8 +19,6 @@ nonisolated struct PhotoFaceDTO: Decodable, Sendable, Identifiable, Equatable {
         photoId = try c.decode(Int.self, forKey: .photoId)
         familyId = try c.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
         personId = try c.decodeIfPresent(Int.self, forKey: .personId) ?? 0
-        status = try c.decodeIfPresent(Int.self, forKey: .status) ?? 0
-        distance = try c.decodeIfPresent(Double.self, forKey: .distance) ?? 0
         box = try c.decodeIfPresent(FaceBoxDTO.self, forKey: .box) ?? FaceBoxDTO(left: 0, top: 0, right: 0, bottom: 0)
     }
 }

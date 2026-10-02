@@ -196,12 +196,7 @@ final class PhotoImporter {
         into context: ModelContext,
         syncService: SyncService?
     ) async throws -> (photo: Photo, hasCaptureDate: Bool) {
-        guard let data = try await item.loadTransferable(type: Data.self),
-              UIImage(data: data) != nil else {
-            throw ImportFailure.unreadable
-        }
-
-        let captureDate = Self.captureDate(from: data, libraryDate: Self.libraryDate(for: item))
+        let (data, captureDate) = try await Self.load(item)
         let photo = Photo(
             title: "",
             descriptionText: "",
@@ -240,8 +235,16 @@ final class PhotoImporter {
         }
     }
 
+    /// A picked item's bytes and when it was taken: the library's date, which carries corrections made in Photos, else the file's own EXIF. Throws `unreadable` for anything that isn't an image.
+    static func load(_ item: PhotosPickerItem) async throws -> (data: Data, captureDate: Date?) {
+        guard let data = try await item.loadTransferable(type: Data.self), UIImage(data: data) != nil else {
+            throw ImportFailure.unreadable
+        }
+        return (data, libraryDate(for: item) ?? captureDate(from: data))
+    }
+
     /// A limited library grant only covers assets the user explicitly allowed;
-    /// selecting something in PhotosPicker does not extend that grant.
+    /// selecting something in PhotosPicker does not extend that grant. Denied access is harmless.
     private static func libraryDate(for item: PhotosPickerItem) -> Date? {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard status == .authorized || status == .limited,
@@ -250,10 +253,8 @@ final class PhotoImporter {
             .firstObject?.creationDate
     }
 
-    /// Prefer the library's date, which can include corrections made in Photos,
-    /// over the original date embedded in the file. Denied access is harmless.
-    static func captureDate(from data: Data, libraryDate: Date? = nil) -> Date? {
-        if let libraryDate { return libraryDate }
+    /// The capture date in the image's own EXIF.
+    static func captureDate(from data: Data) -> Date? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],

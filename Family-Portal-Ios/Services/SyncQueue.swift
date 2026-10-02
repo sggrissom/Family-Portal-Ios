@@ -141,7 +141,7 @@ nonisolated struct CreatePersonPayload: Codable, Sendable {
         isPregnancy = try container.decodeIfPresent(Bool.self, forKey: .isPregnancy) ?? false
         stated = try container.decode(Int.self, forKey: .stated)
         anchorLocalId = try container.decodeIfPresent(String.self, forKey: .anchorLocalId)
-        additionalAnchorLocalIds = try container.decodeIfPresent([String].self, forKey: .additionalAnchorLocalIds) ?? []
+        additionalAnchorLocalIds = try container.decodeList(String.self, forKey: .additionalAnchorLocalIds)
     }
 }
 

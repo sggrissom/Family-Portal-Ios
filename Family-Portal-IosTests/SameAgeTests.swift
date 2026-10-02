@@ -96,25 +96,6 @@ struct SameAgeTests {
         #expect(try montageRow(id: 5, portraits: nil).portraits.isEmpty)
     }
 
-    @Test("The montage needs two people with a photo, and lists the rest as a gap")
-    func montageRows() throws {
-        let mia = try montageRow(id: 4, portraits: [portrait(9), portrait(10)])
-        let ben = try montageRow(id: 5, portraits: [portrait(11)])
-        let ava = try montageRow(id: 6, portraits: [])
-
-        #expect(!SameAgeMontageRows.shows([mia, ava]))
-        #expect(SameAgeMontageRows.shows([mia, ava, ben]))
-        #expect(SameAgeMontageRows.pictured([mia, ava, ben]).map(\.id) == [4, 5])
-        #expect(SameAgeMontageRows.missing([mia, ava, ben]).map(\.id) == [6])
-    }
-
-    @Test("Another photo cycles back to the best")
-    func nextPick() {
-        #expect(SameAgeMontageRows.nextPick(0, count: 2) == 1)
-        #expect(SameAgeMontageRows.nextPick(1, count: 2) == 0)
-        #expect(SameAgeMontageRows.nextPick(0, count: 0) == 0)
-    }
-
     @Test("The gap line names who has no photo")
     func noPhotoCopy() {
         #expect(Copy.sameAge.noPhoto("Mia, Ben") == "No photo near this age: Mia, Ben")

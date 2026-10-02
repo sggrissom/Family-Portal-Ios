@@ -84,11 +84,11 @@ struct ArtworkPhotosSection: View {
     private func read(_ newItems: [PhotosPickerItem]) async {
         unreadable = false
         for item in newItems {
-            guard let data = try? await item.loadTransferable(type: Data.self), UIImage(data: data) != nil else {
+            guard let loaded = try? await PhotoImporter.load(item) else {
                 unreadable = true
                 continue
             }
-            picked.append(PickedArtwork(data: data, captureDate: PhotoImporter.captureDate(from: data)))
+            picked.append(PickedArtwork(data: loaded.data, captureDate: loaded.captureDate))
         }
     }
 }
