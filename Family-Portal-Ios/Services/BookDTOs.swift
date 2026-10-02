@@ -5,10 +5,6 @@ import Foundation
 // Every list is decoded leniently, since Go marshals a nil slice as `null`.
 
 fileprivate extension KeyedDecodingContainer {
-    nonisolated func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
-        try decodeIfPresent([T].self, forKey: key) ?? []
-    }
-
     nonisolated func decodeText(forKey key: Key) throws -> String {
         try decodeIfPresent(String.self, forKey: key) ?? ""
     }
