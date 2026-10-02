@@ -152,6 +152,7 @@ struct AddSheetView: View {
     @Query private var relations: [PersonRelation]
     @Environment(\.dismiss) private var dismiss
     @Environment(ActivityService.self) private var activityService: ActivityService?
+    @Environment(AuthService.self) private var authService: AuthService?
 
     @State private var personId: UUID?
     @State private var openEvents = ActivityScreenState<ListOpenEventsResponseDTO>()
@@ -159,12 +160,17 @@ struct AddSheetView: View {
 
     private let defaults = QuickAddDefaults()
 
+    /// Everyone in a family the account can add to; a view-only family's people are never offered.
+    private var writablePeople: [Person] {
+        people.filter { authService.access.canContribute(to: $0) }
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                if !people.isEmpty {
+                if !writablePeople.isEmpty {
                     Section(Copy.addSheet.whoFor) {
-                        PersonChips(selection: $personId)
+                        PersonChips(selection: $personId, contributableOnly: true)
                     }
                 }
 
@@ -180,14 +186,14 @@ struct AddSheetView: View {
                     } label: {
                         Label(Copy.addSheet.measurement, systemImage: MeasurementType.height.icon)
                     }
-                    .disabled(people.isEmpty)
+                    .disabled(writablePeople.isEmpty)
                     Button {
                         remember()
                         flow.choose(.milestone(personId: personId))
                     } label: {
                         Label(Copy.addSheet.milestone, systemImage: MilestoneCategory.first.icon)
                     }
-                    .disabled(people.isEmpty)
+                    .disabled(writablePeople.isEmpty)
                 }
 
                 if let events = openEvents.value?.events, !events.isEmpty {
@@ -230,7 +236,7 @@ struct AddSheetView: View {
         guard !didSeed else { return }
         didSeed = true
         personId = flow.contextPersonId ?? QuickAddDefaults.person(
-            in: people,
+            in: writablePeople,
             remembered: defaults.rememberedPersonId,
             relations: relations.map(\.edge)
         )?.id

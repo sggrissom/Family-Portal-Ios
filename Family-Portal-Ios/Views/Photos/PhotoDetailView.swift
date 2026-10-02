@@ -48,6 +48,7 @@ private struct PhotoDetailContent: View {
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
     @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(AuthService.self) private var authService: AuthService?
     @Bindable var photo: Photo
     let openedFrom: UUID?
     @Binding var showDeleteConfirmation: Bool
@@ -59,6 +60,9 @@ private struct PhotoDetailContent: View {
     @FocusState private var editingMetadata: Bool
     /// `GetPhoto`'s place and pending tag suggestions, fetched when online. Never stored: the mirrored list doesn't carry them, and they are the server's to change.
     @State private var details: GetPhotoResponseDTO?
+
+    /// A view-only member sees the photo, its people and its tags, and none of the controls that change them.
+    private var canEdit: Bool { authService.access.canContribute(to: photo) }
 
     var body: some View {
         ScrollView {
@@ -92,25 +96,39 @@ private struct PhotoDetailContent: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-                VStack(alignment: .leading, spacing: 16) {
-                    TextField("Title", text: $photo.title)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($editingMetadata)
-                        .submitLabel(.done)
-                        .onSubmit { commitEdits() }
+                if canEdit {
+                    VStack(alignment: .leading, spacing: 16) {
+                        TextField("Title", text: $photo.title)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($editingMetadata)
+                            .submitLabel(.done)
+                            .onSubmit { commitEdits() }
 
-                    TextField("Description", text: $photo.descriptionText, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(3...6)
-                        .focused($editingMetadata)
+                        TextField("Description", text: $photo.descriptionText, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(3...6)
+                            .focused($editingMetadata)
 
-                    if let saveError {
-                        Text(saveError)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+                        if let saveError {
+                            Text(saveError)
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                        }
                     }
+                    .padding(.horizontal)
+                } else if !photo.title.isEmpty || !photo.descriptionText.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if !photo.title.isEmpty {
+                            Text(photo.title)
+                                .font(.headline)
+                        }
+                        if !photo.descriptionText.isEmpty {
+                            Text(photo.descriptionText)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
 
                 if !taggedPeople.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -135,36 +153,40 @@ private struct PhotoDetailContent: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                NavigationLink(destination: TagPeopleView(photo: photo)) {
-                    Label("Manage Tagged People", systemImage: "person.crop.circle.badge.plus")
+                if canEdit {
+                    NavigationLink(destination: TagPeopleView(photo: photo)) {
+                        Label("Manage Tagged People", systemImage: "person.crop.circle.badge.plus")
+                    }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
 
                 // Below the people and their Manage link, not between them: "tagged people" and "tags" are separate things that share a word.
                 TagChipsView(tagRemoteIds: photo.tagRemoteIds, title: "Tags")
                     .padding(.horizontal)
 
-                SuggestedTagChips(
-                    suggestions: details?.suggestions ?? [],
-                    onAccept: accept,
-                    onReject: reject
-                )
-                .padding(.horizontal)
+                if canEdit {
+                    SuggestedTagChips(
+                        suggestions: details?.suggestions ?? [],
+                        onAccept: accept,
+                        onReject: reject
+                    )
+                    .padding(.horizontal)
 
-                NavigationLink {
-                    TagPickerView(tagRemoteIds: photo.tagRemoteIds) { tagRemoteIds in
-                        guard let syncService else { return }
-                        try await syncService.updatePhotoTags(photo, tagRemoteIds: tagRemoteIds)
+                    NavigationLink {
+                        TagPickerView(tagRemoteIds: photo.tagRemoteIds) { tagRemoteIds in
+                            guard let syncService else { return }
+                            try await syncService.updatePhotoTags(photo, tagRemoteIds: tagRemoteIds)
+                        }
+                    } label: {
+                        Label("Edit Tags", systemImage: "tag")
                     }
-                } label: {
-                    Label("Edit Tags", systemImage: "tag")
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
 
-                // Only people tagged in the photo are offered: the server refuses a profile photo the person is not associated with.
-                if !taggedPeople.isEmpty {
+                // Only people tagged in the photo are offered: the server refuses a profile photo the person is not associated with. And only those the account can change — a view-only member may still see a photo shared from a family they can edit, as on the web.
+                if !profileCandidates.isEmpty {
                     Menu {
-                        ForEach(taggedPeople) { person in
+                        ForEach(profileCandidates) { person in
                             Button {
                                 setProfilePhoto(for: person)
                             } label: {
@@ -185,12 +207,15 @@ private struct PhotoDetailContent: View {
                 PhotoSameAgeSection(photo: photo, openedFrom: openedFrom)
                     .padding(.horizontal)
 
-                Button(role: .destructive) {
-                    showDeleteConfirmation = true
-                } label: {
-                    Label("Delete Photo", systemImage: "trash")
+                // Deleting takes an admin of the photo's family, as on the web.
+                if authService.access.canDelete(photo) {
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label("Delete Photo", systemImage: "trash")
+                    }
+                    .padding(.top, 8)
                 }
-                .padding(.top, 8)
             }
             .padding(.vertical)
         }
@@ -249,6 +274,11 @@ private struct PhotoDetailContent: View {
     /// SwiftData leaves to-many relationships unordered, so both the chips and the profile-photo menu would otherwise reshuffle between redraws.
     private var taggedPeople: [Person] {
         photo.taggedPeople.sorted { $0.name < $1.name }
+    }
+
+    private var profileCandidates: [Person] {
+        let access = authService.access
+        return taggedPeople.filter { access.canContribute(to: $0) }
     }
 
     private func isProfilePhoto(of person: Person) -> Bool {

@@ -8,6 +8,7 @@ struct AddMeasurementView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(AuthService.self) private var authService: AuthService?
 
     /// The whole roster rather than one person: a `@Query` predicate cannot follow a `@State` selection.
     @Query(sort: \Person.name) private var people: [Person]
@@ -48,7 +49,7 @@ struct AddMeasurementView: View {
         NavigationStack {
             Form {
                 Section(Copy.measurement.who) {
-                    PersonChips(selection: $selectedPersonId)
+                    PersonChips(selection: $selectedPersonId, contributableOnly: true)
                     if let person, let age = person.age(on: date) {
                         Text("\(person.name) · \(age)")
                             .font(.subheadline)
@@ -93,7 +94,7 @@ struct AddMeasurementView: View {
             .onAppear {
                 if selectedPersonId == nil {
                     selectedPersonId = QuickAddDefaults.person(
-                        in: people,
+                        in: people.filter { authService.access.canContribute(to: $0) },
                         remembered: defaults.rememberedPersonId,
                         relations: relations.map(\.edge)
                     )?.id

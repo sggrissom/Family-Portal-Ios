@@ -7,6 +7,7 @@ struct TagPickerView: View {
 
     @Query private var tags: [FamilyTag]
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(AuthService.self) private var authService: AuthService?
 
     @State private var selectedIds: [Int]
 
@@ -16,8 +17,16 @@ struct TagPickerView: View {
         _selectedIds = State(initialValue: tagRemoteIds)
     }
 
+    /// Only tags of a family the account can add to — plus any already on the record, so what is attached stays visible and can be taken off.
     private var sortedTags: [FamilyTag] {
-        tags.sorted { $0.name.lowercased() < $1.name.lowercased() }
+        let access = authService.access
+        return tags
+            .filter { tag in
+                guard !access.canContribute(tag.familyId) else { return true }
+                guard let remoteId = tag.remoteId.flatMap(Int.init) else { return false }
+                return selectedIds.contains(remoteId)
+            }
+            .sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
 
     /// Ids on the record that no local `FamilyTag` explains — a tag created on the web since the last pull. They stay in the set and are sent back untouched.

@@ -10,6 +10,7 @@ struct MeasurementDetailSheetView: View {
     let measurement: GrowthData
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AuthService.self) private var authService: AuthService?
     @State private var isEditing = false
 
     var body: some View {
@@ -21,9 +22,12 @@ struct MeasurementDetailSheetView: View {
             .navigationTitle("Measurement")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Edit") {
-                        isEditing = true
+                // A view-only member reads the measurement and nothing more.
+                if authService.access.canContribute(to: measurement) {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Edit") {
+                            isEditing = true
+                        }
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {

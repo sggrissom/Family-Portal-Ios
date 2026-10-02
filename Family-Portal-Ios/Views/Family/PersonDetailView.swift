@@ -28,6 +28,11 @@ struct PersonDetailView: View {
 
     private var person: Person? { people.first { $0.id == personId } }
 
+    /// Whether the account can change this person and add to their record.
+    private var canEdit: Bool {
+        person.map { authService.access.canContribute(to: $0) } ?? false
+    }
+
     /// The roster in chip order, for the switcher.
     private var roster: [Person] {
         FamilyGroups.chipOrder(people: people, relations: relations.map(\.edge), ownFamilyId: authService?.currentUser?.familyId)
@@ -62,16 +67,18 @@ struct PersonDetailView: View {
                     }
                     .accessibilityLabel(Copy.account.books)
                 }
-                // The contextual add: the same sheet as the tab bar's **+**, with this person chosen. Not gated on `allowsManagementActions` — recording a measurement is the day-to-day use of this screen, not management of the record.
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        addFlow.present(for: person.id)
-                    } label: {
-                        Image(systemName: "plus")
+                // The contextual add: the same sheet as the tab bar's **+**, with this person chosen. Not gated on `allowsManagementActions` — recording a measurement is the day-to-day use of this screen, not management of the record. Gated on the account's role in the person's family instead: a view-only member sees the page and nothing to change on it.
+                if canEdit {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            addFlow.present(for: person.id)
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("Add for \(person.name)")
                     }
-                    .accessibilityLabel("Add for \(person.name)")
                 }
-                if allowsManagementActions {
+                if allowsManagementActions && canEdit {
                     // No delete affordance: the backend has no DeletePerson proc, so a local delete is undone by the next pull.
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {

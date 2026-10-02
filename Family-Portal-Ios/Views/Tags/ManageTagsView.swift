@@ -24,6 +24,11 @@ struct ManageTagsView: View {
 
     private var families: [FamilyInfoDTO] { authService.families }
 
+    private var access: FamilyAccess { authService.access }
+
+    /// Where a new tag can go: families the account can add to, never one it only views.
+    private var writableFamilies: [FamilyRefDTO] { access.contributableFamilies }
+
     private var sortedTags: [TagDTO] {
         tags.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -42,7 +47,9 @@ struct ManageTagsView: View {
                 }
             }
 
-            createSection
+            if !writableFamilies.isEmpty {
+                createSection
+            }
 
             if isLoading {
                 Section {
@@ -88,9 +95,9 @@ struct ManageTagsView: View {
 
     private var createSection: some View {
         Section {
-            if families.count > 1 {
+            if writableFamilies.count > 1 {
                 Picker("Family", selection: $newFamilyId) {
-                    ForEach(families) { family in
+                    ForEach(writableFamilies, id: \.id) { family in
                         Text(family.name.isEmpty ? "Family \(family.id)" : family.name)
                             .tag(family.id)
                     }
@@ -119,31 +126,38 @@ struct ManageTagsView: View {
     private var tagsSection: some View {
         Section {
             if tags.isEmpty {
-                Text("No tags yet. Create one above.")
+                Text(writableFamilies.isEmpty ? "No tags yet." : "No tags yet. Create one above.")
                     .foregroundStyle(.secondary)
             } else {
+                // Renaming takes a contributor of the tag's family and deleting an admin, as on the web; a tag the account can't change is listed without either.
                 ForEach(sortedTags) { tag in
-                    Button {
-                        editing = tag
-                    } label: {
-                        row(for: tag)
-                    }
-                    .disabled(isSaving)
-                    .swipeActions(edge: .trailing) {
-                        Button("Delete", role: .destructive) {
-                            tagToDelete = tag
+                    if access.canContribute(tag.familyId) {
+                        Button {
+                            editing = tag
+                        } label: {
+                            row(for: tag, editable: true)
                         }
+                        .disabled(isSaving)
+                        .swipeActions(edge: .trailing) {
+                            if access.canAdmin(tag.familyId) {
+                                Button("Delete", role: .destructive) {
+                                    tagToDelete = tag
+                                }
+                            }
+                        }
+                    } else {
+                        row(for: tag, editable: false)
                     }
                 }
             }
         } footer: {
-            if !tags.isEmpty {
+            if tags.contains(where: { access.canContribute($0.familyId) }) {
                 Text("Tap a tag to edit it, or swipe to delete.")
             }
         }
     }
 
-    private func row(for tag: TagDTO) -> some View {
+    private func row(for tag: TagDTO, editable: Bool) -> some View {
         HStack(spacing: 12) {
             Circle()
                 .fill(TagColor.color(forHex: tag.color))
@@ -163,20 +177,22 @@ struct ManageTagsView: View {
                 }
             }
             Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
+            if editable {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Edit tag")
+        .accessibilityHint(editable ? "Edit tag" : "")
     }
 
     // MARK: - Actions
 
     private func load() async {
         if newFamilyId == 0 {
-            newFamilyId = families.first(where: \.isPrimary)?.id ?? families.first?.id ?? 0
+            newFamilyId = writableFamilies.first(where: \.isPrimary)?.id ?? writableFamilies.first?.id ?? 0
         }
         do {
             tags = try await service.list()

@@ -15,6 +15,8 @@ nonisolated struct AuthResponseDTO: Sendable {
     let familyId: Int?
     /// The person record standing in for this account, which is the subject every derived relationship label is phrased against. `omitempty` on the Go side, so an account never linked to a person simply omits the key.
     let personId: Int?
+    /// Every family this account can see and its role in each — what `FamilyAccess` reads to decide which add, edit and delete controls to show.
+    let families: [FamilyRefDTO]
 
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -24,6 +26,7 @@ nonisolated struct AuthResponseDTO: Sendable {
         isAdmin = try container.decode(Bool.self, forKey: .isAdmin)
         familyId = try container.decodeIfPresent(Int.self, forKey: .familyId)
         personId = try container.decodeIfPresent(Int.self, forKey: .personId)
+        families = try container.decodeIfPresent([FamilyRefDTO].self, forKey: .families) ?? []
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
@@ -34,10 +37,34 @@ nonisolated struct AuthResponseDTO: Sendable {
         try container.encode(isAdmin, forKey: .isAdmin)
         try container.encodeIfPresent(familyId, forKey: .familyId)
         try container.encodeIfPresent(personId, forKey: .personId)
+        try container.encode(families, forKey: .families)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, email, isAdmin, familyId, personId
+        case id, name, email, isAdmin, familyId, personId, families
+    }
+}
+
+/// One family in the auth response (backend/users.go `FamilyRef`). `role` is the backend's `AccessLevel`; see `FamilyAccess`.
+nonisolated struct FamilyRefDTO: Codable, Sendable, Equatable {
+    let id: Int
+    let name: String
+    let role: Int
+    let isPrimary: Bool
+
+    init(id: Int, name: String = "", role: Int, isPrimary: Bool = false) {
+        self.id = id
+        self.name = name
+        self.role = role
+        self.isPrimary = isPrimary
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        role = try container.decodeIfPresent(Int.self, forKey: .role) ?? 0
+        isPrimary = try container.decodeIfPresent(Bool.self, forKey: .isPrimary) ?? false
     }
 }
 

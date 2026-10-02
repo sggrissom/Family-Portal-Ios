@@ -72,6 +72,7 @@ Family-Portal-Ios/Family-Portal-Ios/
     │   AgeChart, FamilyStrip          # ports of the web's frontend/lib grouping, with its fixtures
     ├── RelationGraph.swift           # walks the stored edges
     ├── FamilyGroups.swift            # bands the roster by generation
+    ├── FamilyAccess.swift            # per-family role → which add/edit/delete controls show (authCache.ts)
     ├── AppLog.swift                  # OSLog categories
     ├── TagColor.swift                # tag hex string → Color
     └── ErrorPresenter.swift          # shared error alert
@@ -142,6 +143,7 @@ types, shared with previews and tests.
 - Apple releases the user's name only on the *first* authorization, which is why `AppleTokenLoginRequestDTO` carries it: every later sign-in sends an empty string and the server names the account itself
 - `serverURL` persisted in UserDefaults, synced to APIClient
 - `isAuthenticated` computed from `currentUser != nil`
+- `access` is a `FamilyAccess` built from `currentUser.families`, the role the account holds in each family (1 view, 2 contribute, 3 admin — backend `AccessLevel`)
 
 ### APIClient (actor)
 - `request<T, Body>(path:method:body:requiresAuth:retryOnAuthFailure:)` — generic async request
@@ -437,6 +439,18 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   `MeasurementType`. Three views had grown their own copy of those switches
 - `Person.age(on:)` (in `AgeCalculator.swift`) is how both sheets say how old
   somebody was on the day the record is dated
+
+### Permissions (`FamilyAccess`)
+
+- A view-only member sees everything and no control that changes it, as on the
+  web: every add, Edit, tag picker and delete is gated on `authService.access`.
+  The server enforces the same rules; hiding the controls only spares a button that
+  could only fail
+- A record's family: `Person.familyRemoteId`, `Photo.familyRemoteId`, a milestone's
+  or measurement's person's, a tag's or activity record's `familyId`. `nil` (added
+  offline, or pulled before the field existed) reads as the account's own family
+- Contribute is enough to add or edit; deleting a photo or a tag and rotating an
+  invite code take admin. Add forms pass `contributableOnly: true` to `PersonChips`
 
 ### Books (`BookService`, `BookAssembler`, `Views/Books/`)
 

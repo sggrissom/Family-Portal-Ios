@@ -9,6 +9,7 @@ struct BookEditorView: View {
     let onDeleted: @MainActor () -> Void
 
     @Environment(BookService.self) private var service
+    @Environment(AuthService.self) private var authService: AuthService?
     @Environment(\.dismiss) private var dismiss
 
     /// Matched by server id, for "Edit the original milestone".
@@ -319,7 +320,8 @@ struct BookEditorView: View {
 
     /// Nil when the milestone has not reached this device yet, which hides the action rather than opening nothing.
     private func editOriginal(_ item: BookItemDTO) -> (() -> Void)? {
-        guard let milestone = localMilestone(for: item) else { return nil }
+        // A book can hold a milestone from a family the account only views; that one stays read-only here too.
+        guard let milestone = localMilestone(for: item), authService.access.canContribute(to: milestone) else { return nil }
         return { editingMilestone = milestone }
     }
 

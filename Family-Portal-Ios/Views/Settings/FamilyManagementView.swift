@@ -3,7 +3,10 @@ import SwiftData
 
 struct FamilyManagementView: View {
     @Query(sort: \Person.name) private var people: [Person]
+    @Environment(AuthService.self) private var authService: AuthService?
     @State private var showingAddPerson = false
+
+    private var canAdd: Bool { authService.access.canContributeAnywhere }
 
     var body: some View {
         List {
@@ -11,7 +14,7 @@ struct FamilyManagementView: View {
                 ContentUnavailableView(
                     "No Family Members",
                     systemImage: "person.3",
-                    description: Text("Tap Add Member to start setting up your family.")
+                    description: Text(canAdd ? "Tap Add Member to start setting up your family." : "")
                 )
             } else {
                 FamilyRosterSections(people: people, manages: true)
@@ -19,11 +22,13 @@ struct FamilyManagementView: View {
         }
         .navigationTitle("Family Management")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingAddPerson = true
-                } label: {
-                    Label("Add Member", systemImage: "plus")
+            if canAdd {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingAddPerson = true
+                    } label: {
+                        Label("Add Member", systemImage: "plus")
+                    }
                 }
             }
         }

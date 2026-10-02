@@ -8,6 +8,7 @@ struct RoutineView: View {
     let entryName: String
 
     @Environment(ActivityService.self) private var service
+    @Environment(AuthService.self) private var authService: AuthService?
     @Query private var people: [Person]
 
     @State private var state = ActivityScreenState<GetEntryHistoryResponseDTO>()
@@ -19,6 +20,11 @@ struct RoutineView: View {
         ActivityLabels.forKind(state.value?.season.kind ?? ActivityKind.generic)
     }
 
+    private var editable: Bool {
+        guard let entry = state.value?.entry.entry else { return false }
+        return authService.access.canContribute(entry.familyId)
+    }
+
     var body: some View {
         ActivityScreen(state: state, read: { service.entryHistory(entryId: entryId) }) { response in
             content(response)
@@ -26,14 +32,16 @@ struct RoutineView: View {
         .navigationTitle(state.value?.entry.entry.name ?? entryName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    isEditing = true
-                } label: {
-                    Image(systemName: "pencil")
+            // A view-only member of the routine's family reads it without the editor, as on the web.
+            if editable {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isEditing = true
+                    } label: {
+                        Image(systemName: "pencil")
+                    }
+                    .accessibilityLabel("Edit \(labels.entry)")
                 }
-                .disabled(state.value == nil)
-                .accessibilityLabel("Edit \(labels.entry)")
             }
         }
         .sheet(isPresented: $isEditing) {

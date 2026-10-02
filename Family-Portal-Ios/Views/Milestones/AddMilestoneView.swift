@@ -7,6 +7,7 @@ struct AddMilestoneView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(AuthService.self) private var authService: AuthService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
     @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
 
@@ -73,7 +74,7 @@ struct AddMilestoneView: View {
         NavigationStack {
             Form {
                 Section(Copy.milestone.who) {
-                    PersonChips(selection: $selectedPersonId)
+                    PersonChips(selection: $selectedPersonId, contributableOnly: true)
                 }
 
                 Section(category.entryPrompt.label) {
@@ -175,7 +176,7 @@ struct AddMilestoneView: View {
             .onAppear {
                 if selectedPersonId == nil {
                     selectedPersonId = QuickAddDefaults.person(
-                        in: people,
+                        in: people.filter { authService.access.canContribute(to: $0) },
                         remembered: defaults.rememberedPersonId,
                         relations: relations.map(\.edge)
                     )?.id

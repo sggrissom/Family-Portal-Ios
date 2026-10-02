@@ -99,9 +99,11 @@ struct GrowthRootView: View {
         }
         .navigationTitle(Copy.growthPage.title)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button(Copy.growthPage.measure) {
-                    addFlow.open(.measurement(personId: selected.count == 1 ? selected.first : nil))
+            if authService.access.canContributeAnywhere {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(Copy.growthPage.measure) {
+                        addFlow.open(.measurement(personId: selected.count == 1 ? selected.first : nil))
+                    }
                 }
             }
         }

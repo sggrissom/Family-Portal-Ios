@@ -75,21 +75,23 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Button {
-                    addFlow.open(.person)
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: "plus")
-                            .font(.title3)
-                            .frame(width: 56, height: 56)
-                            .background(Color(.secondarySystemBackground), in: Circle())
-                        Text(Copy.home.addPerson)
-                            .font(.caption)
-                            .multilineTextAlignment(.center)
-                            .frame(width: 72)
+                if authService.access.canContributeAnywhere {
+                    Button {
+                        addFlow.open(.person)
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: "plus")
+                                .font(.title3)
+                                .frame(width: 56, height: 56)
+                                .background(Color(.secondarySystemBackground), in: Circle())
+                            Text(Copy.home.addPerson)
+                                .font(.caption)
+                                .multilineTextAlignment(.center)
+                                .frame(width: 72)
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal)
         }
@@ -183,19 +185,21 @@ struct HomeView: View {
                                 Text("\(Copy.home.eventTiming[season.eventTiming] ?? ""): \(event.name) · \(DaySummaries.dayLabel(event.startDate.dayKey(in: .gmt), today: today))")
                                     .font(.subheadline)
                             }
-                            HStack {
-                                Button(Copy.home.addPhotos) {
-                                    navigator.push(.event(id: event.id, name: event.name))
-                                }
-                                .buttonStyle(.bordered)
-                                if season.canAddResults {
-                                    Button(Copy.home.addResults) {
+                            if season.canContribute {
+                                HStack {
+                                    Button(Copy.home.addPhotos) {
                                         navigator.push(.event(id: event.id, name: event.name))
                                     }
-                                    .buttonStyle(.borderedProminent)
+                                    .buttonStyle(.bordered)
+                                    if season.canAddResults {
+                                        Button(Copy.home.addResults) {
+                                            navigator.push(.event(id: event.id, name: event.name))
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                    }
                                 }
+                                .font(.subheadline)
                             }
-                            .font(.subheadline)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -63,9 +63,12 @@ struct ContentView: View {
                 .tabItem { Label(Copy.nav.photos, systemImage: "photo.on.rectangle") }
                 .tag(MainTab.photos)
 
-            Color.clear
-                .tabItem { Label(Copy.nav.add, systemImage: "plus.circle.fill") }
-                .tag(MainTab.add)
+            // A view-only member has nothing to add, so the bar drops the **+** rather than offering a sheet whose every choice would be refused.
+            if authService.access.canContributeAnywhere {
+                Color.clear
+                    .tabItem { Label(Copy.nav.add, systemImage: "plus.circle.fill") }
+                    .tag(MainTab.add)
+            }
 
             TabRoot(tab: .growth) { GrowthRootView() }
                 .tabItem { Label(Copy.nav.growth, systemImage: "chart.line.uptrend.xyaxis") }

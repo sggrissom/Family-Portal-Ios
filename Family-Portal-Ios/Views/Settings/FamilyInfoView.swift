@@ -98,12 +98,15 @@ struct FamilyInfoView: View {
                 Label("Share Invitation", systemImage: "square.and.arrow.up")
             }
 
-            Button {
-                rotationTarget = family
-            } label: {
-                Label("Generate New Code", systemImage: "arrow.triangle.2.circlepath")
+            // The server rotates a code only for an admin of the family.
+            if family.role >= FamilyAccess.admin {
+                Button {
+                    rotationTarget = family
+                } label: {
+                    Label("Generate New Code", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(isRotating)
             }
-            .disabled(isRotating)
 
             NavigationLink {
                 FamilyMembershipView(family: family)
