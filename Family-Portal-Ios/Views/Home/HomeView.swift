@@ -216,7 +216,7 @@ struct HomeView: View {
     private func onThisDay(_ dashboard: GetDashboardResponseDTO) -> some View {
         if !dashboard.onThisDay.isEmpty {
             let names = Dictionary(
-                people.compactMap { person in person.remoteId.flatMap(Int.init).map { ($0, person.name.split(separator: " ").first.map(String.init) ?? person.name) } },
+                people.compactMap { person in person.remoteId.flatMap(Int.init).map { ($0, person.name.firstName) } },
                 uniquingKeysWith: { first, _ in first }
             )
             section(Copy.home.onThisDay) {

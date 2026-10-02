@@ -3,13 +3,6 @@ import Foundation
 // The offline-analysis reads (backend/milestone_analysis.go and friends). Every one is an online read the app never queues: the vision daemon runs only on staging, so each proc degrades to an empty answer rather than failing, and the screens that use them must look normal with nothing to show.
 // Every list is decoded with `decodeList`, since Go marshals a nil slice as `null`.
 
-/// The same helper `OverviewDTOs.swift` keeps to itself.
-fileprivate extension KeyedDecodingContainer {
-    nonisolated func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
-        try decodeIfPresent([T].self, forKey: key) ?? []
-    }
-}
-
 // MARK: - Milestone suggestions
 
 nonisolated struct SuggestMilestoneCategoryRequestDTO: Encodable, Sendable {

@@ -24,6 +24,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── AnalysisService.swift, AnalysisDTOs.swift   # offline-analysis reads: online-only, never queued
 │   ├── TagService.swift                            # tag vocabulary writes: online-only, never queued
 │   ├── FaceReviewService.swift, FaceReviewDTOs.swift # face review: online-only, never queued
+│   ├── BookService.swift, BookDTOs.swift           # books: reads cached like activities, writes online-only
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
 │   ├── Shell/         AppNavigator (tabs, per-tab paths, AppRoute, filters),
@@ -49,6 +50,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  EditMilestoneView, MilestonePhotoPickerView,
 │   │                  ArtworkPhotosSection
 │   ├── Activities/    ActivitiesRootView, SeasonView, CompetitionView, …
+│   ├── Books/         BooksView (shelf), BookReaderView, BookBlocks,
+│   │                  NewBookView, BookEditorView
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
 │   │                  DateSeparatorView, UserAvatarView
@@ -69,6 +72,7 @@ Family-Portal-Ios/Family-Portal-Ios/
     │   AgeChart, FamilyStrip          # ports of the web's frontend/lib grouping, with its fixtures
     ├── RelationGraph.swift           # walks the stored edges
     ├── FamilyGroups.swift            # bands the roster by generation
+    ├── FamilyAccess.swift            # per-family role → which add/edit/delete controls show (authCache.ts)
     ├── AppLog.swift                  # OSLog categories
     ├── TagColor.swift                # tag hex string → Color
     └── ErrorPresenter.swift          # shared error alert
@@ -139,6 +143,7 @@ types, shared with previews and tests.
 - Apple releases the user's name only on the *first* authorization, which is why `AppleTokenLoginRequestDTO` carries it: every later sign-in sends an empty string and the server names the account itself
 - `serverURL` persisted in UserDefaults, synced to APIClient
 - `isAuthenticated` computed from `currentUser != nil`
+- `access` is a `FamilyAccess` built from `currentUser.families`, the role the account holds in each family (1 view, 2 contribute, 3 admin — backend `AccessLevel`)
 
 ### APIClient (actor)
 - `request<T, Body>(path:method:body:requiresAuth:retryOnAuthFailure:)` — generic async request
@@ -435,6 +440,30 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
 - `Person.age(on:)` (in `AgeCalculator.swift`) is how both sheets say how old
   somebody was on the day the record is dated
 
+### Permissions (`FamilyAccess`)
+
+- A view-only member sees everything and no control that changes it, as on the
+  web: every add, Edit, tag picker and delete is gated on `authService.access`.
+  The server enforces the same rules; hiding the controls only spares a button that
+  could only fail
+- A record's family: `Person.familyRemoteId`, `Photo.familyRemoteId`, a milestone's
+  or measurement's person's, a tag's or activity record's `familyId`. `nil` (added
+  offline, or pulled before the field existed) reads as the account's own family
+- Contribute is enough to add or edit; deleting a photo or a tag and rotating an
+  invite code take admin. Add forms pass `contributableOnly: true` to `PersonChips`
+
+### Books (`BookService`, `BookAssembler`, `Views/Books/`)
+
+The web's `/books`, `/book/<id>`, `/new-book` and `/edit-book/<id>`. Reached from the account menu and a person's toolbar; "Start a book" and the reader's Edit appear only when the server says `canEdit`.
+
+- `ListBooks` and `GetBook` are read through `ActivityRead` and cached in `ActivitySnapshotCache` (so `LocalDataReset` already sweeps them, and a book opened once reads offline). Never in SwiftData: a book is references the server resolves against its own permissions, and `GetBook` sends the records with it
+- A saved book is only references and order. `BookAssembler` (`Utilities/BookAssembly.swift`) is a port of `assembleBook` in `frontend/lib/book.ts` and turns them into a cover, chapters and blocks exactly as the web does — change both together. `Utilities/BookSuggestions.swift` ports the suggesting half (`suggestItems`, `additionsSince`, `draftSelection`) and `bookPlans.ts`, so a draft or a re-pick on the phone is the one the web would make
+- The book DTOs keep dates as the server's ISO **strings**, and `BookDay` does its arithmetic on `YYYY-MM-DD` the way the web's `dayOf` does, so no time zone enters a book's chapters
+- Writes (`GetBookSources`, `CreateBook`, `UpdateBook`, `DeleteBook`) are online-only and never queued. A new book is drafted on the device from `GetBookSources` and created in one call. The editor works on a copy (`BookDTO` is all `var`) and sends the whole book on Save with the revision it opened; `ErrBookChanged` is matched word for word (`BookService.isChangedConflict`) and answered with "Close and Reload". Edit is disabled over a cached copy for that reason
+- Save sends `reviewedAt` as `GetBook`'s `now` — the server's clock, which stamped `createdAt` — and omits it on create (Go cannot parse an empty time). Every category chosen is sent as `[]`, the server's "everything"
+- Removing an item moves it to `excluded`, which a re-pick never brings back; "Keep" (`pinned`) survives re-picks. A drag reorders a chapter's items among the slots they already hold in the book's list
+- The reader is set on its own paper (`BookPalette`) in the system serif, with no editing chrome. The growth chart runs birth → one year in a first-year book and the book's own first → last day otherwise (the web clamps every book to the first year)
+
 ### Error presentation and logging
 - `ErrorPresenter` (`@Observable`, app scope, injected into the environment) plus the `.appErrorAlert()` modifier applied once at the root. Views report failures through it rather than swallowing them
 - App-scoped rather than per view because the views raising these errors dismiss themselves in the same breath; an alert owned by a closing sheet never appears. Sheets `dismiss()` first, then report
@@ -484,6 +513,7 @@ Go + vbeam RPC server.
 - `SendMessage`, `GetChatMessages`, `DeleteMessage` (chat; live delivery is the
   WebSocket, these three are the REST half)
 - `SuggestMilestoneCategory`, `SuggestMilestonePhotos`, `GetMilestoneMatches`, `GetPersonPhotoInsights`, `GetPhoto`, `GetTagSuggestions`, `AcceptTagSuggestions`, `RejectTagSuggestions` (online-only analysis calls; see AnalysisService)
+- `ListBooks`, `GetBook`, `GetBookSources`, `CreateBook`, `UpdateBook`, `DeleteBook` (backend/book.go; see Books)
 - `ListTags`, `UpdatePhotoTags`, `UpdateMilestoneTags` (see the notes under SyncService). The two writes are registered from `backend/photos.go` and `backend/milestone.go`, not `backend/tags.go`
 - `CreateTag`, `UpdateTag`, `DeleteTag` (the Tags screen, via `TagService`; online only — the server refuses a duplicate name, so a queued create could not be trusted. After each, `SyncService.refreshTags()` re-pulls the `FamilyTag` mirror. `UpdateTag`'s `autoPhrase` is a Go pointer, so the screen always sends it: absent would leave the phrase, empty clears it)
 - `GetFaceReview`, `AssignFaces`, `RejectFaces`, `DismissFaces` (the Faces screen, via `FaceReviewService`; online only. Each change reloads the review, because naming a face re-matches the family on the server; leaving after a change runs `pullFamilyData` so photos pick up their new people. The review's counts also feed the account-menu badge through `AppNavigator.updateFaceReviewCount`)

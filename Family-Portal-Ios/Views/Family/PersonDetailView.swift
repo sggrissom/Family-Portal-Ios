@@ -60,6 +60,13 @@ struct PersonDetailView: View {
             .navigationTitle(person.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // The web's 📖 Books on a profile: the family's shelf, since a book is often about several people.
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(value: AppRoute.books) {
+                        Image(systemName: "book.closed")
+                    }
+                    .accessibilityLabel(Copy.account.books)
+                }
                 // The contextual add: the same sheet as the tab bar's **+**, with this person chosen. Not gated on `allowsManagementActions` — recording a measurement is the day-to-day use of this screen, not management of the record. Gated on the account's role in the person's family instead: a view-only member sees the page and nothing to change on it.
                 if canEdit {
                     ToolbarItem(placement: .topBarTrailing) {

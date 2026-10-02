@@ -3,14 +3,6 @@ import Foundation
 // Wire types for the competitive-activities procs (backend/activity*.go).
 // Absent dates arrive as year 1 rather than null; read them through `Date.serverDate`.
 
-// MARK: - Decoding helpers
-
-private extension KeyedDecodingContainer {
-    nonisolated func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
-        try decodeIfPresent([T].self, forKey: key) ?? []
-    }
-}
-
 // MARK: - Records
 
 nonisolated struct ActivityDTO: Decodable, Sendable, Identifiable {
@@ -496,6 +488,6 @@ nonisolated struct SetEventPhotosResponseDTO: Decodable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         eventId = try container.decodeIfPresent(Int.self, forKey: .eventId) ?? 0
-        photoIds = try container.decodeIfPresent([Int].self, forKey: .photoIds) ?? []
+        photoIds = try container.decodeList(Int.self, forKey: .photoIds)
     }
 }

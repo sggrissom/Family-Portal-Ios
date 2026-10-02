@@ -37,6 +37,11 @@ struct AccountMenuButton: View {
             } label: {
                 Label(Copy.account.activities, systemImage: "trophy")
             }
+            Button {
+                navigator.push(.books)
+            } label: {
+                Label(Copy.account.books, systemImage: "book.closed")
+            }
 
             Section {
                 // Managing tags is all the screen is for, so a view-only member — who can change none of them — is not sent there.

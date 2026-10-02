@@ -1,5 +1,12 @@
 @preconcurrency import Foundation
 
+extension KeyedDecodingContainer {
+    /// A list that may be missing: Go marshals a nil slice as `null`, and an absent key reads the same way. Every DTO file decodes its lists through this.
+    nonisolated func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
+        try decodeIfPresent([T].self, forKey: key) ?? []
+    }
+}
+
 nonisolated struct AuthResponseDTO: Sendable {
     let id: Int
     let name: String
@@ -185,7 +192,7 @@ nonisolated struct FamilyInfoResponseDTO: Codable, Sendable {
         id = try container.decode(Int.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         inviteCode = try container.decode(String.self, forKey: .inviteCode)
-        families = try container.decodeIfPresent([FamilyInfoDTO].self, forKey: .families) ?? []
+        families = try container.decodeList(FamilyInfoDTO.self, forKey: .families)
     }
 }
 
@@ -238,7 +245,7 @@ nonisolated struct ListFamilyMembersResponseDTO: Codable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
-        members = try container.decodeIfPresent([FamilyMemberDTO].self, forKey: .members) ?? []
+        members = try container.decodeList(FamilyMemberDTO.self, forKey: .members)
         callerIsOwner = try container.decodeIfPresent(Bool.self, forKey: .callerIsOwner) ?? false
     }
 }
@@ -263,7 +270,7 @@ nonisolated struct RemoveFamilyMemberResponseDTO: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         success = try container.decode(Bool.self, forKey: .success)
         error = try container.decodeIfPresent(String.self, forKey: .error)
-        members = try container.decodeIfPresent([FamilyMemberDTO].self, forKey: .members) ?? []
+        members = try container.decodeList(FamilyMemberDTO.self, forKey: .members)
     }
 }
 
@@ -411,8 +418,8 @@ nonisolated struct MilestoneDTO: Codable, Sendable {
         context = try c.decodeIfPresent(String.self, forKey: .context) ?? ""
         milestoneDate = try c.decode(Date.self, forKey: .milestoneDate)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
-        photoIds = try c.decodeIfPresent([Int].self, forKey: .photoIds) ?? []
-        tagIds = try c.decodeIfPresent([Int].self, forKey: .tagIds) ?? []
+        photoIds = try c.decodeList(Int.self, forKey: .photoIds)
+        tagIds = try c.decodeList(Int.self, forKey: .tagIds)
     }
 }
 
@@ -467,7 +474,7 @@ nonisolated struct ImageDTO: Codable, Sendable {
         photoDate = try c.decode(Date.self, forKey: .photoDate)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         status = try c.decode(Int.self, forKey: .status)
-        tagIds = try c.decodeIfPresent([Int].self, forKey: .tagIds) ?? []
+        tagIds = try c.decodeList(Int.self, forKey: .tagIds)
     }
 }
 
@@ -526,7 +533,7 @@ nonisolated struct ListTagsResponseDTO: Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        tags = try container.decodeIfPresent([TagDTO].self, forKey: .tags) ?? []
+        tags = try container.decodeList(TagDTO.self, forKey: .tags)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -548,9 +555,9 @@ nonisolated struct GetPersonResponseDTO: Codable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         person = try container.decodeIfPresent(PersonDTO.self, forKey: .person)
-        growthData = try container.decodeIfPresent([GrowthDataDTO].self, forKey: .growthData) ?? []
-        milestones = try container.decodeIfPresent([MilestoneDTO].self, forKey: .milestones) ?? []
-        photos = try container.decodeIfPresent([ImageDTO].self, forKey: .photos) ?? []
+        growthData = try container.decodeList(GrowthDataDTO.self, forKey: .growthData)
+        milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
+        photos = try container.decodeList(ImageDTO.self, forKey: .photos)
     }
 }
 
@@ -570,7 +577,7 @@ nonisolated struct AddCheckupResponseDTO: Decodable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        growthData = try container.decodeIfPresent([GrowthDataDTO].self, forKey: .growthData) ?? []
+        growthData = try container.decodeList(GrowthDataDTO.self, forKey: .growthData)
     }
 }
 
@@ -612,9 +619,9 @@ nonisolated struct GetPhotoResponseDTO: Decodable, Sendable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         image = try c.decode(ImageDTO.self, forKey: .image)
-        people = try c.decodeIfPresent([PersonDTO].self, forKey: .people) ?? []
+        people = try c.decodeList(PersonDTO.self, forKey: .people)
         place = try c.decodeIfPresent(PhotoPlaceDTO.self, forKey: .place)
-        suggestions = try c.decodeIfPresent([SuggestedTagDTO].self, forKey: .suggestions) ?? []
+        suggestions = try c.decodeList(SuggestedTagDTO.self, forKey: .suggestions)
     }
 }
 
@@ -644,9 +651,9 @@ nonisolated struct ListFamilyPhotosResponseDTO: Decodable, Sendable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        photos = try c.decodeIfPresent([PhotoWithPeopleDTO].self, forKey: .photos) ?? []
+        photos = try c.decodeList(PhotoWithPeopleDTO.self, forKey: .photos)
         nextCursor = try c.decodeIfPresent(String.self, forKey: .nextCursor) ?? ""
-        matchedPersonIds = try c.decodeIfPresent([Int].self, forKey: .matchedPersonIds) ?? []
+        matchedPersonIds = try c.decodeList(Int.self, forKey: .matchedPersonIds)
         searchMode = try c.decodeIfPresent(String.self, forKey: .searchMode) ?? ""
     }
 }
@@ -660,9 +667,9 @@ nonisolated struct FamilyTimelineItemDTO: Codable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         person = try container.decode(PersonDTO.self, forKey: .person)
-        growthData = try container.decodeIfPresent([GrowthDataDTO].self, forKey: .growthData) ?? []
-        milestones = try container.decodeIfPresent([MilestoneDTO].self, forKey: .milestones) ?? []
-        photos = try container.decodeIfPresent([ImageDTO].self, forKey: .photos) ?? []
+        growthData = try container.decodeList(GrowthDataDTO.self, forKey: .growthData)
+        milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
+        photos = try container.decodeList(ImageDTO.self, forKey: .photos)
     }
 }
 
@@ -691,12 +698,12 @@ nonisolated struct GetFamilyTimelineResponseDTO: Decodable, Sendable {
 
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        people = try container.decodeIfPresent([FamilyTimelineItemDTO].self, forKey: .people) ?? []
+        people = try container.decodeList(FamilyTimelineItemDTO.self, forKey: .people)
         // A server predating the field, and Go marshalling an empty slice as `null`, both read as "no edges" rather than failing the whole pull.
-        relations = try container.decodeIfPresent([RelationDTO].self, forKey: .relations) ?? []
+        relations = try container.decodeList(RelationDTO.self, forKey: .relations)
         // Both newer than the pull, so both optional for the same reason.
-        years = try container.decodeIfPresent([Int].self, forKey: .years) ?? []
-        appearances = try container.decodeIfPresent([TimelineAppearanceDTO].self, forKey: .appearances) ?? []
+        years = try container.decodeList(Int.self, forKey: .years)
+        appearances = try container.decodeList(TimelineAppearanceDTO.self, forKey: .appearances)
     }
 }
 
@@ -850,7 +857,7 @@ nonisolated struct GetPersonRelationsResponseDTO: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         personId = try container.decodeIfPresent(Int.self, forKey: .personId) ?? 0
         // Go marshals an empty slice as `null`, and a refusal sends the whole struct zero-valued.
-        relations = try container.decodeIfPresent([RelationViewDTO].self, forKey: .relations) ?? []
+        relations = try container.decodeList(RelationViewDTO.self, forKey: .relations)
         manageable = try container.decodeIfPresent(Bool.self, forKey: .manageable) ?? false
     }
 }
@@ -992,9 +999,9 @@ nonisolated struct AddPersonResponseDTO: Decodable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         person = try container.decode(PersonDTO.self, forKey: .person)
-        growthData = try container.decodeIfPresent([GrowthDataDTO].self, forKey: .growthData) ?? []
-        milestones = try container.decodeIfPresent([MilestoneDTO].self, forKey: .milestones) ?? []
-        photos = try container.decodeIfPresent([ImageDTO].self, forKey: .photos) ?? []
+        growthData = try container.decodeList(GrowthDataDTO.self, forKey: .growthData)
+        milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
+        photos = try container.decodeList(ImageDTO.self, forKey: .photos)
     }
 
     enum CodingKeys: String, CodingKey {

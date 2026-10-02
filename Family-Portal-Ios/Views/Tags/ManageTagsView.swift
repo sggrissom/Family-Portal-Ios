@@ -105,6 +105,9 @@ struct ManageTagsView: View {
             }
             TextField("Tag name", text: $newName)
                 .textInputAutocapitalization(.words)
+                .onChange(of: newName) { _, value in
+                    if value.count > TagService.nameLimit { newName = String(value.prefix(TagService.nameLimit)) }
+                }
                 .submitLabel(.done)
                 .onSubmit { Task { await create() } }
             ColorPicker("Color", selection: $newColor, supportsOpacity: false)
@@ -257,10 +260,6 @@ private struct TagEditorView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
-    /// The server's limits, so a long entry is stopped while typing rather than refused on save.
-    private static let nameLimit = 40
-    private static let phraseLimit = 120
-
     init(tag: TagDTO, save: @escaping @MainActor (_ name: String, _ color: String, _ phrase: String) async throws -> Void) {
         self.tag = tag
         self.save = save
@@ -287,7 +286,7 @@ private struct TagEditorView: View {
                 TextField("Tag name", text: $name)
                     .textInputAutocapitalization(.words)
                     .onChange(of: name) { _, value in
-                        if value.count > Self.nameLimit { name = String(value.prefix(Self.nameLimit)) }
+                        if value.count > TagService.nameLimit { name = String(value.prefix(TagService.nameLimit)) }
                     }
                 ColorPicker("Color", selection: $color, supportsOpacity: false)
                     .onChange(of: color) { _, _ in colorTouched = true }
@@ -297,7 +296,7 @@ private struct TagEditorView: View {
                 TextField("e.g. kids at the lake cabin", text: $phrase, axis: .vertical)
                     .lineLimit(1...3)
                     .onChange(of: phrase) { _, value in
-                        if value.count > Self.phraseLimit { phrase = String(value.prefix(Self.phraseLimit)) }
+                        if value.count > TagService.phraseLimit { phrase = String(value.prefix(TagService.phraseLimit)) }
                     }
             } header: {
                 Text("Suggest for photos of…")

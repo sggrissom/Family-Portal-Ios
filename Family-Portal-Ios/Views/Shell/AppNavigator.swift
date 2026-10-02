@@ -31,6 +31,9 @@ enum AppRoute: Hashable {
     case history
     case chat
     case activities
+    case books
+    /// One book by server id. The title is shown while the book itself loads.
+    case book(id: Int, title: String)
     case settings
     case tags
     case faces
@@ -46,7 +49,7 @@ enum AppRoute: Hashable {
     /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back.
     var isBorrowed: Bool {
         switch self {
-        case .history, .chat, .activities, .settings, .tags, .faces: return true
+        case .history, .chat, .activities, .books, .settings, .tags, .faces: return true
         default: return false
         }
     }
@@ -175,6 +178,10 @@ private struct AppRouteDestination: View {
             ChatView()
         case .activities:
             ActivitiesRootView()
+        case .books:
+            BooksView()
+        case .book(let id, let title):
+            BookReaderView(bookId: id, title: title)
         case .settings:
             SettingsView()
         case .tags:

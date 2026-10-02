@@ -52,7 +52,7 @@ struct GrowthRootView: View {
             guard !points.isEmpty else { return nil }
             return AgeSeries(
                 id: person.id,
-                label: person.name.split(separator: " ").first.map(String.init) ?? person.name,
+                label: person.name.firstName,
                 color: AgeSeries.palette[index % AgeSeries.palette.count],
                 points: points
             )

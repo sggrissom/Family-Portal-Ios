@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// The milestone form: who, then what happened (focused), then a category chip, then when. Photos and tags sit behind one disclosure, since most milestones have neither.
+/// The milestone form: who, then what happened (focused), then category, then when. Photos and tags sit behind one disclosure, since most milestones have neither.
 /// Save opens the milestone's own page in place of the form; its Done returns to wherever the form was opened from.
 struct AddMilestoneView: View {
     @Environment(\.dismiss) private var dismiss
@@ -30,9 +30,9 @@ struct AddMilestoneView: View {
     @State private var error: String?
     @State private var isSaving = false
     @State private var saved: Milestone?
-    /// Set by the user's own tap on a chip; after that a suggestion never moves the selection.
+    /// Set by the user's own category selection; after that a suggestion never moves it.
     @State private var categoryTouched = false
-    /// The selected chip came from `SuggestMilestoneCategory`, and is marked as such.
+    /// The selected category came from `SuggestMilestoneCategory`, and is marked as such.
     @State private var categorySuggested = false
     /// `SuggestMilestonePhotos`' answer, as server ids, best first. Unattached until tapped.
     @State private var suggestedPhotoRemoteIds: [Int] = []
@@ -78,13 +78,9 @@ struct AddMilestoneView: View {
                 }
 
                 Section(category.entryPrompt.label) {
-                    TextField(
-                        category.entryPrompt.placeholder,
-                        text: $descriptionText,
-                        axis: .vertical
-                    )
-                    .lineLimit(2...6)
-                    .focused($isTextFocused)
+                    TextField(category.entryPrompt.placeholder, text: $descriptionText, axis: .vertical)
+                        .lineLimit(2...6)
+                        .focused($isTextFocused)
                 }
 
                 if category == .quote {
@@ -94,12 +90,22 @@ struct AddMilestoneView: View {
                 }
 
                 Section {
-                    FlowLayout(spacing: 8) {
+                    Picker(Copy.milestone.category, selection: Binding(
+                        get: { category },
+                        set: { option in
+                            category = option
+                            categoryTouched = true
+                            categorySuggested = false
+                        }
+                    )) {
                         ForEach(MilestoneCategory.allCases, id: \.self) { option in
-                            categoryChip(option)
+                            Label(option.label, systemImage: option.icon)
+                                .tag(option)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .labelStyle(.titleAndIcon)
                 } header: {
                     Text(categorySuggested ? "\(Copy.milestone.category) · \(Copy.milestone.suggested)" : Copy.milestone.category)
                 }
@@ -178,24 +184,6 @@ struct AddMilestoneView: View {
                 isTextFocused = true
             }
         }
-    }
-
-    private func categoryChip(_ option: MilestoneCategory) -> some View {
-        let selected = category == option
-        return Button {
-            category = option
-            categoryTouched = true
-            categorySuggested = false
-        } label: {
-            Label(option.label, systemImage: option.icon)
-                .font(.subheadline)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .foregroundStyle(selected ? .white : option.color)
-                .background(selected ? option.color : option.color.opacity(0.12), in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var suggestedPhotoRow: some View {
@@ -285,12 +273,8 @@ struct AddMilestoneView: View {
 
         error = nil
         isSaving = true
-        let milestone = Milestone(
-            descriptionText: category == .quote ? Quotes.unquote(text) : text,
-            category: category,
-            date: date
-        )
-        milestone.context = category == .quote ? context.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let milestone = Milestone(descriptionText: "", category: category, date: date)
+        milestone.setEntry(text, context: context)
         milestone.person = person
         modelContext.insert(milestone)
         defaults.rememberPerson(person.id)

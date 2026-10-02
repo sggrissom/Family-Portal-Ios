@@ -45,7 +45,7 @@ struct PersonStoryTab: View {
                 }
 
                 if days.isEmpty {
-                    Text(Copy.person.nothingYet(firstName))
+                    Text(Copy.person.nothingYet(person.name.firstName))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
@@ -72,10 +72,6 @@ struct PersonStoryTab: View {
             guard let activityService, let remoteId = person.remoteId.flatMap(Int.init) else { return }
             await season.load(activityService.personSeason(personId: remoteId))
         }
-    }
-
-    private var firstName: String {
-        person.name.split(separator: " ").first.map(String.init) ?? person.name
     }
 
     private var birthdayRange: (from: String, to: String)? {
@@ -204,7 +200,7 @@ struct PersonQuotesTab: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if quotes.isEmpty {
-                    Text(Copy.person.noQuotes(person.name.split(separator: " ").first.map(String.init) ?? person.name))
+                    Text(Copy.person.noQuotes(person.name.firstName))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -263,7 +259,7 @@ struct PersonArtworkTab: View {
     var body: some View {
         ScrollView {
             if pieces.isEmpty {
-                Text(Copy.person.noArtwork(person.name.split(separator: " ").first.map(String.init) ?? person.name))
+                Text(Copy.person.noArtwork(person.name.firstName))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
@@ -584,7 +580,7 @@ struct PersonGrowthTab: View {
         if let birthday = person.birthday, !person.isPregnancy {
             let main = AgeSeries(
                 id: person.id,
-                label: person.name.split(separator: " ").first.map(String.init) ?? person.name,
+                label: person.name.firstName,
                 color: AgeSeries.palette[0],
                 points: AgeChart.chartPoints(person.growthData, birthday: birthday, type: type)
             )
@@ -596,7 +592,7 @@ struct PersonGrowthTab: View {
                 guard !points.isEmpty else { return nil }
                 return AgeSeries(
                     id: sibling.id,
-                    label: sibling.name.split(separator: " ").first.map(String.init) ?? sibling.name,
+                    label: sibling.name.firstName,
                     color: AgeSeries.palette[(index + 1) % AgeSeries.palette.count],
                     points: points,
                     faint: true
