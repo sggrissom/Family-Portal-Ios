@@ -37,6 +37,11 @@ struct AccountMenuButton: View {
             } label: {
                 Label(Copy.account.activities, systemImage: "trophy")
             }
+            Button {
+                navigator.push(.books)
+            } label: {
+                Label(Copy.account.books, systemImage: "book.closed")
+            }
 
             Section {
                 Button {

@@ -146,6 +146,16 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case listOpenEvents = "ListOpenEvents"
     case getSameAge = "GetSameAge"
 
+    // MARK: - Books (backend/book.go)
+    // Reads are cached like the overviews; writes are online only. `GetBook` returns the records the book draws on with it, filtered to what the viewer may see.
+
+    case listBooks = "ListBooks"
+    case getBook = "GetBook"
+    case getBookSources = "GetBookSources"
+    case createBook = "CreateBook"
+    case updateBook = "UpdateBook"
+    case deleteBook = "DeleteBook"
+
     // MARK: - Faces (backend/faces.go)
     // Online only and never queued: naming a face makes the server re-match the family.
 
