@@ -39,10 +39,13 @@ struct AccountMenuButton: View {
             }
 
             Section {
-                Button {
-                    navigator.push(.tags)
-                } label: {
-                    Label(Copy.account.tags, systemImage: "tag")
+                // Managing tags is all the screen is for, so a view-only member — who can change none of them — is not sent there.
+                if authService.access.canContributeAnywhere {
+                    Button {
+                        navigator.push(.tags)
+                    } label: {
+                        Label(Copy.account.tags, systemImage: "tag")
+                    }
                 }
                 if let faces = navigator.faceReviewCount {
                     Button {

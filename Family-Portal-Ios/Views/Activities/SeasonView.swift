@@ -9,6 +9,7 @@ struct SeasonView: View {
     let seasonName: String
 
     @Environment(ActivityService.self) private var service
+    @Environment(AuthService.self) private var authService: AuthService?
     @Query private var people: [Person]
 
     @State private var state = ActivityScreenState<GetSeasonOverviewResponseDTO>()
@@ -36,6 +37,12 @@ struct SeasonView: View {
         ActivityLabels.forKind(state.value?.activity.kind ?? ActivityKind.generic)
     }
 
+    /// A view-only member of the season's family sees it with no add or edit controls, as on the web.
+    private var editable: Bool {
+        guard let season = state.value?.season else { return false }
+        return authService.access.canContribute(season.familyId)
+    }
+
     var body: some View {
         ActivityScreen(state: state, read: { service.seasonOverview(seasonId: seasonId) }) { response in
             content(response)
@@ -48,23 +55,24 @@ struct SeasonView: View {
             await vocabulary.load(service.vocabulary(activityId: activityId))
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        sheet = .addEvent
+            if editable {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            sheet = .addEvent
+                        } label: {
+                            Label("Add \(labels.event)", systemImage: "calendar.badge.plus")
+                        }
+                        Button {
+                            sheet = .addEntry
+                        } label: {
+                            Label("Add \(labels.entry)", systemImage: "music.note.list")
+                        }
                     } label: {
-                        Label("Add \(labels.event)", systemImage: "calendar.badge.plus")
+                        Image(systemName: "plus")
                     }
-                    Button {
-                        sheet = .addEntry
-                    } label: {
-                        Label("Add \(labels.entry)", systemImage: "music.note.list")
-                    }
-                } label: {
-                    Image(systemName: "plus")
+                    .accessibilityLabel("Add to this season")
                 }
-                .disabled(state.value == nil)
-                .accessibilityLabel("Add to this season")
             }
         }
         .sheet(item: $sheet) { presented in
@@ -131,7 +139,9 @@ struct SeasonView: View {
                                 }
                                 .buttonStyle(.plain)
 
-                                editButton(for: event.name) { sheet = .editEvent(event) }
+                                if editable {
+                                    editButton(for: event.name) { sheet = .editEvent(event) }
+                                }
                             }
                         }
                     }
@@ -159,7 +169,9 @@ struct SeasonView: View {
                                 }
                                 .buttonStyle(.plain)
 
-                                editButton(for: entryView.entry.name) { sheet = .editEntry(entryView) }
+                                if editable {
+                                    editButton(for: entryView.entry.name) { sheet = .editEntry(entryView) }
+                                }
                             }
                         }
                     }

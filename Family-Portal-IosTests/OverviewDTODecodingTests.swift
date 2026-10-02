@@ -32,6 +32,7 @@ struct OverviewDTODecodingTests {
                 "activityName": "Dance",
                 "event": Fixture.eventSummary(id: 9, startDate: "2026-09-27T00:00:00Z"),
                 "eventTiming": "now",
+                "canContribute": true,
                 "canAddResults": true,
             ]],
             "onThisDay": [[
@@ -56,6 +57,7 @@ struct OverviewDTODecodingTests {
         #expect(dashboard.nudges[1].count == 3)
         #expect(dashboard.seasons.first?.event?.id == 9)
         #expect(dashboard.seasons.first?.eventTiming == "now")
+        #expect(dashboard.seasons.first?.canContribute == true)
         #expect(dashboard.seasons.first?.canAddResults == true)
         #expect(dashboard.onThisDay.first?.photos.map(\.id) == [50])
         #expect(dashboard.recent.photos.first?.image.id == 51)
@@ -81,6 +83,27 @@ struct OverviewDTODecodingTests {
         #expect(dashboard.seasons.first?.event == nil)
         #expect(dashboard.onThisDay.isEmpty)
         #expect(dashboard.recent.photos.isEmpty)
+    }
+
+    @Test("A view-only season says so, and a server too old to send the flag keeps the add buttons")
+    func dashboardCanContribute() throws {
+        func season(_ extra: [String: Any]) -> [String: Any] {
+            ["season": Fixture.seasonSummary(id: 41), "activityName": "Dance", "event": NSNull(), "eventTiming": "", "canAddResults": false]
+                .merging(extra) { _, new in new }
+        }
+        let payload: [String: Any] = [
+            "today": "2026-09-27",
+            "people": NSNull(),
+            "relations": NSNull(),
+            "nudges": NSNull(),
+            "seasons": [season(["canContribute": false]), season([:])],
+            "onThisDay": NSNull(),
+            "recent": ["from": "2026-09-14", "photos": NSNull(), "milestones": NSNull(), "growth": NSNull()],
+        ]
+
+        let dashboard = try decode(GetDashboardResponseDTO.self, payload)
+
+        #expect(dashboard.seasons.map(\.canContribute) == [false, true])
     }
 
     @Test("The request sends the device's day")

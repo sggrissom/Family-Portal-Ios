@@ -8,6 +8,7 @@ struct MilestoneDetailSheetView: View {
     let milestone: Milestone
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AuthService.self) private var authService: AuthService?
     @State private var isEditing = false
 
     var body: some View {
@@ -16,9 +17,12 @@ struct MilestoneDetailSheetView: View {
                 .navigationTitle("Milestone")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Edit") {
-                            isEditing = true
+                    // A view-only member reads the milestone and nothing more.
+                    if authService.access.canContribute(to: milestone) {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Edit") {
+                                isEditing = true
+                            }
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
@@ -39,6 +43,7 @@ struct MilestoneDetailContent: View {
     let milestone: Milestone
 
     @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(AuthService.self) private var authService: AuthService?
 
     var body: some View {
         ScrollView {
@@ -99,14 +104,16 @@ struct MilestoneDetailContent: View {
 
                 // The one edit that stays on this screen: tags are the part people reach for from a view, and
                 // the picker saves on its own rather than through the milestone editor.
-                NavigationLink {
-                    TagPickerView(tagRemoteIds: milestone.tagRemoteIds) { tagRemoteIds in
-                        guard let syncService else { return }
-                        try await syncService.updateMilestoneTags(milestone, tagRemoteIds: tagRemoteIds)
+                if authService.access.canContribute(to: milestone) {
+                    NavigationLink {
+                        TagPickerView(tagRemoteIds: milestone.tagRemoteIds) { tagRemoteIds in
+                            guard let syncService else { return }
+                            try await syncService.updateMilestoneTags(milestone, tagRemoteIds: tagRemoteIds)
+                        }
+                    } label: {
+                        Label("Edit Tags", systemImage: "tag")
+                            .font(.subheadline)
                     }
-                } label: {
-                    Label("Edit Tags", systemImage: "tag")
-                        .font(.subheadline)
                 }
             }
             .padding()

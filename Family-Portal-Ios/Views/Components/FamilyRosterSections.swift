@@ -9,6 +9,7 @@ struct FamilyRosterSections: View {
     var manages = false
 
     @Environment(AddFlow.self) private var addFlow: AddFlow?
+    @Environment(AuthService.self) private var authService: AuthService?
 
     @Query private var relations: [PersonRelation]
 
@@ -26,7 +27,7 @@ struct FamilyRosterSections: View {
                         PersonRowView(person: person)
                     }
                     .contextMenu {
-                        if let addFlow {
+                        if let addFlow, authService.access.canContribute(to: person) {
                             // A long press on the roster is two taps to a measurement, without opening the person at all.
                             Button {
                                 addFlow.open(.measurement(personId: person.id))

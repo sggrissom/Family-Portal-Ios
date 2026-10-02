@@ -146,6 +146,7 @@ func applyMilestoneDTO(_ dto: MilestoneDTO, to milestone: Milestone) {
 
 func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
     photo.remoteId = String(dto.id)
+    photo.familyRemoteId = dto.familyId == 0 ? nil : dto.familyId
     photo.title = dto.title
     photo.descriptionText = dto.descriptionText
     photo.photoDate = dto.photoDate
@@ -202,6 +203,7 @@ func photoFromDTO(_ dto: ImageDTO) -> Photo {
         photoDate: dto.photoDate
     )
     photo.remoteId = String(dto.id)
+    photo.familyRemoteId = dto.familyId == 0 ? nil : dto.familyId
     photo.tagRemoteIds = dto.tagIds
     return photo
 }

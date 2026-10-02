@@ -95,7 +95,7 @@ struct FamilyMembershipView: View {
 
     /// Only shown to somebody who has a member to remove: removing yourself is leaving.
     private var membersFooter: String {
-        let shared = "Everyone here can see and edit this family's people, photos, measurements and milestones."
+        let shared = "Members can see and edit this family's people, photos, measurements and milestones, except those marked view only, who can see everything but change nothing."
 
         guard callerIsOwner else {
             return "\(shared) Only \(ownerName) can remove members."
@@ -124,6 +124,12 @@ struct FamilyMembershipView: View {
             }
             if member.isSelf {
                 badge("You")
+            }
+            // Admins are the default and go unmarked, as on the web.
+            if member.role == FamilyAccess.view {
+                badge("View only")
+            } else if member.role == FamilyAccess.contribute {
+                badge("Contributor")
             }
         }
         .swipeActions(edge: .trailing) {

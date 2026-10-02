@@ -80,6 +80,29 @@ struct AuthDTOTests {
         let auth = try APIClient.decode(AuthResponseDTO.self, from: Data(json.utf8))
 
         #expect(auth.personId == nil)
+        #expect(auth.families.isEmpty)
+    }
+
+    @Test("Families and their roles decode, and survive the cached-identity round trip")
+    func decodesFamilyRoles() throws {
+        let json = """
+        {
+          "id": 7, "name": "Ada", "email": "ada@example.com", "isAdmin": false, "familyId": 3,
+          "families": [
+            { "id": 3, "name": "Ada's Family", "role": 3, "isPrimary": true },
+            { "id": 9, "name": "Grandparents", "role": 1, "isPrimary": false }
+          ]
+        }
+        """
+        let auth = try APIClient.decode(AuthResponseDTO.self, from: Data(json.utf8))
+
+        #expect(auth.families == [
+            FamilyRefDTO(id: 3, name: "Ada's Family", role: 3, isPrimary: true),
+            FamilyRefDTO(id: 9, name: "Grandparents", role: 1, isPrimary: false),
+        ])
+
+        let cached = try JSONDecoder().decode(AuthResponseDTO.self, from: JSONEncoder().encode(auth))
+        #expect(cached.families == auth.families)
     }
 
     @Test("A rejected sign-up decodes its error message")

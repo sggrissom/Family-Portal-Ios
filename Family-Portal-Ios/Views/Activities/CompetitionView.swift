@@ -6,6 +6,7 @@ struct CompetitionView: View {
     let eventName: String
 
     @Environment(ActivityService.self) private var service
+    @Environment(AuthService.self) private var authService: AuthService?
     @Query private var people: [Person]
 
     @State private var state = ActivityScreenState<GetEventDetailResponseDTO>()
@@ -42,6 +43,12 @@ struct CompetitionView: View {
 
     private var canWrite: Bool { seasonState.value != nil }
 
+    /// A view-only member of the event's family sees it with no actions, as on the web.
+    private var editable: Bool {
+        guard let event = state.value?.event else { return false }
+        return authService.access.canContribute(event.familyId)
+    }
+
     var body: some View {
         ActivityScreen(state: state, read: { service.eventDetail(eventId: eventId) }) { response in
             content(response)
@@ -53,30 +60,31 @@ struct CompetitionView: View {
             await seasonState.load(service.seasonOverview(seasonId: seasonId))
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        sheet = .add
-                    } label: {
-                        Label("Add \(labels.appearance)", systemImage: "plus")
-                    }
-                    .disabled(!canWrite)
+            if editable {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            sheet = .add
+                        } label: {
+                            Label("Add \(labels.appearance)", systemImage: "plus")
+                        }
+                        .disabled(!canWrite)
 
-                    Button {
-                        sheet = .eventPhotos
+                        Button {
+                            sheet = .eventPhotos
+                        } label: {
+                            Label("\(labels.event) Photos", systemImage: "photo.on.rectangle")
+                        }
+                        Button {
+                            sheet = .editEvent
+                        } label: {
+                            Label("Edit \(labels.event)", systemImage: "pencil")
+                        }
                     } label: {
-                        Label("\(labels.event) Photos", systemImage: "photo.on.rectangle")
+                        Image(systemName: "ellipsis.circle")
                     }
-                    Button {
-                        sheet = .editEvent
-                    } label: {
-                        Label("Edit \(labels.event)", systemImage: "pencil")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                    .accessibilityLabel("\(labels.event) actions")
                 }
-                .disabled(state.value == nil)
-                .accessibilityLabel("\(labels.event) actions")
             }
         }
         .sheet(item: $sheet) { presented in
@@ -194,29 +202,31 @@ struct CompetitionView: View {
             }
             .buttonStyle(.plain)
 
-            Menu {
-                Button {
-                    sheet = .results(detail)
+            if editable {
+                Menu {
+                    Button {
+                        sheet = .results(detail)
+                    } label: {
+                        Label(detail.results.isEmpty ? "Add Results" : "Edit Results", systemImage: "list.number")
+                    }
+                    Button {
+                        sheet = .photos(detail)
+                    } label: {
+                        Label("Photos", systemImage: "photo.on.rectangle")
+                    }
+                    Button {
+                        sheet = .edit(detail)
+                    } label: {
+                        Label("Edit \(labels.appearance)", systemImage: "pencil")
+                    }
                 } label: {
-                    Label(detail.results.isEmpty ? "Add Results" : "Edit Results", systemImage: "list.number")
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
                 }
-                Button {
-                    sheet = .photos(detail)
-                } label: {
-                    Label("Photos", systemImage: "photo.on.rectangle")
-                }
-                Button {
-                    sheet = .edit(detail)
-                } label: {
-                    Label("Edit \(labels.appearance)", systemImage: "pencil")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
+                .accessibilityLabel("Actions for \(detail.entry.name)")
             }
-            .accessibilityLabel("Actions for \(detail.entry.name)")
         }
     }
 

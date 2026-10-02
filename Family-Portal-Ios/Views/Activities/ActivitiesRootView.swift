@@ -4,19 +4,24 @@ import SwiftUI
 /// One call for the programs plus one per program for its seasons — there is no proc that lists seasons across activities, and N is about 1.
 struct ActivitiesRootView: View {
     @Environment(ActivityService.self) private var service
+    @Environment(AuthService.self) private var authService: AuthService?
 
     @State private var state = ActivityScreenState<ListActivitiesResponseDTO>()
     @State private var isAddingActivity = false
 
     var body: some View {
         ActivityScreen(state: state, read: { service.activities() }) { response in
+            // A view-only member of the family sees its programs and none of the controls that add to or change them, as on the web.
+            let editable = authService.access.canContribute(response.familyId == 0 ? nil : response.familyId)
             if response.activities.isEmpty {
                 ContentUnavailableView {
                     Label("No Activities", systemImage: "trophy")
                 } description: {
                     Text("An activity is a program the family is in — dance, soccer, swim. Its seasons, competitions and routines hang off it.")
                 } actions: {
-                    Button("New Activity") { isAddingActivity = true }
+                    if editable {
+                        Button("New Activity") { isAddingActivity = true }
+                    }
                 }
                 .padding(.top, 40)
             } else {
@@ -26,12 +31,14 @@ struct ActivitiesRootView: View {
                     }
 
                     // A text button rather than a toolbar `+`: the one **+** in the app is the add sheet's, and a second one here would mean something else.
-                    Button {
-                        isAddingActivity = true
-                    } label: {
-                        Label("New Activity", systemImage: "plus.circle")
+                    if editable {
+                        Button {
+                            isAddingActivity = true
+                        } label: {
+                            Label("New Activity", systemImage: "plus.circle")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.horizontal)
             }
@@ -50,6 +57,7 @@ private struct ActivitySeasonsSection: View {
     let onChanged: @MainActor () async -> Void
 
     @Environment(ActivityService.self) private var service
+    @Environment(AuthService.self) private var authService: AuthService?
 
     @State private var state = ActivityScreenState<ListSeasonsResponseDTO>()
     @State private var sheet: Sheet?
@@ -69,6 +77,8 @@ private struct ActivitySeasonsSection: View {
     }
 
     private var labels: ActivityLabels { .forKind(activity.kind) }
+
+    private var editable: Bool { authService.access.canContribute(activity.familyId) }
 
     var body: some View {
         GroupBox {
@@ -92,13 +102,15 @@ private struct ActivitySeasonsSection: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Button {
-                    sheet = .addSeason
-                } label: {
-                    Label("Add Season", systemImage: "plus.circle")
-                        .font(.subheadline)
+                if editable {
+                    Button {
+                        sheet = .addSeason
+                    } label: {
+                        Label("Add Season", systemImage: "plus.circle")
+                            .font(.subheadline)
+                    }
+                    .padding(.top, 4)
                 }
-                .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
@@ -109,13 +121,15 @@ private struct ActivitySeasonsSection: View {
                 Text(ActivityKind.displayName(activity.kind))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button {
-                    sheet = .editActivity
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .foregroundStyle(.secondary)
+                if editable {
+                    Button {
+                        sheet = .editActivity
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityLabel("Edit \(activity.name)")
                 }
-                .accessibilityLabel("Edit \(activity.name)")
             }
         }
         .task { await state.load(service.seasons(activityId: activity.id)) }
@@ -164,14 +178,16 @@ private struct ActivitySeasonsSection: View {
             }
             .buttonStyle(.plain)
 
-            Button {
-                sheet = .editSeason(season)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .foregroundStyle(.secondary)
+            if editable {
+                Button {
+                    sheet = .editSeason(season)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit \(season.name)")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Edit \(season.name)")
         }
         .padding(.vertical, 6)
     }

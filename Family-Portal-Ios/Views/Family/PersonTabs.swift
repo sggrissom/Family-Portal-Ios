@@ -503,6 +503,7 @@ struct PersonGrowthTab: View {
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
     @Environment(AddFlow.self) private var addFlow
+    @Environment(AuthService.self) private var authService: AuthService?
 
     @State private var type: MeasurementType = .height
     @State private var showSiblings = false
@@ -527,10 +528,12 @@ struct PersonGrowthTab: View {
                         ForEach(MeasurementType.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    Button(Copy.person.measure) {
-                        addFlow.open(.measurement(personId: person.id))
+                    if authService.access.canContribute(to: person) {
+                        Button(Copy.person.measure) {
+                            addFlow.open(.measurement(personId: person.id))
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
-                    .buttonStyle(.borderedProminent)
                 }
 
                 if !siblings.isEmpty {

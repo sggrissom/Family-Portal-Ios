@@ -91,11 +91,13 @@ nonisolated struct DashboardSeasonDTO: Decodable, Sendable, Identifiable {
     let event: EventSummaryDTO?
     /// "now", "next" or "last" — `Copy.home.eventTiming` words it.
     let eventTiming: String
+    /// Whether the account may add to this season at all — false for a view-only member, who sees the season but none of its add buttons. A server older than the field leaves it out, which keeps the buttons as they were.
+    let canContribute: Bool
     let canAddResults: Bool
 
     var id: Int { season.id }
 
-    private enum CodingKeys: String, CodingKey { case season, activityName, event, eventTiming, canAddResults }
+    private enum CodingKeys: String, CodingKey { case season, activityName, event, eventTiming, canContribute, canAddResults }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -103,6 +105,7 @@ nonisolated struct DashboardSeasonDTO: Decodable, Sendable, Identifiable {
         activityName = try container.decodeIfPresent(String.self, forKey: .activityName) ?? ""
         event = try container.decodeIfPresent(EventSummaryDTO.self, forKey: .event)
         eventTiming = try container.decodeIfPresent(String.self, forKey: .eventTiming) ?? ""
+        canContribute = try container.decodeIfPresent(Bool.self, forKey: .canContribute) ?? true
         canAddResults = try container.decodeIfPresent(Bool.self, forKey: .canAddResults) ?? false
     }
 }

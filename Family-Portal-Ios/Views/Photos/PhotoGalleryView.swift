@@ -9,6 +9,7 @@ struct PhotoGalleryView: View {
 
     @Environment(AppNavigator.self) private var navigator
     @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(AuthService.self) private var authService: AuthService?
 
     /// Lives on the navigator, so a person page's "Open in Photos →" can set it and it survives leaving the tab.
     private var filter: PhotoFilter {
@@ -103,7 +104,7 @@ struct PhotoGalleryView: View {
             ContentUnavailableView(
                 "No Photos",
                 systemImage: "photo.on.rectangle",
-                description: Text("Tap + to add your first photo.")
+                description: Text(authService.access.canContributeAnywhere ? "Tap + to add your first photo." : "")
             )
         } else if visiblePhotos.isEmpty && !photos.isEmpty {
             noMatchesView

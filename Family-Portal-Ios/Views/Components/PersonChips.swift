@@ -14,21 +14,25 @@ struct PersonChips: View {
     private let excluding: Set<UUID>
     /// When set, the only people the row offers — the people in a photo.
     private let only: Set<UUID>?
+    /// An add form's row: only people in a family the account can add to, so a view-only member's family is never a choice that can only fail.
+    private let contributableOnly: Bool
 
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
     @Environment(AuthService.self) private var authService: AuthService?
 
-    init(selection: Binding<UUID?>, excluding: Set<UUID> = [], only: Set<UUID>? = nil) {
+    init(selection: Binding<UUID?>, excluding: Set<UUID> = [], only: Set<UUID>? = nil, contributableOnly: Bool = false) {
         self.selection = .single(selection)
         self.excluding = excluding
         self.only = only
+        self.contributableOnly = contributableOnly
     }
 
-    init(selection: Binding<Set<UUID>>, excluding: Set<UUID> = [], only: Set<UUID>? = nil) {
+    init(selection: Binding<Set<UUID>>, excluding: Set<UUID> = [], only: Set<UUID>? = nil, contributableOnly: Bool = false) {
         self.selection = .multiple(selection)
         self.excluding = excluding
         self.only = only
+        self.contributableOnly = contributableOnly
     }
 
     static func ordered(_ people: [Person], relations: [PersonRelation], ownFamilyId: Int?) -> [Person] {
@@ -36,8 +40,10 @@ struct PersonChips: View {
     }
 
     var body: some View {
+        let access = authService.access
         let ordered = Self.ordered(people, relations: relations, ownFamilyId: authService?.currentUser?.familyId)
             .filter { !excluding.contains($0.id) && (only?.contains($0.id) ?? true) }
+            .filter { !contributableOnly || access.canContribute(to: $0) }
         let labels = FamilyGroups.chipLabels(ordered)
 
         ScrollView(.horizontal, showsIndicators: false) {
