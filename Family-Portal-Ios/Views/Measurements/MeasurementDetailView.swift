@@ -46,6 +46,8 @@ struct MeasurementDetailSheetView: View {
 /// The body of a measurement's page — its value, facts, percentile and the family comparison — shared by the detail sheet and the checkup's result screen, so a measurement reads the same wherever it was just saved or later opened.
 struct MeasurementInsightsView: View {
     let measurement: GrowthData
+    /// Off on a checkup's result, which shows one strip for both of its values rather than one each.
+    var showsSameAge = true
 
     /// The whole roster and graph, for the family comparison. A sheet can't narrow a `@Query` to one family any better than the add sheets can, and the store only ever holds the signed-in family.
     @Query private var people: [Person]
@@ -92,7 +94,9 @@ struct MeasurementInsightsView: View {
             facts
             percentileSection
             familySection
-            PersonSameAgeStrip(person: measurement.person, date: measurement.date)
+            if showsSameAge {
+                PersonSameAgeStrip(person: measurement.person, date: measurement.date)
+            }
         }
     }
 
@@ -255,14 +259,13 @@ struct MeasurementInsightsView: View {
     @ViewBuilder
     private var familySection: some View {
         if let person, !person.isPregnancy {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Compared to Family")
-                    .font(.headline)
-
-                if person.birthday == nil {
-                    familyNote("Add a birthday for \(person.name) to see percentiles and how they compare to the rest of the family.")
-                } else {
-                    familyComparisons(for: person)
+            ContextSection("Compared to Family", kind: .family) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if person.birthday == nil {
+                        familyNote("Add a birthday for \(person.name) to see percentiles and how they compare to the rest of the family.")
+                    } else {
+                        familyComparisons(for: person)
+                    }
                 }
             }
         }

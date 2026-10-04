@@ -95,10 +95,6 @@ struct MilestoneDetailContent: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                MilestoneMatchesSection(milestone: milestone)
-
-                PersonSameAgeStrip(person: milestone.person, date: milestone.date)
-
                 // Given a heading because the chip up top already shows the milestone's *category* behind a tag-shaped glyph.
                 TagChipsView(tagRemoteIds: milestone.tagRemoteIds, title: "Tags")
 
@@ -115,6 +111,11 @@ struct MilestoneDetailContent: View {
                             .font(.subheadline)
                     }
                 }
+
+                // The milestone's own details above, what it's compared against below.
+                MilestoneMatchesSection(milestone: milestone)
+
+                PersonSameAgeStrip(person: milestone.person, date: milestone.date)
             }
             .padding()
         }
@@ -133,21 +134,8 @@ struct MilestoneMatchesSection: View {
         // A container rather than a `Group`, so the `.task` runs before there is anything to show.
         VStack(alignment: .leading, spacing: 10) {
             if !matches.isEmpty {
-                Text(Copy.milestoneDetail.matchesTitle)
-                    .font(.headline)
-                ForEach(matches, id: \.milestone.id) { match in
-                    if let local = localMilestone(remoteId: match.milestone.id) {
-                        NavigationLink {
-                            MilestoneDetailContent(milestone: local)
-                                .navigationTitle("Milestone")
-                                .navigationBarTitleDisplayMode(.inline)
-                        } label: {
-                            row(match)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        row(match)
-                    }
+                ContextSection(Copy.milestoneDetail.matchesTitle, kind: .milestoneMatches) {
+                    matchRows
                 }
             }
         }
@@ -159,6 +147,25 @@ struct MilestoneMatchesSection: View {
             }
             let response = await AnalysisService.shared.milestoneMatches(milestoneId: id, isConnected: network?.isConnected ?? true)
             matches = response?.matches ?? []
+        }
+    }
+
+    private var matchRows: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(matches, id: \.milestone.id) { match in
+                if let local = localMilestone(remoteId: match.milestone.id) {
+                    NavigationLink {
+                        MilestoneDetailContent(milestone: local)
+                            .navigationTitle("Milestone")
+                            .navigationBarTitleDisplayMode(.inline)
+                    } label: {
+                        row(match)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    row(match)
+                }
+            }
         }
     }
 

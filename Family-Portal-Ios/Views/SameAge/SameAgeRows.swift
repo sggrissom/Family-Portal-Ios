@@ -153,18 +153,14 @@ struct SameAgeStrip: View {
             if let response = loader.response {
                 let others = response.rows.filter { $0.person.id != anchorRemoteId && !$0.isEmpty }
                 if !(hideWhenEmpty && others.isEmpty) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(Copy.sameAge.atThisAge(AgeSteps.ageTitle(response.ageMonths)))
-                                .font(.headline)
-                            Spacer()
-                            NavigationLink {
-                                SameAgeView(ageMonths: response.ageMonths, fromRemoteId: response.fromPersonId)
-                            } label: {
-                                Text(Copy.sameAge.seeAll)
-                                    .font(.subheadline)
-                            }
+                    ContextSection(Copy.sameAge.atThisAge(AgeSteps.ageTitle(response.ageMonths)), kind: .sameAge) {
+                        NavigationLink {
+                            SameAgeView(ageMonths: response.ageMonths, fromRemoteId: response.fromPersonId)
+                        } label: {
+                            Text(Copy.sameAge.seeAll)
+                                .font(.subheadline)
                         }
+                    } content: {
                         if others.isEmpty {
                             Text(Copy.sameAge.nobodyElse)
                                 .font(.subheadline)

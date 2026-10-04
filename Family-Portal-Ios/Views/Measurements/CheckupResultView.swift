@@ -3,6 +3,7 @@ import SwiftUI
 import SwiftData
 
 /// Where a checkup lands: each value it saved, with its percentile and the family comparison, then the Same age strip, each value marked **Saved** once the server has it and **Waiting to sync** until then.
+/// **Add another measurement** and **Done** are pinned below the scroll rather than at the end of it, so entering several checkups in a row never means scrolling past the comparisons to reach them.
 /// The checkup is queued as one operation, so a failed enqueue marks every value not saved and **Retry** queues them again together. A queued value that is later discarded already reaches the user through `discardedChangeWarning`, so there is no failure path here for that.
 struct CheckupResultView: View {
     let onAddAnother: () -> Void
@@ -34,7 +35,7 @@ struct CheckupResultView: View {
                 ForEach(ordered) { record in
                     VStack(alignment: .leading, spacing: 12) {
                         status(for: record)
-                        MeasurementInsightsView(measurement: record)
+                        MeasurementInsightsView(measurement: record, showsSameAge: false)
                     }
                 }
 
@@ -42,30 +43,40 @@ struct CheckupResultView: View {
                 if let first = ordered.first {
                     PersonSameAgeStrip(person: first.person, date: first.date)
                 }
-
-                VStack(spacing: 12) {
-                    Button {
-                        onAddAnother()
-                    } label: {
-                        Text("Add another measurement")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button {
-                        onDone()
-                    } label: {
-                        Text(Copy.photos.done)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
             }
             .padding()
+        }
+        .safeAreaInset(edge: .bottom) {
+            actions
         }
         .navigationTitle(Copy.home.checkupTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
+    }
+
+    /// One row, so the bar takes as little of the screen as it can.
+    private var actions: some View {
+        HStack(spacing: 12) {
+            Button {
+                onDone()
+            } label: {
+                Text(Copy.photos.done)
+                    .padding(.horizontal, 8)
+            }
+            .buttonStyle(.bordered)
+
+            Button {
+                onAddAnother()
+            } label: {
+                Text("Add another measurement")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .controlSize(.large)
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+        .background(.bar)
     }
 
     @ViewBuilder
