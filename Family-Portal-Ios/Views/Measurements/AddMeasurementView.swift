@@ -23,13 +23,15 @@ struct AddMeasurementView: View {
     @State private var error: String?
     @State private var isSaving = false
     @State private var result: CheckupResult?
+    @State private var formSessionId = UUID()
     /// The person the units were last defaulted for, so switching person re-defaults units but a re-render does not undo a unit the user just picked.
     @State private var unitsFor: UUID?
     @FocusState private var focusedField: Field?
     /// Its own focus state because `PoundsAndOuncesFields` takes a `Bool` binding.
     @FocusState private var isPoundsFocused: Bool
+    @FocusState private var isOuncesFocused: Bool
 
-    private enum Field: Hashable { case height, feet, weight }
+    private enum Field: Hashable { case height, feet, inches, weight }
 
     private var person: Person? {
         people.first { $0.id == selectedPersonId }
@@ -73,6 +75,9 @@ struct AddMeasurementView: View {
                     }
                 }
             }
+            // Returning from the result screen starts a fresh scroll view, including its keyboard insets.
+            .id(formSessionId)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(Copy.measurement.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -82,6 +87,10 @@ struct AddMeasurementView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isSaving ? Copy.measurement.saving : Copy.measurement.save) { save() }
                         .disabled(isSaving)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button(Copy.photos.done) { clearFocus() }
                 }
             }
             .navigationDestination(item: $result) { result in
@@ -124,6 +133,7 @@ struct AddMeasurementView: View {
                         .focused($focusedField, equals: .feet)
                     TextField(Copy.measurement.inches, text: $entry.inches)
                         .keyboardType(.decimalPad)
+                        .focused($focusedField, equals: .inches)
                 }
             } else {
                 TextField(Copy.measurement.height, text: $entry.height)
@@ -148,7 +158,8 @@ struct AddMeasurementView: View {
                 PoundsAndOuncesFields(
                     pounds: $entry.pounds,
                     ounces: $entry.ounces,
-                    isPoundsFocused: $isPoundsFocused
+                    isPoundsFocused: $isPoundsFocused,
+                    isOuncesFocused: $isOuncesFocused
                 )
             } else {
                 TextField(Copy.measurement.weight, text: $entry.weight)
@@ -207,6 +218,7 @@ struct AddMeasurementView: View {
             return
         }
 
+        clearFocus()
         error = nil
         isSaving = true
         defaults.rememberPerson(person.id)
@@ -235,10 +247,19 @@ struct AddMeasurementView: View {
 
     /// The same form again, with the person cleared and the day kept — the next child at the same checkup.
     private func addAnother() {
-        result = nil
+        clearFocus()
         entry = entry.cleared()
         selectedPersonId = nil
         unitsFor = nil
+        error = nil
+        formSessionId = UUID()
+        result = nil
+    }
+
+    private func clearFocus() {
+        focusedField = nil
+        isPoundsFocused = false
+        isOuncesFocused = false
     }
 }
 

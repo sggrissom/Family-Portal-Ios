@@ -5,6 +5,8 @@ struct PoundsAndOuncesFields: View {
     @Binding var pounds: String
     @Binding var ounces: String
     var isPoundsFocused: FocusState<Bool>.Binding
+    var isOuncesFocused: FocusState<Bool>.Binding? = nil
+    @FocusState private var localOuncesFocused: Bool
 
     var body: some View {
         HStack {
@@ -15,6 +17,7 @@ struct PoundsAndOuncesFields: View {
                 .foregroundStyle(.secondary)
             TextField("Ounces", text: $ounces)
                 .keyboardType(.decimalPad)
+                .focused(isOuncesFocused ?? $localOuncesFocused)
             Text("oz")
                 .foregroundStyle(.secondary)
         }
