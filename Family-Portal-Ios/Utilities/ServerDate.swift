@@ -18,38 +18,57 @@ nonisolated extension Date {
 nonisolated enum ServerDateFormat {
 
     /// `nil` in, `nil` out, and that is meaningful: an absent key on a write **clears** the date rather than leaving it alone.
-    static func requestString(_ date: Date?, in timeZone: TimeZone = .current) -> String? {
-        guard let date = date?.serverDate else { return nil }
-
-        return date.dayKey(in: timeZone)
+    static func requestString(_ date: Date?) -> String? {
+        date?.serverDate?.recordDayKey
     }
 }
 
+/// A day is held as a *record date*: midnight UTC of the day it names, which is how the server stores and sends one. A photo date is the capture's local wall-clock time labelled UTC. Either way the UTC components are the day, whatever zone the device is in now.
+/// Device instants (`Date()`, a `DatePicker` selection) are converted at the edge with `localRecordDay` and shown with `displayDay`.
 nonisolated extension Date {
 
-    /// The calendar day this date *names*, which is not always the day it falls on locally.
-    /// A date the server sent is midnight UTC of its day (Go parses `YYYY-MM-DD` as UTC), and read in a US zone it would land on the evening before. A date made on this device — now, a picked day, a birthday normalised to local midnight — is an instant inside the family's own day. So an exact UTC midnight is read in UTC and anything else in `timeZone`.
-    /// This is a legacy heuristic: a genuine timestamp exactly at UTC midnight is indistinguishable from a server calendar date.
-    func calendarDay(in timeZone: TimeZone = .current) -> DateComponents {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = isUTCMidnight ? .gmt : timeZone
-        return calendar.dateComponents([.year, .month, .day], from: self)
+    var recordDay: DateComponents {
+        Self.utcCalendar.dateComponents([.year, .month, .day], from: self)
     }
 
-    /// `YYYY-MM-DD` of `calendarDay` — what a write sends, and the key records are grouped into days by.
-    func dayKey(in timeZone: TimeZone = .current) -> String {
-        let day = calendarDay(in: timeZone)
+    var recordDayKey: String {
+        let day = recordDay
         return String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
     }
 
-    /// The same day as local midnight, for display and for `Calendar.current` arithmetic: a UTC-midnight server date formatted as-is shows the day before anywhere west of Greenwich.
-    func localDay(in timeZone: TimeZone = .current) -> Date {
+    /// The record's day as local midnight, for formatting, a `DatePicker`, and `Calendar.current` arithmetic.
+    func displayDay(in timeZone: TimeZone = .current) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
-        return calendar.date(from: calendarDay(in: timeZone)) ?? self
+        return calendar.date(from: recordDay) ?? self
+    }
+
+    /// The record date for the day this instant falls on in `timeZone`.
+    func localRecordDay(in timeZone: TimeZone = .current) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return Self.utcCalendar.date(from: calendar.dateComponents([.year, .month, .day], from: self)) ?? self
+    }
+
+    /// A photo date for an instant captured on this device: its wall-clock time in `timeZone`, labelled UTC.
+    func localWallClock(in timeZone: TimeZone = .current) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return Self.utcCalendar.date(from: calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: self)) ?? self
+    }
+
+    /// Midnight UTC of this date's UTC day: a server value that carries a time is still read as its UTC day.
+    var recordDate: Date {
+        Self.utcCalendar.date(from: recordDay) ?? self
     }
 
     var isUTCMidnight: Bool {
         timeIntervalSince1970.truncatingRemainder(dividingBy: 86_400) == 0
     }
+
+    private static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        return calendar
+    }()
 }

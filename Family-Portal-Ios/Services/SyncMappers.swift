@@ -59,18 +59,9 @@ func unitFromString(_ value: String) -> MeasurementUnit {
 
 // MARK: - Date Formatting
 
-/// The calendar day a write sends, as `YYYY-MM-DD`.
-/// Two kinds of `Date` reach here. One the server sent is midnight UTC of its day, and reading it in any other zone would move it — a US evening reads it as the day before. One picked on this device is an instant somewhere in the family's own day ("Today" is now, a picked date is local midnight), and reading *that* in UTC is the bug the redesign plan names: an evening entry in the US goes out dated tomorrow. So a date sitting exactly on a UTC midnight keeps its UTC day and anything else is read in the device's zone.
-/// This legacy heuristic cannot distinguish a real timestamp exactly at UTC midnight from a server calendar date.
-func dateToAPIString(_ date: Date, in timeZone: TimeZone = .current) -> String {
-    date.dayKey(in: timeZone)
-}
-
-private func normalizeBirthdayDate(_ date: Date) -> Date {
-    var utcCalendar = Calendar(identifier: .iso8601)
-    utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-    let components = utcCalendar.dateComponents([.year, .month, .day], from: date)
-    return Calendar.current.date(from: components) ?? date
+/// The calendar day a write sends, as `YYYY-MM-DD`, from a record date (see `Date.recordDay`).
+func dateToAPIString(_ date: Date) -> String {
+    date.recordDayKey
 }
 
 // MARK: - Model Apply Functions
@@ -81,7 +72,7 @@ func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
     person.name = dto.name
     person.gender = intToGender(dto.gender)
     person.relationship = nonEmpty(dto.relationship)
-    person.birthday = normalizeBirthdayDate(dto.birthday)
+    person.birthday = dto.birthday.recordDate
     person.isPregnancy = dto.isPregnancy
     person.profilePhotoId = nonZero(dto.profilePhotoId)
     person.profileCropX = nonZero(dto.profileCropX)
@@ -121,7 +112,7 @@ func applyGrowthDataDTO(_ dto: GrowthDataDTO, to growthData: GrowthData) {
     growthData.measurementType = intToMeasurementType(dto.measurementType)
     growthData.value = dto.value
     growthData.unit = unitFromString(dto.unit)
-    growthData.date = dto.measurementDate
+    growthData.date = dto.measurementDate.recordDate
 }
 
 /// Maps an `AddCheckup` answer back onto the records that asked for it, by measurement type rather than position: the response holds only the values sent.
@@ -139,7 +130,7 @@ func applyMilestoneDTO(_ dto: MilestoneDTO, to milestone: Milestone) {
     milestone.descriptionText = dto.descriptionText
     milestone.category = MilestoneCategory(rawValue: dto.category) ?? .other
     milestone.context = dto.context
-    milestone.date = dto.milestoneDate
+    milestone.date = dto.milestoneDate.recordDate
     milestone.photoRemoteIds = dto.photoIds
     milestone.tagRemoteIds = dto.tagIds
 }
@@ -166,7 +157,7 @@ func personFromDTO(_ dto: PersonDTO) -> Person {
     let person = Person(
         name: dto.name,
         gender: intToGender(dto.gender),
-        birthday: normalizeBirthdayDate(dto.birthday)
+        birthday: dto.birthday.recordDate
     )
     applyPersonDTO(dto, to: person)
     return person
@@ -177,7 +168,7 @@ func growthDataFromDTO(_ dto: GrowthDataDTO) -> GrowthData {
         measurementType: intToMeasurementType(dto.measurementType),
         value: dto.value,
         unit: unitFromString(dto.unit),
-        date: dto.measurementDate
+        date: dto.measurementDate.recordDate
     )
     data.remoteId = String(dto.id)
     return data
@@ -187,7 +178,7 @@ func milestoneFromDTO(_ dto: MilestoneDTO) -> Milestone {
     let milestone = Milestone(
         descriptionText: dto.descriptionText,
         category: MilestoneCategory(rawValue: dto.category) ?? .other,
-        date: dto.milestoneDate
+        date: dto.milestoneDate.recordDate
     )
     milestone.remoteId = String(dto.id)
     milestone.context = dto.context

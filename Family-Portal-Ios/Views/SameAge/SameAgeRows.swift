@@ -6,7 +6,7 @@ enum SameAgeText {
     private static let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
     /// "now" when the person is that age today, else the month they were — "Dec 2019".
-    static func when(_ row: SameAgeRowDTO, ageMonths: Int, today: Date = Date()) -> String {
+    static func when(_ row: SameAgeRowDTO, ageMonths: Int, today: Date = Date().localRecordDay()) -> String {
         if AgeSteps.monthsOld(birthday: row.person.birthday, at: today) == ageMonths {
             return Copy.sameAge.now
         }

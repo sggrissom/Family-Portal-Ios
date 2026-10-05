@@ -63,12 +63,25 @@ struct WhenEntryTests {
         #expect(WhenEntry(mode: .age, ageYears: 2, ageMonths: 12).problem == "Months should be 0 to 11")
     }
 
+    private static func record(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        ISO8601DateFormatter().date(from: String(format: "%04d-%02d-%02dT00:00:00Z", year, month, day))!
+    }
+
+    @Test("Today, yesterday and a picked date resolve to record dates of the local day")
+    func resolvesToRecordDates() {
+        let evening = Self.local(2026, 9, 27, hour: 22, minute: 45)
+        #expect(WhenEntry().resolvedDate(birthday: nil, now: evening, calendar: Self.calendar) == Self.record(2026, 9, 27))
+        #expect(WhenEntry(mode: .yesterday).resolvedDate(birthday: nil, now: evening, calendar: Self.calendar) == Self.record(2026, 9, 26))
+        let picked = WhenEntry(mode: .date, date: Self.local(2025, 12, 24))
+        #expect(picked.resolvedDate(birthday: nil, now: Self.now, calendar: Self.calendar) == Self.record(2025, 12, 24))
+    }
+
     @Test("An age resolves against the birthday, and needs one")
     func ageResolves() {
-        let birthday = Self.local(2020, 6, 15)
+        let birthday = Self.record(2020, 6, 15)
         let entry = WhenEntry(mode: .age, ageYears: 3, ageMonths: 2)
 
-        #expect(entry.resolvedDate(birthday: birthday, now: Self.now, calendar: Self.calendar) == Self.local(2023, 8, 15))
+        #expect(entry.resolvedDate(birthday: birthday, now: Self.now, calendar: Self.calendar) == Self.record(2023, 8, 15))
         #expect(entry.resolvedDate(birthday: nil, now: Self.now, calendar: Self.calendar) == nil)
     }
 

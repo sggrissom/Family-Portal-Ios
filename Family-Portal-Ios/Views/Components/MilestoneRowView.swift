@@ -25,7 +25,7 @@ struct MilestoneRowView: View {
                 FlowLayout(spacing: 8) {
                     Label(milestone.category.label, systemImage: milestone.category.icon)
                         .foregroundStyle(milestone.category.color)
-                    Text(milestone.date.localDay().formatted(date: .abbreviated, time: .omitted))
+                    Text(milestone.date.displayDay().formatted(date: .abbreviated, time: .omitted))
                     if !milestone.photoRemoteIds.isEmpty {
                         Label(
                             milestone.photoRemoteIds.count == 1 ? "1 photo" : "\(milestone.photoRemoteIds.count) photos",

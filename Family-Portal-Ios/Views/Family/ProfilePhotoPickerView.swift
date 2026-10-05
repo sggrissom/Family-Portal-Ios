@@ -65,7 +65,7 @@ struct ProfilePhotoPickerView: View {
 
     private func accessibilityLabel(for photo: Photo) -> String {
         let name = photo.title.isEmpty
-            ? photo.photoDate.localDay().formatted(date: .abbreviated, time: .omitted)
+            ? photo.photoDate.displayDay().formatted(date: .abbreviated, time: .omitted)
             : photo.title
         return isCurrent(photo) ? "\(name), current profile photo" : name
     }

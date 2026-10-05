@@ -7,7 +7,7 @@ import Testing
 struct DateEntryTests {
 
     private func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
-        Calendar.current.date(from: DateComponents(year: year, month: month, day: day))!
+        Calendar.current.date(from: DateComponents(year: year, month: month, day: day))!.localRecordDay()
     }
 
     private func resolve(_ birthday: Date, years: Int, months: Int) -> Date? {

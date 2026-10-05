@@ -67,7 +67,7 @@ struct MilestonePhotoPickerView: View {
 
     private func accessibilityLabel(for photo: Photo) -> String {
         photo.title.isEmpty
-            ? photo.photoDate.localDay().formatted(date: .abbreviated, time: .omitted)
+            ? photo.photoDate.displayDay().formatted(date: .abbreviated, time: .omitted)
             : photo.title
     }
 }

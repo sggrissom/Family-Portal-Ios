@@ -55,7 +55,7 @@ struct SameAgeMontage: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text(portrait.date.localDay().formatted(date: .long, time: .omitted))
+                Text(portrait.date.displayDay().formatted(date: .long, time: .omitted))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

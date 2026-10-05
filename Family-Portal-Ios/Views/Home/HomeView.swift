@@ -100,8 +100,8 @@ struct HomeView: View {
     private func stripPerson(_ person: Person, name: String) -> some View {
         let age: String = person.birthday.map { birthday in
             person.isPregnancy
-                ? FamilyStrip.dueSummary(dueDate: birthday, today: Date())
-                : FamilyStrip.compactAge(birthday: birthday, today: Date())
+                ? FamilyStrip.dueSummary(dueDate: birthday, today: Date().localRecordDay())
+                : FamilyStrip.compactAge(birthday: birthday, today: Date().localRecordDay())
         } ?? ""
         return VStack(spacing: 4) {
             PersonAvatarView(person: person, size: 56)
@@ -182,7 +182,7 @@ struct HomeView: View {
                             Button {
                                 navigator.push(.event(id: event.id, name: event.name))
                             } label: {
-                                Text("\(Copy.home.eventTiming[season.eventTiming] ?? ""): \(event.name) · \(DaySummaries.dayLabel(event.startDate.dayKey(in: .gmt), today: today))")
+                                Text("\(Copy.home.eventTiming[season.eventTiming] ?? ""): \(event.name) · \(DaySummaries.dayLabel(event.startDate.recordDayKey, today: today))")
                                     .font(.subheadline)
                             }
                             if season.canContribute {
@@ -268,9 +268,9 @@ struct HomeView: View {
     private var recent: some View {
         let from = recentFrom
         let records = DayRecords(
-            photos: photos.filter { $0.photoDate.dayKey() >= from },
-            growth: growth.filter { $0.date.dayKey() >= from },
-            milestones: milestones.filter { $0.date.dayKey() >= from }
+            photos: photos.filter { $0.photoDate.recordDayKey >= from },
+            growth: growth.filter { $0.date.recordDayKey >= from },
+            milestones: milestones.filter { $0.date.recordDayKey >= from }
         )
         let days = DaySummaries.summarize(records, people: people, range: (from: from, to: today))
         return section(Copy.home.recent, trailing: {

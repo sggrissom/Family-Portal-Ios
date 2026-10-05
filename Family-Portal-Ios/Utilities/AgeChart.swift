@@ -65,8 +65,8 @@ enum AgeChart {
     }
 
     private static func fractionOfMonth(birthday: Date, date: Date) -> Double {
-        let born = birthday.calendarDay().day ?? 1
-        let day = date.calendarDay().day ?? 1
+        let born = birthday.recordDay.day ?? 1
+        let day = date.recordDay.day ?? 1
         let diff = day >= born ? day - born : day + 30 - born
         return min(Double(diff) / 30.4375, 0.99)
     }

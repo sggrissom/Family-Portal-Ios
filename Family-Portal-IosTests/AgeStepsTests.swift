@@ -71,7 +71,7 @@ struct AgeStepsTests {
         #expect(AgeSteps.monthsOld(birthday: born, at: iso.date(from: "2024-01-14T00:00:00Z")!) == 42)
     }
 
-    @Test("A birthday stored at local midnight is read as its own day east of UTC")
+    @Test("A birthday picked east of UTC is stored as its own day")
     func localBirthday() {
         let sydney = TimeZone(identifier: "Australia/Sydney")!
         var calendar = Calendar(identifier: .gregorian)
@@ -79,14 +79,14 @@ struct AgeStepsTests {
         let born = calendar.date(from: DateComponents(year: 2020, month: 6, day: 15))!
         let then = ISO8601DateFormatter().date(from: "2024-01-15T00:00:00Z")!
 
-        #expect(AgeSteps.monthsOld(birthday: born, at: then, timeZone: sydney) == 43)
+        #expect(AgeSteps.monthsOld(birthday: born.localRecordDay(in: sydney), at: then) == 43)
     }
 
     // MARK: - Photo age
 
     private func photoAge(_ at: String) -> String {
         let iso = ISO8601DateFormatter()
-        return AgeSteps.photoAge(birthday: iso.date(from: "2014-03-02T00:00:00Z")!, at: iso.date(from: at)!, timeZone: .gmt)
+        return AgeSteps.photoAge(birthday: iso.date(from: "2014-03-02T00:00:00Z")!, at: iso.date(from: at)!)
     }
 
     @Test("A photo's age counts days past the month under two")
@@ -113,6 +113,6 @@ struct AgeStepsTests {
         let iso = ISO8601DateFormatter()
         let born = iso.date(from: "2020-01-31T00:00:00Z")!
         // Jan 31 + 1 month is Mar 2 in 2020, so Mar 5 is 3 days past it.
-        #expect(AgeSteps.photoAge(birthday: born, at: iso.date(from: "2020-03-05T00:00:00Z")!, timeZone: .gmt) == "1 month, 3 days")
+        #expect(AgeSteps.photoAge(birthday: born, at: iso.date(from: "2020-03-05T00:00:00Z")!) == "1 month, 3 days")
     }
 }

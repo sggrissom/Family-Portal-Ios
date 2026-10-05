@@ -184,7 +184,7 @@ final class PhotoImporter {
         let caption = choices.caption.trimmingCharacters(in: .whitespaces)
         if !caption.isEmpty || changedDate != nil {
             if !caption.isEmpty { photo.title = caption }
-            if let changedDate { photo.photoDate = changedDate }
+            if let changedDate { photo.photoDate = changedDate.localRecordDay() }
             try context.save()
             // "keep" unless the date was changed: the upload already sent the resolved date.
             try await syncService?.updatePhoto(photo, keepingDate: changedDate == nil)
@@ -200,7 +200,7 @@ final class PhotoImporter {
         let photo = Photo(
             title: "",
             descriptionText: "",
-            photoDate: captureDate ?? Date(),
+            photoDate: (captureDate ?? Date()).localWallClock(),
             imageData: data
         )
         context.insert(photo)

@@ -123,7 +123,7 @@ struct GrowthRootView: View {
         let children = youngest.isEmpty
             ? people.filter { person in
                 guard let birthday = person.birthday, !person.isPregnancy else { return false }
-                return AgeSteps.monthsOld(birthday: birthday, at: Date()) < 18 * 12
+                return AgeSteps.monthsOld(birthday: birthday, at: Date().localRecordDay()) < 18 * 12
             }
             : youngest
         selected = Set(children.filter { !$0.isPregnancy }.map(\.id))

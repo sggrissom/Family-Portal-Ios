@@ -54,8 +54,8 @@ struct PhotoSearchRequest: Equatable {
             .sorted()
         tagIds = filter.tagRemoteIds.sorted()
         let range = filter.normalizedDateRange
-        dateFrom = range.from.map { dateToAPIString($0) }
-        dateTo = range.to.map { dateToAPIString($0) }
+        dateFrom = range.from.map { WhenEntry.localDateString($0) }
+        dateTo = range.to.map { WhenEntry.localDateString($0) }
     }
 
     func dto(query: String, cursor: String?) -> ListFamilyPhotosRequestDTO {

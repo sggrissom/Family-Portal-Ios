@@ -52,7 +52,7 @@ struct DaySummaryTests {
         let height = Self.growth(clara, .height, 38.5, "2026-09-20T00:00:00Z")
         let weight = Self.growth(clara, .weight, 32, "2026-09-20T00:00:00Z")
 
-        let days = DaySummaries.summarize(DayRecords(growth: [height, weight]), people: [clara], timeZone: .gmt)
+        let days = DaySummaries.summarize(DayRecords(growth: [height, weight]), people: [clara])
 
         #expect(days.count == 1)
         #expect(days[0].checkups.count == 1)
@@ -67,7 +67,7 @@ struct DaySummaryTests {
             Self.growth(clara, .height, 38.5, "2026-09-20T00:00:00Z"),
             Self.growth(clara, .height, 38.6, "2026-09-20T00:00:00Z"),
         ]
-        let days = DaySummaries.summarize(DayRecords(growth: records), people: [clara], timeZone: .gmt)
+        let days = DaySummaries.summarize(DayRecords(growth: records), people: [clara])
         #expect(days[0].checkups[0].extra == 1)
     }
 
@@ -76,7 +76,7 @@ struct DaySummaryTests {
         let photos = (1...6).map { index in
             Self.photo("2026-09-21T0\(index):00:00Z", index % 2 == 1 ? [clara] : [jake])
         }
-        let day = DaySummaries.summarize(DayRecords(photos: photos), people: [clara, jake], timeZone: .gmt)[0]
+        let day = DaySummaries.summarize(DayRecords(photos: photos), people: [clara, jake])[0]
 
         #expect(day.photos?.count == 6)
         #expect(day.photos?.mosaicIds == [photos[5].id, photos[4].id, photos[3].id, photos[2].id])
@@ -88,8 +88,7 @@ struct DaySummaryTests {
         let milestone = Self.milestone(clara, "2026-09-22T00:00:00Z")
         let days = DaySummaries.summarize(
             DayRecords(photos: [Self.photo("2026-09-18T12:00:00Z", [])], milestones: [milestone]),
-            people: [clara],
-            timeZone: .gmt
+            people: [clara]
         )
         #expect(days.map(\.day) == ["2026-09-22", "2026-09-18"])
         #expect(days[0].milestones.map(\.id) == [milestone.id])
@@ -101,14 +100,14 @@ struct DaySummaryTests {
         let loose = Self.photo("2026-09-22T10:00:00Z", [clara], remoteId: 51)
         let milestone = Self.milestone(clara, "2026-09-22T00:00:00Z", photoRemoteIds: [50])
 
-        let day = DaySummaries.summarize(DayRecords(photos: [attached, loose], milestones: [milestone]), people: [clara], timeZone: .gmt)[0]
+        let day = DaySummaries.summarize(DayRecords(photos: [attached, loose], milestones: [milestone]), people: [clara])[0]
 
         #expect(day.photos?.allIds == [loose.id])
     }
 
     @Test("Birthdays in the range appear, even on quiet days")
     func birthdays() {
-        let days = DaySummaries.summarize(DayRecords(), people: [clara, jake], range: ("2026-09-14", "2026-09-27"), timeZone: .gmt)
+        let days = DaySummaries.summarize(DayRecords(), people: [clara, jake], range: ("2026-09-14", "2026-09-27"))
         #expect(days.map(\.day) == ["2026-09-26"])
         #expect(days[0].birthdays == [DayBirthday(personId: jake.id, age: 7)])
     }
@@ -117,7 +116,7 @@ struct DaySummaryTests {
     func skipsPregnancyAndBirth() {
         let due = Self.person("Baby", born: "2026-09-20T00:00:00Z", isPregnancy: true)
         let newborn = Self.person("Newborn", born: "2026-09-21T00:00:00Z")
-        #expect(DaySummaries.birthdaysBetween([due, newborn], from: "2026-09-14", to: "2026-09-27", timeZone: .gmt).isEmpty)
+        #expect(DaySummaries.birthdaysBetween([due, newborn], from: "2026-09-14", to: "2026-09-27").isEmpty)
     }
 
     @Test("Days group under their month, in order")
@@ -155,7 +154,7 @@ struct DaySummaryTests {
             try appearance(3, event: 11, occurredAt: "0001-01-01T00:00:00Z", start: "2026-09-12T00:00:00Z"),
         ]
 
-        let days = DaySummaries.summarize(DayRecords(appearances: appearances), people: [], timeZone: .gmt)
+        let days = DaySummaries.summarize(DayRecords(appearances: appearances), people: [])
 
         #expect(days.map(\.day) == ["2026-09-20", "2026-09-12"])
         #expect(days.map { $0.events.map(\.event.id) } == [[10], [11]])

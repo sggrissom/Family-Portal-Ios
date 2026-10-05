@@ -76,22 +76,24 @@ struct WhenEntry: Equatable, Sendable {
         }
     }
 
-    /// The day to store and send. An age is resolved here against the birthday rather than sent as `inputType: "age"`: the record has to exist locally before the server answers, and Go's `AddDate` and Foundation's `Calendar` disagree about month overflow, so a server-resolved age could land on a different day from the one already on screen.
+    /// The record date (see `Date.recordDay`) to store and send. An age is resolved here against the birthday rather than sent as `inputType: "age"`: the record has to exist locally before the server answers, and Go's `AddDate` and Foundation's `Calendar` disagree about month overflow, so a server-resolved age could land on a different day from the one already on screen.
     /// `nil` when the entry has a problem, or is an age with no birthday to count from.
     func resolvedDate(birthday: Date?, now: Date = Date(), calendar: Calendar = .current) -> Date? {
         guard problem == nil else { return nil }
         switch mode {
         case .today:
-            return now
+            return now.localRecordDay(in: calendar.timeZone)
         case .yesterday:
-            return calendar.date(byAdding: .day, value: -1, to: now)
+            return calendar.date(byAdding: .day, value: -1, to: now)?.localRecordDay(in: calendar.timeZone)
         case .date:
-            return date
+            return date?.localRecordDay(in: calendar.timeZone)
         case .age:
             guard let birthday else { return nil }
-            return calendar.date(
+            var utc = Calendar(identifier: .gregorian)
+            utc.timeZone = .gmt
+            return utc.date(
                 byAdding: DateComponents(year: ageYears ?? 0, month: ageMonths ?? 0),
-                to: birthday
+                to: birthday.recordDate
             )
         }
     }
