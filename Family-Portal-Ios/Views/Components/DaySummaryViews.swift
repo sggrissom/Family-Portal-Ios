@@ -27,16 +27,9 @@ struct DaySummaryView: View {
             }
 
             ForEach(day.milestones) { milestone in
-                VStack(alignment: .leading, spacing: 2) {
-                    if subjectId == nil, let person = milestone.person {
-                        Text(person.name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    MilestoneRowView(milestone: milestone)
-                }
-                .padding(10)
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                MilestoneRowView(milestone: milestone, showsPerson: subjectId == nil)
+                    .padding(14)
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
             }
 
             ForEach(day.events) { event in
