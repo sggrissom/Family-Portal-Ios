@@ -96,6 +96,7 @@ actor APIClient {
             dateOnlyFormatter = DateFormatter()
             dateOnlyFormatter.calendar = Calendar(identifier: .iso8601)
             dateOnlyFormatter.locale = Locale(identifier: "en_US_POSIX")
+            dateOnlyFormatter.timeZone = .gmt
             dateOnlyFormatter.dateFormat = "yyyy-MM-dd"
         }
     }

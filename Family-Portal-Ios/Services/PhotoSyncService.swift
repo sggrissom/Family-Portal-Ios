@@ -51,9 +51,7 @@ actor PhotoSyncService {
         Self.appendTextField(to: &body, name: "description", value: description, boundary: boundary)
         Self.appendTextField(to: &body, name: "inputType", value: "date", boundary: boundary)
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        Self.appendTextField(to: &body, name: "photoDate", value: formatter.string(from: photoDate), boundary: boundary)
+        Self.appendTextField(to: &body, name: "photoDate", value: photoDate.dayKey(), boundary: boundary)
 
         if let personIdsJSON = try? JSONSerialization.data(withJSONObject: personIds),
            let personIdsString = String(data: personIdsJSON, encoding: .utf8) {

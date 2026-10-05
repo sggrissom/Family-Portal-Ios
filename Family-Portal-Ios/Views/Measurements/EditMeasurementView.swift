@@ -22,7 +22,7 @@ struct EditMeasurementView: View {
         _measurementType = State(initialValue: measurement.measurementType)
         _valueText = State(initialValue: Self.format(measurement.value))
         _unit = State(initialValue: measurement.unit)
-        _date = State(initialValue: measurement.date)
+        _date = State(initialValue: measurement.date.localDay())
 
         let usesPoundsAndOunces = measurement.measurementType == .weight
             && MeasurementConversion.prefersPoundsAndOunces(

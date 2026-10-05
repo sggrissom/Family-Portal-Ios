@@ -229,7 +229,7 @@ struct PersonQuotesTab: View {
                 Text(quote.context)
                     .foregroundStyle(.secondary)
             }
-            Text([person.age(on: quote.date), quote.date.formatted(date: .abbreviated, time: .omitted)]
+            Text([person.age(on: quote.date), quote.date.localDay().formatted(date: .abbreviated, time: .omitted)]
                 .compactMap { $0 }
                 .joined(separator: " · "))
                 .font(.caption)
@@ -301,7 +301,7 @@ struct PersonArtworkTab: View {
             Text(piece.descriptionText)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(3)
-            Text(person.age(on: piece.date) ?? piece.date.formatted(date: .abbreviated, time: .omitted))
+            Text(person.age(on: piece.date) ?? piece.date.localDay().formatted(date: .abbreviated, time: .omitted))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

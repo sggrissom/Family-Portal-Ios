@@ -106,7 +106,7 @@ struct MeasurementInsightsView: View {
         DetailFieldGroup {
             DetailFieldRow(
                 label: "Date",
-                value: measurement.date.formatted(date: .long, time: .omitted)
+                value: measurement.date.localDay().formatted(date: .long, time: .omitted)
             )
 
             if let person {
@@ -413,7 +413,7 @@ private struct FamilyComparisonCard: View {
                     comparisonLine(
                         icon: "scope",
                         title: "Reached \(format(point)) at \(point.ageLabel)",
-                        detail: "\(GrowthComparison.describeAge(point, subject: subjectName)) · \(point.date.formatted(date: .abbreviated, time: .omitted))"
+                        detail: "\(GrowthComparison.describeAge(point, subject: subjectName)) · \(point.date.localDay().formatted(date: .abbreviated, time: .omitted))"
                     )
                 }
             }

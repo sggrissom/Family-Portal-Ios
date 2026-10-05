@@ -241,7 +241,7 @@ struct ActivityDateField: Equatable {
     init(_ serverValue: Date) {
         if let known = serverValue.serverDate {
             isSet = true
-            day = known
+            day = known.localDay()
         } else {
             isSet = false
             day = .now
