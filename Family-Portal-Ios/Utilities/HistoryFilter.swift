@@ -114,9 +114,9 @@ enum History {
     /// Every year with a record, newest first — the **Jump to year** menu.
     static func years(milestones: [Milestone], growth: [GrowthData], photos: [Photo]) -> [Int] {
         var years = Set<Int>()
-        for milestone in milestones { years.insert(milestone.date.calendarDay().year ?? 0) }
-        for record in growth { years.insert(record.date.calendarDay().year ?? 0) }
-        for photo in photos where !photo.taggedPeople.isEmpty { years.insert(photo.photoDate.calendarDay().year ?? 0) }
+        for milestone in milestones { years.insert(milestone.date.recordDay.year ?? 0) }
+        for record in growth { years.insert(record.date.recordDay.year ?? 0) }
+        for photo in photos where !photo.taggedPeople.isEmpty { years.insert(photo.photoDate.recordDay.year ?? 0) }
         years.remove(0)
         return years.sorted(by: >)
     }

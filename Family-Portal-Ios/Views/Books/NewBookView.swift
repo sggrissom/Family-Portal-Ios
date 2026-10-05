@@ -33,7 +33,7 @@ struct NewBookView: View {
         let birthday: String
     }
 
-    private var today: String { Date().dayKey() }
+    private var today: String { WhenEntry.localDateString(Date()) }
 
     /// People of this household with a birthday that has arrived — the server refuses a book about anybody else.
     private var people: [Candidate] {
@@ -41,7 +41,7 @@ struct NewBookView: View {
         return allPeople.compactMap { person in
             guard let id = person.remoteId.flatMap(Int.init), let birthday = person.birthday, !person.isPregnancy else { return nil }
             if let ownFamily, (person.familyRemoteId ?? ownFamily) != ownFamily { return nil }
-            let day = birthday.dayKey()
+            let day = birthday.recordDayKey
             guard day <= today else { return nil }
             return Candidate(id: id, name: person.name, birthday: day)
         }
@@ -66,8 +66,8 @@ struct NewBookView: View {
         case BookPreset.familyYear:
             return BookPlans.calendarYear(year)
         default:
-            let start = customStart.dayKey()
-            let last = customEnd.dayKey()
+            let start = WhenEntry.localDateString(customStart)
+            let last = WhenEntry.localDateString(customEnd)
             guard last >= start else { return nil }
             return BookPlans.Period(start: start, end: BookDay.addDays(last, 1))
         }

@@ -56,7 +56,7 @@ struct WhenControl: View {
                 LabeledContent(Copy.when.months, value: "\(entry.ageMonths ?? 0)")
             }
             if let birthday, let resolved = entry.resolvedDate(birthday: birthday) {
-                LabeledContent(Copy.when.date, value: resolved.formatted(date: .abbreviated, time: .omitted))
+                LabeledContent(Copy.when.date, value: resolved.displayDay().formatted(date: .abbreviated, time: .omitted))
                     .foregroundStyle(.secondary)
             }
         }

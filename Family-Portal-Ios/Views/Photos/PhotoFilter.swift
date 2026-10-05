@@ -67,10 +67,10 @@ struct PhotoFilter: Equatable {
             }
         }
 
-        if let from = range.from, photo.photoDate.localDay() < from {
+        if let from = range.from, photo.photoDate.displayDay() < from {
             return false
         }
-        if let to = range.to, photo.photoDate.localDay() > to {
+        if let to = range.to, photo.photoDate.displayDay() > to {
             return false
         }
 

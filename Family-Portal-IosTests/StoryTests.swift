@@ -18,7 +18,7 @@ struct StoryTests {
             DaySummaryTests.growth(person, .height, 33, "2025-12-01T00:00:00Z"),
         ]
         let photo = DaySummaryTests.photo("2023-04-20T00:00:00Z", [])
-        return DaySummaries.summarize(DayRecords(photos: [photo], growth: growth), people: [], timeZone: .gmt)
+        return DaySummaries.summarize(DayRecords(photos: [photo], growth: growth), people: [])
     }
 
     @Test("Days group by age, newest first")

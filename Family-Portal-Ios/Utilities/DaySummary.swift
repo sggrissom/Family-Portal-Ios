@@ -33,7 +33,7 @@ struct DayEvent: Identifiable {
 
 /// Everything recorded on one calendar day, grouped for display — a port of `DaySummary` in frontend/lib/daySummary.ts.
 struct DaySummary: Identifiable {
-    /// `YYYY-MM-DD`, the day each record names (`Date.dayKey`).
+    /// `YYYY-MM-DD`, the day each record names (`Date.recordDayKey`).
     let day: String
     var birthdays: [DayBirthday] = []
     var milestones: [Milestone] = []
@@ -71,8 +71,7 @@ enum DaySummaries {
     static func summarize(
         _ records: DayRecords,
         people: [Person],
-        range: (from: String, to: String)? = nil,
-        timeZone: TimeZone = .current
+        range: (from: String, to: String)? = nil
     ) -> [DaySummary] {
         var days: [String: DaySummary] = [:]
         func edit(_ day: String, _ change: (inout DaySummary) -> Void) {
@@ -82,7 +81,7 @@ enum DaySummaries {
         }
 
         if let range {
-            for (day, birthdays) in birthdaysBetween(people, from: range.from, to: range.to, timeZone: timeZone) {
+            for (day, birthdays) in birthdaysBetween(people, from: range.from, to: range.to) {
                 edit(day) { $0.birthdays = birthdays }
             }
         }
@@ -90,7 +89,7 @@ enum DaySummaries {
         var attachedPhotoIds = Set<Int>()
         for milestone in records.milestones {
             attachedPhotoIds.formUnion(milestone.photoRemoteIds)
-            edit(milestone.date.dayKey(in: timeZone)) { $0.milestones.append(milestone) }
+            edit(milestone.date.recordDayKey) { $0.milestones.append(milestone) }
         }
 
         for appearance in records.appearances {
@@ -98,7 +97,7 @@ enum DaySummaries {
             attachedPhotoIds.formUnion(detail.photoIds)
             let when = detail.appearance.occurredAt.serverDate ?? detail.event.startDate
             guard !when.isServerZero else { continue }
-            edit(when.dayKey(in: .gmt)) { summary in
+            edit(when.recordDayKey) { summary in
                 if let index = summary.events.firstIndex(where: { $0.event.id == detail.event.id }) {
                     summary.events[index].appearances.append(appearance)
                 } else {
@@ -112,7 +111,7 @@ enum DaySummaries {
         }
         for growth in newestGrowth {
             guard let personId = growth.person?.id else { continue }
-            edit(growth.date.dayKey(in: timeZone)) { summary in
+            edit(growth.date.recordDayKey) { summary in
                 var checkup = summary.checkups.first { $0.personId == personId } ?? DayCheckup(personId: personId)
                 switch growth.measurementType {
                 case .height:
@@ -135,7 +134,7 @@ enum DaySummaries {
             }
             .sorted { $0.photoDate != $1.photoDate ? $0.photoDate > $1.photoDate : $0.id.uuidString > $1.id.uuidString }
         for photo in newestPhotos {
-            edit(photo.photoDate.dayKey(in: timeZone)) { summary in
+            edit(photo.photoDate.recordDayKey) { summary in
                 var group = summary.photos ?? DayPhotoGroup()
                 group.count += 1
                 group.allIds.append(photo.id)
@@ -154,12 +153,11 @@ enum DaySummaries {
     static func birthdaysBetween(
         _ people: [Person],
         from: String,
-        to: String,
-        timeZone: TimeZone = .current
+        to: String
     ) -> [String: [DayBirthday]] {
         let born: [(Person, DateComponents)] = people.compactMap { person in
             guard !person.isPregnancy, let birthday = person.birthday else { return nil }
-            return (person, birthday.calendarDay(in: timeZone))
+            return (person, birthday.recordDay)
         }
         guard !born.isEmpty else { return [:] }
 
@@ -193,7 +191,7 @@ enum DaySummaries {
         guard var cursor = Self.date(of: from), let end = Self.date(of: to) else { return [] }
         var days: [String] = []
         while cursor <= end {
-            days.append(cursor.dayKey(in: .gmt))
+            days.append(cursor.recordDayKey)
             guard let next = utc.date(byAdding: .day, value: 1, to: cursor) else { break }
             cursor = next
         }

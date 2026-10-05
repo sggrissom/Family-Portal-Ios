@@ -39,7 +39,7 @@ struct AddMeasurementView: View {
 
     /// The day being recorded, for the age line and the units. Falls back to today while the entry has a problem.
     private var date: Date {
-        when.resolvedDate(birthday: person?.birthday) ?? Date()
+        when.resolvedDate(birthday: person?.birthday) ?? Date().localRecordDay()
     }
 
     /// `nil` opens the form with the remembered person preselected, as a visible chip. A caller standing on somebody names them.

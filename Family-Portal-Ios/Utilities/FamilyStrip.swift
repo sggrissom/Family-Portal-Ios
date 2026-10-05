@@ -4,9 +4,9 @@ import Foundation
 enum FamilyStrip {
 
     /// "3d", "3w", "8m", "3y 4m", "41y"; blank for a date that has not come yet.
-    static func compactAge(birthday: Date, today: Date, timeZone: TimeZone = .current) -> String {
-        guard let days = days(from: birthday, to: today, timeZone: timeZone), days >= 0 else { return "" }
-        let months = AgeSteps.monthsOld(birthday: birthday, at: today, timeZone: timeZone)
+    static func compactAge(birthday: Date, today: Date) -> String {
+        guard let days = days(from: birthday, to: today), days >= 0 else { return "" }
+        let months = AgeSteps.monthsOld(birthday: birthday, at: today)
         if months < 1 { return days < 7 ? "\(days)d" : "\(days / 7)w" }
         if months < 24 { return "\(months)m" }
         let years = months / 12
@@ -16,8 +16,8 @@ enum FamilyStrip {
     }
 
     /// "Due in 5w 2d", "Due today", "Due date passed 1 day ago".
-    static func dueSummary(dueDate: Date, today: Date, timeZone: TimeZone = .current) -> String {
-        guard let days = days(from: today, to: dueDate, timeZone: timeZone) else { return "" }
+    static func dueSummary(dueDate: Date, today: Date) -> String {
+        guard let days = days(from: today, to: dueDate) else { return "" }
         if days < 0 { return "Due date passed \(-days) day\(days == -1 ? "" : "s") ago" }
         if days == 0 { return "Due today" }
         let weeks = days / 7
@@ -25,13 +25,11 @@ enum FamilyStrip {
         return "Due in \(days) day\(days == 1 ? "" : "s")"
     }
 
-    /// Whole calendar days between the days two dates name.
-    private static func days(from start: Date, to end: Date, timeZone: TimeZone) -> Int? {
+    /// Whole calendar days between two record dates.
+    private static func days(from start: Date, to end: Date) -> Int? {
         var utc = Calendar(identifier: .gregorian)
         utc.timeZone = .gmt
-        guard let a = utc.date(from: start.calendarDay(in: timeZone)),
-              let b = utc.date(from: end.calendarDay(in: timeZone)) else { return nil }
-        return utc.dateComponents([.day], from: a, to: b).day
+        return utc.dateComponents([.day], from: start.recordDate, to: end.recordDate).day
     }
 }
 

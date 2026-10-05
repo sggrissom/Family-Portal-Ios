@@ -91,7 +91,7 @@ struct MilestoneAnalysisTests {
         #expect(ids == [9, 3, 7])
         let body = try Self.body(of: try #require(server.requests(for: "rpc/SuggestMilestonePhotos").first))
         #expect(body["inputType"] as? String == "date")
-        #expect(body["milestoneDate"] as? String == dateToAPIString(Date()))
+        #expect(body["milestoneDate"] as? String == dateToAPIString(Date().localRecordDay()))
         #expect(body["excludeIds"] as? [Int] == [])
     }
 

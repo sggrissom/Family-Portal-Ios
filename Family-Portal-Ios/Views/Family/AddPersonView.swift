@@ -157,7 +157,7 @@ struct AddPersonView: View {
         let person = Person(
             name: name,
             gender: gender,
-            birthday: birthday,
+            birthday: birthday.localRecordDay(),
             isPregnancy: isPregnancy
         )
         modelContext.insert(person)

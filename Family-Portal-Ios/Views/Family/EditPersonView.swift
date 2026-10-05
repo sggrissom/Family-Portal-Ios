@@ -21,7 +21,7 @@ struct EditPersonView: View {
         _name = State(initialValue: person.name)
         _gender = State(initialValue: person.gender)
         // A person predating the required-birthday change may still have none; showing today gives the user something concrete to correct.
-        _birthday = State(initialValue: person.birthday ?? Date())
+        _birthday = State(initialValue: person.birthday?.displayDay() ?? Date())
         _isPregnancy = State(initialValue: person.isPregnancy)
     }
 
@@ -99,7 +99,7 @@ struct EditPersonView: View {
         isSaving = true
         person.name = name
         person.gender = gender
-        person.birthday = birthday
+        person.birthday = birthday.localRecordDay()
         person.isPregnancy = isPregnancy
 
         Task {

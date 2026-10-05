@@ -395,8 +395,15 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
 - `WhenControl` ("Today ▾": Today, Yesterday, Pick a date…, By age…) is keyed with
   `.id(person?.id)`: an age resolves against the birthday it was handed.
   `WhenEntry.resolvedDate` turns an age into a date on the device, and every write
-  sends the **local** calendar day (`dateToAPIString` / `Date.dayKey`) as
-  `inputType: "date"` — never `"today"`, which is the server's UTC day
+  sends the **local** calendar day as `inputType: "date"` — never `"today"`,
+  which is the server's UTC day
+- **Days are record dates** (`Utilities/ServerDate.swift`): birthdays,
+  measurement, milestone and activity dates are stored as midnight UTC of the day
+  they name, and photo dates as the capture wall clock labelled UTC. Read them
+  with `recordDay` / `recordDayKey`, show or edit them with `displayDay()`, and
+  turn `Date()` or a `DatePicker` value into one with `localRecordDay()` (or
+  `localWallClock()` for a photo). Never format a record date directly or mix it
+  with `Calendar.current` arithmetic on `Date()`
 - **Measurement is one checkup** (`Checkup`): height and weight together, either
   blank. Units are remembered per person, then per family (`QuickAddDefaults.unitPrefs`),
   and a unit is only ever used for a type it can measure. Save queues one

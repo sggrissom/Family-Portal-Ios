@@ -11,7 +11,7 @@ struct AgeCalculatorTests {
         components.month = month
         components.day = day
         components.hour = 12
-        return Calendar.current.date(from: components)!
+        return Calendar.current.date(from: components)!.localRecordDay()
     }
 
     static func age(

@@ -27,7 +27,7 @@ nonisolated enum BookDay {
         return (pieces[0], pieces[1], pieces[2])
     }
 
-    /// Midnight UTC of the day. A UTC midnight is what `Date.calendarDay` reads in UTC, so `AgeSteps` counts it as this very day.
+    /// The record date of the day: midnight UTC.
     static func date(_ day: String) -> Date {
         let p = parts(day)
         return utc.date(from: DateComponents(year: p.year, month: p.month, day: p.day)) ?? Date(timeIntervalSince1970: 0)

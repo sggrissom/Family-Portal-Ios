@@ -25,7 +25,7 @@ struct EditMilestoneView: View {
         _descriptionText = State(initialValue: milestone.descriptionText)
         _category = State(initialValue: milestone.category)
         _context = State(initialValue: milestone.context)
-        _date = State(initialValue: milestone.date.localDay())
+        _date = State(initialValue: milestone.date.displayDay())
     }
 
     private var isValid: Bool {
@@ -105,7 +105,7 @@ struct EditMilestoneView: View {
     private func save() {
         milestone.category = category
         milestone.setEntry(descriptionText, context: context)
-        milestone.date = date
+        milestone.date = date.localRecordDay()
 
         // `photoIds` is the complete set the milestone should end up with, so an empty selection detaches everything — safe only once the seed has run, since before that an empty selection means "not loaded yet".
         let chosen = didSeedSelection ? photoChoices.filter { selectedPhotoIds.contains($0.id) } : nil

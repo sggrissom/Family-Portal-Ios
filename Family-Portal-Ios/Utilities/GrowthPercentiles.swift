@@ -372,13 +372,9 @@ enum GrowthPercentiles {
     // MARK: - Age
 
     /// Age in months, fractional. The web's arithmetic rather than a `Calendar` interval, so the two clients cannot disagree; the day component is deliberately not normalised.
-    static func ageInMonths(
-        birthday: Date,
-        on date: Date,
-        calendar: Calendar = .current
-    ) -> Double {
-        let birth = birthday.calendarDay(in: calendar.timeZone)
-        let measured = date.calendarDay(in: calendar.timeZone)
+    static func ageInMonths(birthday: Date, on date: Date) -> Double {
+        let birth = birthday.recordDay
+        let measured = date.recordDay
         guard let birthYear = birth.year, let birthMonth = birth.month, let birthDay = birth.day,
               let year = measured.year, let month = measured.month, let day = measured.day else {
             return 0

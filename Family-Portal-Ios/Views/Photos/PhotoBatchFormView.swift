@@ -116,7 +116,7 @@ struct PhotoBatchFormView: View {
                 if let changed = dates[entry.id] {
                     Text("\(Copy.photos.taken) \(changed.formatted(date: .abbreviated, time: .omitted))")
                 } else if entry.hasCaptureDate {
-                    Text("\(Copy.photos.taken) \(photo.photoDate.localDay().formatted(date: .abbreviated, time: .omitted))")
+                    Text("\(Copy.photos.taken) \(photo.photoDate.displayDay().formatted(date: .abbreviated, time: .omitted))")
                 } else {
                     Text("No date in photo: using today")
                         .foregroundStyle(.orange)
@@ -154,12 +154,12 @@ struct PhotoBatchFormView: View {
 
     private func dateEditor(for entryId: UUID) -> some View {
         let current = dates[entryId]
-            ?? importer.entries[entryId].flatMap { photo(for: $0)?.photoDate }
+            ?? importer.entries[entryId].flatMap { photo(for: $0)?.photoDate.displayDay() }
             ?? Date()
         return NavigationStack {
             DatePicker(
                 Copy.when.date,
-                selection: Binding(get: { dates[entryId] ?? current.localDay() }, set: { dates[entryId] = $0 }),
+                selection: Binding(get: { dates[entryId] ?? current }, set: { dates[entryId] = $0 }),
                 in: ...Date(),
                 displayedComponents: .date
             )

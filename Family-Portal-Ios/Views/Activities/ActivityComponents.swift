@@ -79,16 +79,16 @@ struct ActivityStaleNote: View {
 enum ActivityDateText {
 
     static func day(_ date: Date) -> String? {
-        date.serverDate?.localDay().formatted(date: .abbreviated, time: .omitted)
+        date.serverDate?.displayDay().formatted(date: .abbreviated, time: .omitted)
     }
 
     static func range(from start: Date, to end: Date) -> String? {
         guard let start = start.serverDate else { return day(end) }
         guard let end = end.serverDate,
-              start.dayKey() != end.dayKey() else {
+              start.recordDayKey != end.recordDayKey else {
             return day(start)
         }
-        return "\(start.localDay().formatted(date: .abbreviated, time: .omitted)) – \(end.localDay().formatted(date: .abbreviated, time: .omitted))"
+        return "\(start.displayDay().formatted(date: .abbreviated, time: .omitted)) – \(end.displayDay().formatted(date: .abbreviated, time: .omitted))"
     }
 
     static func occurred(_ appearance: AppearanceDTO, at event: EventSummaryDTO) -> String? {

@@ -5,12 +5,12 @@ import Foundation
 enum AgeCalculator {
 
     static func age(from birthdate: Date, isPregnancy: Bool = false) -> String {
-        age(from: birthdate, at: Date(), isPregnancy: isPregnancy)
+        age(from: birthdate, at: Date().localRecordDay(), isPregnancy: isPregnancy)
     }
 
     static func age(from birthdate: Date, at referenceDate: Date, isPregnancy: Bool = false) -> String {
-        let birthdate = birthdate.localDay()
-        let referenceDate = referenceDate.localDay()
+        let birthdate = birthdate.displayDay()
+        let referenceDate = referenceDate.displayDay()
         // A record flagged as a pregnancy stays in weeks even once the due date has passed — an overdue baby is 41 weeks, not a day old.
         if isPregnancy || referenceDate < birthdate {
             return gestationalAge(dueDate: birthdate, at: referenceDate)

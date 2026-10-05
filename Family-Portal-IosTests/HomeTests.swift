@@ -21,11 +21,11 @@ struct HomeTests {
     }
 
     private static func age(_ born: String) -> String {
-        FamilyStrip.compactAge(birthday: utc(born), today: today, timeZone: zone)
+        FamilyStrip.compactAge(birthday: utc(born), today: today.localRecordDay(in: zone))
     }
 
     private static func due(_ date: String) -> String {
-        FamilyStrip.dueSummary(dueDate: utc(date), today: today, timeZone: zone)
+        FamilyStrip.dueSummary(dueDate: utc(date), today: today.localRecordDay(in: zone))
     }
 
     @Test("A newborn is counted in days and weeks")

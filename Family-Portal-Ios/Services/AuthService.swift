@@ -91,7 +91,7 @@ final class AuthService {
             familyCode: familyCode,
             initialPersonName: personName,
             initialPersonGender: genderToInt(initialPerson?.gender ?? .other),
-            initialPersonBirthdate: initialPerson.map { dateToAPIString($0.birthdate) } ?? ""
+            initialPersonBirthdate: initialPerson.map { WhenEntry.localDateString($0.birthdate) } ?? ""
         )
 
         do {

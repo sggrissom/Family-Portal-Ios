@@ -19,7 +19,7 @@ enum ArtworkPhotos {
     ) async throws -> [Photo] {
         var photos: [Photo] = []
         for pick in picked {
-            let photo = Photo(title: "", descriptionText: "", photoDate: pick.captureDate ?? Date(), imageData: pick.data)
+            let photo = Photo(title: "", descriptionText: "", photoDate: (pick.captureDate ?? Date()).localWallClock(), imageData: pick.data)
             context.insert(photo)
             photo.taggedPeople = [artist]
             try context.save()

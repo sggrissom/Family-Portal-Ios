@@ -89,8 +89,8 @@ private struct PhotoDetailContent: View {
 
                 VStack(spacing: 4) {
                     Text(photo.photoDate.isUTCMidnight
-                         ? photo.photoDate.localDay().formatted(date: .long, time: .omitted)
-                         : photo.photoDate.formatted(date: .long, time: .shortened))
+                         ? photo.photoDate.displayDay().formatted(date: .long, time: .omitted)
+                         : photo.photoDate.formatted(Date.FormatStyle(date: .long, time: .shortened, timeZone: .gmt)))
                     if let place = details?.place, !place.name.isEmpty {
                         Label(place.name, systemImage: "mappin.and.ellipse")
                     }

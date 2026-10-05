@@ -161,7 +161,7 @@ struct PersonDetailView: View {
 
                 if let birthday = person.birthday {
                     let age = AgeCalculator.age(from: birthday, isPregnancy: person.isPregnancy)
-                    Text("\(age) · \(Copy.person.born(birthday.localDay().formatted(date: .long, time: .omitted)))")
+                    Text("\(age) · \(Copy.person.born(birthday.displayDay().formatted(date: .long, time: .omitted)))")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

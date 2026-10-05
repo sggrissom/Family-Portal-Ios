@@ -27,12 +27,12 @@ struct ActivityWriteTests {
         components.month = month
         components.day = day
         components.hour = 12
-        return Calendar.current.date(from: components)!
+        return Calendar.current.date(from: components)!.localRecordDay()
     }
 
     // MARK: - Dates on the wire
 
-    @Test("A date is sent as the calendar day the user picked")
+    @Test("A record date is sent as its calendar day")
     func requestDateFormat() {
         #expect(ServerDateFormat.requestString(Self.day(year: 2026, month: 3, day: 14)) == "2026-03-14")
         #expect(ServerDateFormat.requestString(nil) == nil)

@@ -43,6 +43,7 @@ struct Family_Portal_IosApp: App {
 
     init() {
         container = DataStore.shared.container
+        CalendarDateMigration.runIfNeeded(container.mainContext)
         let monitor = NetworkMonitor()
         _networkMonitor = State(initialValue: monitor)
         _syncService = State(initialValue: SyncService(

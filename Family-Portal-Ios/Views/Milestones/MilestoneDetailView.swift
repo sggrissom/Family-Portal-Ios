@@ -66,7 +66,7 @@ struct MilestoneDetailContent: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(milestone.date.localDay().formatted(date: .long, time: .omitted))
+                        Text(milestone.date.displayDay().formatted(date: .long, time: .omitted))
                         if let age = milestone.person?.age(on: milestone.date) {
                             Text("Age \(age)")
                         }

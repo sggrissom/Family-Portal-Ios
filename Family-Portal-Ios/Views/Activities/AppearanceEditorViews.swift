@@ -241,7 +241,7 @@ struct ActivityDateField: Equatable {
     init(_ serverValue: Date) {
         if let known = serverValue.serverDate {
             isSet = true
-            day = known.localDay()
+            day = known.displayDay()
         } else {
             isSet = false
             day = .now
@@ -249,7 +249,7 @@ struct ActivityDateField: Equatable {
     }
 
     /// What the write sends. `nil` clears the date, which is what the toggle being off means.
-    var date: Date? { isSet ? day : nil }
+    var date: Date? { isSet ? day.localRecordDay() : nil }
 }
 
 struct AppearanceDateSection: View {

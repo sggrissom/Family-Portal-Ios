@@ -219,8 +219,8 @@ enum GrowthComparison {
         let previousInTargetUnit = MeasurementConversion.convert(previous.value, from: previous.unit, to: target.unit)
         let days = calendar.dateComponents(
             [.day],
-            from: calendar.startOfDay(for: previous.date),
-            to: calendar.startOfDay(for: target.date)
+            from: previous.date.displayDay(in: calendar.timeZone),
+            to: target.date.displayDay(in: calendar.timeZone)
         ).day ?? 0
         return Change(previous: previous, difference: target.value - previousInTargetUnit, elapsedDays: days)
     }

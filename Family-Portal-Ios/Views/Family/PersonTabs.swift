@@ -17,7 +17,7 @@ struct PersonStoryTab: View {
         guard let birthday = person.birthday else { return true }
         return !people.contains { other in
             guard other.id != person.id, !other.isPregnancy, let otherBirthday = other.birthday else { return false }
-            return otherBirthday < birthday && AgeSteps.monthsOld(birthday: otherBirthday, at: Date()) < 18 * 12
+            return otherBirthday < birthday && AgeSteps.monthsOld(birthday: otherBirthday, at: Date().localRecordDay()) < 18 * 12
         }
     }
 
@@ -76,7 +76,7 @@ struct PersonStoryTab: View {
 
     private var birthdayRange: (from: String, to: String)? {
         guard let birthday = person.birthday, !person.isPregnancy else { return nil }
-        return (birthday.dayKey(), today)
+        return (birthday.recordDayKey, today)
     }
 
     private func chapters(_ days: [DaySummary]) -> [StoryChapter] {
@@ -164,17 +164,17 @@ struct PersonOverview: View {
 
     private var activeSeasons: [SeasonSummaryDTO] {
         guard let season else { return [] }
-        let now = Date()
+        let currentDay = Date().localRecordDay()
         return season.seasons.filter { summary in
-            guard let start = summary.startDate.serverDate, start <= now else { return false }
-            return summary.endDate.serverDate.map { $0 >= Calendar.current.startOfDay(for: now) } ?? true
+            guard let start = summary.startDate.serverDate, start <= currentDay else { return false }
+            return summary.endDate.serverDate.map { $0 >= currentDay } ?? true
         }
     }
 
     /// "🏆 Competition Season · 3 entries · next: Nuvo Nashville"
     private func seasonLine(_ summary: SeasonSummaryDTO) -> String {
         let entries = season?.entries.filter { $0.entry.seasonId == summary.id }.count ?? 0
-        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let startOfToday = Date().localRecordDay()
         let next = season?.appearances
             .filter { $0.entry.seasonId == summary.id && $0.event.startDate >= startOfToday }
             .min { $0.event.startDate < $1.event.startDate }
@@ -229,7 +229,7 @@ struct PersonQuotesTab: View {
                 Text(quote.context)
                     .foregroundStyle(.secondary)
             }
-            Text([person.age(on: quote.date), quote.date.localDay().formatted(date: .abbreviated, time: .omitted)]
+            Text([person.age(on: quote.date), quote.date.displayDay().formatted(date: .abbreviated, time: .omitted)]
                 .compactMap { $0 }
                 .joined(separator: " · "))
                 .font(.caption)
@@ -301,7 +301,7 @@ struct PersonArtworkTab: View {
             Text(piece.descriptionText)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(3)
-            Text(person.age(on: piece.date) ?? piece.date.localDay().formatted(date: .abbreviated, time: .omitted))
+            Text(person.age(on: piece.date) ?? piece.date.displayDay().formatted(date: .abbreviated, time: .omitted))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -510,7 +510,7 @@ struct PersonGrowthTab: View {
     private var siblings: [Person] {
         people.filter { other in
             guard other.id != person.id, !other.isPregnancy, let birthday = other.birthday else { return false }
-            return AgeSteps.monthsOld(birthday: birthday, at: Date()) < 18 * 12
+            return AgeSteps.monthsOld(birthday: birthday, at: Date().localRecordDay()) < 18 * 12
         }
     }
 
@@ -557,7 +557,7 @@ struct PersonGrowthTab: View {
                             .foregroundStyle(.secondary)
                         Text(MeasurementConversion.format(record))
                             .font(.headline)
-                        Text(record.date.localDay().formatted(date: .abbreviated, time: .omitted))
+                        Text(record.date.displayDay().formatted(date: .abbreviated, time: .omitted))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if let months = MeasurementConversion.ageMonths(of: record),
@@ -584,7 +584,7 @@ struct PersonGrowthTab: View {
                 color: AgeSeries.palette[0],
                 points: AgeChart.chartPoints(person.growthData, birthday: birthday, type: type)
             )
-            let nowMonths = Double(AgeSteps.monthsOld(birthday: birthday, at: Date()))
+            let nowMonths = Double(AgeSteps.monthsOld(birthday: birthday, at: Date().localRecordDay()))
             let maxAge = max(nowMonths + 1, 12)
             let others: [AgeSeries] = showSiblings ? siblings.enumerated().compactMap { index, sibling in
                 guard let siblingBirthday = sibling.birthday else { return nil }

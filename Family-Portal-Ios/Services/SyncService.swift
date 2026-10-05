@@ -575,15 +575,11 @@ final class SyncService {
             return id
         }
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        let photoDate = formatter.date(from: payload.photoDate) ?? photo.photoDate
-
         let response = try await PhotoSyncService(apiClient: apiClient).uploadPhoto(
             imageData: imageData,
             title: payload.title,
             description: payload.description,
-            photoDate: photoDate,
+            photoDate: photo.photoDate,
             personIds: personIds
         )
         applyPhotoDTO(response, to: photo)
