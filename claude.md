@@ -402,7 +402,14 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   and a unit is only ever used for a type it can measure. Save queues one
   `AddGrowthData` per field and pushes `CheckupResultView` — Saved / Waiting to
   sync from `remoteId`, a field whose enqueue failed retried on its own, **Add
-  another measurement** (person cleared, date kept) and Done
+  another measurement** (person cleared, date kept) and Done, pinned below the
+  scroll. It shows one Same age strip for the whole checkup
+  (`MeasurementInsightsView(showsSameAge: false)`), not one per value
+- **Context folds.** Family comparison, the Same age strip and "The same milestone
+  in the family" sit under a `ContextSection` heading that folds them away. Each
+  kind (`ContextKind`) remembers being folded, in `@AppStorage`, across every
+  screen it appears on; all start open. A record's own details (a milestone's
+  tags included) come before its context
 - **Milestone:** chips, "What happened?", category chips, When, and an "Add
   photos / tags" disclosure. Save shows the milestone in the same sheet.
   Artwork adds "Photos of it" (`ArtworkPhotosSection`): picks stay in the form

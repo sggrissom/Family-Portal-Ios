@@ -63,3 +63,77 @@ struct DetailFieldGroup<Content: View>: View {
         }
     }
 }
+
+/// What a record is compared against — the family, everyone at the same age, the same milestone elsewhere — under a heading that folds it away.
+/// Each kind remembers being folded across every screen it appears on, so someone who only wants the record itself folds it once rather than scrolling past it each time.
+/// Open until then: the comparisons are the point of most of these screens.
+struct ContextSection<Accessory: View, Content: View>: View {
+    let title: String
+    @AppStorage private var isExpanded: Bool
+    private let accessory: Accessory
+    private let content: Content
+
+    init(
+        _ title: String,
+        kind: ContextKind,
+        @ViewBuilder accessory: () -> Accessory,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        _isExpanded = AppStorage(wrappedValue: true, kind.storageKey)
+        self.accessory = accessory()
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Button {
+                    withAnimation(.snappy) { isExpanded.toggle() }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(title)
+                            .font(.headline)
+                            .multilineTextAlignment(.leading)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+                .accessibilityHint(isExpanded ? "Hides this section" : "Shows this section")
+
+                Spacer()
+
+                // A link out (See all) only means something once the section is open.
+                if isExpanded {
+                    accessory
+                }
+            }
+
+            if isExpanded {
+                content
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+extension ContextSection where Accessory == EmptyView {
+    init(_ title: String, kind: ContextKind, @ViewBuilder content: () -> Content) {
+        self.init(title, kind: kind, accessory: { EmptyView() }, content: content)
+    }
+}
+
+/// The kinds of context a `ContextSection` folds, each remembered on its own.
+enum ContextKind: String {
+    case family
+    case sameAge
+    case milestoneMatches
+
+    var storageKey: String { "contextSection.\(rawValue).expanded" }
+}
