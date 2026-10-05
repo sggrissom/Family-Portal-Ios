@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import os
 
 /// Rewrites dates stored before record dates were held as midnight UTC (see `Date.recordDay`). Each is read the way earlier builds read it: an exact UTC midnight as its UTC day, anything else in the device's zone.
 /// A synced photo keeps its date, which the server sent as a UTC-labelled wall clock; one never uploaded holds a device instant and becomes its local wall clock.
