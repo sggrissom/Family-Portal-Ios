@@ -25,7 +25,7 @@ struct EditMilestoneView: View {
         _descriptionText = State(initialValue: milestone.descriptionText)
         _category = State(initialValue: milestone.category)
         _context = State(initialValue: milestone.context)
-        _date = State(initialValue: milestone.date)
+        _date = State(initialValue: milestone.date.localDay())
     }
 
     private var isValid: Bool {

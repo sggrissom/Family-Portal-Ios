@@ -179,8 +179,11 @@ enum Checkup {
     // MARK: - Helper text
 
     /// "today", "7 days ago", "5 weeks ago", "3 years ago" — `timeAgo`.
-    static func timeAgo(_ date: Date, now: Date) -> String {
-        let days = Int((now.timeIntervalSince(date) / 86_400).rounded(.down))
+    static func timeAgo(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let days = calendar.dateComponents(
+            [.day], from: date.localDay(in: calendar.timeZone),
+            to: calendar.startOfDay(for: now)
+        ).day ?? 0
         if days < 1 { return "today" }
         if days == 1 { return "yesterday" }
         if days < 14 { return "\(days) days ago" }

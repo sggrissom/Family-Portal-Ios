@@ -8,7 +8,7 @@ struct MeasurementRowView: View {
             Text(MeasurementConversion.format(measurement))
                 .font(.body)
             Spacer()
-            Text(measurement.date.formatted(date: .abbreviated, time: .omitted))
+            Text(measurement.date.localDay().formatted(date: .abbreviated, time: .omitted))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }

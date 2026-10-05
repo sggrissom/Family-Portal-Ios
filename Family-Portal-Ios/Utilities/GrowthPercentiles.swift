@@ -377,8 +377,8 @@ enum GrowthPercentiles {
         on date: Date,
         calendar: Calendar = .current
     ) -> Double {
-        let birth = calendar.dateComponents([.year, .month, .day], from: birthday)
-        let measured = calendar.dateComponents([.year, .month, .day], from: date)
+        let birth = birthday.calendarDay(in: calendar.timeZone)
+        let measured = date.calendarDay(in: calendar.timeZone)
         guard let birthYear = birth.year, let birthMonth = birth.month, let birthDay = birth.day,
               let year = measured.year, let month = measured.month, let day = measured.day else {
             return 0

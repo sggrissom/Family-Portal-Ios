@@ -18,16 +18,10 @@ nonisolated extension Date {
 nonisolated enum ServerDateFormat {
 
     /// `nil` in, `nil` out, and that is meaningful: an absent key on a write **clears** the date rather than leaving it alone.
-    static func requestString(_ date: Date?) -> String? {
+    static func requestString(_ date: Date?, in timeZone: TimeZone = .current) -> String? {
         guard let date = date?.serverDate else { return nil }
 
-        // Built per call rather than cached: `DateFormatter` is not `Sendable`, and this one has to read the device's *current* time zone, which a competition weekend is exactly when a phone changes.
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .iso8601)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        return date.dayKey(in: timeZone)
     }
 }
 
@@ -35,7 +29,7 @@ nonisolated extension Date {
 
     /// The calendar day this date *names*, which is not always the day it falls on locally.
     /// A date the server sent is midnight UTC of its day (Go parses `YYYY-MM-DD` as UTC), and read in a US zone it would land on the evening before. A date made on this device — now, a picked day, a birthday normalised to local midnight — is an instant inside the family's own day. So an exact UTC midnight is read in UTC and anything else in `timeZone`.
-    /// The one ambiguous instant is local midnight at UTC+0, where both readings agree.
+    /// This is a legacy heuristic: a genuine timestamp exactly at UTC midnight is indistinguishable from a server calendar date.
     func calendarDay(in timeZone: TimeZone = .current) -> DateComponents {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = isUTCMidnight ? .gmt : timeZone
