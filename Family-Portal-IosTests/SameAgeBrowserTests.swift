@@ -134,7 +134,7 @@ struct SameAgeBrowserTests {
         // The controls stay on the chosen age while it loads.
         #expect(browser.selectedAge == 6)
         #expect(browser.isLoading)
-        held.answer(1, with: try response(age: 6, available: [], portraits: [], peopleCount: 3))
+        held.answer(1, with: try response(age: 6, available: [:], portraits: [:], peopleCount: 3))
         await step.value
 
         #expect(browser.response?.ageMonths == 6)
