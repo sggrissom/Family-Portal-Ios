@@ -208,7 +208,7 @@ The relationship graph (`backend/relation.go`): `GetPersonRelations`, `AddRelati
 ### AnalysisService (`@MainActor`)
 The offline-analysis procs (`backend/milestone_analysis.go` and friends), all **online-only and never queued** — the server owns the answer, and a suggestion that arrives late is worth nothing. The vision daemon runs only on staging, so every proc degrades to an empty answer in production; every caller treats a failure as "no suggestion" and every screen must look normal with nothing to show. Answers worth reusing are cached in memory for the session (cleared by `LocalDataReset`), never in SwiftData.
 
-- `suggestMilestoneCategory` → `AddMilestoneView` pre-selects a chip only while `categoryTouched` is false and marks the header "· suggested". `suggestMilestonePhotos` fills "Photos from around then", unattached until tapped. Both run from one `.task(id: lookupKey)` that sleeps 600 ms first, so a keystroke cancels the previous lookup — the web's debounce. Not on the edit form, as on the web
+- `suggestMilestoneCategory` → `AddMilestoneView` pre-selects a chip only while `categoryTouched` is false and marks the header "· suggested". `suggestMilestonePhotos` fills "Photos from around then", unattached until tapped. Both run from one `.task(id: lookupKey)` that sleeps 600 ms first, so a keystroke cancels the previous lookup — the web's debounce. `EditMilestoneView` offers the photos too (not the category), excluding what the milestone had attached when the editor opened (`excludeIds`, and again locally in `MilestonePhotoSuggestions.offered`); both forms share `SuggestedPhotosRow`, and a suggestion only ever changes the selection when tapped
 - `milestoneMatches` → `MilestoneMatchesSection` on the milestone page ("Clara at 1 year 2 months"); each row pushes `MilestoneDetailContent` for the local milestone when it resolves by `remoteId`
 - `cachedPersonPhotoInsights` / `refreshPersonPhotoInsights` (`GetPersonPhotoInsights`, built on face data, so it answers in production too): `PersonDetailView` shows the cached answer first and refreshes on appear when online. `header` stands in for the initials avatar when the person has no profile photo, and is **never written to the model**; "Use as Profile Photo" in the manage menu hands it to `setProfilePhoto` once the photo resolves locally. `PersonPhotosTab` shows Growing up (face crops, only with two or more) and Often photographed with; Story previews up to five of those faces (`GrowingUpPreview.spread`, first to last) inside its first chapter, linking to the Photos tab — a chip filters the tab to that other person, which on a tab already limited to this person *is* the all-of intersection
 - `FaceCropView` crops a server photo's medium size to a `FaceBoxDTO`. `FaceCropLayout.cropRect` pads the box as the web's `faceCropLayout` does but keeps a square in pixels rather than stretching; an empty box falls back to the thumbnail
@@ -375,6 +375,11 @@ network answers.
   app exists for
 - `hasPanelFilters` is kept apart from `isActive` so the toolbar glyph doesn't
   fill in for a search term the search bar is already showing
+
+### Original photos (`OriginalPhotoActions`)
+
+- The photo page's toolbar offers **Share Original** and **Save to Photos** for an uploaded photo — the web's "Download original". `APIClient.downloadOriginal` fetches `api/photo/{id}/original?download=1` (bytes as uploaded, never a resized variant) with the token and one refresh-and-retry on 401, straight to disk, into a folder of its own named after `Content-Disposition` (`OriginalPhotoFile.filename`). The folder is removed when the share sheet closes or the save finishes
+- Online only; a cancelled download is silent; failures go through `ErrorPresenter` and the page stays. Save asks for **add-only** Photos access (`NSPhotoLibraryAddUsageDescription`) at the moment the user chooses it; `PhotoLibrarySaver` is `nonisolated` because PhotoKit runs the change block off the main actor. A photo not uploaded yet says so instead of offering either action
 
 ### Adding records
 

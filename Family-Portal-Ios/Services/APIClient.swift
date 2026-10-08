@@ -693,3 +693,121 @@ extension APIClient {
         return response.success
     }
 }
+
+// MARK: - Original photos
+
+/// A photo exactly as it was uploaded, downloaded to a scratch folder of its own for Share or Save to Photos. Whoever holds it removes `directory` when done.
+nonisolated struct DownloadedOriginal: Sendable, Identifiable {
+    let fileURL: URL
+    let directory: URL
+    let mimeType: String?
+
+    var id: URL { fileURL }
+
+    func remove() {
+        try? FileManager.default.removeItem(at: directory)
+    }
+}
+
+/// The name a downloaded original is saved under: the server's (the uploaded file's own name, from `Content-Disposition`), made safe for a path, else `photo-<id>` with an extension from the type.
+nonisolated enum OriginalPhotoFile {
+    static func filename(suggested: String?, mimeType: String?, photoId: Int) -> String {
+        let cleaned = (suggested ?? "")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        if !cleaned.isEmpty, !(cleaned as NSString).pathExtension.isEmpty {
+            return cleaned
+        }
+        let ext = fileExtension(mimeType: mimeType)
+        return ext.map { "photo-\(photoId).\($0)" } ?? "photo-\(photoId)"
+    }
+
+    static func fileExtension(mimeType: String?) -> String? {
+        switch mimeType?.lowercased() {
+        case "image/jpeg", "image/jpg": return "jpg"
+        case "image/heic": return "heic"
+        case "image/heif": return "heif"
+        case "image/png": return "png"
+        case "image/gif": return "gif"
+        case "image/webp": return "webp"
+        case "image/tiff": return "tiff"
+        default: return nil
+        }
+    }
+}
+
+/// Reports a download's progress from the task the async API creates.
+private nonisolated final class DownloadProgressDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let report: @Sendable (Double) -> Void
+    private var observation: NSKeyValueObservation?
+
+    init(_ report: @escaping @Sendable (Double) -> Void) {
+        self.report = report
+    }
+
+    func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
+        observation = task.progress.observe(\.fractionCompleted) { [report] progress, _ in
+            report(progress.fractionCompleted)
+        }
+    }
+}
+
+extension APIClient {
+    /// `GET api/photo/{id}/original?download=1` — the bytes as uploaded, never a resized variant. Fetched like a photo, with the token and one refresh-and-retry on a 401, and written to disk rather than held in memory, since an original can be large.
+    func downloadOriginal(photoId: Int, progress: (@Sendable (Double) -> Void)? = nil) async throws -> DownloadedOriginal {
+        guard var components = URLComponents(url: baseURL.appendingPathComponent("api/photo/\(photoId)/original"), resolvingAgainstBaseURL: false) else {
+            throw APIError.invalidURL
+        }
+        components.queryItems = [URLQueryItem(name: "download", value: "1")]
+        guard let url = components.url else { throw APIError.invalidURL }
+
+        await ensureFreshAccessToken()
+        var (fileURL, response) = try await downloadFile(url, progress: progress)
+        if response.statusCode == 401 {
+            try? FileManager.default.removeItem(at: fileURL)
+            _ = try await refreshAccessToken()
+            (fileURL, response) = try await downloadFile(url, progress: progress)
+        }
+        guard (200...299).contains(response.statusCode) else {
+            try? FileManager.default.removeItem(at: fileURL)
+            if response.statusCode == 401 { throw APIError.unauthorized }
+            throw APIError.server(statusCode: response.statusCode, message: nil)
+        }
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("originals", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let name = OriginalPhotoFile.filename(suggested: response.suggestedFilename, mimeType: response.mimeType, photoId: photoId)
+            let destination = directory.appendingPathComponent(name)
+            try FileManager.default.moveItem(at: fileURL, to: destination)
+            return DownloadedOriginal(fileURL: destination, directory: directory, mimeType: response.mimeType)
+        } catch {
+            try? FileManager.default.removeItem(at: fileURL)
+            try? FileManager.default.removeItem(at: directory)
+            throw error
+        }
+    }
+
+    private func downloadFile(_ url: URL, progress: (@Sendable (Double) -> Void)?) async throws -> (URL, HTTPURLResponse) {
+        var request = URLRequest(url: url)
+        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+        addAuthHeaders(to: &request, requiresAuth: true)
+        do {
+            let (fileURL, response) = try await session.download(for: request, delegate: progress.map(DownloadProgressDelegate.init))
+            guard let http = response as? HTTPURLResponse else {
+                try? FileManager.default.removeItem(at: fileURL)
+                throw APIError.invalidResponse
+            }
+            captureTokens(from: http)
+            return (fileURL, http)
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.network(error)
+        }
+    }
+}
