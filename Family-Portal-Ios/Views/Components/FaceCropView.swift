@@ -38,6 +38,9 @@ struct FaceCropView: View {
         }
         .frame(width: size, height: size)
         .clipped()
+        // Clipping only limits drawing. The enlarged, offset image must not
+        // receive taps outside the visible crop (including controls above it).
+        .contentShape(Rectangle())
         .task(id: photoId) {
             guard box.hasArea else { return }
             if let cached = PhotoImageCache.shared.cachedImage(remoteId: photoId, size: .medium) {

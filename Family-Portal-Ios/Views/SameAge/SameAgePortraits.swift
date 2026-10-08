@@ -99,6 +99,8 @@ struct SameAgePortraits: View {
             }
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
+            // Keep the button's entire hit region within this grid cell.
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Copy.sameAge.openPortrait(name, age))
