@@ -13,8 +13,16 @@ struct PhotoFilter: Equatable {
     var dateTo: Date?
     var searchText: String = ""
 
+    /// A key from `ListPhotoPlaces`. Which photos are there is the server's to say (`PhotoBrowseService`), so `apply` is handed the answer.
+    var placeKey: String?
+    /// The place's name, for the summary.
+    var placeName: String = ""
+
+    /// The web's "Show similar photos separately". A way of showing, not a filter: it never counts as one and Clear leaves it.
+    var showsSimilarSeparately = false
+
     var hasPanelFilters: Bool {
-        !personLocalIds.isEmpty || !tagRemoteIds.isEmpty || dateFrom != nil || dateTo != nil
+        !personLocalIds.isEmpty || !tagRemoteIds.isEmpty || dateFrom != nil || dateTo != nil || placeKey != nil
     }
 
     var isActive: Bool {
@@ -26,6 +34,8 @@ struct PhotoFilter: Equatable {
         tagRemoteIds = []
         dateFrom = nil
         dateTo = nil
+        placeKey = nil
+        placeName = ""
     }
 
     var trimmedSearch: String {
@@ -46,15 +56,22 @@ struct PhotoFilter: Equatable {
         return (Self.startOfDay(dateTo), Self.endOfDay(dateFrom))
     }
 
-    func apply(to photos: [Photo]) -> [Photo] {
+    /// `placePhotoIds` is the server's answer for `placeKey`. With a place chosen and no answer, nothing matches: the device can't tell where a photo was taken.
+    func apply(to photos: [Photo], placePhotoIds: Set<Int>? = nil) -> [Photo] {
         guard isActive else { return photos }
 
         let range = normalizedDateRange
         let search = trimmedSearch
-        return photos.filter { matches($0, range: range, search: search) }
+        return photos.filter { matches($0, range: range, search: search, placePhotoIds: placePhotoIds) }
     }
 
-    private func matches(_ photo: Photo, range: (from: Date?, to: Date?), search: String) -> Bool {
+    private func matches(_ photo: Photo, range: (from: Date?, to: Date?), search: String, placePhotoIds: Set<Int>?) -> Bool {
+        if placeKey != nil {
+            guard let placePhotoIds, let id = photo.remoteId.flatMap(Int.init), placePhotoIds.contains(id) else {
+                return false
+            }
+        }
+
         if !personLocalIds.isEmpty {
             guard photo.taggedPeople.contains(where: { personLocalIds.contains($0.id) }) else {
                 return false
@@ -96,6 +113,10 @@ struct PhotoFilter: Equatable {
 
         if !tagRemoteIds.isEmpty {
             parts.append(tagRemoteIds.count == 1 ? "1 tag" : "\(tagRemoteIds.count) tags")
+        }
+
+        if placeKey != nil {
+            parts.append(placeName.isEmpty ? "1 place" : placeName)
         }
 
         let range = normalizedDateRange

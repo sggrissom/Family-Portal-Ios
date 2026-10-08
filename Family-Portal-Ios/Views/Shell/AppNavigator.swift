@@ -43,6 +43,10 @@ enum AppRoute: Hashable {
     case sameAge(ageMonths: Int?, fromRemoteId: Int, view: SameAgeMode = .portraits)
     /// Photos opened from a day's mosaic.
     case photoSet(ids: [UUID], title: String)
+    /// A group of similar shots, by server id, cover first.
+    case similarPhotos(ids: [Int])
+    /// A photo the server returned that this device doesn't hold yet.
+    case remotePhoto(id: Int)
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
     case event(id: Int, name: String)
 
@@ -194,6 +198,10 @@ private struct AppRouteDestination: View {
             SameAgeView(ageMonths: ageMonths, fromRemoteId: fromRemoteId, view: view)
         case .photoSet(let ids, let title):
             PhotoSetView(ids: ids, title: title)
+        case .similarPhotos(let ids):
+            SimilarPhotosView(remoteIds: ids)
+        case .remotePhoto(let id):
+            RemotePhotoDetailView(remoteId: id)
         case .event(let id, let name):
             CompetitionView(eventId: id, eventName: name)
         }

@@ -60,6 +60,8 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     // MARK: - Photos (backend/photos.go)
 
     case listFamilyPhotos = "ListFamilyPhotos"
+    /// Photo counts per place, for the gallery's place filter (backend/places.go).
+    case listPhotoPlaces = "ListPhotoPlaces"
     /// Fetched by the photo page only, for the place and tag suggestions the mirrored list doesn't carry.
     case getPhoto = "GetPhoto"
     case updatePhoto = "UpdatePhoto"

@@ -248,6 +248,29 @@ nonisolated enum Copy {
         static let saveFailed = "Couldn't Save Photo"
     }
 
+    /// Similar-photo groups and place filters on `family-photos.tsx`.
+    enum photoBrowse {
+        static let similarHeading = "Similar photos"
+        static let showSimilar = "Show similar photos separately"
+        static let similarHelp = "Similar shots are grouped by default. Tap a photo’s similar badge to browse the group. Search always shows individual matches."
+        static let similarCaption = "Similar photos taken around the same time"
+        static let placeHeading = "Place"
+        static let anyPlace = "Any place"
+        static let noPlaces = "No photo places yet."
+        static let placesOffline = "Places need a connection."
+        static let placeOffline = "You're offline, and the photos at this place haven't been loaded on this device yet."
+        static let placeFailed = "Couldn't load the photos at this place."
+        static let clearPlace = "Clear Place"
+        static let notSyncedPhoto = "Photo not on this device yet"
+        static let notSyncedNote = "This photo hasn't synced to this device yet, so only the photo itself is shown."
+
+        static func similarTitle(_ n: Int) -> String { "\(n) similar photos" }
+        static func similarBadge(_ n: Int) -> String { "\(n) similar \(n == 1 ? "photo" : "photos")" }
+        static func notSyncedHeading(_ n: Int) -> String {
+            "\(n) more \(n == 1 ? "photo" : "photos") from this place, not on this device yet"
+        }
+    }
+
     /// The web's search box on `family-photos.tsx`.
     enum photoSearch {
         static let prompt = "Search names, places, moments…"

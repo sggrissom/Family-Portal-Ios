@@ -544,6 +544,8 @@ nonisolated struct ListTagsResponseDTO: Codable, Sendable {
 nonisolated struct PhotoWithPeopleDTO: Codable, Sendable {
     let image: ImageDTO
     let people: [PersonDTO]
+    /// With `collapseSimilar`, the other photos in this cover's group of similar shots. Absent otherwise.
+    var similar: [Int]? = nil
 }
 
 nonisolated struct GetPersonResponseDTO: Codable, Sendable {
@@ -636,6 +638,10 @@ nonisolated struct ListFamilyPhotosRequestDTO: Encodable, Sendable {
     var tagIds: [Int]? = nil
     var dateFrom: String? = nil  // "yyyy-MM-dd"
     var dateTo: String? = nil
+    /// A key from `ListPhotoPlaces`.
+    var placeKey: String? = nil
+    /// Lists each group of similar shots as its best photo, with the rest in `similar`. Browsing only; a query ignores it.
+    var collapseSimilar: Bool? = nil
 }
 
 nonisolated struct ListFamilyPhotosResponseDTO: Decodable, Sendable {

@@ -58,6 +58,7 @@ struct RPCMethodTests {
     @Test("Photo proc names match the backend")
     func photoProcNames() {
         #expect(RPCMethod.listFamilyPhotos.rawValue == "ListFamilyPhotos")
+        #expect(RPCMethod.listPhotoPlaces.rawValue == "ListPhotoPlaces")
         #expect(RPCMethod.getPhoto.rawValue == "GetPhoto")
         #expect(RPCMethod.updatePhoto.rawValue == "UpdatePhoto")
         #expect(RPCMethod.deletePhoto.rawValue == "DeletePhoto")
