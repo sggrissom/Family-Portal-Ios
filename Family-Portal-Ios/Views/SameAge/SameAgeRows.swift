@@ -28,27 +28,36 @@ enum SameAgeText {
         .joined(separator: " · ")
     }
 
+    /// Portraits read oldest first, as `portraitOrder` sorts them — the order a family photo wall would hang in.
+    static func portraitOrder(_ rows: [SameAgeRowDTO]) -> [SameAgeRowDTO] {
+        rows.sorted { a, b in
+            a.person.birthday != b.person.birthday ? a.person.birthday < b.person.birthday : a.person.id < b.person.id
+        }
+    }
+
     /// The age a record was actually taken at, which is rarely exactly the row's age.
     static func actualAge(_ row: SameAgeRowDTO, at date: Date) -> String {
         AgeSteps.ageTitle(AgeSteps.monthsOld(birthday: row.person.birthday, at: date))
     }
 }
 
-/// One row per person who has reached the age: when, measurements, the nearest photos and milestones, each with the age it actually happened. A person with nothing collapses to one line.
+/// One row per person who has reached the age: when, measurements, the nearest photos and milestones, each with the age it actually happened. A person with nothing collapses to one line, or is left out with `hideEmpty` — the browse page counts them instead.
 /// Links resolve server ids against the store and use destination links, so the rows work inside a record's sheet as well as on a tab.
 struct SameAgeRows: View {
     let rows: [SameAgeRowDTO]
     let ageMonths: Int
     var photoLimit = 6
+    var hideEmpty = false
 
     @Query private var people: [Person]
     @Query private var photos: [Photo]
     @Query private var milestones: [Milestone]
 
     var body: some View {
+        // Names are told apart across everyone, before the empty rows go: two Alexes stay distinguishable when only one has records at this age.
         let labels = FamilyGroups.chipLabels(rows.compactMap { localPerson($0.person.id) })
         VStack(alignment: .leading, spacing: 14) {
-            ForEach(rows) { row in
+            ForEach(hideEmpty ? rows.filter { !$0.isEmpty } : rows) { row in
                 let name = localPerson(row.person.id).flatMap { labels[$0.id] } ?? row.person.name
                 if row.isEmpty {
                     HStack {
@@ -155,7 +164,7 @@ struct SameAgeStrip: View {
                 if !(hideWhenEmpty && others.isEmpty) {
                     ContextSection(Copy.sameAge.atThisAge(AgeSteps.ageTitle(response.ageMonths)), kind: .sameAge) {
                         NavigationLink {
-                            SameAgeView(ageMonths: response.ageMonths, fromRemoteId: response.fromPersonId)
+                            SameAgeView(ageMonths: response.ageMonths, fromRemoteId: response.fromPersonId, view: .details)
                         } label: {
                             Text(Copy.sameAge.seeAll)
                                 .font(.subheadline)

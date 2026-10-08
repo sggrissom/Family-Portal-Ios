@@ -54,6 +54,31 @@ struct AgeStepsTests {
         #expect(AgeSteps.sameAgePath(ageMonths: nil, fromPersonId: 0) == "/same-age")
     }
 
+    @Test("Details is written into the link; Portraits, the default, is not")
+    func writesView() {
+        #expect(AgeSteps.sameAgePath(ageMonths: 0, fromPersonId: 7, view: .details) == "/same-age?age=0m&from=7&view=details")
+        #expect(AgeSteps.sameAgePath(ageMonths: 0, fromPersonId: 7, view: .portraits) == "/same-age?age=0m&from=7")
+    }
+
+    @Test("Younger and Older find the nearest age with records, and nothing past either end")
+    func nearbyAge() {
+        let ages = [0, 3, 12, 48]
+        #expect(AgeSteps.nearbyAge(in: ages, from: 12, direction: -1) == 3)
+        #expect(AgeSteps.nearbyAge(in: ages, from: 12, direction: 1) == 48)
+        // An explicitly chosen empty age still steps to its neighbours.
+        #expect(AgeSteps.nearbyAge(in: ages, from: 20, direction: -1) == 12)
+        #expect(AgeSteps.nearbyAge(in: ages, from: 20, direction: 1) == 48)
+        #expect(AgeSteps.nearbyAge(in: ages, from: 0, direction: -1) == nil)
+        #expect(AgeSteps.nearbyAge(in: ages, from: 48, direction: 1) == nil)
+        #expect(AgeSteps.nearbyAge(in: [], from: 6, direction: 1) == nil)
+    }
+
+    @Test("The heading names newborns as newborns")
+    func heading() {
+        #expect(AgeSteps.ageHeading(0) == "Everyone as newborns")
+        #expect(AgeSteps.ageHeading(36) == "Everyone at 3 years")
+    }
+
     @Test("The age is spelled out")
     func titles() {
         #expect(AgeSteps.ageTitle(40) == "3 years 4 months")

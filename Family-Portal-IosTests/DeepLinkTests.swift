@@ -22,6 +22,9 @@ struct DeepLinkTests {
         ("/same-age?age=40m&from=7", DeepLink.sameAge(ageMonths: 40, from: 7)),
         ("/same-age", DeepLink.sameAge(ageMonths: nil, from: 0)),
         ("/compare", DeepLink.sameAge(ageMonths: nil, from: 0)),
+        ("/same-age?age=40m&from=7&view=details", DeepLink.sameAge(ageMonths: 40, from: 7, view: .details)),
+        ("/same-age?view=portraits", DeepLink.sameAge(ageMonths: nil, from: 0, view: .portraits)),
+        ("/same-age?view=nonsense", DeepLink.sameAge(ageMonths: nil, from: 0, view: .portraits)),
         ("/profile/7", DeepLink.person(remoteId: 7)),
         ("/profile/7?tab=growth", DeepLink.person(remoteId: 7, tab: .growth)),
         // Legacy: a person's activities are now a tab of their page.

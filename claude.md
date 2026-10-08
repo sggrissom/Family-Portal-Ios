@@ -34,8 +34,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  on this day, recent)
 │   ├── History/       HistoryView (day summaries by month)
 │   ├── Growth/        GrowthRootView (family age chart)
-│   ├── SameAge/       SameAgeView, SameAgeMontage, SameAgeRows (+ strips),
-│   │                  SameAgeLoader
+│   ├── SameAge/       SameAgeView, SameAgePortraits, SameAgeRows (+ strips),
+│   │                  SameAgeLoader (+ SameAgeCache, SameAgeBrowser)
 │   ├── Auth/          LoginView, CreateAccountView, ForgotPasswordView,
 │   │                  UpdateRequiredView
 │   ├── Family/        AddPersonView, EditPersonView, PersonDetailView,
@@ -453,6 +453,15 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   `MeasurementType`. Three views had grown their own copy of those switches
 - `Person.age(on:)` (in `AgeCalculator.swift`) is how both sheets say how old
   somebody was on the day the record is dated
+
+### Same age (`Views/SameAge/`)
+
+The web's `/same-age` (`same-age.tsx`, `SameAgePortraits`, `sameAgeNavigation.ts`) and the strips under records.
+
+- Two views, **Portraits** (the default, faces oldest first, tapping one opens the whole photo with Another photo) and **Details** (rows with records, the rest counted). `?view=details` rides on `DeepLink.sameAge` and `AppRoute.sameAge`; strips' "See everything" opens Details
+- Only the browse page sends `includeAvailableAges` — it makes the server scan the photo history. Strips never do. The answer's `availableAges`/`portraitAges` are what Younger/Older step through (per view) and what the age list counts; they are kept from the first load while later steps ask lightweight. A server without them (keys absent → nil, unlike a `null` list) falls back to stepping the age grid and the wheel picker
+- A direct visit (no age, no person) lets the server pick the starting age; a link's age is kept even when empty. The newborn window is the server's
+- `SameAgeBrowser` tracks the chosen age apart from the answer on screen and drops any answer that a newer choice has superseded. `SameAgeCache` keys on the request including the day and whether it discovered; a discovering answer also fills the lightweight key for its answered age, never the reverse
 
 ### Permissions (`FamilyAccess`)
 

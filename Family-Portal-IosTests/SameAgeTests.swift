@@ -96,8 +96,22 @@ struct SameAgeTests {
         #expect(try montageRow(id: 5, portraits: nil).portraits.isEmpty)
     }
 
-    @Test("The gap line names who has no photo")
-    func noPhotoCopy() {
-        #expect(Copy.sameAge.noPhoto("Mia, Ben") == "No photo near this age: Mia, Ben")
+    @Test("Portraits read oldest first")
+    func portraitOrder() throws {
+        let rows = try [
+            APIClient.decode(SameAgeRowDTO.self, from: Fixture.data(["person": Fixture.person(id: 5, birthday: "2021-01-01T00:00:00Z"), "date": "2021-07-01T00:00:00Z", "milestones": [], "photoIds": []])),
+            APIClient.decode(SameAgeRowDTO.self, from: Fixture.data(["person": Fixture.person(id: 4, birthday: "2018-03-01T00:00:00Z"), "date": "2018-09-01T00:00:00Z", "milestones": [], "photoIds": []])),
+        ]
+        #expect(SameAgeText.portraitOrder(rows).map(\.id) == [4, 5])
+    }
+
+    @Test("The empty and missing-photo lines name newborns as newborns")
+    func portraitCopy() {
+        #expect(Copy.sameAge.noPortraits("Newborn") == "No newborn photos yet.")
+        #expect(Copy.sameAge.noPortraits("3 years") == "No photos from around 3 years yet.")
+        #expect(Copy.sameAge.missingPhotos("Newborn", 1) == "No newborn photo for 1 person")
+        #expect(Copy.sameAge.missingPhotos("6 months", 2) == "No 6 months photo for 2 people")
+        #expect(Copy.sameAge.peopleWithRecords(1) == "1 person has records")
+        #expect(Copy.sameAge.missingRecords(3) == "3 other people have no records near this age.")
     }
 }

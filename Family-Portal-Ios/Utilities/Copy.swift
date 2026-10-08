@@ -153,17 +153,55 @@ nonisolated enum Copy {
         static let seeAll = "See everything at this age →"
         static let nobodyElse = "Nobody else has anything from this age yet."
         static let empty = "Add birthdays to compare everyone at the same age."
-        static let sideBySide = "Side by side"
         static let viewPhoto = "View photo"
         static let anotherPhoto = "Another photo"
+        static let views = "View"
+        static let portraits = "Portraits"
+        static let details = "Details"
+        static let shortcuts = "Common ages"
+        static let chooseAge = "Choose an age"
+        static let newbornHelp = "Newborn means from birth through day 27."
+        static let retry = "Try again"
+        static let loadFailed = "Could not load records. Please try again."
+        static let offline = "You're offline, and this age hasn't been opened yet."
+        static let onlyOne = "Try another age to compare more people."
+        static let noSavedRecords = "No photos, milestones or measurements to compare yet. Add records to a family member’s profile to get started."
+        static let nothingAtAge = "No saved records near this age. Try another age."
+        static let tryAnotherAge = "Pick another age above, or see Details for other records."
+        static let openPhotoPage = "Open photo page"
+        static let close = "Close"
 
         static func atThisAge(_ age: String) -> String {
             age == "Newborn" ? "At birth" : "At \(age)"
         }
 
-        static func noPhoto(_ names: String) -> String {
-            "No photo near this age: \(names)"
+        static func pictured(_ n: Int) -> String { "\(n) pictured" }
+        static func withRecords(_ n: Int) -> String { "\(n) with records" }
+        static func loading(_ age: String) -> String { "Loading \(age)…" }
+
+        static func peopleWithRecords(_ n: Int) -> String {
+            "\(n) \(n == 1 ? "person has" : "people have") records"
         }
+
+        static func missingRecords(_ n: Int) -> String {
+            "\(n) other \(n == 1 ? "person has" : "people have") no records near this age."
+        }
+
+        static func noPortraits(_ age: String) -> String {
+            age == "Newborn" ? "No newborn photos yet." : "No photos from around \(age) yet."
+        }
+
+        static func onlyPictured(_ name: String) -> String {
+            "Only \(name) has a photo at this age so far."
+        }
+
+        static func missingPhotos(_ age: String, _ n: Int) -> String {
+            "No \(age == "Newborn" ? "newborn" : age) photo for \(n) \(n == 1 ? "person" : "people")"
+        }
+
+        static func openPortrait(_ name: String, _ age: String) -> String { "\(name), \(age): open photo" }
+        static func photoOf(_ name: String) -> String { "Photo of \(name)" }
+        static func photoCount(_ i: Int, _ n: Int) -> String { "Photo \(i) of \(n)" }
     }
 
     /// The web's search box on `family-photos.tsx`.

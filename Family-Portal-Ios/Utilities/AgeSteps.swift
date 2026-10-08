@@ -49,12 +49,26 @@ nonisolated enum AgeSteps {
         return (years ?? 0) * 12 + (months ?? 0)
     }
 
-    /// The same-age link's path, as `sameAgePath` writes it.
-    static func sameAgePath(ageMonths: Int?, fromPersonId: Int) -> String {
+    /// The same-age link's path, as `sameAgePath` writes it. Portraits is the page's default, so only Details is written.
+    static func sameAgePath(ageMonths: Int?, fromPersonId: Int, view: SameAgeMode = .portraits) -> String {
         var items: [String] = []
         if let ageMonths, ageMonths >= 0 { items.append("age=\(ageMonths)m") }
         if fromPersonId > 0 { items.append("from=\(fromPersonId)") }
+        if view == .details { items.append("view=details") }
         return items.isEmpty ? "/same-age" : "/same-age?" + items.joined(separator: "&")
+    }
+
+    /// The common ages the page offers as one-tap shortcuts, as `AGE_SHORTCUTS`.
+    static let shortcuts = [0, 3, 6, 12]
+
+    /// The nearest age in `ages` strictly younger (`direction` -1) or older (+1) than `current`; nil at either end. `nearbyRecordedAge`.
+    static func nearbyAge(in ages: [Int], from current: Int, direction: Int) -> Int? {
+        direction < 0 ? ages.filter { $0 < current }.max() : ages.filter { $0 > current }.min()
+    }
+
+    /// "Everyone as newborns", "Everyone at 3 years" — `ageHeading`.
+    static func ageHeading(_ ageMonths: Int) -> String {
+        ageMonths <= 0 ? "Everyone as newborns" : "Everyone at \(ageTitle(ageMonths))"
     }
 
     /// "3 years 4 months", "8 months", "Newborn".
@@ -97,5 +111,15 @@ nonisolated enum AgeSteps {
         if days <= 0 { return ageTitle(months) }
         let d = days == 1 ? "1 day" : "\(days) days"
         return months == 0 ? d : "\(ageTitle(months)), \(d)"
+    }
+}
+
+/// The browse page's two views: faces side by side, or every record. The raw value is the link's `?view=`.
+nonisolated enum SameAgeMode: String, Hashable, CaseIterable, Sendable {
+    case portraits, details
+
+    /// Anything but `details` is Portraits, as `parseViewParam` reads it.
+    init(param: String?) {
+        self = param == "details" ? .details : .portraits
     }
 }

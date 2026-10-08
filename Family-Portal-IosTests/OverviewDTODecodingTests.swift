@@ -162,6 +162,40 @@ struct OverviewDTODecodingTests {
         #expect(response.rows[0].photoIds == [1, 2])
         #expect(response.rows[0].isEmpty == false)
         #expect(response.rows[1].isEmpty)
+        // A server that predates discovery: unknown, not "no ages".
+        #expect(response.availableAges == nil)
+        #expect(response.portraitAges == nil)
+        #expect(response.peopleCount == nil)
+    }
+
+    @Test("Discovered ages decode with their counts, and a null list is an empty one")
+    func sameAgeDiscovery() throws {
+        let response = try decode(GetSameAgeResponseDTO.self, [
+            "ageMonths": 3,
+            "fromPersonId": 4,
+            "maxAgeMonths": 120,
+            "peopleCount": 3,
+            "availableAges": [["ageMonths": 0, "peopleCount": 2], ["ageMonths": 3, "peopleCount": 3]],
+            "portraitAges": NSNull(),
+            "rows": [],
+        ])
+        #expect(response.availableAges == [SameAgeOptionDTO(ageMonths: 0, peopleCount: 2), SameAgeOptionDTO(ageMonths: 3, peopleCount: 3)])
+        #expect(response.portraitAges == [])
+        #expect(response.peopleCount == 3)
+    }
+
+    @Test("A row with only a portrait has records")
+    func portraitOnlyRow() throws {
+        let row = try decode(SameAgeRowDTO.self, [
+            "person": Fixture.person(id: 4),
+            "date": "2019-12-04T00:00:00Z",
+            "height": NSNull(),
+            "weight": NSNull(),
+            "milestones": [],
+            "photoIds": [],
+            "portraits": [["photoId": 9, "box": ["left": 0.3, "top": 0.2, "right": 0.7, "bottom": 0.6], "date": "2019-12-04T00:00:00Z", "ageMonths": 3, "year": 2019]],
+        ])
+        #expect(row.isEmpty == false)
     }
 
     @Test("A missing age is sent as null, and birth as zero")
@@ -172,6 +206,17 @@ struct OverviewDTODecodingTests {
 
         let birth = try encodeObject(GetSameAgeRequestDTO(ageMonths: 0, fromPersonId: 4, today: "2026-09-27"))
         #expect(birth["ageMonths"] as? Int == 0)
+        // A strip's request is the body it always was.
+        #expect(birth["includeAvailableAges"] == nil)
+        #expect(birth["details"] == nil)
+    }
+
+    @Test("The browse page asks for discovery, and for Details only when it is showing")
+    func sameAgeDiscoveryRequest() throws {
+        let browse = try encodeObject(GetSameAgeRequestDTO(ageMonths: nil, fromPersonId: 0, today: "2026-09-27", includeAvailableAges: true, details: true))
+        #expect(browse["includeAvailableAges"] as? Bool == true)
+        #expect(browse["details"] as? Bool == true)
+        #expect(browse["ageMonths"] is NSNull)
     }
 
     // MARK: - GetFamilyTimeline
