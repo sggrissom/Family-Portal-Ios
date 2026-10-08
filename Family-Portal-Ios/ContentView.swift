@@ -106,9 +106,9 @@ struct ContentView: View {
         case .growth:
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([], on: .growth)
-        case .sameAge(let ageMonths, let from):
+        case .sameAge(let ageMonths, let from, let view):
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.sameAge(ageMonths: ageMonths, fromRemoteId: from)])
+            navigator.show([.sameAge(ageMonths: ageMonths, fromRemoteId: from, view: view)])
         case .chat:
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.chat])

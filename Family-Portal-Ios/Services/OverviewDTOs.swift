@@ -12,12 +12,15 @@ nonisolated struct TodayRequestDTO: Encodable, Sendable {
 }
 
 /// `ageMonths` nil starts from the person's current age — or, with no person, the youngest own child's. 0 is birth, not "unset", so it is encoded explicitly.
-nonisolated struct GetSameAgeRequestDTO: Encodable, Sendable {
+/// `includeAvailableAges` is for the full browse page only: it makes the server scan the family's photo history for the ages worth offering, which a record's strip has no use for. With it and neither an age nor a person, the server starts at the richest comparison — by portraits, or by every record when `details` is set.
+nonisolated struct GetSameAgeRequestDTO: Encodable, Sendable, Hashable {
     let ageMonths: Int?
     let fromPersonId: Int
     let today: String
+    var includeAvailableAges = false
+    var details = false
 
-    private enum CodingKeys: String, CodingKey { case ageMonths, fromPersonId, today }
+    private enum CodingKeys: String, CodingKey { case ageMonths, fromPersonId, today, includeAvailableAges, details }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
@@ -28,6 +31,9 @@ nonisolated struct GetSameAgeRequestDTO: Encodable, Sendable {
         }
         try container.encode(fromPersonId, forKey: .fromPersonId)
         try container.encode(today, forKey: .today)
+        // The Go tags' `omitempty`: a strip's request is the same body it always was.
+        if includeAvailableAges { try container.encode(true, forKey: .includeAvailableAges) }
+        if details { try container.encode(true, forKey: .details) }
     }
 }
 
@@ -207,8 +213,9 @@ nonisolated struct SameAgeRowDTO: Decodable, Sendable, Identifiable {
 
     var id: Int { person.id }
 
+    /// Nothing at this age — the web's `!hasSameAgeRecords`.
     var isEmpty: Bool {
-        height == nil && weight == nil && milestones.isEmpty && photoIds.isEmpty
+        height == nil && weight == nil && milestones.isEmpty && photoIds.isEmpty && portraits.isEmpty
     }
 
     private enum CodingKeys: String, CodingKey { case person, date, height, weight, milestones, photoIds, portraits }
@@ -225,6 +232,25 @@ nonisolated struct SameAgeRowDTO: Decodable, Sendable, Identifiable {
     }
 }
 
+/// An age worth offering, and how many people have something there.
+nonisolated struct SameAgeOptionDTO: Decodable, Sendable, Equatable {
+    let ageMonths: Int
+    let peopleCount: Int
+
+    init(ageMonths: Int, peopleCount: Int) {
+        self.ageMonths = ageMonths
+        self.peopleCount = peopleCount
+    }
+
+    private enum CodingKeys: String, CodingKey { case ageMonths, peopleCount }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ageMonths = try container.decode(Int.self, forKey: .ageMonths)
+        peopleCount = try container.decodeIfPresent(Int.self, forKey: .peopleCount) ?? 0
+    }
+}
+
 nonisolated struct GetSameAgeResponseDTO: Decodable, Sendable {
     /// The age answered for — the request's, or the one the server chose when it sent none.
     let ageMonths: Int
@@ -234,8 +260,14 @@ nonisolated struct GetSameAgeResponseDTO: Decodable, Sendable {
     let maxAgeMonths: Int
     /// Anchor first. Only people who have reached the age.
     let rows: [SameAgeRowDTO]
+    /// Ages with any record — photo, milestone or measurement — on the age grid, ascending. Filled only when the request asked for discovery; a server that predates discovery leaves the key out, which decodes as nil rather than as "no ages".
+    let availableAges: [SameAgeOptionDTO]?
+    /// Ages with a photo, for Portraits. Nil exactly as `availableAges` is.
+    let portraitAges: [SameAgeOptionDTO]?
+    /// Everyone with a birthday who could be compared. Nil from a server that predates it.
+    let peopleCount: Int?
 
-    private enum CodingKeys: String, CodingKey { case ageMonths, fromPersonId, maxAgeMonths, rows }
+    private enum CodingKeys: String, CodingKey { case ageMonths, fromPersonId, maxAgeMonths, rows, availableAges, portraitAges, peopleCount }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -243,6 +275,10 @@ nonisolated struct GetSameAgeResponseDTO: Decodable, Sendable {
         fromPersonId = try container.decodeIfPresent(Int.self, forKey: .fromPersonId) ?? 0
         maxAgeMonths = try container.decodeIfPresent(Int.self, forKey: .maxAgeMonths) ?? 0
         rows = try container.decodeList(SameAgeRowDTO.self, forKey: .rows)
+        // Present-but-null is Go's nil slice, an empty list; only a missing key means an older server.
+        availableAges = container.contains(.availableAges) ? try container.decodeList(SameAgeOptionDTO.self, forKey: .availableAges) : nil
+        portraitAges = container.contains(.portraitAges) ? try container.decodeList(SameAgeOptionDTO.self, forKey: .portraitAges) : nil
+        peopleCount = try container.decodeIfPresent(Int.self, forKey: .peopleCount)
     }
 }
 

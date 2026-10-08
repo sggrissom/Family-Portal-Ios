@@ -12,12 +12,12 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case history
     /// `/growth`, and the legacy `/family-chart`.
     case growth
-    /// `/same-age?age=40m&from=7`, and the legacy `/compare`. `ageMonths` nil is the anchor's current age; `from` 0 lets the server choose.
-    case sameAge(ageMonths: Int?, from: Int)
+    /// `/same-age?age=40m&from=7&view=details`, and the legacy `/compare`. `ageMonths` nil is the anchor's current age; `from` 0 lets the server choose; `view` absent is Portraits.
+    case sameAge(ageMonths: Int?, from: Int, view: SameAgeMode = .portraits)
     /// `/profile/<serverId>?tab=` — the id the server knows them by, not the local `UUID`; resolving one to the other is the router's job and can fail. `tab` nil is the person's Story.
     case person(remoteId: Int, tab: PersonTab? = nil)
 
-    /// Parses a site-relative path. The fragment is ignored, and the query only where a destination reads one (`/profile`'s `tab`).
+    /// Parses a site-relative path. The fragment is ignored, and the query only where a destination reads one (`/profile`'s `tab`, `/same-age`'s `age`, `from` and `view`).
     static func parse(path rawPath: String) -> DeepLink? {
         let withoutFragment = rawPath.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]
         let halves = withoutFragment.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
@@ -45,7 +45,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
         case "same-age" where segments.count == 1, "compare" where segments.count == 1:
             return .sameAge(
                 ageMonths: AgeSteps.parseAgeParam(queryValue("age", in: query)),
-                from: queryValue("from", in: query).flatMap(Int.init) ?? 0
+                from: queryValue("from", in: query).flatMap(Int.init) ?? 0,
+                view: SameAgeMode(param: queryValue("view", in: query))
             )
         case "profile" where segments.count == 2:
             return Int(segments[1]).map { DeepLink.person(remoteId: $0, tab: queryValue("tab", in: query).flatMap(PersonTab.init(rawValue:))) }
