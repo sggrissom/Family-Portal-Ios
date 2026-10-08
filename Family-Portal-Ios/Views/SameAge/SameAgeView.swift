@@ -219,8 +219,10 @@ private struct ShortcutButtonStyle: ButtonStyle {
             .font(.subheadline.weight(isOn ? .semibold : .regular))
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+            .frame(minHeight: 44)
             .foregroundStyle(isOn ? Color.white : Color.primary)
             .background(isOn ? Color.accentColor : Color(.secondarySystemFill), in: Capsule())
+            .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
