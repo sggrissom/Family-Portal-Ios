@@ -107,6 +107,10 @@ struct SettingsView: View {
                 }
             }
 
+            if authService.isAuthenticated {
+                NotificationSettingsSection()
+            }
+
             Section("About") {
                 HStack {
                     Text("Version")

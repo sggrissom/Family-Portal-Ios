@@ -163,4 +163,10 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case assignFaces = "AssignFaces"
     case rejectFaces = "RejectFaces"
     case dismissFaces = "DismissFaces"
+
+    // MARK: - Notification preferences (backend/notification_preferences.go)
+    // Account settings, not device ones: online only and never queued, since a change means nothing until the server holds it.
+
+    case getNotificationPreferences = "GetNotificationPreferences"
+    case updateNotificationPreferences = "UpdateNotificationPreferences"
 }

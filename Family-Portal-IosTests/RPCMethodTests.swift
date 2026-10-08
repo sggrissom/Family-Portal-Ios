@@ -155,6 +155,12 @@ struct RPCMethodTests {
         #expect(RPCMethod.dismissFaces.rawValue == "DismissFaces")
     }
 
+    @Test("Notification preference proc names match the backend")
+    func notificationProcNames() {
+        #expect(RPCMethod.getNotificationPreferences.rawValue == "GetNotificationPreferences")
+        #expect(RPCMethod.updateNotificationPreferences.rawValue == "UpdateNotificationPreferences")
+    }
+
     @Test("Every proc name is distinct and non-empty")
     func procNamesAreDistinct() {
         let names = RPCMethod.allCases.map(\.rawValue)

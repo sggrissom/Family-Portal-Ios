@@ -217,6 +217,24 @@ nonisolated enum Copy {
         static func photoCount(_ i: Int, _ n: Int) -> String { "Photo \(i) of \(n)" }
     }
 
+    /// Settings' Notifications section — the web's on `settings.tsx`, plus what only the phone can say: whether iOS lets them through.
+    enum notifications {
+        static let title = "Notifications"
+        static let accountNote = "These follow your account, not this iPhone, so they apply on every device you sign in on."
+        static let chat = "Chat messages"
+        static let chatDetail = "Notify me when someone in my family sends a message while I am away from the app."
+        static let showText = "Show message text on the lock screen"
+        static let showTextDetail = "Off by default: a notification says only that a message arrived, and you see who sent it and what it says after unlocking. Turn this on to show the sender and the message itself on the lock screen."
+        static let saved = "Notification settings saved."
+        static let saveFailed = "Could not save your notification settings."
+        static let offline = "You're offline. Notification settings change on the server, so connect to change them."
+        static let loadFailed = "Couldn't load your notification settings."
+        static let retry = "Try Again"
+        static let systemOff = "Notifications are turned off for Family Record in iOS Settings, so none will arrive on this iPhone whatever is chosen here."
+        static let systemNotAsked = "This iPhone hasn't been asked to allow notifications yet."
+        static let openSystemSettings = "Open iOS Settings"
+    }
+
     /// The photo page's original-photo actions — the web's "Download original" on `view-photo.tsx`.
     enum originalPhoto {
         static let menu = "Share or save original"
