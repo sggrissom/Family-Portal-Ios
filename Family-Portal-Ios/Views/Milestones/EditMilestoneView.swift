@@ -6,6 +6,7 @@ struct EditMilestoneView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService: SyncService?
     @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
 
     let milestone: Milestone
 
@@ -16,6 +17,8 @@ struct EditMilestoneView: View {
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var didSeedSelection = false
     @State private var artwork: [PickedArtwork] = []
+    /// `SuggestMilestonePhotos`' answer, as server ids, best first. Offered, never attached until tapped.
+    @State private var suggestedPhotoRemoteIds: [Int] = []
 
     /// Every photo in the store, so an attachment made elsewhere can be matched back to a local record — see `milestonePhotoChoices`.
     @Query private var allPhotos: [Photo]
@@ -40,6 +43,19 @@ struct EditMilestoneView: View {
     private var attachedChoices: [Photo] {
         let attached = Set(milestone.photoRemoteIds)
         return photoChoices.filter { photo in photo.remoteId.flatMap(Int.init).map { attached.contains($0) } ?? false }
+    }
+
+    /// What the milestone had attached when the editor opened. Not suggested again: they are in the picker already.
+    private var originallyAttached: Set<Int> { Set(milestone.photoRemoteIds) }
+
+    private var suggestedPhotos: [Photo] {
+        MilestonePhotoSuggestions.offered(suggestedPhotoRemoteIds, choices: photoChoices, alreadyAttached: originallyAttached)
+    }
+
+    /// What the suggestions depend on. A change restarts the lookup after a pause, so typing settles first and an answer for older words is never shown.
+    private var lookupKey: String {
+        let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [milestone.person?.remoteId ?? "-", text, dateToAPIString(date.localRecordDay()), String(network?.isConnected ?? true)].joined(separator: "|")
     }
 
     var body: some View {
@@ -72,6 +88,12 @@ struct EditMilestoneView: View {
                     ArtworkPhotosSection(picked: $artwork)
                 }
 
+                if !suggestedPhotos.isEmpty {
+                    Section(Copy.milestone.photosAroundThen) {
+                        SuggestedPhotosRow(photos: suggestedPhotos, selection: $selectedPhotoIds)
+                    }
+                }
+
                 MilestonePhotosSection(
                     photos: photoChoices,
                     emptyDescription: "Tag \(milestone.person?.name ?? "this person") in a photo to attach it to a milestone.",
@@ -83,6 +105,9 @@ struct EditMilestoneView: View {
                 guard !didSeedSelection else { return }
                 didSeedSelection = true
                 selectedPhotoIds = Set(attachedChoices.map(\.id))
+            }
+            .task(id: lookupKey) {
+                await lookUpSuggestions()
             }
             .navigationTitle("Edit Milestone")
             .navigationBarTitleDisplayMode(.inline)
@@ -99,6 +124,29 @@ struct EditMilestoneView: View {
                     .disabled(!isValid)
                 }
             }
+        }
+    }
+
+    /// Photos of the person from around the milestone's date. Waits for the inputs to settle; a newer key cancels this one. Offline, or on any failure, the row empties and the selection is left exactly as it was.
+    private func lookUpSuggestions() async {
+        try? await Task.sleep(for: .milliseconds(600))
+        guard !Task.isCancelled else { return }
+
+        let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard network?.isConnected ?? true,
+              let personId = milestone.person?.remoteId.flatMap(Int.init),
+              text.count >= 3 else {
+            suggestedPhotoRemoteIds = []
+            return
+        }
+        let ids = await AnalysisService.shared.suggestMilestonePhotos(
+            personId: personId,
+            description: text,
+            date: date.localRecordDay(),
+            excludeIds: Array(originallyAttached)
+        )
+        if !Task.isCancelled {
+            suggestedPhotoRemoteIds = ids
         }
     }
 

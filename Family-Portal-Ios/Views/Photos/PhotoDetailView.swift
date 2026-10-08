@@ -232,6 +232,12 @@ private struct PhotoDetailContent: View {
         .task(id: photo.remoteId) {
             await loadDetails()
         }
+        // Anyone who can see the photo can take a copy of it, view-only members included, as on the web.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                OriginalPhotoMenu(photo: photo)
+            }
+        }
     }
 
     // MARK: - Analysis

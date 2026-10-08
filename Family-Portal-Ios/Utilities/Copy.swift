@@ -217,6 +217,19 @@ nonisolated enum Copy {
         static func photoCount(_ i: Int, _ n: Int) -> String { "Photo \(i) of \(n)" }
     }
 
+    /// The photo page's original-photo actions — the web's "Download original" on `view-photo.tsx`.
+    enum originalPhoto {
+        static let menu = "Share or save original"
+        static let share = "Share Original"
+        static let save = "Save to Photos"
+        static let cancel = "Cancel download"
+        static let saved = "Saved to Photos"
+        static let notUploaded = "The original can be shared once this photo has uploaded."
+        static let offline = "You're offline. The original photo downloads from the server."
+        static let shareFailed = "Couldn't Share Photo"
+        static let saveFailed = "Couldn't Save Photo"
+    }
+
     /// The web's search box on `family-photos.tsx`.
     enum photoSearch {
         static let prompt = "Search names, places, moments…"

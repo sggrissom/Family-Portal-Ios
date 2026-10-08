@@ -121,7 +121,7 @@ struct AddMilestoneView: View {
 
                 if !suggestedPhotos.isEmpty {
                     Section(Copy.milestone.photosAroundThen) {
-                        suggestedPhotoRow
+                        SuggestedPhotosRow(photos: suggestedPhotos, selection: $selectedPhotoIds)
                     }
                 }
 
@@ -183,44 +183,6 @@ struct AddMilestoneView: View {
                 }
                 isTextFocused = true
             }
-        }
-    }
-
-    private var suggestedPhotoRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(suggestedPhotos) { photo in
-                    let selected = selectedPhotoIds.contains(photo.id)
-                    Button {
-                        if selected {
-                            selectedPhotoIds.remove(photo.id)
-                        } else {
-                            selectedPhotoIds.insert(photo.id)
-                        }
-                    } label: {
-                        RemotePhotoView(remoteId: photo.remoteId.flatMap(Int.init) ?? 0, size: .thumb)
-                            .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .overlay(alignment: .topTrailing) {
-                                if selected {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.title3)
-                                        .symbolRenderingMode(.palette)
-                                        .foregroundStyle(.white, Color.accentColor)
-                                        .padding(4)
-                                }
-                            }
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 3)
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(selected ? Copy.milestone.detachPhoto : Copy.milestone.attachPhoto)
-                    .accessibilityAddTraits(selected ? .isSelected : [])
-                }
-            }
-            .padding(.vertical, 4)
         }
     }
 
