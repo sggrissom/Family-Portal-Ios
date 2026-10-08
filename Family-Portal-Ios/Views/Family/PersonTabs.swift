@@ -514,6 +514,8 @@ extension PersonPhotosTab {
                 .lineLimit(1)
         }
         .frame(width: 76)
+        // Bound the whole link, including its caption, to this timeline item.
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(label)
 
@@ -523,7 +525,12 @@ extension PersonPhotosTab {
             }
             .buttonStyle(.plain)
         } else {
-            content
+            // Insights can arrive before the local photo mirror or its person
+            // relationship. Keep the portrait usable through the server route.
+            NavigationLink(value: AppRoute.remotePhoto(id: portrait.photoId)) {
+                content
+            }
+            .buttonStyle(.plain)
         }
     }
 
