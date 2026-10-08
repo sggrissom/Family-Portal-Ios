@@ -8,6 +8,7 @@ struct ContentView: View {
 
     @Environment(AppNavigator.self) private var navigator
     @Environment(AddFlow.self) private var addFlow
+    @Environment(ChatService.self) private var chatService: ChatService?
 
     @Query private var people: [Person]
 
@@ -37,7 +38,7 @@ struct ContentView: View {
         .accessibilityLabel("Restoring your session")
     }
 
-    /// Home · Photos · **+** · Growth — the web's phone bar without Chat, which lives in the account menu.
+    /// Home · Photos · **+** · Growth · More — the web's phone bar. More holds History, Books, Same age, Activities and Chat; the account menu keeps only the account's own controls.
     /// **+** is a tab only so it sits in the bar: selecting it presents the add sheet and leaves the previous tab selected, because the binding never lets the selection become `.add`.
     private var mainTabs: some View {
         let selection = Binding<MainTab>(
@@ -73,6 +74,12 @@ struct ContentView: View {
             TabRoot(tab: .growth) { GrowthRootView() }
                 .tabItem { Label(Copy.nav.growth, systemImage: "chart.line.uptrend.xyaxis") }
                 .tag(MainTab.growth)
+
+            // Unread chat badges the tab that holds Chat, so a new message is visible from anywhere.
+            TabRoot(tab: .more) { MoreView() }
+                .tabItem { Label(Copy.nav.more, systemImage: "ellipsis") }
+                .badge(chatService?.unreadCount ?? 0)
+                .tag(MainTab.more)
         }
         .addFlowPresentation(addFlow)
         // Both, because a link can arrive before the tabs exist — a cold launch from a tapped notification — or while they are already on screen.
@@ -89,7 +96,7 @@ struct ContentView: View {
         .onChange(of: people.count) { _, _ in openPendingLink() }
     }
 
-    /// Every link is routed here, in one place. Tab roots are selected; History, Chat and Settings are pushed onto the current tab, as the account menu pushes them.
+    /// Every link is routed here, in one place. Tab roots are selected; History, Chat and Same age open on More, where they live; Settings is pushed onto the current tab, as the account menu pushes it.
     private func openPendingLink() {
         guard let link = deepLinkRouter.pending else { return }
 
@@ -102,16 +109,16 @@ struct ContentView: View {
             navigator.show([], on: .photos)
         case .history:
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.history])
+            navigator.show([.history], on: .more)
         case .growth:
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([], on: .growth)
         case .sameAge(let ageMonths, let from, let view):
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.sameAge(ageMonths: ageMonths, fromRemoteId: from, view: view)])
+            navigator.show([.sameAge(ageMonths: ageMonths, fromRemoteId: from, view: view)], on: .more)
         case .chat:
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.chat])
+            navigator.show([.chat], on: .more)
         case .settings:
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.settings])

@@ -29,7 +29,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 ├── Views/
 │   ├── Shell/         AppNavigator (tabs, per-tab paths, AppRoute, filters),
 │   │                  AddFlow (the one add sheet), AccountMenu (account
-│   │                  button + TabRoot)
+│   │                  button + TabRoot), MoreView (the More tab)
 │   ├── Home/          HomeView (GetDashboard: strip, nudges, in season,
 │   │                  on this day, recent)
 │   ├── History/       HistoryView (day summaries by month)
@@ -80,7 +80,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 
 ## Architecture
 
-- **UI**: SwiftUI, tab-based: Home · Photos · **+** · Growth (the web's phone bar without Chat). **+** presents the add sheet; History, Chat, Activities and Settings are pushed from the account menu onto the current tab. See `redesign-plan.md`
+- **UI**: SwiftUI, tab-based: Home · Photos · **+** · Growth · More (the web's phone bar). **+** presents the add sheet. More (`MoreView`) lists History, Books, Same age, Activities and Chat, pushed onto More's own stack and badged with unread chat; deep links to History, Chat and Same age open there. The account menu keeps Tags, Face review, Settings and Log out, pushed onto the current tab and handed back when the tab is left (`AppRoute.isBorrowed`). See `redesign-plan.md`
 - **State**: `@Observable` classes, `@Query` for SwiftData reads
 - **Persistence**: SwiftData with models: Family, Person, PersonRelation, GrowthData, Milestone, Photo, User, ChatMessage, FamilyTag
 - **Networking**: `APIClient` actor with JWT auth, auto-refresh on 401
@@ -210,7 +210,7 @@ The offline-analysis procs (`backend/milestone_analysis.go` and friends), all **
 
 - `suggestMilestoneCategory` → `AddMilestoneView` pre-selects a chip only while `categoryTouched` is false and marks the header "· suggested". `suggestMilestonePhotos` fills "Photos from around then", unattached until tapped. Both run from one `.task(id: lookupKey)` that sleeps 600 ms first, so a keystroke cancels the previous lookup — the web's debounce. Not on the edit form, as on the web
 - `milestoneMatches` → `MilestoneMatchesSection` on the milestone page ("Clara at 1 year 2 months"); each row pushes `MilestoneDetailContent` for the local milestone when it resolves by `remoteId`
-- `cachedPersonPhotoInsights` / `refreshPersonPhotoInsights` (`GetPersonPhotoInsights`, built on face data, so it answers in production too): `PersonDetailView` shows the cached answer first and refreshes on appear when online. `header` stands in for the initials avatar when the person has no profile photo, and is **never written to the model**; "Use as Profile Photo" in the manage menu hands it to `setProfilePhoto` once the photo resolves locally. `PersonPhotosTab` shows Growing up (face crops, only with two or more) and Often photographed with — a chip filters the tab to that other person, which on a tab already limited to this person *is* the all-of intersection
+- `cachedPersonPhotoInsights` / `refreshPersonPhotoInsights` (`GetPersonPhotoInsights`, built on face data, so it answers in production too): `PersonDetailView` shows the cached answer first and refreshes on appear when online. `header` stands in for the initials avatar when the person has no profile photo, and is **never written to the model**; "Use as Profile Photo" in the manage menu hands it to `setProfilePhoto` once the photo resolves locally. `PersonPhotosTab` shows Growing up (face crops, only with two or more) and Often photographed with; Story previews up to five of those faces (`GrowingUpPreview.spread`, first to last) inside its first chapter, linking to the Photos tab — a chip filters the tab to that other person, which on a tab already limited to this person *is* the all-of intersection
 - `FaceCropView` crops a server photo's medium size to a `FaceBoxDTO`. `FaceCropLayout.cropRect` pads the box as the web's `faceCropLayout` does but keeps a square in pixels rather than stretching; an empty box falls back to the thumbnail
 - `photoDetails` (`GetPhoto`) → the photo page's place name under the date and its pending suggestions as **dashed** `SuggestedTagChips` after the real tags. Accept/Reject (`AcceptTagSuggestions`/`RejectTagSuggestions`, which take **suggestion** ids, never tag ids) are online-only and never queued — the server owns the outcome, since accepting a catalog label can create a family tag. Afterwards the page re-fetches `GetPhoto` and hands the before/after tag ids to `SyncService.adoptServerTags`, which re-pulls the vocabulary and either takes the server's set or, when a whole-set `updatePhotoTags` is still queued, folds only the newly added ids into it so the queued write doesn't untag them
 - `tagSuggestions` (`GetTagSuggestions`) → `TagSuggestionsView`, the web's `/suggestions`, linked from the gallery toolbar with a count only when `enabled && total > 0`. A tap leaves a photo out; the bulk buttons act on the first 24 shown (`TagSuggestionReview`). After a change it re-fetches the review and runs a full pull for the photos' new tag ids
@@ -477,7 +477,7 @@ The web's `/same-age` (`same-age.tsx`, `SameAgePortraits`, `sameAgeNavigation.ts
 
 ### Books (`BookService`, `BookAssembler`, `Views/Books/`)
 
-The web's `/books`, `/book/<id>`, `/new-book` and `/edit-book/<id>`. Reached from the account menu and a person's toolbar; "Start a book" and the reader's Edit appear only when the server says `canEdit`.
+The web's `/books`, `/book/<id>`, `/new-book` and `/edit-book/<id>`. Reached from More and a person's toolbar; "Start a book" and the reader's Edit appear only when the server says `canEdit`.
 
 - `ListBooks` and `GetBook` are read through `ActivityRead` and cached in `ActivitySnapshotCache` (so `LocalDataReset` already sweeps them, and a book opened once reads offline). Never in SwiftData: a book is references the server resolves against its own permissions, and `GetBook` sends the records with it
 - A saved book is only references and order. `BookAssembler` (`Utilities/BookAssembly.swift`) is a port of `assembleBook` in `frontend/lib/book.ts` and turns them into a cover, chapters and blocks exactly as the web does — change both together. `Utilities/BookSuggestions.swift` ports the suggesting half (`suggestItems`, `additionsSince`, `draftSelection`) and `bookPlans.ts`, so a draft or a re-pick on the phone is the one the web would make

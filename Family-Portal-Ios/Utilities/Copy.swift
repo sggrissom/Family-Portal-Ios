@@ -13,8 +13,21 @@ nonisolated enum Copy {
         static let growth = "Growth"
         static let history = "History"
         static let chat = "Chat"
+        static let books = "Books"
+        static let sameAge = "Same age"
+        static let activities = "Activities"
+        static let more = "More"
         static let add = "Add"
         static let account = "Account"
+    }
+
+    /// The web's `moreSheet`: More's destinations, each with a line saying what it is for.
+    enum more {
+        static let history = "Everything, day by day"
+        static let books = "Turn memories into a story"
+        static let sameAge = "Compare everyone at the same age"
+        static let activities = "Seasons, meets and results"
+        static let chat = "Family messages"
     }
 
     enum account {
@@ -299,6 +312,7 @@ nonisolated enum Copy {
         static let contextLabel = "Context"
         static let openInPhotos = "Open in Photos →"
         static let growingUp = "Growing up"
+        static let seeGrowingUp = "See the full timeline →"
         static let oftenWith = "Often photographed with"
         static let useAsProfilePhoto = "Use as Profile Photo"
         static let metric = "Measurement"

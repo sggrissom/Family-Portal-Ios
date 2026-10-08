@@ -7,6 +7,10 @@ import SwiftData
 struct PersonStoryTab: View {
     let person: Person
     let onShowActivities: () -> Void
+    /// The same `GetPersonPhotoInsights` answer the Photos tab shows; its Growing up faces preview here, in the first chapter.
+    var insights: GetPersonPhotoInsightsResponseDTO? = nil
+    /// Opens the Photos tab, where the full Growing up timeline sits at the top.
+    var onShowGrowingUp: () -> Void = {}
 
     @Environment(ActivityService.self) private var activityService: ActivityService?
     @State private var season = ActivityScreenState<GetPersonSeasonResponseDTO>()
@@ -49,7 +53,10 @@ struct PersonStoryTab: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    ForEach(chapters(days)) { chapter in
+                    let storyChapters = chapters(days)
+                    // One face is not a timeline, so the preview waits for two, as the Photos tab does.
+                    let growingUp = insights?.growingUp ?? []
+                    ForEach(storyChapters) { chapter in
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(Story.chapterTitle(chapter.age))
@@ -61,7 +68,16 @@ struct PersonStoryTab: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
-                            DaySummaryList(days: chapter.days, today: today, subjectId: person.id)
+                            // In the first chapter, after its first few days: discoverable without pushing the story itself down the page.
+                            if growingUp.count > 1 && chapter.id == storyChapters.first?.id {
+                                DaySummaryList(days: Array(chapter.days.prefix(3)), today: today, subjectId: person.id)
+                                GrowingUpPreview(portraits: growingUp, onShowAll: onShowGrowingUp)
+                                if chapter.days.count > 3 {
+                                    DaySummaryList(days: Array(chapter.days.dropFirst(3)), today: today, subjectId: person.id)
+                                }
+                            } else {
+                                DaySummaryList(days: chapter.days, today: today, subjectId: person.id)
+                            }
                         }
                     }
                 }
@@ -84,6 +100,55 @@ struct PersonStoryTab: View {
             return [StoryChapter(age: nil, days: days, grew: "")]
         }
         return Story.chapters(days, birthday: birthday)
+    }
+}
+
+/// A handful of Growing up faces spread across the whole timeline — first and last included — linking to the full collection on the Photos tab. The web's `GrowingUpPreview`.
+struct GrowingUpPreview: View {
+    let portraits: [PortraitPhotoDTO]
+    let onShowAll: () -> Void
+
+    /// At most five, evenly spaced from the first portrait to the last, as the web picks them.
+    static func spread<T>(_ items: [T], count limit: Int = 5) -> [T] {
+        let count = min(limit, items.count)
+        guard count > 1 else { return Array(items.prefix(count)) }
+        return (0..<count).map { i in
+            items[Int((Double(i * (items.count - 1)) / Double(count - 1)).rounded())]
+        }
+    }
+
+    var body: some View {
+        Button(action: onShowAll) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Copy.person.growingUp)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(Self.spread(portraits), id: \.photoId) { portrait in
+                        VStack(spacing: 4) {
+                            FaceCropView(photoId: portrait.photoId, box: portrait.box, size: 48)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            Text(GetPersonPhotoInsightsResponseDTO.label(for: portrait))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .frame(width: 56)
+                    }
+                }
+                Text(Copy.person.seeGrowingUp)
+                    .font(.subheadline)
+                    .foregroundStyle(.tint)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Copy.person.growingUp)
+        .accessibilityHint(Copy.person.seeGrowingUp)
     }
 }
 

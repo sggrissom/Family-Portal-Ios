@@ -1,10 +1,10 @@
 import OSLog
 import SwiftUI
 
-/// The tab bar's identities — the web's phone bar without Chat. A raw value rather than an index, so a tab inserted later cannot silently change what a deep link selects.
+/// The tab bar's identities — the web's phone bar: Home, Photos, **+**, Growth, More. A raw value rather than an index, so a tab inserted later cannot silently change what a deep link selects.
 /// `.add` is not a destination: selecting it presents the add sheet and leaves the previous tab selected.
 enum MainTab: String, Hashable, CaseIterable {
-    case home, photos, add, growth
+    case home, photos, add, growth, more
 }
 
 /// The person page's tabs. The raw value is the `?tab=` a link carries, so it matches the web's.
@@ -26,7 +26,7 @@ nonisolated enum PersonTab: String, Hashable, CaseIterable, Identifiable, Sendab
     }
 }
 
-/// Somewhere a tab's stack can be pushed to. One enum for the whole app, so History, Chat and Activities — reached from the account menu on *any* tab — are registered once at every tab root instead of once per screen that might link to them.
+/// Somewhere a tab's stack can be pushed to. One enum for the whole app, so Settings, Tags and Face review — reached from the account menu on *any* tab — and More's destinations are registered once at every tab root instead of once per screen that might link to them.
 enum AppRoute: Hashable {
     case history
     case chat
@@ -46,10 +46,10 @@ enum AppRoute: Hashable {
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
     case event(id: Int, name: String)
 
-    /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back.
+    /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back. History, Chat, Activities and Books are More's own and are not borrowed.
     var isBorrowed: Bool {
         switch self {
-        case .history, .chat, .activities, .books, .settings, .tags, .faces: return true
+        case .settings, .tags, .faces: return true
         default: return false
         }
     }
@@ -106,7 +106,7 @@ final class AppNavigator {
         )
     }
 
-    /// Pushes onto the current tab's stack. History, Chat and Activities are pushed rather than switched to: they are not tabs.
+    /// Pushes onto the current tab's stack — the account menu's screens and the add sheet's events, which belong to no tab.
     func push(_ route: AppRoute) {
         let path = paths[selectedTab, default: NavigationPath()]
         if route.isBorrowed, borrowedFrom[selectedTab] == nil {

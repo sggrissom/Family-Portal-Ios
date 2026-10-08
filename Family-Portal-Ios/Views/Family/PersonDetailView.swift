@@ -225,7 +225,12 @@ struct PersonDetailView: View {
     private func tabContent(_ person: Person) -> some View {
         switch tab {
         case .story:
-            PersonStoryTab(person: person, onShowActivities: { tab = .activities })
+            PersonStoryTab(
+                person: person,
+                onShowActivities: { tab = .activities },
+                insights: insights,
+                onShowGrowingUp: { tab = .photos }
+            )
         case .quotes:
             PersonQuotesTab(person: person)
         case .artwork:
