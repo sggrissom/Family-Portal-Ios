@@ -29,12 +29,42 @@ struct PhotoGalleryView: View {
     @State private var isLoadingMore = false
     @State private var searchError: String?
 
+    /// A place filter whose answer could not be fetched, for the empty state.
+    @State private var placeError: String?
+
     private var isOnline: Bool { network?.isConnected ?? true }
+    private var browse: PhotoBrowseService { .shared }
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
+    /// The panel filters as the server takes them — the question a place filter asks.
+    private var placeRequest: PhotoSearchRequest? {
+        filter.placeKey == nil ? nil : PhotoSearchRequest(filter: filter, people: people)
+    }
+
+    /// The server's photos at the chosen place, newest first. Nil without a place, or before an answer.
+    private var placePhotoIds: [Int]? {
+        placeRequest.flatMap { browse.cachedPlacePhotos($0) }
+    }
+
     private var visiblePhotos: [Photo] {
-        filter.apply(to: photos)
+        filter.apply(to: photos, placePhotoIds: placePhotoIds.map(Set.init))
+    }
+
+    /// Similar shots folded under one cell, unless the user asked to see them separately or the groups haven't arrived.
+    private var cells: [GalleryCell<Photo>] {
+        let visible = visiblePhotos
+        guard !filter.showsSimilarSeparately, let groups = browse.groups, !groups.isEmpty else {
+            return visible.map { GalleryCell(item: $0, groupCover: nil, similarCount: 0) }
+        }
+        return groups.collapse(visible) { $0.remoteId.flatMap(Int.init) }
+    }
+
+    /// Photos at the chosen place that the server has and this device doesn't yet: shown from the server, not silently left out.
+    private var unsyncedPlacePhotoIds: [Int] {
+        guard let ids = placePhotoIds else { return [] }
+        let held = Set(photos.compactMap { $0.remoteId.flatMap(Int.init) })
+        return ids.filter { !held.contains($0) }
     }
 
     var body: some View {
@@ -82,6 +112,10 @@ struct PhotoGalleryView: View {
             // Keyed on connectivity, so the link appears once a signal returns.
             .task(id: network?.isConnected ?? true) {
                 await loadSuggestionCount()
+                await browse.loadGroups(isConnected: isOnline)
+            }
+            .task(id: TaskKey(place: placeRequest, online: isOnline)) {
+                await loadPlacePhotos()
             }
             // Coming back from the review, whose last fetch is the freshest count there is.
             .onAppear {
@@ -106,7 +140,9 @@ struct PhotoGalleryView: View {
                 systemImage: "photo.on.rectangle",
                 description: Text(authService.access.canContributeAnywhere ? "Tap + to add your first photo." : "")
             )
-        } else if visiblePhotos.isEmpty && !photos.isEmpty {
+        } else if filter.placeKey != nil && placePhotoIds == nil {
+            placePendingView
+        } else if visiblePhotos.isEmpty && !photos.isEmpty && unsyncedPlacePhotoIds.isEmpty {
             noMatchesView
         } else {
             ScrollView {
@@ -128,14 +164,92 @@ struct PhotoGalleryView: View {
                 }
 
                 LazyVGrid(columns: columns, spacing: 4) {
-                    ForEach(visiblePhotos) { photo in
-                        NavigationLink(value: PhotoRoute(id: photo.id)) {
-                            PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
-                        }
+                    ForEach(cells, id: \.item.id) { cell in
+                        galleryCell(cell)
                     }
                 }
                 .padding(4)
+
+                let unsynced = unsyncedPlacePhotoIds
+                if !unsynced.isEmpty {
+                    Text(Copy.photoBrowse.notSyncedHeading(unsynced.count))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                    LazyVGrid(columns: columns, spacing: 4) {
+                        ForEach(unsynced, id: \.self) { id in
+                            ServerPhotoCell(remoteId: id, local: nil)
+                        }
+                    }
+                    .padding(4)
+                }
             }
+        }
+    }
+
+    private func galleryCell(_ cell: GalleryCell<Photo>) -> some View {
+        NavigationLink(value: PhotoRoute(id: cell.item.id)) {
+            PhotoThumbnailView(imageData: cell.item.imageData, title: cell.item.title, remoteId: cell.item.remoteId)
+        }
+        // Its own link over the photo's, so the badge opens the group and the rest of the cell opens the photo.
+        .overlay(alignment: .topTrailing) {
+            if let cover = cell.groupCover, cell.similarCount > 0, let groups = browse.groups {
+                NavigationLink(value: AppRoute.similarPhotos(ids: groups.members(ofCover: cover))) {
+                    Label("+\(cell.similarCount)", systemImage: "square.stack")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.black.opacity(0.6), in: Capsule())
+                        .padding(4)
+                }
+                .accessibilityLabel(Copy.photoBrowse.similarBadge(cell.similarCount))
+            }
+        }
+    }
+
+    // MARK: - Places
+
+    /// Keyed on both, so going back online retries a place that couldn't be fetched.
+    private struct TaskKey: Hashable {
+        let place: PhotoSearchRequest?
+        let online: Bool
+    }
+
+    private func loadPlacePhotos() async {
+        placeError = nil
+        guard let request = placeRequest, browse.cachedPlacePhotos(request) == nil else { return }
+        guard isOnline else {
+            placeError = Copy.photoBrowse.placeOffline
+            return
+        }
+        do {
+            try await browse.loadPlacePhotos(request)
+        } catch {
+            guard !Task.isCancelled else { return }
+            AppLog.ui.error("Place photos failed: \(String(describing: error), privacy: .public)")
+            placeError = Copy.photoBrowse.placeFailed
+        }
+    }
+
+    /// A place is chosen but the server hasn't said which photos are there: loading, offline, or failed.
+    @ViewBuilder
+    private var placePendingView: some View {
+        if let placeError {
+            ContentUnavailableView {
+                Label(filter.placeName, systemImage: "mappin.and.ellipse")
+            } description: {
+                Text(placeError)
+            } actions: {
+                Button(Copy.photoBrowse.clearPlace) {
+                    filter.placeKey = nil
+                    filter.placeName = ""
+                }
+            }
+        } else {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -206,7 +320,7 @@ struct PhotoGalleryView: View {
     }
 
     private func searchResults(_ results: PhotoSearchResults) -> some View {
-        let resolved = RemotePhotoResolution.resolve(results.photoIds, in: photos)
+        let byRemoteId = Dictionary(photos.compactMap { photo in photo.remoteId.flatMap(Int.init).map { ($0, photo) } }, uniquingKeysWith: { first, _ in first })
         return ScrollView {
             VStack(alignment: .leading, spacing: 4) {
                 Text(Copy.photoSearch.bestMatches(results.query, with: matchedNames(results.matchedPersonIds)))
@@ -226,20 +340,19 @@ struct PhotoGalleryView: View {
             .padding(.horizontal, 8)
             .padding(.top, 4)
 
-            if resolved.isEmpty && !results.hasMore {
+            if results.photoIds.isEmpty && !results.hasMore {
                 ContentUnavailableView.search(text: results.query)
             }
 
+            // In the server's ranking, never grouped. A result this device doesn't hold yet is shown from the server in its place.
             LazyVGrid(columns: columns, spacing: 4) {
-                ForEach(resolved) { photo in
-                    NavigationLink(value: PhotoRoute(id: photo.id)) {
-                        PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
-                    }
-                    .onAppear {
-                        if photo.id == resolved.last?.id {
-                            Task { await loadMore() }
+                ForEach(results.photoIds, id: \.self) { id in
+                    ServerPhotoCell(remoteId: id, local: byRemoteId[id])
+                        .onAppear {
+                            if id == results.photoIds.last {
+                                Task { await loadMore() }
+                            }
                         }
-                    }
                 }
             }
             .padding(4)
@@ -247,8 +360,7 @@ struct PhotoGalleryView: View {
             if isLoadingMore {
                 ProgressView()
                     .padding()
-            } else if results.hasMore && resolved.isEmpty {
-                // Every result on this page was a photo this device doesn't hold yet, so no cell will appear to ask for the next one.
+            } else if results.hasMore && results.photoIds.isEmpty {
                 Button(Copy.photoSearch.more) {
                     Task { await loadMore() }
                 }

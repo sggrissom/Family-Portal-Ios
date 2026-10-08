@@ -230,3 +230,41 @@ nonisolated struct GetTagSuggestionsResponseDTO: Decodable, Sendable {
         enabled && total > 0
     }
 }
+
+/// One place in `ListPhotoPlaces`: the family's own named places first, then cities, by photo count.
+nonisolated struct PhotoPlaceCountDTO: Decodable, Sendable, Identifiable, Equatable {
+    let key: String
+    let name: String
+    let count: Int
+
+    var id: String { key }
+
+    /// A place the family named, rather than a city.
+    var isFamilyPlace: Bool { key.hasPrefix("f") }
+
+    private enum CodingKeys: String, CodingKey { case key, name, count }
+
+    init(key: String, name: String, count: Int) {
+        self.key = key
+        self.name = name
+        self.count = count
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        key = try c.decode(String.self, forKey: .key)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        count = try c.decodeIfPresent(Int.self, forKey: .count) ?? 0
+    }
+}
+
+nonisolated struct ListPhotoPlacesResponseDTO: Decodable, Sendable {
+    let places: [PhotoPlaceCountDTO]
+
+    private enum CodingKeys: String, CodingKey { case places }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        places = try c.decodeList(PhotoPlaceCountDTO.self, forKey: .places)
+    }
+}

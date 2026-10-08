@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 /// A server photo search in progress: the one mode of the gallery that depends on the server. `ListFamilyPhotos` with a `query` ranks by how well each photo fits the words (CLIP), and turns people's names in the query into an all-of person filter.
-/// Results are kept as server ids in the server's order and resolved against the local mirror at render, so a photo this device hasn't pulled yet simply doesn't show.
+/// Results are kept as server ids in the server's order and resolved against the local mirror at render; a photo this device hasn't pulled yet is shown from the server instead, in its place in the ranking.
 struct PhotoSearchResults: Equatable {
     static let pageSize = 60
 
@@ -41,11 +41,12 @@ struct PhotoSearchResults: Equatable {
 }
 
 /// The panel filters, as the server takes them. People go by server id, so one still uploading can't be sent; the local filter still has them.
-struct PhotoSearchRequest: Equatable {
+struct PhotoSearchRequest: Hashable {
     var personIds: [Int] = []
     var tagIds: [Int] = []
     var dateFrom: String?
     var dateTo: String?
+    var placeKey: String?
 
     init(filter: PhotoFilter, people: [Person]) {
         personIds = people
@@ -56,6 +57,7 @@ struct PhotoSearchRequest: Equatable {
         let range = filter.normalizedDateRange
         dateFrom = range.from.map { WhenEntry.localDateString($0) }
         dateTo = range.to.map { WhenEntry.localDateString($0) }
+        placeKey = filter.placeKey
     }
 
     func dto(query: String, cursor: String?) -> ListFamilyPhotosRequestDTO {
@@ -66,7 +68,19 @@ struct PhotoSearchRequest: Equatable {
             personIds: personIds.isEmpty ? nil : personIds,
             tagIds: tagIds.isEmpty ? nil : tagIds,
             dateFrom: dateFrom,
-            dateTo: dateTo
+            dateTo: dateTo,
+            placeKey: placeKey
+        )
+    }
+
+    /// The same filters as a plain listing — what a place filter asks for. Never collapsed: the gallery groups for itself.
+    func listingDTO() -> ListFamilyPhotosRequestDTO {
+        ListFamilyPhotosRequestDTO(
+            personIds: personIds.isEmpty ? nil : personIds,
+            tagIds: tagIds.isEmpty ? nil : tagIds,
+            dateFrom: dateFrom,
+            dateTo: dateTo,
+            placeKey: placeKey
         )
     }
 }

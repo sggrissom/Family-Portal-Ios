@@ -61,6 +61,7 @@ enum LocalDataReset {
             // In memory only, but keyed by server ids the next account could share.
             AnalysisService.shared.removeAll()
             SameAgeCache.shared.removeAll()
+            PhotoBrowseService.shared.removeAll()
 
             // Every type is swept explicitly rather than leaning on `Family`'s cascade: the pull creates records without attaching a `Family`.
             delete(Family.self, from: context)

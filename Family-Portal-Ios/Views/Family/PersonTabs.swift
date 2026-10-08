@@ -450,7 +450,7 @@ struct PersonPhotosTab: View {
         }
         .sheet(isPresented: $isFilterPresented) {
             NavigationStack {
-                PhotoFilterView(filter: $filter)
+                PhotoFilterView(filter: $filter, showsServerOptions: false)
             }
         }
     }

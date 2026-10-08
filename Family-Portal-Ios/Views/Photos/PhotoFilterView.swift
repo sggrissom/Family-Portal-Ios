@@ -2,9 +2,13 @@ import SwiftUI
 import SwiftData
 
 /// The gallery's filter panel, matching the web's. Every change applies immediately, so the sheet has Done rather than Apply.
-/// People and tags come from the local store, not the network: the gallery it filters is local too.
+/// People and tags come from the local store, not the network: the gallery it filters is local too. Places and similar-photo grouping are the server's (`PhotoBrowseService`), so they appear only where the gallery can use them.
 struct PhotoFilterView: View {
     @Binding var filter: PhotoFilter
+    /// The Photos tab's panel; a person's Photos tab filters its own photos locally and leaves these out.
+    var showsServerOptions = true
+
+    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
 
     @Query(sort: \Person.name) private var people: [Person]
     @Query private var tags: [FamilyTag]
@@ -16,8 +20,14 @@ struct PhotoFilterView: View {
 
     var body: some View {
         List {
+            if showsServerOptions {
+                similarSection
+            }
             peopleSection
             tagsSection
+            if showsServerOptions {
+                placeSection
+            }
             dateSection
 
             if filter.hasPanelFilters {
@@ -110,6 +120,78 @@ struct PhotoFilterView: View {
                 }
             }
         }
+    }
+
+    private var similarSection: some View {
+        Section {
+            Toggle(Copy.photoBrowse.showSimilar, isOn: Binding(
+                get: { filter.showsSimilarSeparately },
+                set: { value in
+                    var updated = filter
+                    updated.showsSimilarSeparately = value
+                    filter = updated
+                }
+            ))
+        } header: {
+            Text(Copy.photoBrowse.similarHeading)
+        } footer: {
+            Text(Copy.photoBrowse.similarHelp)
+        }
+    }
+
+    @ViewBuilder
+    private var placeSection: some View {
+        let places = PhotoBrowseService.shared.places
+        Section(Copy.photoBrowse.placeHeading) {
+            if let places, !places.isEmpty || filter.placeKey != nil {
+                placeRow(key: nil, name: Copy.photoBrowse.anyPlace, count: nil, isFamilyPlace: false)
+                ForEach(places) { place in
+                    placeRow(key: place.key, name: place.name, count: place.count, isFamilyPlace: place.isFamilyPlace)
+                }
+            } else if places != nil {
+                Text(Copy.photoBrowse.noPlaces)
+                    .foregroundStyle(.secondary)
+            } else if network?.isConnected ?? true {
+                ProgressView()
+            } else {
+                Text(Copy.photoBrowse.placesOffline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .task(id: network?.isConnected ?? true) {
+            await PhotoBrowseService.shared.loadPlaces(isConnected: network?.isConnected ?? true)
+        }
+    }
+
+    private func placeRow(key: String?, name: String, count: Int?, isFamilyPlace: Bool) -> some View {
+        let isSelected = filter.placeKey == key
+        return Button {
+            var updated = filter
+            updated.placeKey = key
+            updated.placeName = key == nil ? "" : name
+            filter = updated
+        } label: {
+            HStack {
+                if isFamilyPlace {
+                    Image(systemName: "mappin.and.ellipse")
+                        .foregroundStyle(.secondary)
+                }
+                Text(name)
+                    .foregroundStyle(.primary)
+                if let count {
+                    Text("\(count)")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.tint)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder
