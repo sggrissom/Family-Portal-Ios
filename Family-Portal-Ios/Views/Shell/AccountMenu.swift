@@ -1,15 +1,12 @@
 import SwiftUI
 
-/// The account button on every tab root: the user's initial, badged with unread chat so a new message is visible from anywhere. Its menu is the web's account menu without Import/Export and Admin — every entry is a native screen pushed onto the current tab.
+/// The account button on every tab root: the user's initial. Its menu is the web's account menu without Import/Export and Admin — Tags, Face review, Settings and Log out, each a native screen pushed onto the current tab. Browsing (History, Books, Same age, Activities, Chat) lives on the More tab, which carries the unread-chat badge.
 /// Deliberately web-only, with no entry here: naming and managing family places, and the age-in-text parser on the milestone form. Places live on the web's `/settings`, a universal-link path, so a link from the app would only open the app again.
 struct AccountMenuButton: View {
     @Environment(AuthService.self) private var authService
-    @Environment(ChatService.self) private var chatService: ChatService?
     @Environment(AppNavigator.self) private var navigator
 
     @State private var isConfirmingLogOut = false
-
-    private var unreadCount: Int { chatService?.unreadCount ?? 0 }
 
     private var initial: String {
         let name = authService.currentUser?.name.trimmingCharacters(in: .whitespaces) ?? ""
@@ -20,27 +17,6 @@ struct AccountMenuButton: View {
         Menu {
             if let user = authService.currentUser {
                 Section("\(Copy.account.signedInAs) \(user.name)") {}
-            }
-
-            Button {
-                navigator.push(.history)
-            } label: {
-                Label(Copy.nav.history, systemImage: "clock")
-            }
-            Button {
-                navigator.push(.chat)
-            } label: {
-                Label(unreadCount > 0 ? "\(Copy.nav.chat) (\(unreadCount))" : Copy.nav.chat, systemImage: "bubble.left.and.bubble.right")
-            }
-            Button {
-                navigator.push(.activities)
-            } label: {
-                Label(Copy.account.activities, systemImage: "trophy")
-            }
-            Button {
-                navigator.push(.books)
-            } label: {
-                Label(Copy.account.books, systemImage: "book.closed")
             }
 
             Section {
@@ -76,7 +52,7 @@ struct AccountMenuButton: View {
         } label: {
             avatar
         }
-        .accessibilityLabel(unreadCount > 0 ? "\(Copy.nav.account), \(unreadCount) unread messages" : Copy.nav.account)
+        .accessibilityLabel(Copy.nav.account)
         .confirmationDialog(Copy.account.logOut, isPresented: $isConfirmingLogOut) {
             Button(Copy.account.logOut, role: .destructive) {
                 Task { await authService.logout() }
@@ -92,17 +68,6 @@ struct AccountMenuButton: View {
             .foregroundStyle(.white)
             .frame(width: 30, height: 30)
             .background(Color.accentColor, in: Circle())
-            .overlay(alignment: .topTrailing) {
-                if unreadCount > 0 {
-                    Text(unreadCount > 99 ? "99+" : "\(unreadCount)")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .frame(minWidth: 16, minHeight: 16)
-                        .background(.red, in: Capsule())
-                        .offset(x: 6, y: -6)
-                }
-            }
     }
 }
 
