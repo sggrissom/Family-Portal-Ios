@@ -376,6 +376,12 @@ network answers.
 - `hasPanelFilters` is kept apart from `isActive` so the toolbar glyph doesn't
   fill in for a search term the search bar is already showing
 
+### Notification preferences (`NotificationPreferencesModel`, `NotificationSettingsSection`)
+
+- `GetNotificationPreferences` / `UpdateNotificationPreferences` (backend/notification_preferences.go): chat notifications (default on) and lock-screen message text (default off). They belong to the **account**, so Settings reads them from the server on open and writes each toggle immediately with both fields. Online only and never queued
+- The toggles show the server's last confirmed values; a save moves them optimistically and puts them back on failure, so a failed save never reads as saved. A failed first read shows Retry rather than defaults — showing defaults would invite saving them. Missing fields decode as the server's defaults, so previews are never turned on implicitly
+- Separately, the section reads `UNUserNotificationCenter`'s authorization and says when iOS itself is blocking notifications on this iPhone, with a link to its settings
+
 ### Original photos (`OriginalPhotoActions`)
 
 - The photo page's toolbar offers **Share Original** and **Save to Photos** for an uploaded photo — the web's "Download original". `APIClient.downloadOriginal` fetches `api/photo/{id}/original?download=1` (bytes as uploaded, never a resized variant) with the token and one refresh-and-retry on 401, straight to disk, into a folder of its own named after `Content-Disposition` (`OriginalPhotoFile.filename`). The folder is removed when the share sheet closes or the save finishes
@@ -540,6 +546,7 @@ Go + vbeam RPC server.
 - `ListFamilyMembers`, `RemoveFamilyMember`, `LeaveFamily`, `RotateInviteCode`
 - `SendMessage`, `GetChatMessages`, `DeleteMessage` (chat; live delivery is the
   WebSocket, these three are the REST half)
+- `GetNotificationPreferences`, `UpdateNotificationPreferences` (account push settings, online only)
 - `SuggestMilestoneCategory`, `SuggestMilestonePhotos`, `GetMilestoneMatches`, `GetPersonPhotoInsights`, `GetPhoto`, `GetTagSuggestions`, `AcceptTagSuggestions`, `RejectTagSuggestions` (online-only analysis calls; see AnalysisService)
 - `ListBooks`, `GetBook`, `GetBookSources`, `CreateBook`, `UpdateBook`, `DeleteBook` (backend/book.go; see Books)
 - `ListTags`, `UpdatePhotoTags`, `UpdateMilestoneTags` (see the notes under SyncService). The two writes are registered from `backend/photos.go` and `backend/milestone.go`, not `backend/tags.go`
