@@ -10,7 +10,7 @@ struct MeasurementDetailSheetView: View {
     let measurement: GrowthData
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AuthService.self) private var authService
     @State private var isEditing = false
 
     var body: some View {

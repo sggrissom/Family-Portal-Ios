@@ -4,8 +4,8 @@ import SwiftData
 struct TagPeopleView: View {
     @Bindable var photo: Photo
     @Query(sort: \Person.name) private var people: [Person]
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(SyncService.self) private var syncService
+    @Environment(ErrorPresenter.self) private var errorPresenter
 
     var body: some View {
         List(people) { person in
@@ -21,20 +21,20 @@ struct TagPeopleView: View {
                             photo.taggedPeople.append(person)
                             Task {
                                 do {
-                                    try await syncService?.addPeopleToPhoto(photo, people: [person])
+                                    try await syncService.addPeopleToPhoto(photo, people: [person])
                                 } catch {
                                     photo.taggedPeople.removeAll(where: { $0.id == person.id })
-                                    errorPresenter?.report(error, title: "Couldn't Tag \(person.name)")
+                                    errorPresenter.report(error, title: "Couldn't Tag \(person.name)")
                                 }
                             }
                         } else {
                             photo.taggedPeople.removeAll(where: { $0.id == person.id })
                             Task {
                                 do {
-                                    try await syncService?.removePersonFromPhoto(photo, person: person)
+                                    try await syncService.removePersonFromPhoto(photo, person: person)
                                 } catch {
                                     photo.taggedPeople.append(person)
-                                    errorPresenter?.report(error, title: "Couldn't Untag \(person.name)")
+                                    errorPresenter.report(error, title: "Couldn't Untag \(person.name)")
                                 }
                             }
                         }

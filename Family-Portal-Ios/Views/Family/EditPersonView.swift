@@ -3,8 +3,8 @@ import SwiftData
 
 struct EditPersonView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(SyncService.self) private var syncService
+    @Environment(ErrorPresenter.self) private var errorPresenter
 
     @Query(sort: \Person.name) private var people: [Person]
 
@@ -104,11 +104,11 @@ struct EditPersonView: View {
 
         Task {
             do {
-                try await syncService?.updatePerson(person)
+                try await syncService.updatePerson(person)
                 dismiss()
             } catch {
                 dismiss()
-                errorPresenter?.report(error, title: "Couldn't Save Changes")
+                errorPresenter.report(error, title: "Couldn't Save Changes")
             }
         }
     }

@@ -64,7 +64,7 @@ struct CalendarDateRegressionTests {
     func serverRecordDateWithTime() throws {
         let json = #"{"id":1,"personId":1,"familyId":1,"measurementType":0,"value":30,"unit":"in","measurementDate":"2024-03-01T22:15:00Z","createdAt":"2024-03-01T22:15:00Z"}"#
         let dto = try APIClient.decode(GrowthDataDTO.self, from: Data(json.utf8))
-        #expect(growthDataFromDTO(dto).date == utc("2024-03-01T00:00:00Z"))
+        #expect(applied(dto).date == utc("2024-03-01T00:00:00Z"))
     }
 
     @Test("Bare dates decode to the same instant as UTC-midnight dates")

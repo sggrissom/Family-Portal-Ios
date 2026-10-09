@@ -8,7 +8,7 @@ struct PhotoFilterView: View {
     /// The Photos tab's panel; a person's Photos tab filters its own photos locally and leaves these out.
     var showsServerOptions = true
 
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(NetworkMonitor.self) private var network
 
     @Query(sort: \Person.name) private var people: [Person]
     @Query private var tags: [FamilyTag]
@@ -151,15 +151,15 @@ struct PhotoFilterView: View {
             } else if places != nil {
                 Text(Copy.photoBrowse.noPlaces)
                     .foregroundStyle(.secondary)
-            } else if network?.isConnected ?? true {
+            } else if network.isConnected {
                 ProgressView()
             } else {
                 Text(Copy.photoBrowse.placesOffline)
                     .foregroundStyle(.secondary)
             }
         }
-        .task(id: network?.isConnected ?? true) {
-            await PhotoBrowseService.shared.loadPlaces(isConnected: network?.isConnected ?? true)
+        .task(id: network.isConnected) {
+            await PhotoBrowseService.shared.loadPlaces(isConnected: network.isConnected)
         }
     }
 

@@ -19,7 +19,7 @@ struct PersonChips: View {
 
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AuthService.self) private var authService
 
     init(selection: Binding<UUID?>, excluding: Set<UUID> = [], only: Set<UUID>? = nil, contributableOnly: Bool = false) {
         self.selection = .single(selection)
@@ -41,7 +41,7 @@ struct PersonChips: View {
 
     var body: some View {
         let access = authService.access
-        let ordered = Self.ordered(people, relations: relations, ownFamilyId: authService?.currentUser?.familyId)
+        let ordered = Self.ordered(people, relations: relations, ownFamilyId: authService.currentUser?.familyId)
             .filter { !excluding.contains($0.id) && (only?.contains($0.id) ?? true) }
             .filter { !contributableOnly || access.canContribute(to: $0) }
         let labels = FamilyGroups.chipLabels(ordered)

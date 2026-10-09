@@ -62,7 +62,7 @@ struct SyncDTODecodingTests {
           "profileCropScale": 1, "isPregnancy": false
         }
         """
-        let person = personFromDTO(try APIClient.decode(PersonDTO.self, from: Data(json.utf8)))
+        let person = applied(try APIClient.decode(PersonDTO.self, from: Data(json.utf8)))
 
         #expect(person.remoteId == "12")
         #expect(person.familyRemoteId == 7)
@@ -81,7 +81,7 @@ struct SyncDTODecodingTests {
           "birthday": "2019-08-04T00:00:00Z", "age": "6 years", "isPregnancy": false
         }
         """
-        let person = personFromDTO(try APIClient.decode(PersonDTO.self, from: Data(json.utf8)))
+        let person = applied(try APIClient.decode(PersonDTO.self, from: Data(json.utf8)))
 
         #expect(person.relationship == nil)
     }
@@ -110,7 +110,7 @@ struct SyncDTODecodingTests {
         #expect(dto.unit == "kg")
         #expect(abs(dto.measurementDate.timeIntervalSince(Self.utc(2026, 1, 9))) < 1)
 
-        let model = growthDataFromDTO(dto)
+        let model = applied(dto)
         #expect(model.remoteId == "501")
         #expect(model.measurementType == .weight)
         #expect(model.unit == .kilograms)

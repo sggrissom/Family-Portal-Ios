@@ -84,11 +84,11 @@ struct TagDecodingTests {
         let milestoneJSON = try JSONSerialization.data(
             withJSONObject: Fixture.milestone(id: 77, personId: 12, tagIds: [9, 3])
         )
-        let milestone = milestoneFromDTO(try APIClient.decode(MilestoneDTO.self, from: milestoneJSON))
+        let milestone = applied(try APIClient.decode(MilestoneDTO.self, from: milestoneJSON))
         #expect(milestone.tagRemoteIds == [9, 3])
 
         let imageJSON = try JSONSerialization.data(withJSONObject: Fixture.image(id: 5, tagIds: [3]))
-        let photo = photoFromDTO(try APIClient.decode(ImageDTO.self, from: imageJSON))
+        let photo = applied(try APIClient.decode(ImageDTO.self, from: imageJSON))
         #expect(photo.tagRemoteIds == [3])
     }
 }

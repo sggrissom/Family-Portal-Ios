@@ -4,7 +4,7 @@ import SwiftUI
 /// Online only (see `TagService`). After each change the local `FamilyTag` mirror is re-pulled, so pickers and chips elsewhere catch up without waiting for a sync.
 struct ManageTagsView: View {
     @Environment(AuthService.self) private var authService
-    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(SyncService.self) private var syncService
 
     @State private var tags: [TagDTO] = []
     @State private var isLoading = true
@@ -214,7 +214,7 @@ struct ManageTagsView: View {
             tags.append(tag)
             newName = ""
             errorMessage = nil
-            await syncService?.refreshTags()
+            await syncService.refreshTags()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -227,7 +227,7 @@ struct ManageTagsView: View {
             tags[index] = saved
         }
         errorMessage = nil
-        await syncService?.refreshTags()
+        await syncService.refreshTags()
     }
 
     private func delete(_ tag: TagDTO) async {
@@ -238,7 +238,7 @@ struct ManageTagsView: View {
             try await service.delete(id: tag.id)
             tags.removeAll { $0.id == tag.id }
             errorMessage = nil
-            await syncService?.refreshTags()
+            await syncService.refreshTags()
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -6,7 +6,7 @@ struct CompetitionView: View {
     let eventName: String
 
     @Environment(ActivityService.self) private var service
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AuthService.self) private var authService
     @Query private var people: [Person]
 
     @State private var state = ActivityScreenState<GetEventDetailResponseDTO>()

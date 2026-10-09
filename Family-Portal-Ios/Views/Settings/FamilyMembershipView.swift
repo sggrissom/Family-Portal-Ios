@@ -5,7 +5,7 @@ struct FamilyMembershipView: View {
     let family: FamilyInfoDTO
 
     @Environment(AuthService.self) private var authService
-    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(SyncService.self) private var syncService
     @Environment(\.dismiss) private var dismiss
 
     @State private var members: [FamilyMemberDTO] = []
@@ -207,7 +207,7 @@ struct FamilyMembershipView: View {
             dismiss()
 
             // That family's people and photos stay on the device until a pull clears them.
-            await syncService?.pullFamilyData()
+            await syncService.pullFamilyData()
         } catch {
             errorMessage = error.localizedDescription
         }

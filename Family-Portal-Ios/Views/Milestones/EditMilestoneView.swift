@@ -4,9 +4,9 @@ import SwiftData
 struct EditMilestoneView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(SyncService.self) private var syncService
+    @Environment(ErrorPresenter.self) private var errorPresenter
+    @Environment(NetworkMonitor.self) private var network
 
     let milestone: Milestone
 
@@ -19,6 +19,7 @@ struct EditMilestoneView: View {
     @State private var artwork: [PickedArtwork] = []
     /// `SuggestMilestonePhotos`' answer, as server ids, best first. Offered, never attached until tapped.
     @State private var suggestedPhotoRemoteIds: [Int] = []
+    @FocusState private var isTextFocused: Bool
 
     /// Every photo in the store, so an attachment made elsewhere can be matched back to a local record — see `milestonePhotoChoices`.
     @Query private var allPhotos: [Photo]
@@ -52,47 +53,33 @@ struct EditMilestoneView: View {
         MilestonePhotoSuggestions.offered(suggestedPhotoRemoteIds, choices: photoChoices, alreadyAttached: originallyAttached)
     }
 
-    /// What the suggestions depend on. A change restarts the lookup after a pause, so typing settles first and an answer for older words is never shown.
     private var lookupKey: String {
-        let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return [milestone.person?.remoteId ?? "-", text, dateToAPIString(date.localRecordDay()), String(network?.isConnected ?? true)].joined(separator: "|")
+        MilestoneSuggestionLookup.key(
+            personRemoteId: milestone.person?.remoteId,
+            text: descriptionText.trimmingCharacters(in: .whitespacesAndNewlines),
+            day: date.localRecordDay(),
+            isConnected: network.isConnected
+        )
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Category", selection: $category) {
+                    Picker(Copy.milestone.category, selection: $category) {
                         ForEach(MilestoneCategory.allCases, id: \.self) { option in
                             Text(option.label)
                         }
                     }
                 }
 
-                Section(category.entryPrompt.label) {
-                    TextField(category.entryPrompt.placeholder, text: $descriptionText, axis: .vertical)
-                        .lineLimit(3...6)
-                }
-
-                if category == .quote {
-                    Section(Copy.milestone.context) {
-                        TextField(Copy.milestone.contextPlaceholder, text: $context)
-                    }
-                }
+                MilestoneTextSections(category: category, descriptionText: $descriptionText, context: $context, isFocused: $isTextFocused)
 
                 Section {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
 
-                if category == .artwork {
-                    ArtworkPhotosSection(picked: $artwork)
-                }
-
-                if !suggestedPhotos.isEmpty {
-                    Section(Copy.milestone.photosAroundThen) {
-                        SuggestedPhotosRow(photos: suggestedPhotos, selection: $selectedPhotoIds)
-                    }
-                }
+                MilestonePhotoSections(category: category, artwork: $artwork, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds)
 
                 MilestonePhotosSection(
                     photos: photoChoices,
@@ -113,12 +100,12 @@ struct EditMilestoneView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(Copy.milestone.cancel) {
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(Copy.milestone.save) {
                         save()
                     }
                     .disabled(!isValid)
@@ -129,11 +116,10 @@ struct EditMilestoneView: View {
 
     /// Photos of the person from around the milestone's date. Waits for the inputs to settle; a newer key cancels this one. Offline, or on any failure, the row empties and the selection is left exactly as it was.
     private func lookUpSuggestions() async {
-        try? await Task.sleep(for: .milliseconds(600))
-        guard !Task.isCancelled else { return }
+        guard await MilestoneSuggestionLookup.settle() else { return }
 
         let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard network?.isConnected ?? true,
+        guard network.isConnected,
               let personId = milestone.person?.remoteId.flatMap(Int.init),
               text.count >= 3 else {
             suggestedPhotoRemoteIds = []
@@ -170,9 +156,9 @@ struct EditMilestoneView: View {
                     photos = (chosen ?? attached)
                         + (try await ArtworkPhotos.queue(picked, artist: artist, context: modelContext, syncService: syncService))
                 }
-                try await syncService?.updateMilestone(milestone, photos: photos)
+                try await syncService.updateMilestone(milestone, photos: photos)
             } catch {
-                errorPresenter?.report(error, title: "Couldn't Save Milestone")
+                errorPresenter.report(error, title: "Couldn't Save Milestone")
             }
         }
     }

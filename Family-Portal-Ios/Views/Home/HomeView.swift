@@ -14,7 +14,7 @@ struct HomeView: View {
     @Environment(AuthService.self) private var authService
     @Environment(AppNavigator.self) private var navigator
     @Environment(AddFlow.self) private var addFlow
-    @Environment(ActivityService.self) private var activityService: ActivityService?
+    @Environment(ActivityService.self) private var activityService
 
     @State private var dashboard = ActivityScreenState<GetDashboardResponseDTO>()
     @State private var dismissedVersion = 0
@@ -53,7 +53,6 @@ struct HomeView: View {
         }
         .refreshable { await dashboard.reload() }
         .task {
-            guard let activityService else { return }
             await dashboard.load(activityService.dashboard(today: today))
         }
     }

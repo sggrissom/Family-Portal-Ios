@@ -78,8 +78,3 @@ struct FamilyAccess {
 extension AuthService {
     var access: FamilyAccess { FamilyAccess(auth: currentUser) }
 }
-
-extension Optional where Wrapped == AuthService {
-    /// For the views that read `AuthService` optionally so previews can omit it.
-    var access: FamilyAccess { self?.access ?? .signedOut }
-}

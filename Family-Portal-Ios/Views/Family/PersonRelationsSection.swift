@@ -13,7 +13,7 @@ struct PersonRelationsSection: View {
     @Query private var relations: [PersonRelation]
 
     /// Pulled after a write so the suggestions, and the roster's generation bands, reflect the edge that was just stated. `GetPersonRelations` answers with labels rather than edges, so the graph itself only arrives with a sync.
-    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(SyncService.self) private var syncService
 
     @State private var graph: GetPersonRelationsResponseDTO?
     @State private var pickedRelation: RelationOption?
@@ -209,7 +209,7 @@ struct PersonRelationsSection: View {
             pickedRelation = nil
             coAnchorIds = []
             errorMessage = nil
-            await syncService?.pullFamilyData()
+            await syncService.pullFamilyData()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -222,7 +222,7 @@ struct PersonRelationsSection: View {
         do {
             graph = try await service.removeRelation(relationId: relation.relationId)
             errorMessage = nil
-            await syncService?.pullFamilyData()
+            await syncService.pullFamilyData()
         } catch {
             errorMessage = error.localizedDescription
         }

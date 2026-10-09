@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AuthService.self) private var authService
-    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(SyncService.self) private var syncService
     @Environment(NetworkMonitor.self) private var networkMonitor
     @Environment(MobileVersionService.self) private var mobileVersionService
     @State private var showLogoutConfirmation = false
@@ -63,14 +63,14 @@ struct SettingsView: View {
 
                 SyncStatusView(
                     isConnected: networkMonitor.isConnected,
-                    isSyncing: syncService?.isSyncing ?? false,
-                    syncError: syncService?.syncError,
-                    pendingCount: syncService?.pendingOperationCount ?? 0,
-                    lastSyncDate: syncService?.lastSyncDate
+                    isSyncing: syncService.isSyncing,
+                    syncError: syncService.syncError,
+                    pendingCount: syncService.pendingOperationCount,
+                    lastSyncDate: syncService.lastSyncDate
                 )
 
                 // Survives the next successful sync on purpose: the pending count dropping to zero otherwise reads as "all saved".
-                if let syncService, let warning = syncService.discardedChangeWarning {
+                if let warning = syncService.discardedChangeWarning {
                     VStack(alignment: .leading, spacing: 8) {
                         Label(warning, systemImage: "exclamationmark.triangle.fill")
                             .font(.footnote)
@@ -86,7 +86,7 @@ struct SettingsView: View {
 
                 Button {
                     Task {
-                        await syncService?.performFullSync()
+                        await syncService.performFullSync()
                     }
                 } label: {
                     HStack {
@@ -94,7 +94,7 @@ struct SettingsView: View {
                         Text("Sync Now")
                     }
                 }
-                .disabled(syncService?.isSyncing ?? true || !networkMonitor.isConnected)
+                .disabled(syncService.isSyncing || !networkMonitor.isConnected)
             }
 
             Section("Family") {

@@ -11,7 +11,7 @@ struct CheckupResultView: View {
 
     @State private var result: CheckupResult
     @Query private var records: [GrowthData]
-    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(SyncService.self) private var syncService
     @State private var isRetrying = false
 
     init(result: CheckupResult, onAddAnother: @escaping () -> Void, onDone: @escaping () -> Void) {
@@ -108,7 +108,7 @@ struct CheckupResultView: View {
         Task {
             defer { isRetrying = false }
             do {
-                try await syncService?.addCheckup(failed, for: person)
+                try await syncService.addCheckup(failed, for: person)
                 result.failedIds.subtract(failed.map(\.id))
             } catch {
                 AppLog.ui.error("Retrying a checkup failed again: \(String(describing: error), privacy: .public)")

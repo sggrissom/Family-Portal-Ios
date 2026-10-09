@@ -7,13 +7,13 @@ struct SameAgeView: View {
     @State private var browser: SameAgeBrowser
     @State private var isPickingAge = false
 
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(NetworkMonitor.self) private var network
 
     init(ageMonths: Int? = nil, fromRemoteId: Int = 0, view: SameAgeMode = .portraits) {
         _browser = State(initialValue: SameAgeBrowser(ageMonths: ageMonths, fromPersonId: fromRemoteId, mode: view))
     }
 
-    private var isConnected: Bool { network?.isConnected ?? true }
+    private var isConnected: Bool { network.isConnected }
 
     var body: some View {
         @Bindable var browser = browser

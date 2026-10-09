@@ -12,7 +12,7 @@ struct ArtworkTests {
         let json = try JSONSerialization.data(withJSONObject: Fixture.milestone(
             id: 41, personId: 12, description: "Drew the whole family as dinosaurs", category: "artwork", photoIds: [77]
         ))
-        let milestone = milestoneFromDTO(try APIClient.decode(MilestoneDTO.self, from: json))
+        let milestone = applied(try APIClient.decode(MilestoneDTO.self, from: json))
 
         #expect(milestone.category == .artwork)
         #expect(milestone.category.label == "Artwork")

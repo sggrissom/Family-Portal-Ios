@@ -3,8 +3,8 @@ import SwiftUI
 /// The web's `/suggestions` page: each suggested tag as a grid of the photos it fits. A tap leaves a photo out; **Tag N photos** and **Not these** act on the rest in bulk. Pushed from the gallery's toolbar when there is something to review.
 /// Online only and never queued. After a change the review is fetched again, and a pull brings the newly tagged photos' tag ids down.
 struct TagSuggestionsView: View {
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(SyncService.self) private var syncService
+    @Environment(NetworkMonitor.self) private var network
 
     /// How many of a group's photos are shown at once — the web's `PHOTOS_PER_GROUP`.
     static let photosPerGroup = 24
@@ -47,7 +47,7 @@ struct TagSuggestionsView: View {
                 } else if isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity)
-                } else if !(network?.isConnected ?? true) {
+                } else if !network.isConnected {
                     Text(Copy.tagSuggestions.offline)
                         .foregroundStyle(.secondary)
                 }
@@ -157,7 +157,7 @@ struct TagSuggestionsView: View {
     // MARK: - Actions
 
     private func reload() async {
-        guard network?.isConnected ?? true else { return }
+        guard network.isConnected else { return }
         isLoading = true
         defer { isLoading = false }
         if let fresh = await AnalysisService.shared.tagSuggestions() {
@@ -191,7 +191,7 @@ struct TagSuggestionsView: View {
             notice = try await action()
             await reload()
             // The review can't say which tag ids the photos ended up with — a catalog label becomes a new family tag on first acceptance — so a pull brings them down.
-            await syncService?.pullFamilyData()
+            await syncService.pullFamilyData()
         } catch {
             self.error = error.localizedDescription
         }

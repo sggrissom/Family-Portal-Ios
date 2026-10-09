@@ -291,3 +291,30 @@ enum TestSync {
         return Harness(server: server, service: service, context: context, monitor: monitor)
     }
 }
+
+// MARK: - Mapping, as the pull does it
+
+/// A blank record with the DTO applied: what the pull does with a record it has not seen, so a test of the mapping exercises the code the app runs.
+func applied(_ dto: PersonDTO) -> Person {
+    let person = Person(name: "", gender: .other)
+    applyPersonDTO(dto, to: person)
+    return person
+}
+
+func applied(_ dto: GrowthDataDTO) -> GrowthData {
+    let data = GrowthData(measurementType: .height, value: 0, unit: .centimeters, date: Date())
+    applyGrowthDataDTO(dto, to: data)
+    return data
+}
+
+func applied(_ dto: MilestoneDTO) -> Milestone {
+    let milestone = Milestone(descriptionText: "", category: .other, date: Date())
+    applyMilestoneDTO(dto, to: milestone)
+    return milestone
+}
+
+func applied(_ dto: ImageDTO) -> Photo {
+    let photo = Photo(title: "", descriptionText: "", photoDate: Date())
+    applyPhotoDTO(dto, to: photo)
+    return photo
+}

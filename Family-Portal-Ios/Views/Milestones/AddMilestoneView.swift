@@ -6,10 +6,10 @@ import SwiftData
 struct AddMilestoneView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(AuthService.self) private var authService: AuthService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(SyncService.self) private var syncService
+    @Environment(AuthService.self) private var authService
+    @Environment(ErrorPresenter.self) private var errorPresenter
+    @Environment(NetworkMonitor.self) private var network
 
     /// The whole roster rather than one person: a `@Query` predicate is fixed at `init` and cannot follow a `@State` selection.
     @Query(sort: \Person.name) private var people: [Person]
@@ -51,11 +51,13 @@ struct AddMilestoneView: View {
         RemotePhotoResolution.resolve(suggestedPhotoRemoteIds, in: photoChoices)
     }
 
-    /// What the suggestions depend on. A change restarts the lookup after a pause, the way the web waits for typing to stop.
     private var lookupKey: String {
-        let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let date = when.problem == nil ? when.resolvedDate(birthday: person?.birthday).map { dateToAPIString($0) } : nil
-        return [person?.remoteId ?? "-", text, date ?? "-", String(network?.isConnected ?? true)].joined(separator: "|")
+        MilestoneSuggestionLookup.key(
+            personRemoteId: person?.remoteId,
+            text: descriptionText.trimmingCharacters(in: .whitespacesAndNewlines),
+            day: when.problem == nil ? when.resolvedDate(birthday: person?.birthday) : nil,
+            isConnected: network.isConnected
+        )
     }
 
     init(personId: UUID? = nil) {
@@ -77,17 +79,7 @@ struct AddMilestoneView: View {
                     PersonChips(selection: $selectedPersonId, contributableOnly: true)
                 }
 
-                Section(category.entryPrompt.label) {
-                    TextField(category.entryPrompt.placeholder, text: $descriptionText, axis: .vertical)
-                        .lineLimit(2...6)
-                        .focused($isTextFocused)
-                }
-
-                if category == .quote {
-                    Section(Copy.milestone.context) {
-                        TextField(Copy.milestone.contextPlaceholder, text: $context)
-                    }
-                }
+                MilestoneTextSections(category: category, descriptionText: $descriptionText, context: $context, isFocused: $isTextFocused)
 
                 Section {
                     Picker(Copy.milestone.category, selection: Binding(
@@ -115,15 +107,7 @@ struct AddMilestoneView: View {
                         .id(person?.id)
                 }
 
-                if category == .artwork {
-                    ArtworkPhotosSection(picked: $artwork)
-                }
-
-                if !suggestedPhotos.isEmpty {
-                    Section(Copy.milestone.photosAroundThen) {
-                        SuggestedPhotosRow(photos: suggestedPhotos, selection: $selectedPhotoIds)
-                    }
-                }
+                MilestonePhotoSections(category: category, artwork: $artwork, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds)
 
                 Section {
                     DisclosureGroup(Copy.milestone.more, isExpanded: $showsMore) {
@@ -188,8 +172,7 @@ struct AddMilestoneView: View {
 
     /// A category (unless the user picked one) and photos from around then. Waits for the inputs to settle first; a newer key cancels this one mid-wait. Offline, or on any failure, nothing changes.
     private func lookUpSuggestions() async {
-        try? await Task.sleep(for: .milliseconds(600))
-        guard !Task.isCancelled, network?.isConnected ?? true else { return }
+        guard await MilestoneSuggestionLookup.settle(), network.isConnected else { return }
 
         let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
         let personId = person?.remoteId.flatMap(Int.init)
@@ -252,7 +235,7 @@ struct AddMilestoneView: View {
                     picked, artist: person, context: modelContext, syncService: syncService
                 ))
                 // The tags go in the create itself, so there is no window where the milestone is on the server without them.
-                try await syncService?.addMilestone(
+                try await syncService.addMilestone(
                     milestone,
                     for: person,
                     photos: photos.isEmpty ? nil : photos,
@@ -261,7 +244,7 @@ struct AddMilestoneView: View {
                 saved = milestone
             } catch {
                 dismiss()
-                errorPresenter?.report(error, title: "Couldn't Save Milestone")
+                errorPresenter.report(error, title: "Couldn't Save Milestone")
             }
         }
     }

@@ -9,7 +9,7 @@ struct BookEditorView: View {
     let onDeleted: @MainActor () -> Void
 
     @Environment(BookService.self) private var service
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AuthService.self) private var authService
     @Environment(\.dismiss) private var dismiss
 
     /// Matched by server id, for "Edit the original milestone".

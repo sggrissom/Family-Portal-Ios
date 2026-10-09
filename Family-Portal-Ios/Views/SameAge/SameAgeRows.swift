@@ -153,7 +153,7 @@ struct SameAgeStrip: View {
     /// Hidden when nobody else has anything, instead of saying so — Story's overview does this.
     var hideWhenEmpty = false
 
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(NetworkMonitor.self) private var network
     @State private var loader = SameAgeLoader()
 
     var body: some View {
@@ -182,7 +182,7 @@ struct SameAgeStrip: View {
             }
         }
         .task(id: "\(anchorRemoteId)-\(ageMonths)") {
-            await loader.load(ageMonths: ageMonths, fromPersonId: anchorRemoteId, isConnected: network?.isConnected ?? true)
+            await loader.load(ageMonths: ageMonths, fromPersonId: anchorRemoteId, isConnected: network.isConnected)
         }
     }
 }

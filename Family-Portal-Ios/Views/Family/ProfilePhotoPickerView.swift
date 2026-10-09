@@ -3,8 +3,8 @@ import SwiftData
 
 /// Picks a person's avatar from the photos they are tagged in — `SetProfilePhoto` rejects a photo the person is not associated with, so that set is the whole eligible set.
 struct ProfilePhotoPickerView: View {
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(SyncService.self) private var syncService
+    @Environment(ErrorPresenter.self) private var errorPresenter
     @Environment(\.dismiss) private var dismiss
 
     let person: Person
@@ -78,11 +78,11 @@ struct ProfilePhotoPickerView: View {
 
         Task {
             do {
-                try await syncService?.setProfilePhoto(photo, for: person)
+                try await syncService.setProfilePhoto(photo, for: person)
                 dismiss()
             } catch {
                 dismiss()
-                errorPresenter?.report(error, title: "Couldn't Set Profile Photo")
+                errorPresenter.report(error, title: "Couldn't Set Profile Photo")
             }
         }
     }
