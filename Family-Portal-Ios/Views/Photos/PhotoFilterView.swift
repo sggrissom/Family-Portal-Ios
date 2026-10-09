@@ -90,7 +90,7 @@ struct PhotoFilterView: View {
             } else {
                 ForEach(sortedTags) { tag in
                     // A tag the pull stored without a usable id can't match anything, since `Photo.tagRemoteIds` holds server ids.
-                    let remoteId = tag.remoteId.flatMap(Int.init)
+                    let remoteId = tag.serverId
                     let isSelected = remoteId.map { filter.tagRemoteIds.contains($0) } ?? false
 
                     Button {

@@ -85,7 +85,7 @@ struct PersonStoryTab: View {
             .padding()
         }
         .task(id: person.remoteId) {
-            guard let remoteId = person.remoteId.flatMap(Int.init) else { return }
+            guard let remoteId = person.serverId else { return }
             await season.load(activityService.personSeason(personId: remoteId))
         }
     }
@@ -377,7 +377,7 @@ struct PersonArtworkTab: View {
     @ViewBuilder
     private func cover(_ piece: Milestone) -> some View {
         if let remoteId = piece.photoRemoteIds.first {
-            let local = person.photos.first { $0.remoteId == String(remoteId) }
+            let local = person.photos.first { $0.serverId == remoteId }
             PhotoThumbnailView(imageData: local?.imageData, title: "", remoteId: String(remoteId))
         } else {
             Rectangle()
@@ -557,8 +557,7 @@ extension PersonPhotosTab {
     }
 
     private func localPerson(remoteId: Int) -> Person? {
-        let key = String(remoteId)
-        return people.first { $0.remoteId == key }
+        people.first { $0.serverId == remoteId }
     }
 }
 

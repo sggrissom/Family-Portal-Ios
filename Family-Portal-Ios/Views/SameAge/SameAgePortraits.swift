@@ -67,7 +67,7 @@ struct SameAgePortraits: View {
     }
 
     private func localPerson(_ remoteId: Int) -> Person? {
-        people.first { $0.remoteId == String(remoteId) }
+        people.first { $0.serverId == remoteId }
     }
 
     private func pick(_ row: SameAgeRowDTO) -> Int {
@@ -150,7 +150,7 @@ private struct SameAgePortraitViewer: View {
                         }
                         .buttonStyle(.bordered)
                     }
-                    if let photo = photos.first(where: { $0.remoteId == String(portrait.photoId) }) {
+                    if let photo = photos.first(where: { $0.serverId == portrait.photoId }) {
                         NavigationLink(Copy.sameAge.openPhotoPage) {
                             PhotoDetailView(photoId: photo.id)
                         }

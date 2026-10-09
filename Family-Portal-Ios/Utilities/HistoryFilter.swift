@@ -96,7 +96,7 @@ enum History {
         if wantType(.activities) && !tagsOnly {
             let remoteIds = filters.personIds.isEmpty
                 ? nil
-                : Set(people.filter { filters.personIds.contains($0.id) }.compactMap { $0.remoteId.flatMap(Int.init) })
+                : Set(people.filter { filters.personIds.contains($0.id) }.compactMap { $0.serverId })
             records.appearances = appearances.filter { appearance in
                 remoteIds.map { ids in appearance.personIds.contains { ids.contains($0) } } ?? true
             }

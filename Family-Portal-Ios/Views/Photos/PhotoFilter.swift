@@ -67,7 +67,7 @@ struct PhotoFilter: Equatable {
 
     private func matches(_ photo: Photo, range: (from: Date?, to: Date?), search: String, placePhotoIds: Set<Int>?) -> Bool {
         if placeKey != nil {
-            guard let placePhotoIds, let id = photo.remoteId.flatMap(Int.init), placePhotoIds.contains(id) else {
+            guard let placePhotoIds, let id = photo.serverId, placePhotoIds.contains(id) else {
                 return false
             }
         }

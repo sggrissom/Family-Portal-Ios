@@ -152,10 +152,7 @@ extension AnalysisService {
 /// Server photo ids resolved to the photos this device holds, in the server's order. An id with no local row — not pulled yet, or not one of the eligible photos — is dropped.
 enum RemotePhotoResolution {
     static func resolve(_ remoteIds: [Int], in photos: [Photo]) -> [Photo] {
-        var byRemoteId: [Int: Photo] = [:]
-        for photo in photos {
-            if let id = photo.remoteId.flatMap(Int.init) { byRemoteId[id] = photo }
-        }
-        return remoteIds.compactMap { byRemoteId[$0] }
+        let byServerId = photos.byServerId()
+        return remoteIds.compactMap { byServerId[$0] }
     }
 }

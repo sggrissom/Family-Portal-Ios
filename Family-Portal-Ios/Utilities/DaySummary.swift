@@ -129,7 +129,7 @@ enum DaySummaries {
 
         let newestPhotos = records.photos
             .filter { photo in
-                guard let remoteId = photo.remoteId.flatMap(Int.init) else { return true }
+                guard let remoteId = photo.serverId else { return true }
                 return !attachedPhotoIds.contains(remoteId)
             }
             .sorted { $0.photoDate != $1.photoDate ? $0.photoDate > $1.photoDate : $0.id.uuidString > $1.id.uuidString }

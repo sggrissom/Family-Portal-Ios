@@ -75,7 +75,7 @@ private struct PhotoDetailContent: View {
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .padding(.horizontal)
-                } else if let remoteId = photo.remoteId, let remoteInt = Int(remoteId) {
+                } else if let remoteInt = photo.serverId {
                     ZoomableView {
                         RemotePhotoView(remoteId: remoteInt, size: .xlarge, contentMode: .fit)
                             .scaledToFit()
@@ -242,7 +242,7 @@ private struct PhotoDetailContent: View {
     // MARK: - Analysis
 
     private func loadDetails() async {
-        guard let id = photo.remoteId.flatMap(Int.init), network.isConnected else {
+        guard let id = photo.serverId, network.isConnected else {
             details = nil
             return
         }
@@ -290,7 +290,7 @@ private struct PhotoDetailContent: View {
 
     private func isProfilePhoto(of person: Person) -> Bool {
         guard let profilePhotoId = person.profilePhotoId else { return false }
-        return photo.remoteId.flatMap(Int.init) == profilePhotoId
+        return photo.serverId == profilePhotoId
     }
 
     private func setProfilePhoto(for person: Person) {

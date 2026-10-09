@@ -31,7 +31,7 @@ struct ActivityPhotoPickerView: View {
     private var choices: [Choice] {
         let local = photos
             .compactMap { photo -> Choice? in
-                guard let remoteId = photo.remoteId.flatMap(Int.init) else { return nil }
+                guard let remoteId = photo.serverId else { return nil }
                 return Choice(remoteId: remoteId, photo: photo)
             }
             .sorted { ($0.photo?.photoDate ?? .distantPast) > ($1.photo?.photoDate ?? .distantPast) }

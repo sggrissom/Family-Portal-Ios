@@ -14,7 +14,7 @@ struct TagChipsView: View {
     private var resolvedTags: [FamilyTag] {
         var byRemoteId: [Int: FamilyTag] = [:]
         for tag in tags {
-            if let remoteId = tag.remoteId.flatMap(Int.init) {
+            if let remoteId = tag.serverId {
                 byRemoteId[remoteId] = tag
             }
         }

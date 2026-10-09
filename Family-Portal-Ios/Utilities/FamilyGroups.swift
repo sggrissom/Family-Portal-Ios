@@ -22,7 +22,7 @@ enum FamilyGroups {
     static func group(people: [Person], relations: [RelationEdge]) -> [PersonGroup] {
         var byId: [Int: Person] = [:]
         for person in people {
-            if let remoteId = person.remoteId.flatMap(Int.init) {
+            if let remoteId = person.serverId {
                 byId[remoteId] = person
             }
         }
@@ -38,7 +38,7 @@ enum FamilyGroups {
         var linked: [Int] = []
         var unlinked: [Person] = []
         for person in people {
-            if let remoteId = person.remoteId.flatMap(Int.init), linkedIds.contains(remoteId) {
+            if let remoteId = person.serverId, linkedIds.contains(remoteId) {
                 linked.append(remoteId)
             } else {
                 unlinked.append(person)

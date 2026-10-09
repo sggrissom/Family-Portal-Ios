@@ -64,7 +64,7 @@ final class SyncService {
             var relations = RemoteRecords<PersonRelation>(modelContext)
 
             func upsertPerson(_ dto: PersonDTO) -> Person {
-                let person = people.upsert(String(dto.id)) { Person(name: "", gender: .other) }
+                let person = people.upsert(dto.id) { Person(name: "", gender: .other) }
                 if !pending.isEdited(person.id) {
                     applyPersonDTO(dto, to: person)
                 }
@@ -73,21 +73,19 @@ final class SyncService {
 
             /// `nil` for a photo deleted locally whose delete has not reached the server yet.
             func upsertPhoto(_ dto: ImageDTO) -> Photo? {
-                let remoteId = String(dto.id)
-                guard !pending.deletedPhotoIds.contains(remoteId) else { return nil }
-                photos.markSeen(remoteId)
-                return photos.upsert(remoteId) { Photo(title: "", descriptionText: "", photoDate: Date()) }
+                guard !pending.deletedPhotoIds.contains(dto.id) else { return nil }
+                photos.markSeen(dto.id)
+                return photos.upsert(dto.id) { Photo(title: "", descriptionText: "", photoDate: Date()) }
             }
 
             for item in timelineResponse.people {
                 let person = upsertPerson(item.person)
-                people.markSeen(String(item.person.id))
+                people.markSeen(item.person.id)
 
                 for dto in item.growthData {
-                    let remoteId = String(dto.id)
-                    guard !pending.deletedGrowthDataIds.contains(remoteId) else { continue }
-                    growth.markSeen(remoteId)
-                    let record = growth.upsert(remoteId) {
+                    guard !pending.deletedGrowthDataIds.contains(dto.id) else { continue }
+                    growth.markSeen(dto.id)
+                    let record = growth.upsert(dto.id) {
                         GrowthData(measurementType: .height, value: 0, unit: .centimeters, date: Date())
                     }
                     if !pending.isEdited(record.id) {
@@ -97,10 +95,9 @@ final class SyncService {
                 }
 
                 for dto in item.milestones {
-                    let remoteId = String(dto.id)
-                    guard !pending.deletedMilestoneIds.contains(remoteId) else { continue }
-                    milestones.markSeen(remoteId)
-                    let milestone = milestones.upsert(remoteId) { Milestone(descriptionText: "", category: .other, date: Date()) }
+                    guard !pending.deletedMilestoneIds.contains(dto.id) else { continue }
+                    milestones.markSeen(dto.id)
+                    let milestone = milestones.upsert(dto.id) { Milestone(descriptionText: "", category: .other, date: Date()) }
                     if !pending.isEdited(milestone.id) {
                         applyMilestoneDTO(dto, to: milestone)
                     }
@@ -123,15 +120,14 @@ final class SyncService {
             }
 
             for dto in timelineResponse.relations {
-                let remoteId = String(dto.id)
-                let relation = relations.upsert(remoteId) { PersonRelation(remoteId: remoteId, fromId: 0, toId: 0, kind: .parent) }
+                let relation = relations.upsert(dto.id) { PersonRelation(fromId: 0, toId: 0, kind: .parent) }
                 guard applyRelationDTO(dto, to: relation) else {
                     // A kind this build cannot read is not stored at all, so it must not be counted as seen either or the sweep would keep the stale row it replaced.
-                    relations.forget(remoteId)
+                    relations.forget(dto.id)
                     modelContext.delete(relation)
                     continue
                 }
-                relations.markSeen(remoteId)
+                relations.markSeen(dto.id)
             }
 
             people.sweepUnseen()
@@ -155,9 +151,9 @@ final class SyncService {
     /// What the queue still owes the server. A pull is a snapshot from before those operations land, so applying it as-is would roll back an edit made offline and bring a deleted record back until the queue caught up.
     private struct PendingLocalChanges {
         var editedLocalIds = Set<String>()
-        var deletedGrowthDataIds = Set<String>()
-        var deletedMilestoneIds = Set<String>()
-        var deletedPhotoIds = Set<String>()
+        var deletedGrowthDataIds = Set<Int>()
+        var deletedMilestoneIds = Set<Int>()
+        var deletedPhotoIds = Set<Int>()
 
         func isEdited(_ localId: UUID) -> Bool {
             editedLocalIds.contains(localId.uuidString)
@@ -171,7 +167,7 @@ final class SyncService {
             case .deleteGrowthData, .deleteMilestone, .deletePhoto:
                 // The local record is already gone, so the only handle left on it is the server id the delete carries.
                 guard let payload = try? JSONDecoder().decode(DeletePayload.self, from: operation.payload) else { continue }
-                let remoteId = String(payload.remoteId)
+                let remoteId = payload.remoteId
                 switch operation.type {
                 case .deleteGrowthData: changes.deletedGrowthDataIds.insert(remoteId)
                 case .deleteMilestone: changes.deletedMilestoneIds.insert(remoteId)
@@ -227,9 +223,8 @@ final class SyncService {
 
             var tags = RemoteRecords<FamilyTag>(modelContext)
             for dto in response.tags {
-                let remoteId = String(dto.id)
-                tags.markSeen(remoteId)
-                applyTagDTO(dto, to: tags.upsert(remoteId) { FamilyTag(name: "", colorHex: "", familyId: 0) })
+                tags.markSeen(dto.id)
+                applyTagDTO(dto, to: tags.upsert(dto.id) { FamilyTag(name: "", colorHex: "", familyId: 0) })
             }
             tags.sweepUnseen()
         } catch {
@@ -397,7 +392,7 @@ final class SyncService {
     private func resolveAdditionalAnchors(_ payload: CreatePersonPayload) -> [Int] {
         guard payload.stated != StatedRelation.none.rawValue else { return [] }
         return payload.additionalAnchorLocalIds.compactMap { localId in
-            findPerson(byLocalId: localId)?.remoteId.flatMap(Int.init)
+            findPerson(byLocalId: localId)?.serverId
         }
     }
 
@@ -727,7 +722,7 @@ final class SyncService {
             throw SyncError.personNotInPhoto
         }
 
-        let photoRemoteId = photo.remoteId.flatMap(Int.init)
+        let photoRemoteId = photo.serverId
 
         let keepsExistingCrop = photoRemoteId != nil && photoRemoteId == person.profilePhotoId
         let cropX = keepsExistingCrop ? (person.profileCropX ?? 50) : 50
@@ -823,7 +818,7 @@ final class SyncService {
     }
 
     func deleteGrowthData(_ data: GrowthData) async throws {
-        try await deleteRecord(data, localId: data.id, remoteId: data.remoteId, as: .deleteGrowthData)
+        try await deleteRecord(data, localId: data.id, serverId: data.serverId, as: .deleteGrowthData)
     }
 
     // MARK: - Push: Milestones
@@ -875,7 +870,7 @@ final class SyncService {
 
     private func applyPhotosOptimistically(_ photos: [Photo]?, to milestone: Milestone) throws {
         guard let photos else { return }
-        milestone.photoRemoteIds = photos.compactMap { $0.remoteId.flatMap(Int.init) }
+        milestone.photoRemoteIds = photos.compactMap { $0.serverId }
         try modelContext.save()
     }
 
@@ -886,13 +881,13 @@ final class SyncService {
     }
 
     func deleteMilestone(_ milestone: Milestone) async throws {
-        try await deleteRecord(milestone, localId: milestone.id, remoteId: milestone.remoteId, as: .deleteMilestone)
+        try await deleteRecord(milestone, localId: milestone.id, serverId: milestone.serverId, as: .deleteMilestone)
     }
 
     // MARK: - Push: Photos
 
     func deletePhoto(_ photo: Photo) async throws {
-        try await deleteRecord(photo, localId: photo.id, remoteId: photo.remoteId, as: .deletePhoto)
+        try await deleteRecord(photo, localId: photo.id, serverId: photo.serverId, as: .deletePhoto)
     }
 
     /// `keepingDate` sends `inputType: "keep"`: the server keeps whatever date the photo has, which after an upload is the one it read from the file itself.
@@ -1055,7 +1050,7 @@ final class SyncService {
 
     /// The record's server id, or `missingRemoteId` when it is missing or not on the server yet — which parks the operation until it is.
     private func synced<Record: RemoteIdentifiable>(_ record: Record?, _ reason: String) throws -> (Record, Int) {
-        guard let record, let id = record.remoteId.flatMap(Int.init) else {
+        guard let record, let id = record.serverId else {
             throw SyncError.missingRemoteId(reason)
         }
         return (record, id)
@@ -1066,10 +1061,10 @@ final class SyncService {
     }
 
     /// Deletes locally at once. A record the server never had needs nothing more; one it has is deleted there through the queue, carrying the server id since the local record is gone.
-    private func deleteRecord<Model: PersistentModel>(_ record: Model, localId: UUID, remoteId: String?, as type: SyncOperationType) async throws {
+    private func deleteRecord<Model: PersistentModel>(_ record: Model, localId: UUID, serverId: Int?, as type: SyncOperationType) async throws {
         modelContext.delete(record)
         try modelContext.save()
-        guard let id = remoteId.flatMap(Int.init) else { return }
+        guard let id = serverId else { return }
         try await enqueueOperation(type: type, localId: localId.uuidString, payload: DeletePayload(remoteId: id), dependsOnLocalId: nil)
     }
 
@@ -1124,52 +1119,47 @@ enum SyncError: LocalizedError {
     }
 }
 
-private protocol RemoteIdentifiable {
+private protocol RemoteIdentifiable: ServerIdentified {
     var id: UUID { get }
-    var remoteId: String? { get set }
 }
 
 /// Every stored record of one type keyed by server id, fetched once per pull: the pull touches every record, and a predicate fetch for each one was N queries on the main actor. What the pull never marks seen is swept at the end, since the server no longer has it.
 private struct RemoteRecords<Model: PersistentModel & RemoteIdentifiable> {
     private let context: ModelContext
     private var records: [Model]
-    private var byRemoteId: [String: Model] = [:]
-    private var seen = Set<String>()
+    private var byServerId: [Int: Model] = [:]
+    private var seen = Set<Int>()
 
     init(_ context: ModelContext) {
         self.context = context
         records = (try? context.fetch(FetchDescriptor<Model>())) ?? []
-        for record in records {
-            if let remoteId = record.remoteId, byRemoteId[remoteId] == nil {
-                byRemoteId[remoteId] = record
-            }
-        }
+        byServerId = records.byServerId()
     }
 
     /// The record with this server id, inserting a blank one from `make` when there is none yet. Does not mark it seen: a person met only as a photo tag is not a reason to keep them.
-    mutating func upsert(_ remoteId: String, make: () -> Model) -> Model {
-        if let existing = byRemoteId[remoteId] { return existing }
-        var record = make()
-        record.remoteId = remoteId
+    mutating func upsert(_ serverId: Int, make: () -> Model) -> Model {
+        if let existing = byServerId[serverId] { return existing }
+        let record = make()
+        record.serverId = serverId
         context.insert(record)
         records.append(record)
-        byRemoteId[remoteId] = record
+        byServerId[serverId] = record
         return record
     }
 
-    mutating func markSeen(_ remoteId: String) {
-        seen.insert(remoteId)
+    mutating func markSeen(_ serverId: Int) {
+        seen.insert(serverId)
     }
 
     /// For a record the caller has deleted itself, so the sweep does not delete it a second time.
-    mutating func forget(_ remoteId: String) {
-        guard let record = byRemoteId.removeValue(forKey: remoteId) else { return }
+    mutating func forget(_ serverId: Int) {
+        guard let record = byServerId.removeValue(forKey: serverId) else { return }
         records.removeAll { $0 === record }
     }
 
     func sweepUnseen() {
         for record in records {
-            if let remoteId = record.remoteId, !seen.contains(remoteId) {
+            if let serverId = record.serverId, !seen.contains(serverId) {
                 context.delete(record)
             }
         }

@@ -43,7 +43,7 @@ struct EditMilestoneView: View {
     /// The choices the milestone has attached right now.
     private var attachedChoices: [Photo] {
         let attached = Set(milestone.photoRemoteIds)
-        return photoChoices.filter { photo in photo.remoteId.flatMap(Int.init).map { attached.contains($0) } ?? false }
+        return photoChoices.filter { photo in photo.serverId.map { attached.contains($0) } ?? false }
     }
 
     /// What the milestone had attached when the editor opened. Not suggested again: they are in the picker already.
@@ -120,7 +120,7 @@ struct EditMilestoneView: View {
 
         let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard network.isConnected,
-              let personId = milestone.person?.remoteId.flatMap(Int.init),
+              let personId = milestone.person?.serverId,
               text.count >= 3 else {
             suggestedPhotoRemoteIds = []
             return

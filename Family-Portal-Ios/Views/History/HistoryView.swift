@@ -123,7 +123,7 @@ struct HistoryView: View {
                 if !tags.isEmpty {
                     Section(Copy.history.tags) {
                         ForEach(tags.sorted { $0.name.lowercased() < $1.name.lowercased() }) { tag in
-                            if let remoteId = tag.remoteId.flatMap(Int.init) {
+                            if let remoteId = tag.serverId {
                                 Toggle(tag.name, isOn: Binding(
                                     get: { filters.tagIds.contains(remoteId) },
                                     set: { on in

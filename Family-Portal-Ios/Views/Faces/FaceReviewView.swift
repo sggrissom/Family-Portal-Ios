@@ -226,7 +226,7 @@ struct FaceReviewView: View {
     private func photoIndex() -> [Int: UUID] {
         let photos = (try? modelContext.fetch(FetchDescriptor<Photo>())) ?? []
         return Dictionary(
-            photos.compactMap { photo in photo.remoteId.flatMap(Int.init).map { ($0, photo.id) } },
+            photos.compactMap { photo in photo.serverId.map { ($0, photo.id) } },
             uniquingKeysWith: { _, last in last }
         )
     }

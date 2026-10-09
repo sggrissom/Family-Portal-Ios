@@ -178,7 +178,7 @@ struct PersonDetailView: View {
     // MARK: - Insights
 
     private func loadInsights(for person: Person) async {
-        guard let remoteId = person.remoteId.flatMap(Int.init) else {
+        guard let remoteId = person.serverId else {
             insights = nil
             return
         }
@@ -241,7 +241,7 @@ struct PersonDetailView: View {
             PersonGrowthTab(person: person)
         case .activities:
             // `GetPersonSeason` is addressed by server id; somebody created offline has no server record yet.
-            if let remoteId = person.remoteId.flatMap(Int.init) {
+            if let remoteId = person.serverId {
                 PersonSeasonView(personId: remoteId, personName: person.name, setsTitle: false)
                     .id(remoteId)
             } else {

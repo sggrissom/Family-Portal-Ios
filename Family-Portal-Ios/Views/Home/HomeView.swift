@@ -152,7 +152,7 @@ struct HomeView: View {
 
     /// Where a nudge leads: a measurement for the person, their page, or face review.
     private func act(on nudge: DashboardNudgeDTO) {
-        let person = people.first { $0.remoteId == String(nudge.personId) }
+        let person = people.first { $0.serverId == nudge.personId }
         switch nudge.kind {
         case "measure":
             addFlow.open(.measurement(personId: person?.id))
@@ -214,10 +214,8 @@ struct HomeView: View {
     @ViewBuilder
     private func onThisDay(_ dashboard: GetDashboardResponseDTO) -> some View {
         if !dashboard.onThisDay.isEmpty {
-            let names = Dictionary(
-                people.compactMap { person in person.remoteId.flatMap(Int.init).map { ($0, person.name.firstName) } },
-                uniquingKeysWith: { first, _ in first }
-            )
+            let names = people.byServerId().mapValues(\.name.firstName)
+            let photosById = photos.byServerId()
             section(Copy.home.onThisDay) {
                 ForEach(dashboard.onThisDay) { year in
                     VStack(alignment: .leading, spacing: 6) {
@@ -227,7 +225,7 @@ struct HomeView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 6) {
                                     ForEach(year.photos, id: \.id) { image in
-                                        onThisDayPhoto(image.id)
+                                        onThisDayPhoto(image.id, local: photosById[image.id])
                                     }
                                 }
                             }
@@ -249,11 +247,11 @@ struct HomeView: View {
     }
 
     @ViewBuilder
-    private func onThisDayPhoto(_ remoteId: Int) -> some View {
+    private func onThisDayPhoto(_ remoteId: Int, local photo: Photo?) -> some View {
         let thumb = RemotePhotoView(remoteId: remoteId, size: .thumb)
             .frame(width: 80, height: 80)
             .clipShape(RoundedRectangle(cornerRadius: 6))
-        if let photo = photos.first(where: { $0.remoteId == String(remoteId) }) {
+        if let photo {
             NavigationLink(value: PhotoRoute(id: photo.id)) { thumb }
                 .accessibilityLabel("View photo")
         } else {

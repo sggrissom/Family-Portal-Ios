@@ -25,7 +25,7 @@ struct CoAnchorPicker: View {
     }
 
     private func person(for anchorId: Int) -> Person? {
-        people.first { $0.remoteId.flatMap(Int.init) == anchorId }
+        people.first { $0.serverId == anchorId }
     }
 
     private func binding(for anchorId: Int) -> Binding<Bool> {

@@ -33,7 +33,7 @@ struct PersonRelationsSection: View {
     }
 
     private var anchorRemoteId: Int? {
-        anchor?.remoteId.flatMap(Int.init)
+        anchor?.serverId
     }
 
     private var statedRows: [RelationViewDTO] {
