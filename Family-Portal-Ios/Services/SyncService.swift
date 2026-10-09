@@ -550,8 +550,8 @@ final class SyncService {
 
         let response = try await PhotoSyncService(apiClient: apiClient).uploadPhoto(
             imageData: imageData,
-            title: payload.title,
-            description: payload.description,
+            title: photo.title,
+            description: photo.descriptionText,
             photoDate: photo.photoDate,
             personIds: personIds
         )
@@ -948,14 +948,7 @@ final class SyncService {
             throw SyncError.missingImageData
         }
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        let payload = UploadPhotoPayload(
-            title: photo.title,
-            description: photo.descriptionText,
-            photoDate: formatter.string(from: photo.photoDate),
-            taggedPersonLocalIds: photo.taggedPeople.map { $0.id.uuidString }
-        )
+        let payload = UploadPhotoPayload(taggedPersonLocalIds: photo.taggedPeople.map { $0.id.uuidString })
 
         try await enqueueOperation(
             type: .uploadPhoto,

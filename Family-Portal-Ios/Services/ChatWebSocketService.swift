@@ -74,9 +74,14 @@ actor ChatWebSocketService {
 
     private func notifyConnectionStateChange() async {
         let state = connectionState
+        await notify { $0.didChangeConnectionState(state) }
+    }
+
+    /// Hands an event to the delegate on the main actor, where it lives.
+    private func notify(_ event: @escaping @Sendable @MainActor (ChatWebSocketDelegate) -> Void) async {
         let delegate = self.delegate
         await MainActor.run {
-            delegate?.didChangeConnectionState(state)
+            if let delegate { event(delegate) }
         }
     }
 
@@ -219,42 +224,26 @@ actor ChatWebSocketService {
 
             switch messageType {
             case .newMessage:
-                let wrapper = try APIClient.decode(Envelope<WSNewMessagePayload>.self, from: data)
-                let delegate = self.delegate
-                await MainActor.run {
-                    delegate?.didReceiveMessage(wrapper.payload.message)
-                }
+                let payload = try APIClient.decode(Envelope<WSNewMessagePayload>.self, from: data).payload
+                await notify { $0.didReceiveMessage(payload.message) }
 
             case .deleteMessage:
-                let wrapper = try APIClient.decode(Envelope<WSDeleteMessagePayload>.self, from: data)
-                let delegate = self.delegate
-                await MainActor.run {
-                    delegate?.didReceiveDeleteMessage(
-                        messageId: wrapper.payload.messageId,
-                        userId: wrapper.payload.userId
-                    )
-                }
+                let payload = try APIClient.decode(Envelope<WSDeleteMessagePayload>.self, from: data).payload
+                await notify { $0.didReceiveDeleteMessage(messageId: payload.messageId, userId: payload.userId) }
 
             case .userTyping:
-                let wrapper = try APIClient.decode(Envelope<WSTypingPayload>.self, from: data)
-                let delegate = self.delegate
-                await MainActor.run {
-                    delegate?.didReceiveTypingUpdate(
-                        userId: wrapper.payload.userId,
-                        userName: wrapper.payload.userName,
-                        isTyping: wrapper.payload.isTyping
-                    )
+                let payload = try APIClient.decode(Envelope<WSTypingPayload>.self, from: data).payload
+                await notify {
+                    $0.didReceiveTypingUpdate(userId: payload.userId, userName: payload.userName, isTyping: payload.isTyping)
                 }
 
             case .userOnline, .userOffline:
-                let wrapper = try APIClient.decode(Envelope<WSUserStatusPayload>.self, from: data)
-                let payload = wrapper.payload
-                let delegate = self.delegate
-                await MainActor.run {
+                let payload = try APIClient.decode(Envelope<WSUserStatusPayload>.self, from: data).payload
+                await notify { delegate in
                     if payload.isOnline {
-                        delegate?.didReceiveUserOnline(userId: payload.userId, userName: payload.userName)
+                        delegate.didReceiveUserOnline(userId: payload.userId, userName: payload.userName)
                     } else {
-                        delegate?.didReceiveUserOffline(userId: payload.userId, userName: payload.userName)
+                        delegate.didReceiveUserOffline(userId: payload.userId, userName: payload.userName)
                     }
                 }
 
@@ -265,10 +254,7 @@ actor ChatWebSocketService {
                 struct ErrorEnvelope: Decodable { let payload: String? }
                 let wrapper = try? APIClient.decode(ErrorEnvelope.self, from: data)
                 let message = wrapper?.payload ?? "Chat connection error"
-                let delegate = self.delegate
-                await MainActor.run {
-                    delegate?.didReceiveError(message)
-                }
+                await notify { $0.didReceiveError(message) }
             }
         } catch {
             AppLog.chat.error("Failed to decode socket message: \(String(describing: error), privacy: .public)")
@@ -302,7 +288,7 @@ actor ChatWebSocketService {
             Self.maxReconnectDelay
         )
 
-        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        try? await Task.sleep(for: .seconds(delay))
 
         if !isManuallyDisconnected {
             await performConnect()
@@ -326,7 +312,7 @@ actor ChatWebSocketService {
         heartbeatTask?.cancel()
         heartbeatTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(Self.heartbeatInterval * 1_000_000_000))
+                try? await Task.sleep(for: .seconds(Self.heartbeatInterval))
 
                 guard !Task.isCancelled else { break }
 
@@ -344,7 +330,7 @@ actor ChatWebSocketService {
         watchdogTask?.cancel()
         watchdogTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(Self.watchdogTimeout * 1_000_000_000))
+                try? await Task.sleep(for: .seconds(Self.watchdogTimeout))
 
                 guard !Task.isCancelled else { break }
 

@@ -49,7 +49,7 @@ nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
     let id: UUID
     let type: SyncOperationType
     let localId: String
-    let payload: Data
+    var payload: Data
     let createdAt: Date
     var retryCount: Int
     /// Sync runs this operation sat out because a dependency has not synced. Counted apart from `retryCount`, but not free, or a permanently blocked operation stays for the life of the install.
@@ -150,10 +150,8 @@ nonisolated struct CreateMilestonePayload: Codable, Sendable {
     var context: String? = nil
 }
 
+/// The caption and date are read from the photo when the upload runs, so an edit made while it waited goes up with it. Operations queued by older builds also carry `title`, `description` and `photoDate`, which decoding ignores.
 nonisolated struct UploadPhotoPayload: Codable, Sendable {
-    let title: String
-    let description: String
-    let photoDate: String
     let taggedPersonLocalIds: [String]
 }
 
@@ -393,18 +391,7 @@ actor SyncQueue {
                 return false
             }
 
-            var mergedOperation = operations[existingIndex]
-            mergedOperation = PendingOperation(
-                id: mergedOperation.id,
-                type: mergedOperation.type,
-                localId: mergedOperation.localId,
-                payload: encodedPayload,
-                createdAt: mergedOperation.createdAt,
-                retryCount: mergedOperation.retryCount,
-                blockedCount: mergedOperation.blockedCount,
-                dependsOnLocalId: mergedOperation.dependsOnLocalId
-            )
-            operations[existingIndex] = mergedOperation
+            operations[existingIndex].payload = encodedPayload
             return true
         }
 
@@ -414,17 +401,9 @@ actor SyncQueue {
                 return false
             }
 
-            let adjustedOperation = PendingOperation(
-                id: incoming.id,
-                type: incoming.type,
-                localId: incoming.localId,
-                payload: encodedPayload,
-                createdAt: incoming.createdAt,
-                retryCount: incoming.retryCount,
-                blockedCount: incoming.blockedCount,
-                dependsOnLocalId: incoming.dependsOnLocalId
-            )
-            operations.append(adjustedOperation)
+            var adjusted = incoming
+            adjusted.payload = encodedPayload
+            operations.append(adjusted)
             return true
         }
 
@@ -448,17 +427,7 @@ actor SyncQueue {
                     guard let encodedPayload = try? JSONEncoder().encode(updatedPayload) else {
                         return false
                     }
-                    let previous = operations[addIndex]
-                    operations[addIndex] = PendingOperation(
-                        id: previous.id,
-                        type: previous.type,
-                        localId: previous.localId,
-                        payload: encodedPayload,
-                        createdAt: previous.createdAt,
-                        retryCount: previous.retryCount,
-                        blockedCount: previous.blockedCount,
-                        dependsOnLocalId: previous.dependsOnLocalId
-                    )
+                    operations[addIndex].payload = encodedPayload
                 }
                 return true
             }

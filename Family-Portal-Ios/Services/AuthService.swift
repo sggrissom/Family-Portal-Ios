@@ -2,6 +2,7 @@ import AuthenticationServices
 import Foundation
 import OSLog
 
+/// Main-actor isolated, like everything in this target without a `nonisolated` of its own (`SWIFT_DEFAULT_ACTOR_ISOLATION`).
 @Observable
 final class AuthService {
     private(set) var currentUser: AuthResponseDTO?
@@ -13,13 +14,13 @@ final class AuthService {
     private let googleSignInService = GoogleSignInService()
     private let appleSignInService = AppleSignInService()
 
-    @MainActor var onWillLogout: (@MainActor () async -> Void)?
+    var onWillLogout: (@MainActor () async -> Void)?
 
     /// Runs when the data on this device cannot be vouched for as the signing-in account's, before the new identity is published — see `LocalAccountOwner`.
-    @MainActor var onUnownedLocalData: (@MainActor (LocalDataResetScope) async -> Void)?
+    var onUnownedLocalData: (@MainActor (LocalDataResetScope) async -> Void)?
 
     /// Runs after the server has destroyed the account. Nothing remains to reconcile against, so the store is erased outright.
-    @MainActor var onAccountDeleted: (@MainActor () async -> Void)?
+    var onAccountDeleted: (@MainActor () async -> Void)?
 
     private let accountOwner = LocalAccountOwner()
 
@@ -32,11 +33,10 @@ final class AuthService {
     }
 
     /// Apple's button owns its own presentation, so this covers only the token exchange that follows it.
-    @MainActor private(set) var isAppleSigningIn = false
+    private(set) var isAppleSigningIn = false
 
     init() {}
 
-    @MainActor
     func login(email: String, password: String) async {
         struct LoginRequest: Encodable {
             let email: String
@@ -51,7 +51,6 @@ final class AuthService {
         }
     }
 
-    @MainActor
     func createAccount(
         name: String,
         email: String,
@@ -86,7 +85,6 @@ final class AuthService {
         }
     }
 
-    @MainActor
     func requestPasswordReset(email: String) async -> String? {
         isLoading = true
         defer { isLoading = false }
@@ -103,7 +101,6 @@ final class AuthService {
         }
     }
 
-    @MainActor
     func loginWithGoogle(familyCode: String = "") async {
         await signIn(fallback: "Google sign-in failed.") {
             let idToken = try await self.googleSignInService.signIn()
@@ -116,19 +113,16 @@ final class AuthService {
     }
 
     /// Lets a screen that shows `errorMessage` start clean rather than showing another screen's failure.
-    @MainActor
     func clearError() {
         errorMessage = nil
     }
 
-    @MainActor
     func configureAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
         appleSignInService.configure(request)
     }
 
     /// Takes the button's raw result so cancellation — which Apple reports as a failure — is
     /// classified in one place rather than in the view.
-    @MainActor
     func loginWithApple(_ result: Result<ASAuthorization, Error>, familyCode: String = "") async {
         isAppleSigningIn = true
         defer { isAppleSigningIn = false }
@@ -149,7 +143,6 @@ final class AuthService {
     }
 
     /// Every sign-in ends the same way: a token and an identity to adopt, or a sentence for `errorMessage`. Backing out of Google's or Apple's own sheet is not an error worth showing.
-    @MainActor
     private func signIn(fallback: String, _ exchange: @MainActor () async throws -> SessionResponseDTO) async {
         isLoading = true
         errorMessage = nil
@@ -164,7 +157,6 @@ final class AuthService {
     }
 
     /// Keeps the token and adopts the identity a sign-in answered with, or throws the server's refusal.
-    @MainActor
     private func adopt(_ response: SessionResponseDTO, fallback: String) async throws {
         guard response.success, let token = response.token, let auth = response.auth else {
             throw ServerRefusal(message: response.error ?? fallback)
@@ -175,9 +167,8 @@ final class AuthService {
 
     // MARK: - Families
 
-    @MainActor private(set) var families: [FamilyInfoDTO] = []
+    private(set) var families: [FamilyInfoDTO] = []
 
-    @MainActor
     func loadFamilyInfo() async -> String? {
         do {
             let response: FamilyInfoResponseDTO = try await APIClient.shared.callRPC(.getFamilyInfo, payload: EmptyRequestDTO())
@@ -189,7 +180,6 @@ final class AuthService {
         }
     }
 
-    @MainActor
     func joinFamily(inviteCode: String) async -> String? {
         do {
             let response: FamilyChangeResponseDTO = try await APIClient.shared.callRPC(
@@ -205,7 +195,6 @@ final class AuthService {
         }
     }
 
-    @MainActor
     func applyLeftFamily(_ familyId: Int, auth: AuthResponseDTO?) async {
         if let auth {
             setCurrentUser(auth)
@@ -219,13 +208,11 @@ final class AuthService {
         }
     }
 
-    @MainActor
     func applyRotatedInviteCode(_ inviteCode: String, forFamily familyId: Int) {
         guard let index = families.firstIndex(where: { $0.id == familyId }) else { return }
         families[index] = families[index].withInviteCode(inviteCode)
     }
 
-    @MainActor
     func logout() async {
         await onWillLogout?()
 
@@ -242,7 +229,6 @@ final class AuthService {
 
     /// Unlike `logout`, nothing local happens until the server has confirmed: a refused deletion must leave the user signed in with their data intact.
     /// `onWillLogout` is deliberately not called — `deleteAccountTx` already drops every push token the user has, on every device.
-    @MainActor
     func deleteAccount(password: String, confirmEmail: String) async -> String? {
         isLoading = true
         defer { isLoading = false }
@@ -263,7 +249,6 @@ final class AuthService {
     }
 
     /// Signs back in from what the device already holds, without touching the network: the family's data is local, so a launch on a weak or missing signal must not wait on a server round trip to show it. `revalidateSession()` then checks the session with the server.
-    @MainActor
     func restoreSession() async {
         let onSessionExpired: @MainActor () async -> Void = { [weak self] in
             guard let self else { return }
@@ -286,7 +271,6 @@ final class AuthService {
 
     /// Refreshes the restored session. Goes through the client's single-flight refresh, since a sync started by the restore may be refreshing at the same moment and the server rotates the refresh token on every use.
     /// Only the server refusing the credential ends the session — the client's expiry handler does that. A network failure keeps the cached identity, and the next request's 401 handling catches a genuinely dead session.
-    @MainActor
     func revalidateSession() async {
         defer { hasCheckedStoredSession = true }
         guard await APIClient.shared.hasRefreshCredential else { return }
@@ -302,7 +286,6 @@ final class AuthService {
 
     /// The erase is awaited before `currentUser` is set, so the app can never render a tab against the previous account's records.
     /// A sign-out deliberately leaves the recorded owner alone: the same user signing back in keeps everything they had.
-    @MainActor
     private func adoptSession(_ auth: AuthResponseDTO?) async {
         guard let auth else {
             setCurrentUser(nil)
@@ -318,13 +301,11 @@ final class AuthService {
         setCurrentUser(auth)
     }
 
-    @MainActor
     private func endSessionLocally() {
         setCurrentUser(nil)
         families = []
     }
 
-    @MainActor
     private func endSession() async {
         await APIClient.shared.clearTokens()
         endSessionLocally()
@@ -334,7 +315,6 @@ final class AuthService {
 
     private static let cachedUserKey = "com.familyrecord.cachedAuthUser"
 
-    @MainActor
     private func setCurrentUser(_ user: AuthResponseDTO?) {
         currentUser = user
 
