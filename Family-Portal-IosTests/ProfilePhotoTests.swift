@@ -269,7 +269,7 @@ struct ProfilePhotoTests {
             profileCropScale: 2.5
         )
 
-        let person = personFromDTO(dto)
+        let person = applied(dto)
 
         #expect(person.remoteId == "12")
         #expect(person.profilePhotoId == 77)

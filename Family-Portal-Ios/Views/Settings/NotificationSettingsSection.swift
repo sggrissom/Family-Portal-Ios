@@ -3,14 +3,14 @@ import UserNotifications
 
 /// Settings' **Notifications**: the account's chat-notification and message-text preferences, saved to the server as each toggle changes — and, apart from them, whether iOS lets notifications through to this iPhone at all. The two are different switches, and the section says which is which.
 struct NotificationSettingsSection: View {
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(NetworkMonitor.self) private var network
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var model = NotificationPreferencesModel()
     @State private var systemStatus: UNAuthorizationStatus?
 
-    private var isConnected: Bool { network?.isConnected ?? true }
+    private var isConnected: Bool { network.isConnected }
 
     var body: some View {
         Section {

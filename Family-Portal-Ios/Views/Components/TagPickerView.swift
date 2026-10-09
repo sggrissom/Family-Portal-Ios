@@ -6,8 +6,8 @@ struct TagPickerView: View {
     let apply: @MainActor ([Int]) async throws -> Void
 
     @Query private var tags: [FamilyTag]
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(ErrorPresenter.self) private var errorPresenter
+    @Environment(AuthService.self) private var authService
 
     @State private var selectedIds: [Int]
 
@@ -109,7 +109,7 @@ struct TagPickerView: View {
                 try await apply(newIds)
             } catch {
                 selectedIds = previous
-                errorPresenter?.report(error, title: "Couldn't Save Tags")
+                errorPresenter.report(error, title: "Couldn't Save Tags")
             }
         }
     }

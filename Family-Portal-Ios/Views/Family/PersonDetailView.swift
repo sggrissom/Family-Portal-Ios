@@ -7,10 +7,10 @@ struct PersonDetailView: View {
     @Query private var relations: [PersonRelation]
 
     @Environment(AddFlow.self) private var addFlow
-    @Environment(AuthService.self) private var authService: AuthService?
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(AuthService.self) private var authService
+    @Environment(SyncService.self) private var syncService
+    @Environment(NetworkMonitor.self) private var network
+    @Environment(ErrorPresenter.self) private var errorPresenter
 
     @State private var personId: UUID
     @State private var tab: PersonTab
@@ -35,7 +35,7 @@ struct PersonDetailView: View {
 
     /// The roster in chip order, for the switcher.
     private var roster: [Person] {
-        FamilyGroups.chipOrder(people: people, relations: relations.map(\.edge), ownFamilyId: authService?.currentUser?.familyId)
+        FamilyGroups.chipOrder(people: people, relations: relations.map(\.edge), ownFamilyId: authService.currentUser?.familyId)
     }
 
     var body: some View {
@@ -184,7 +184,7 @@ struct PersonDetailView: View {
         }
         let analysis = AnalysisService.shared
         insights = analysis.cachedPersonPhotoInsights(personId: remoteId)
-        guard network?.isConnected ?? true else { return }
+        guard network.isConnected else { return }
         if let fresh = await analysis.refreshPersonPhotoInsights(personId: remoteId), !Task.isCancelled {
             insights = fresh
         }
@@ -199,9 +199,9 @@ struct PersonDetailView: View {
     private func useAsProfilePhoto(_ photo: Photo, for person: Person) {
         Task {
             do {
-                try await syncService?.setProfilePhoto(photo, for: person)
+                try await syncService.setProfilePhoto(photo, for: person)
             } catch {
-                errorPresenter?.report(error, title: "Couldn't Set Profile Photo")
+                errorPresenter.report(error, title: "Couldn't Set Profile Photo")
             }
         }
     }

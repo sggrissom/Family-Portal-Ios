@@ -8,8 +8,8 @@ struct PhotoGalleryView: View {
     @Query(sort: \Person.name) private var people: [Person]
 
     @Environment(AppNavigator.self) private var navigator
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(NetworkMonitor.self) private var network
+    @Environment(AuthService.self) private var authService
 
     /// Lives on the navigator, so a person page's "Open in Photos →" can set it and it survives leaving the tab.
     private var filter: PhotoFilter {
@@ -32,7 +32,7 @@ struct PhotoGalleryView: View {
     /// A place filter whose answer could not be fetched, for the empty state.
     @State private var placeError: String?
 
-    private var isOnline: Bool { network?.isConnected ?? true }
+    private var isOnline: Bool { network.isConnected }
     private var browse: PhotoBrowseService { .shared }
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
@@ -110,7 +110,7 @@ struct PhotoGalleryView: View {
                 }
             }
             // Keyed on connectivity, so the link appears once a signal returns.
-            .task(id: network?.isConnected ?? true) {
+            .task(id: network.isConnected) {
                 await loadSuggestionCount()
                 await browse.loadGroups(isConnected: isOnline)
             }
@@ -119,7 +119,7 @@ struct PhotoGalleryView: View {
             }
             // Coming back from the review, whose last fetch is the freshest count there is.
             .onAppear {
-                if network?.isConnected ?? true, let cached = AnalysisService.shared.cachedTagSuggestions {
+                if network.isConnected, let cached = AnalysisService.shared.cachedTagSuggestions {
                     suggestionReview = cached
                 }
             }
@@ -379,7 +379,7 @@ struct PhotoGalleryView: View {
 
     private func loadSuggestionCount() async {
         let analysis = AnalysisService.shared
-        guard network?.isConnected ?? true else {
+        guard network.isConnected else {
             suggestionReview = nil
             return
         }

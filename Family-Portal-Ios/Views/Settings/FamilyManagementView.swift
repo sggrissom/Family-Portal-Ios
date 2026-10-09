@@ -3,7 +3,7 @@ import SwiftData
 
 struct FamilyManagementView: View {
     @Query(sort: \Person.name) private var people: [Person]
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AuthService.self) private var authService
     @State private var showingAddPerson = false
 
     private var canAdd: Bool { authService.access.canContributeAnywhere }

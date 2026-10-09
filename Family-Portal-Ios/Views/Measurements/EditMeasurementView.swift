@@ -3,8 +3,8 @@ import SwiftData
 
 struct EditMeasurementView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(SyncService.self) private var syncService
+    @Environment(ErrorPresenter.self) private var errorPresenter
 
     let measurement: GrowthData
 
@@ -137,9 +137,9 @@ struct EditMeasurementView: View {
 
         Task { [measurement] in
             do {
-                try await syncService?.updateGrowthData(measurement)
+                try await syncService.updateGrowthData(measurement)
             } catch {
-                errorPresenter?.report(error, title: "Couldn't Save Measurement")
+                errorPresenter.report(error, title: "Couldn't Save Measurement")
             }
         }
     }

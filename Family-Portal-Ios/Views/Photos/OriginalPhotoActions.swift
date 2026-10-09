@@ -117,8 +117,8 @@ final class OriginalPhotoActions {
 struct OriginalPhotoMenu: View {
     let photo: Photo
 
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(NetworkMonitor.self) private var network
+    @Environment(ErrorPresenter.self) private var errorPresenter
     @State private var actions = OriginalPhotoActions()
     @State private var showsSaved = false
 
@@ -178,8 +178,8 @@ struct OriginalPhotoMenu: View {
     }
 
     private func run(_ action: OriginalPhotoActions.Action, _ remoteId: Int) {
-        actions.start(action, photoId: remoteId, isConnected: network?.isConnected ?? true) { error, title in
-            errorPresenter?.report(error, title: title)
+        actions.start(action, photoId: remoteId, isConnected: network.isConnected) { error, title in
+            errorPresenter.report(error, title: title)
         }
     }
 }

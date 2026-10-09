@@ -17,7 +17,7 @@ struct PhotoBatchFormView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(SyncService.self) private var syncService
 
     @Query private var photos: [Photo]
 

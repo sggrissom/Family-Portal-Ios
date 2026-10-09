@@ -5,7 +5,7 @@ import SwiftUI
 /// Online only (see `FaceReviewService`). Naming a face can auto-tag others, so each change reloads the review rather than editing it in place. Leaving after a change pulls family data, so photos pick up the people the server just put on them.
 struct FaceReviewView: View {
     @Environment(AppNavigator.self) private var navigator
-    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(SyncService.self) private var syncService
     @Environment(\.modelContext) private var modelContext
 
     @State private var review: GetFaceReviewResponseDTO?
@@ -58,7 +58,7 @@ struct FaceReviewView: View {
         .onDisappear {
             guard didChange else { return }
             didChange = false
-            Task { await syncService?.pullFamilyData() }
+            Task { await syncService.pullFamilyData() }
         }
     }
 

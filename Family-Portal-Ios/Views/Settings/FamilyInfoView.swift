@@ -4,7 +4,7 @@ import UIKit
 /// The families the user belongs to, their invite codes, and the way into another family. The membership half lives one level down, in `FamilyMembershipView`.
 struct FamilyInfoView: View {
     @Environment(AuthService.self) private var authService
-    @Environment(SyncService.self) private var syncService: SyncService?
+    @Environment(SyncService.self) private var syncService
 
     @State private var inviteCode = ""
     @State private var loadError: String?
@@ -191,7 +191,7 @@ struct FamilyInfoView: View {
 
         inviteCode = ""
         // The new family's people only appear once the timeline is pulled again.
-        await syncService?.pullFamilyData()
+        await syncService.pullFamilyData()
     }
 }
 

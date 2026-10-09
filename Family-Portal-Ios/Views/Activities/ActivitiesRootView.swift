@@ -4,7 +4,7 @@ import SwiftUI
 /// One call for the programs plus one per program for its seasons — there is no proc that lists seasons across activities, and N is about 1.
 struct ActivitiesRootView: View {
     @Environment(ActivityService.self) private var service
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AuthService.self) private var authService
 
     @State private var state = ActivityScreenState<ListActivitiesResponseDTO>()
     @State private var isAddingActivity = false
@@ -57,7 +57,7 @@ private struct ActivitySeasonsSection: View {
     let onChanged: @MainActor () async -> Void
 
     @Environment(ActivityService.self) private var service
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AuthService.self) private var authService
 
     @State private var state = ActivityScreenState<ListSeasonsResponseDTO>()
     @State private var sheet: Sheet?

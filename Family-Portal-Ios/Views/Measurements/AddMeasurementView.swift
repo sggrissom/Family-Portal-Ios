@@ -7,8 +7,8 @@ import SwiftData
 struct AddMeasurementView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(SyncService.self) private var syncService
+    @Environment(AuthService.self) private var authService
 
     /// The whole roster rather than one person: a `@Query` predicate cannot follow a `@State` selection.
     @Query(sort: \Person.name) private var people: [Person]
@@ -235,7 +235,7 @@ struct AddMeasurementView: View {
             var failed = Set<UUID>()
             // One operation for the pair, so the two values share a fate: the server saves both or neither, and so does the queue.
             do {
-                try await syncService?.addCheckup(records, for: person)
+                try await syncService.addCheckup(records, for: person)
             } catch {
                 AppLog.ui.error("Couldn't queue checkup: \(String(describing: error), privacy: .public)")
                 failed = Set(records.map(\.id))

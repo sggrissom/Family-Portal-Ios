@@ -11,7 +11,7 @@ struct HistoryView: View {
     @Query private var tags: [FamilyTag]
 
     @Environment(AppNavigator.self) private var navigator
-    @Environment(ActivityService.self) private var activityService: ActivityService?
+    @Environment(ActivityService.self) private var activityService
 
     @State private var activities = ActivityScreenState<GetFamilyTimelineResponseDTO>()
     @State private var openMeasurement: GrowthData?
@@ -95,7 +95,6 @@ struct HistoryView: View {
         .searchable(text: filtersBinding.search, prompt: Copy.history.searchPlaceholder)
         .refreshable { await activities.reload() }
         .task {
-            guard let activityService else { return }
             await activities.load(activityService.timelineAppearances())
         }
         .sheet(item: $openMeasurement) { MeasurementDetailSheetView(measurement: $0) }

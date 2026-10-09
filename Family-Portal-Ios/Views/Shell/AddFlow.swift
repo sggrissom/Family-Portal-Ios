@@ -104,8 +104,8 @@ private struct AddFlowPresentation: ViewModifier {
     @Bindable var flow: AddFlow
 
     @Environment(\.modelContext) private var modelContext
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(SyncService.self) private var syncService
+    @Environment(ErrorPresenter.self) private var errorPresenter
 
     @State private var pickedItems: [PhotosPickerItem] = []
 
@@ -151,8 +151,8 @@ struct AddSheetView: View {
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
     @Environment(\.dismiss) private var dismiss
-    @Environment(ActivityService.self) private var activityService: ActivityService?
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(ActivityService.self) private var activityService
+    @Environment(AuthService.self) private var authService
 
     @State private var personId: UUID?
     @State private var openEvents = ActivityScreenState<ListOpenEventsResponseDTO>()
@@ -224,7 +224,6 @@ struct AddSheetView: View {
             }
             .onAppear(perform: seed)
             .task {
-                guard let activityService else { return }
                 await openEvents.load(activityService.openEvents(today: WhenEntry.localDateString(Date())))
             }
         }

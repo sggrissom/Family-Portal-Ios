@@ -18,7 +18,7 @@ struct QuoteTests {
             context: "On the drive home"
         ))
         let dto = try APIClient.decode(MilestoneDTO.self, from: json)
-        let milestone = milestoneFromDTO(dto)
+        let milestone = applied(dto)
 
         #expect(milestone.category == .quote)
         #expect(milestone.context == "On the drive home")

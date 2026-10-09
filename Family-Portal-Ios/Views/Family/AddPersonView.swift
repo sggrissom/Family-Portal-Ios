@@ -4,9 +4,9 @@ import SwiftData
 struct AddPersonView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(SyncService.self) private var syncService
+    @Environment(ErrorPresenter.self) private var errorPresenter
+    @Environment(AuthService.self) private var authService
 
     @Query(sort: \Person.name) private var people: [Person]
     @Query private var relations: [PersonRelation]
@@ -30,7 +30,7 @@ struct AddPersonView: View {
 
     /// The person standing in for the signed-in account, which is who a relationship is most often stated against.
     private var ownPerson: Person? {
-        guard let personId = authService?.currentUser?.personId, personId != 0 else { return nil }
+        guard let personId = authService.currentUser?.personId, personId != 0 else { return nil }
         return people.first { $0.remoteId.flatMap(Int.init) == personId }
     }
 
@@ -174,7 +174,7 @@ struct AddPersonView: View {
 
         Task {
             do {
-                try await syncService?.addPerson(
+                try await syncService.addPerson(
                     person,
                     stated: statedRelation,
                     anchor: statedAnchor,
@@ -184,7 +184,7 @@ struct AddPersonView: View {
             } catch {
                 // Not a network failure — `addPerson` only queues, so getting here means the person can never be pushed as entered.
                 dismiss()
-                errorPresenter?.report(error, title: "Couldn't Save Person")
+                errorPresenter.report(error, title: "Couldn't Save Person")
             }
         }
     }

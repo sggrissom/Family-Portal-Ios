@@ -8,7 +8,7 @@ struct MilestoneDetailSheetView: View {
     let milestone: Milestone
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AuthService.self) private var authService
     @State private var isEditing = false
 
     var body: some View {
@@ -42,8 +42,8 @@ struct MilestoneDetailSheetView: View {
 struct MilestoneDetailContent: View {
     let milestone: Milestone
 
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(SyncService.self) private var syncService
+    @Environment(AuthService.self) private var authService
 
     @State private var selectedPhoto: AttachedPhotoSelection?
     @State private var showsRelatedMemories = false
@@ -129,7 +129,6 @@ struct MilestoneDetailContent: View {
                 if authService.access.canContribute(to: milestone) {
                     NavigationLink {
                         TagPickerView(tagRemoteIds: milestone.tagRemoteIds) { tagRemoteIds in
-                            guard let syncService else { return }
                             try await syncService.updateMilestoneTags(milestone, tagRemoteIds: tagRemoteIds)
                         }
                     } label: {
@@ -233,7 +232,7 @@ private struct MilestonePhotoViewer: View {
 struct MilestoneMatchesSection: View {
     let milestone: Milestone
 
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
+    @Environment(NetworkMonitor.self) private var network
     @Environment(\.modelContext) private var modelContext
     @State private var matches: [MilestoneMatchDTO] = []
 
@@ -252,7 +251,7 @@ struct MilestoneMatchesSection: View {
                 matches = []
                 return
             }
-            let response = await AnalysisService.shared.milestoneMatches(milestoneId: id, isConnected: network?.isConnected ?? true)
+            let response = await AnalysisService.shared.milestoneMatches(milestoneId: id, isConnected: network.isConnected)
             matches = response?.matches ?? []
         }
     }

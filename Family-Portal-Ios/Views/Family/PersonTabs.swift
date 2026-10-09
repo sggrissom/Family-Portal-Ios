@@ -12,7 +12,7 @@ struct PersonStoryTab: View {
     /// Opens the Photos tab, where the full Growing up timeline sits at the top.
     var onShowGrowingUp: () -> Void = {}
 
-    @Environment(ActivityService.self) private var activityService: ActivityService?
+    @Environment(ActivityService.self) private var activityService
     @State private var season = ActivityScreenState<GetPersonSeasonResponseDTO>()
     @Query private var people: [Person]
 
@@ -85,7 +85,7 @@ struct PersonStoryTab: View {
             .padding()
         }
         .task(id: person.remoteId) {
-            guard let activityService, let remoteId = person.remoteId.flatMap(Int.init) else { return }
+            guard let remoteId = person.remoteId.flatMap(Int.init) else { return }
             await season.load(activityService.personSeason(personId: remoteId))
         }
     }
@@ -571,7 +571,7 @@ struct PersonGrowthTab: View {
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
     @Environment(AddFlow.self) private var addFlow
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AuthService.self) private var authService
 
     @State private var type: MeasurementType = .height
     @State private var showSiblings = false

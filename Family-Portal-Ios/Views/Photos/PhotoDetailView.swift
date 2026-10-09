@@ -4,8 +4,8 @@ import SwiftData
 struct PhotoDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
+    @Environment(SyncService.self) private var syncService
+    @Environment(ErrorPresenter.self) private var errorPresenter
     @Query private var photos: [Photo]
     @State private var showDeleteConfirmation = false
 
@@ -27,11 +27,11 @@ struct PhotoDetailView: View {
                     Button("Delete", role: .destructive) {
                         Task {
                             do {
-                                try await syncService?.deletePhoto(photo)
+                                try await syncService.deletePhoto(photo)
                                 dismiss()
                             } catch {
                                 dismiss()
-                                errorPresenter?.report(error, title: "Couldn't Delete Photo")
+                                errorPresenter.report(error, title: "Couldn't Delete Photo")
                             }
                         }
                     }
@@ -45,10 +45,10 @@ struct PhotoDetailView: View {
 }
 
 private struct PhotoDetailContent: View {
-    @Environment(SyncService.self) private var syncService: SyncService?
-    @Environment(ErrorPresenter.self) private var errorPresenter: ErrorPresenter?
-    @Environment(NetworkMonitor.self) private var network: NetworkMonitor?
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(SyncService.self) private var syncService
+    @Environment(ErrorPresenter.self) private var errorPresenter
+    @Environment(NetworkMonitor.self) private var network
+    @Environment(AuthService.self) private var authService
     @Bindable var photo: Photo
     let openedFrom: UUID?
     @Binding var showDeleteConfirmation: Bool
@@ -176,7 +176,6 @@ private struct PhotoDetailContent: View {
 
                     NavigationLink {
                         TagPickerView(tagRemoteIds: photo.tagRemoteIds) { tagRemoteIds in
-                            guard let syncService else { return }
                             try await syncService.updatePhotoTags(photo, tagRemoteIds: tagRemoteIds)
                         }
                     } label: {
@@ -243,7 +242,7 @@ private struct PhotoDetailContent: View {
     // MARK: - Analysis
 
     private func loadDetails() async {
-        guard let id = photo.remoteId.flatMap(Int.init), network?.isConnected ?? true else {
+        guard let id = photo.remoteId.flatMap(Int.init), network.isConnected else {
             details = nil
             return
         }
@@ -260,10 +259,10 @@ private struct PhotoDetailContent: View {
                 try await AnalysisService.shared.acceptTagSuggestions([suggestion.id])
                 await loadDetails()
                 if let after = details?.image.tagIds {
-                    await syncService?.adoptServerTags(before: before, after: after, for: photo)
+                    await syncService.adoptServerTags(before: before, after: after, for: photo)
                 }
             } catch {
-                errorPresenter?.report(error, title: Copy.tagSuggestions.acceptFailed)
+                errorPresenter.report(error, title: Copy.tagSuggestions.acceptFailed)
             }
         }
     }
@@ -274,7 +273,7 @@ private struct PhotoDetailContent: View {
                 try await AnalysisService.shared.rejectTagSuggestions([suggestion.id])
                 await loadDetails()
             } catch {
-                errorPresenter?.report(error, title: Copy.tagSuggestions.rejectFailed)
+                errorPresenter.report(error, title: Copy.tagSuggestions.rejectFailed)
             }
         }
     }
@@ -297,9 +296,9 @@ private struct PhotoDetailContent: View {
     private func setProfilePhoto(for person: Person) {
         Task {
             do {
-                try await syncService?.setProfilePhoto(photo, for: person)
+                try await syncService.setProfilePhoto(photo, for: person)
             } catch {
-                errorPresenter?.report(error, title: "Couldn't Set Profile Photo")
+                errorPresenter.report(error, title: "Couldn't Set Profile Photo")
             }
         }
     }
@@ -316,7 +315,7 @@ private struct PhotoDetailContent: View {
 
         Task {
             do {
-                try await syncService?.updatePhoto(photo)
+                try await syncService.updatePhoto(photo)
             } catch {
                 saveError = "Couldn't save changes: \(error.localizedDescription)"
                 syncedTitle = nil

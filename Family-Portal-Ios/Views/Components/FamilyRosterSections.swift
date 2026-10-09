@@ -8,8 +8,8 @@ struct FamilyRosterSections: View {
     /// Whether a row opens the person with their edit affordances — only the Settings directory does.
     var manages = false
 
-    @Environment(AddFlow.self) private var addFlow: AddFlow?
-    @Environment(AuthService.self) private var authService: AuthService?
+    @Environment(AddFlow.self) private var addFlow
+    @Environment(AuthService.self) private var authService
 
     @Query private var relations: [PersonRelation]
 
@@ -27,7 +27,7 @@ struct FamilyRosterSections: View {
                         PersonRowView(person: person)
                     }
                     .contextMenu {
-                        if let addFlow, authService.access.canContribute(to: person) {
+                        if authService.access.canContribute(to: person) {
                             // A long press on the roster is two taps to a measurement, without opening the person at all.
                             Button {
                                 addFlow.open(.measurement(personId: person.id))
