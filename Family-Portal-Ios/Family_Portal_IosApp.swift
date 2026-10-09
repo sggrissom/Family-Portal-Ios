@@ -93,7 +93,7 @@ struct Family_Portal_IosApp: App {
                             await PushNotificationService.shared.registerForPushNotifications()
                         }
                     } else {
-                        chatService = nil
+                        retireChatService()
                         // The next account starts on Home with empty stacks, not on the last one's screens.
                         navigator = AppNavigator()
                         addFlow = AddFlow()
@@ -150,7 +150,7 @@ struct Family_Portal_IosApp: App {
 
     @MainActor
     private func eraseLocalData(_ scope: LocalDataResetScope) async {
-        chatService = nil
+        retireChatService()
         await LocalDataReset.erase(
             scope,
             context: container.mainContext,
@@ -160,9 +160,18 @@ struct Family_Portal_IosApp: App {
         deepLinkRouter.clear()
     }
 
+    /// Closes the socket before letting the service go. Dropping it alone left the connection open, still authenticated as whoever it was opened for, because the socket's receive loop keeps its owner alive.
+    @MainActor
+    private func retireChatService() {
+        guard let service = chatService else { return }
+        chatService = nil
+        Task { await service.disconnect() }
+    }
+
     @MainActor
     private func initializeChatService() async {
         guard let user = authService.currentUser else { return }
+        retireChatService()
         let service = await ChatService(
             modelContext: container.mainContext,
             apiClient: APIClient.shared,

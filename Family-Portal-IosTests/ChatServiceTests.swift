@@ -73,6 +73,31 @@ struct ChatServiceTests {
         #expect(service.messages[0].remoteId == "43")
     }
 
+    @Test("A send that looked failed but reached the server is settled by the next history load")
+    func historySettlesALostSendAnswer() async throws {
+        let server = FakeHTTPServer()
+        server.route("rpc/SendMessage", respond: .offline(.timedOut))
+        let service = try await Self.makeService(server: server)
+
+        await service.sendMessage("hello")
+        #expect(service.messages[0].sendFailed)
+
+        // The server had saved it all along; only the answer was lost.
+        server.route("rpc/GetChatMessages", respond: .json(["messages": [
+            Fixture.chatMessage(
+                id: 44,
+                userId: Self.currentUserId,
+                content: "hello",
+                clientMessageId: service.messages[0].clientMessageId
+            )
+        ]]))
+        await service.loadMessages()
+
+        #expect(service.messages.count == 1)
+        #expect(service.messages[0].remoteId == "44")
+        #expect(service.messages[0].sendFailed == false)
+    }
+
     // MARK: - Deduplication
 
     @Test("The socket echo of our own message updates it instead of adding a copy")

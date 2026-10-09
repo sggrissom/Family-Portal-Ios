@@ -57,6 +57,10 @@ actor ChatWebSocketService {
 
     private weak var delegate: ChatWebSocketDelegate?
 
+    /// Runs before every connect so the auth cookie the handshake carries is current. Passed `true` after the server refused the last handshake with a 401.
+    private let authenticate: @Sendable (_ handshakeRefused: Bool) async -> Void
+    private var handshakeRefused = false
+
     private(set) var connectionState: WebSocketConnectionState = .disconnected {
         didSet {
             if oldValue != connectionState {
@@ -78,8 +82,9 @@ actor ChatWebSocketService {
 
     // MARK: - Initialization
 
-    init(baseURL: URL) {
+    init(baseURL: URL, authenticate: @escaping @Sendable (_ handshakeRefused: Bool) async -> Void = { _ in }) {
         self.baseURL = baseURL
+        self.authenticate = authenticate
 
         let config = URLSessionConfiguration.default
         config.httpCookieStorage = HTTPCookieStorage.shared
@@ -123,6 +128,12 @@ actor ChatWebSocketService {
         connectionState = reconnectAttempt > 0
             ? .reconnecting(attempt: reconnectAttempt)
             : .connecting
+
+        let refused = handshakeRefused
+        handshakeRefused = false
+        await authenticate(refused)
+        // A disconnect may have arrived while the token was refreshing.
+        guard !isManuallyDisconnected else { return }
 
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             connectionState = .failed
@@ -175,8 +186,12 @@ actor ChatWebSocketService {
                     break
                 }
             } catch {
+                // Tearing a connection down fails its pending receive too. That loop is no longer the connection's, and reconnecting from it would tear down whatever replaced it.
+                guard task === webSocketTask, !Task.isCancelled else { break }
+                let status = (task.response as? HTTPURLResponse)?.statusCode
+                handshakeRefused = status == 401
                 // A refused handshake is not a dropped connection. The server answers 403 to an account with no membership row for its family, and retrying cannot fix that.
-                if let status = (task.response as? HTTPURLResponse)?.statusCode, Self.isPermanentRefusal(status) {
+                if let status, Self.isPermanentRefusal(status) {
                     AppLog.chat.error("Chat socket refused with HTTP \(status); not reconnecting")
                     cleanupConnection()
                     connectionState = .failed
@@ -338,7 +353,9 @@ actor ChatWebSocketService {
                 let timeSinceLastMessage = Date().timeIntervalSince(await self.lastMessageTime)
                 if timeSinceLastMessage > Self.watchdogTimeout {
                     AppLog.chat.notice("Watchdog fired: no socket traffic in \(Int(timeSinceLastMessage))s, reconnecting")
-                    await self.handleDisconnection()
+                    // Not from this task: the reconnect cancels the watchdog, which would cut the backoff sleep short.
+                    Task { await self.handleDisconnection() }
+                    break
                 }
             }
         }
