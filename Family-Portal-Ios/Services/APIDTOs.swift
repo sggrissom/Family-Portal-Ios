@@ -607,7 +607,8 @@ nonisolated struct AddGrowthDataRequestDTO: Encodable, Sendable {
     let measurementType: String  // "height" or "weight"
     let value: Double
     let unit: String             // "cm", "in", "kg", "lbs"
-    let inputType: String        // always "date": the device's local day, never the server's UTC "today"
+    /// Always "date": the device's local day, never the server's UTC "today".
+    let inputType = "date"
     let measurementDate: String? // "yyyy-MM-dd"
 }
 
@@ -620,7 +621,7 @@ nonisolated struct CheckupValueDTO: Encodable, Sendable {
 /// `AddCheckup`: a height and a weight for one person on one day, in one transaction. Either value may be left out, never both.
 nonisolated struct AddCheckupRequestDTO: Encodable, Sendable {
     let personId: Int
-    let inputType: String        // always "date", as for `AddGrowthData`
+    let inputType = "date"
     let measurementDate: String? // "yyyy-MM-dd"
     let height: CheckupValueDTO?
     let weight: CheckupValueDTO?
@@ -631,7 +632,7 @@ nonisolated struct UpdateGrowthDataRequestDTO: Encodable, Sendable {
     let measurementType: String
     let value: Double
     let unit: String
-    let inputType: String
+    let inputType = "date"
     let measurementDate: String?
 }
 
@@ -649,7 +650,8 @@ nonisolated struct AddMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     /// Kept only for quotes; the server clears it for any other category.
     let context: String
-    let inputType: String        // always "date": the device's local day, never the server's UTC "today"
+    /// Always "date": the device's local day, never the server's UTC "today".
+    let inputType = "date"
     let milestoneDate: String?   // "yyyy-MM-dd"
     /// Photos to attach. `nil` omits the key entirely.
     let photoIds: [Int]?
@@ -663,7 +665,7 @@ nonisolated struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     /// Sent every time: an update without it clears the context.
     let context: String
-    let inputType: String
+    let inputType = "date"
     let milestoneDate: String?
     /// The complete attachment set, not a delta. `nil` vs `[]` is the distinction that matters: absent leaves attachments alone, empty detaches them all.
     let photoIds: [Int]?

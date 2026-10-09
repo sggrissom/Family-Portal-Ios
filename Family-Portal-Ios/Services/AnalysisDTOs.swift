@@ -19,7 +19,7 @@ nonisolated struct SuggestMilestoneCategoryResponseDTO: Decodable, Sendable {
 nonisolated struct SuggestMilestonePhotosRequestDTO: Encodable, Sendable {
     let personId: Int
     let description: String
-    let inputType: String        // always "date"
+    let inputType = "date"
     let milestoneDate: String    // "yyyy-MM-dd"
     let excludeIds: [Int]
 }

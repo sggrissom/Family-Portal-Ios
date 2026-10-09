@@ -48,7 +48,6 @@ final class AnalysisService {
                 payload: SuggestMilestonePhotosRequestDTO(
                     personId: personId,
                     description: description.trimmingCharacters(in: .whitespacesAndNewlines),
-                    inputType: "date",
                     milestoneDate: dateToAPIString(date),
                     excludeIds: excludeIds
                 )
