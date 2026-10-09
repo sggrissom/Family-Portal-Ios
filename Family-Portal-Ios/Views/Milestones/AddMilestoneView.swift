@@ -175,7 +175,7 @@ struct AddMilestoneView: View {
         guard await MilestoneSuggestionLookup.settle(), network.isConnected else { return }
 
         let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let personId = person?.remoteId.flatMap(Int.init)
+        let personId = person?.serverId
         let analysis = AnalysisService.shared
 
         if text.count >= 3, !categoryTouched,

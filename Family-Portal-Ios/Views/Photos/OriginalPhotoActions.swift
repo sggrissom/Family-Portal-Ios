@@ -122,7 +122,7 @@ struct OriginalPhotoMenu: View {
     @State private var actions = OriginalPhotoActions()
     @State private var showsSaved = false
 
-    private var remoteId: Int? { photo.remoteId.flatMap(Int.init) }
+    private var remoteId: Int? { photo.serverId }
 
     var body: some View {
         Group {

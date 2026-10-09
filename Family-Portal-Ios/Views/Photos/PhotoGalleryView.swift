@@ -57,13 +57,13 @@ struct PhotoGalleryView: View {
         guard !filter.showsSimilarSeparately, let groups = browse.groups, !groups.isEmpty else {
             return visible.map { GalleryCell(item: $0, groupCover: nil, similarCount: 0) }
         }
-        return groups.collapse(visible) { $0.remoteId.flatMap(Int.init) }
+        return groups.collapse(visible) { $0.serverId }
     }
 
     /// Photos at the chosen place that the server has and this device doesn't yet: shown from the server, not silently left out.
     private var unsyncedPlacePhotoIds: [Int] {
         guard let ids = placePhotoIds else { return [] }
-        let held = Set(photos.compactMap { $0.remoteId.flatMap(Int.init) })
+        let held = Set(photos.compactMap { $0.serverId })
         return ids.filter { !held.contains($0) }
     }
 
@@ -320,7 +320,7 @@ struct PhotoGalleryView: View {
     }
 
     private func searchResults(_ results: PhotoSearchResults) -> some View {
-        let byRemoteId = Dictionary(photos.compactMap { photo in photo.remoteId.flatMap(Int.init).map { ($0, photo) } }, uniquingKeysWith: { first, _ in first })
+        let byRemoteId = Dictionary(photos.compactMap { photo in photo.serverId.map { ($0, photo) } }, uniquingKeysWith: { first, _ in first })
         return ScrollView {
             VStack(alignment: .leading, spacing: 4) {
                 Text(Copy.photoSearch.bestMatches(results.query, with: matchedNames(results.matchedPersonIds)))
@@ -372,7 +372,7 @@ struct PhotoGalleryView: View {
     /// "Clara and Mia" — the first names of the people the query named, as the web writes them.
     private func matchedNames(_ remoteIds: [Int]) -> String {
         let names = remoteIds.compactMap { id in
-            people.first { $0.remoteId == String(id) }?.name.firstName
+            people.first { $0.serverId == id }?.name.firstName
         }
         return names.joined(separator: " and ")
     }

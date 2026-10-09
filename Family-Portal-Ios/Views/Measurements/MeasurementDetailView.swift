@@ -279,8 +279,8 @@ struct MeasurementInsightsView: View {
         let unmeasured = entries.filter { $0.hasNoRecords }.compactMap { byId[$0.personId]?.name }
         let groups = GrowthComparison.group(
             matched,
-            subjectRemoteId: person.remoteId.flatMap(Int.init),
-            remoteIds: byId.compactMapValues { $0.remoteId.flatMap(Int.init) },
+            subjectRemoteId: person.serverId,
+            remoteIds: byId.compactMapValues { $0.serverId },
             relations: relations.map(\.edge)
         )
 

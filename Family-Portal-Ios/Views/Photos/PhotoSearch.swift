@@ -51,7 +51,7 @@ struct PhotoSearchRequest: Hashable {
     init(filter: PhotoFilter, people: [Person]) {
         personIds = people
             .filter { filter.personLocalIds.contains($0.id) }
-            .compactMap { $0.remoteId.flatMap(Int.init) }
+            .compactMap { $0.serverId }
             .sorted()
         tagIds = filter.tagRemoteIds.sorted()
         let range = filter.normalizedDateRange

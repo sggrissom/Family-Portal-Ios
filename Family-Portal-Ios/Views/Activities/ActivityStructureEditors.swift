@@ -584,7 +584,7 @@ struct RosterPickerView: View {
 
     private var candidates: [Candidate] {
         people.compactMap { person in
-            person.remoteId.flatMap(Int.init).map { Candidate(remoteId: $0, person: person) }
+            person.serverId.map { Candidate(remoteId: $0, person: person) }
         }
     }
 

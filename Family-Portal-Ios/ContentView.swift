@@ -123,7 +123,7 @@ struct ContentView: View {
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.settings])
         case .person(let remoteId, let tab):
-            guard let person = people.first(where: { $0.remoteId.flatMap(Int.init) == remoteId }) else { return }
+            guard let person = people.first(where: { $0.serverId == remoteId }) else { return }
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.person(person.id, tab: tab ?? .story)], on: .home)
         }

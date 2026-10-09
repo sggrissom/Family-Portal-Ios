@@ -247,7 +247,7 @@ struct MilestoneMatchesSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: milestone.remoteId) {
-            guard let id = milestone.remoteId.flatMap(Int.init) else {
+            guard let id = milestone.serverId else {
                 matches = []
                 return
             }

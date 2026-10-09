@@ -60,7 +60,7 @@ struct ProfilePhotoPickerView: View {
 
     private func isCurrent(_ photo: Photo) -> Bool {
         guard let profilePhotoId = person.profilePhotoId else { return false }
-        return photo.remoteId.flatMap(Int.init) == profilePhotoId
+        return photo.serverId == profilePhotoId
     }
 
     private func accessibilityLabel(for photo: Photo) -> String {

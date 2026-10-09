@@ -39,7 +39,7 @@ struct NewBookView: View {
     private var people: [Candidate] {
         let ownFamily = authService.currentUser?.familyId
         return allPeople.compactMap { person in
-            guard let id = person.remoteId.flatMap(Int.init), let birthday = person.birthday, !person.isPregnancy else { return nil }
+            guard let id = person.serverId, let birthday = person.birthday, !person.isPregnancy else { return nil }
             if let ownFamily, (person.familyRemoteId ?? ownFamily) != ownFamily { return nil }
             let day = birthday.recordDayKey
             guard day <= today else { return nil }

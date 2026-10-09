@@ -104,7 +104,7 @@ struct ActivityPeople {
 
     init(_ people: [Person]) {
         namesById = people.reduce(into: [Int: String]()) { result, person in
-            if let remoteId = person.remoteId.flatMap(Int.init) {
+            if let remoteId = person.serverId {
                 result[remoteId] = person.name
             }
         }

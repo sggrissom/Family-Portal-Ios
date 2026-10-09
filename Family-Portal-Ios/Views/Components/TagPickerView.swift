@@ -23,7 +23,7 @@ struct TagPickerView: View {
         return tags
             .filter { tag in
                 guard !access.canContribute(tag.familyId) else { return true }
-                guard let remoteId = tag.remoteId.flatMap(Int.init) else { return false }
+                guard let remoteId = tag.serverId else { return false }
                 return selectedIds.contains(remoteId)
             }
             .sorted { $0.name.lowercased() < $1.name.lowercased() }
@@ -31,7 +31,7 @@ struct TagPickerView: View {
 
     /// Ids on the record that no local `FamilyTag` explains — a tag created on the web since the last pull. They stay in the set and are sent back untouched.
     private var unresolvedCount: Int {
-        let known = Set(tags.compactMap { $0.remoteId.flatMap(Int.init) })
+        let known = Set(tags.compactMap { $0.serverId })
         return selectedIds.filter { !known.contains($0) }.count
     }
 
@@ -67,7 +67,7 @@ struct TagPickerView: View {
 
     @ViewBuilder
     private func row(for tag: FamilyTag) -> some View {
-        let remoteId = tag.remoteId.flatMap(Int.init)
+        let remoteId = tag.serverId
         let isSelected = remoteId.map { selectedIds.contains($0) } ?? false
 
         Button {

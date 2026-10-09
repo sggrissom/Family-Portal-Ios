@@ -51,17 +51,20 @@ struct SameAgeRows: View {
 
     @Query private var people: [Person]
     @Query private var photos: [Photo]
-    @Query private var milestones: [Milestone]
 
     var body: some View {
         // Names are told apart across everyone, before the empty rows go: two Alexes stay distinguishable when only one has records at this age.
-        let labels = FamilyGroups.chipLabels(rows.compactMap { localPerson($0.person.id) })
+        // Indexed once per draw: every row resolves its person and photos against these.
+        let peopleById = people.byServerId()
+        let photosById = photos.byServerId()
+        let labels = FamilyGroups.chipLabels(rows.compactMap { peopleById[$0.person.id] })
         VStack(alignment: .leading, spacing: 14) {
             ForEach(hideEmpty ? rows.filter { !$0.isEmpty } : rows) { row in
-                let name = localPerson(row.person.id).flatMap { labels[$0.id] } ?? row.person.name
+                let person = peopleById[row.person.id]
+                let name = person.flatMap { labels[$0.id] } ?? row.person.name
                 if row.isEmpty {
                     HStack {
-                        personLink(row, name: name)
+                        personLink(person, name: name)
                         Text(Copy.sameAge.noRecords)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -69,7 +72,7 @@ struct SameAgeRows: View {
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            personLink(row, name: name)
+                            personLink(person, name: name)
                             Text(SameAgeText.when(row, ageMonths: ageMonths))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -83,7 +86,7 @@ struct SameAgeRows: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 6) {
                                     ForEach(row.photoIds.prefix(photoLimit), id: \.self) { photoId in
-                                        photoThumb(photoId)
+                                        photoThumb(photoId, local: photosById[photoId])
                                     }
                                 }
                             }
@@ -97,13 +100,9 @@ struct SameAgeRows: View {
         }
     }
 
-    private func localPerson(_ remoteId: Int) -> Person? {
-        people.first { $0.remoteId == String(remoteId) }
-    }
-
     @ViewBuilder
-    private func personLink(_ row: SameAgeRowDTO, name: String) -> some View {
-        if let person = localPerson(row.person.id) {
+    private func personLink(_ person: Person?, name: String) -> some View {
+        if let person {
             NavigationLink {
                 PersonDetailView(personId: person.id, allowsManagementActions: false)
             } label: {
@@ -115,11 +114,11 @@ struct SameAgeRows: View {
     }
 
     @ViewBuilder
-    private func photoThumb(_ remoteId: Int) -> some View {
+    private func photoThumb(_ remoteId: Int, local photo: Photo?) -> some View {
         let thumb = RemotePhotoView(remoteId: remoteId, size: .thumb)
             .frame(width: 72, height: 72)
             .clipShape(RoundedRectangle(cornerRadius: 6))
-        if let photo = photos.first(where: { $0.remoteId == String(remoteId) }) {
+        if let photo {
             NavigationLink {
                 PhotoDetailView(photoId: photo.id)
             } label: {
@@ -196,7 +195,7 @@ struct PersonSameAgeStrip: View {
     var body: some View {
         if let person,
            !person.isPregnancy,
-           let remoteId = person.remoteId.flatMap(Int.init),
+           let remoteId = person.serverId,
            let birthday = person.birthday {
             let months = AgeSteps.monthsOld(birthday: birthday, at: date)
             if months >= 0 {

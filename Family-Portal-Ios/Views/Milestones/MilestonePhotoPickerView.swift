@@ -131,7 +131,7 @@ func milestonePhotoChoices(
         let known = Set(eligible.map { $0.id })
         eligible += allPhotos.filter { photo in
             guard !known.contains(photo.id),
-                  let remoteId = photo.remoteId.flatMap(Int.init) else { return false }
+                  let remoteId = photo.serverId else { return false }
             return attached.contains(remoteId)
         }
     }

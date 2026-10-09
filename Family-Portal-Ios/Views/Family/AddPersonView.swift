@@ -25,13 +25,13 @@ struct AddPersonView: View {
     }
 
     private var anchorRemoteId: Int? {
-        anchor?.remoteId.flatMap(Int.init)
+        anchor?.serverId
     }
 
     /// The person standing in for the signed-in account, which is who a relationship is most often stated against.
     private var ownPerson: Person? {
         guard let personId = authService.currentUser?.personId, personId != 0 else { return nil }
-        return people.first { $0.remoteId.flatMap(Int.init) == personId }
+        return people.first { $0.serverId == personId }
     }
 
     /// Whoever else the same statement probably also applies to. `personId` is 0 because this person does not exist yet, so nothing can already be stated about them.
@@ -168,7 +168,7 @@ struct AddPersonView: View {
         let coAnchors = relation == nil
             ? []
             : people.filter { candidate in
-                guard let remoteId = candidate.remoteId.flatMap(Int.init) else { return false }
+                guard let remoteId = candidate.serverId else { return false }
                 return coAnchorIds.contains(remoteId)
             }
 

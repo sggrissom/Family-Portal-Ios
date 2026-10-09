@@ -327,8 +327,7 @@ struct BookEditorView: View {
 
     private func localMilestone(for item: BookItemDTO) -> Milestone? {
         guard item.itemKind == .milestone else { return nil }
-        let remoteId = String(item.sourceId)
-        return localMilestones.first { $0.remoteId == remoteId }
+        return localMilestones.first { $0.serverId == item.sourceId }
     }
 
     // MARK: - What went in

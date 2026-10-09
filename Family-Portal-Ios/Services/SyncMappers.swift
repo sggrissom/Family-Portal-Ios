@@ -67,7 +67,7 @@ func dateToAPIString(_ date: Date) -> String {
 // MARK: - Model Apply Functions
 
 func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
-    person.remoteId = String(dto.id)
+    person.serverId = dto.id
     person.familyRemoteId = dto.familyId == 0 ? nil : dto.familyId
     person.name = dto.name
     person.gender = intToGender(dto.gender)
@@ -83,7 +83,7 @@ func applyPersonDTO(_ dto: PersonDTO, to person: Person) {
 /// Applies an edge whose kind this build understands. An unknown kind returns `false` and the caller drops the edge: guessing would be worse than ignoring it, since only `.parent` implies a generation step and picking wrong moves people between bands.
 func applyRelationDTO(_ dto: RelationDTO, to relation: PersonRelation) -> Bool {
     guard let kind = RelationKind(rawValue: dto.kind) else { return false }
-    relation.remoteId = String(dto.id)
+    relation.serverId = dto.id
     relation.fromId = dto.fromId
     relation.toId = dto.toId
     relation.kind = kind
@@ -108,7 +108,7 @@ private func nonEmpty(_ value: String?) -> String? {
 }
 
 func applyGrowthDataDTO(_ dto: GrowthDataDTO, to growthData: GrowthData) {
-    growthData.remoteId = String(dto.id)
+    growthData.serverId = dto.id
     growthData.measurementType = intToMeasurementType(dto.measurementType)
     growthData.value = dto.value
     growthData.unit = unitFromString(dto.unit)
@@ -126,7 +126,7 @@ func applyCheckupResponse(_ response: AddCheckupResponseDTO, height: GrowthData?
 }
 
 func applyMilestoneDTO(_ dto: MilestoneDTO, to milestone: Milestone) {
-    milestone.remoteId = String(dto.id)
+    milestone.serverId = dto.id
     milestone.descriptionText = dto.descriptionText
     milestone.category = MilestoneCategory(rawValue: dto.category) ?? .other
     milestone.context = dto.context
@@ -136,7 +136,7 @@ func applyMilestoneDTO(_ dto: MilestoneDTO, to milestone: Milestone) {
 }
 
 func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
-    photo.remoteId = String(dto.id)
+    photo.serverId = dto.id
     photo.familyRemoteId = dto.familyId == 0 ? nil : dto.familyId
     photo.title = dto.title
     photo.descriptionText = dto.descriptionText
@@ -145,7 +145,7 @@ func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
 }
 
 func applyTagDTO(_ dto: TagDTO, to tag: FamilyTag) {
-    tag.remoteId = String(dto.id)
+    tag.serverId = dto.id
     tag.name = dto.name
     tag.colorHex = dto.color
     tag.familyId = dto.familyId

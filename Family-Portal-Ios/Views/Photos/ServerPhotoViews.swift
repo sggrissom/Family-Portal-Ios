@@ -37,7 +37,7 @@ struct SimilarPhotosView: View {
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
     var body: some View {
-        let byRemoteId = Dictionary(photos.compactMap { photo in photo.remoteId.flatMap(Int.init).map { ($0, photo) } }, uniquingKeysWith: { first, _ in first })
+        let byRemoteId = Dictionary(photos.compactMap { photo in photo.serverId.map { ($0, photo) } }, uniquingKeysWith: { first, _ in first })
         ScrollView {
             Text(Copy.photoBrowse.similarCaption)
                 .font(.footnote)

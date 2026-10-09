@@ -143,12 +143,11 @@ final class ChatService: ChatWebSocketDelegate {
     @discardableResult
     private func merge(_ dtos: [ChatMessageDTO]) -> Int {
         var added = 0
+        // A page against the whole history: a set, not a scan of every message per incoming one.
+        var known = Set(messages.compactMap(\.serverId))
 
         for dto in dtos {
-            let remoteIdStr = String(dto.id)
-            if messages.contains(where: { $0.remoteId == remoteIdStr }) {
-                continue
-            }
+            guard known.insert(dto.id).inserted else { continue }
             if !dto.clientMessageId.isEmpty, sentClientMessageIds.contains(dto.clientMessageId) {
                 continue
             }
@@ -190,7 +189,7 @@ final class ChatService: ChatWebSocketDelegate {
                 clientMessageId: clientMessageId
             )
 
-            message.remoteId = String(responseDTO.id)
+            message.serverId = responseDTO.id
             message.createdAt = responseDTO.createdAt
             message.isSending = false
 
@@ -215,7 +214,7 @@ final class ChatService: ChatWebSocketDelegate {
                 clientMessageId: message.clientMessageId
             )
 
-            message.remoteId = String(responseDTO.id)
+            message.serverId = responseDTO.id
             message.createdAt = responseDTO.createdAt
             message.isSending = false
 
@@ -229,8 +228,7 @@ final class ChatService: ChatWebSocketDelegate {
     }
 
     func deleteMessage(_ message: ChatMessage) async {
-        guard let remoteIdStr = message.remoteId,
-              let remoteId = Int(remoteIdStr),
+        guard let remoteId = message.serverId,
               message.userId == currentUserId else {
             return
         }
@@ -284,7 +282,7 @@ final class ChatService: ChatWebSocketDelegate {
     func didReceiveMessage(_ dto: ChatMessageDTO) {
         if !dto.clientMessageId.isEmpty, sentClientMessageIds.contains(dto.clientMessageId) {
             if let existing = messages.first(where: { $0.clientMessageId == dto.clientMessageId }) {
-                existing.remoteId = String(dto.id)
+                existing.serverId = dto.id
                 existing.createdAt = dto.createdAt
                 existing.isSending = false
                 try? modelContext.save()
@@ -299,7 +297,7 @@ final class ChatService: ChatWebSocketDelegate {
                     && message.content == dto.content
                     && abs(message.createdAt.timeIntervalSince(dto.createdAt)) < 5
             }) {
-                existing.remoteId = String(dto.id)
+                existing.serverId = dto.id
                 existing.createdAt = dto.createdAt
                 existing.isSending = false
                 try? modelContext.save()
@@ -307,8 +305,7 @@ final class ChatService: ChatWebSocketDelegate {
             }
         }
 
-        let remoteIdStr = String(dto.id)
-        if messages.contains(where: { $0.remoteId == remoteIdStr }) {
+        if messages.contains(where: { $0.serverId == dto.id }) {
             return
         }
 
@@ -326,8 +323,7 @@ final class ChatService: ChatWebSocketDelegate {
     }
 
     func didReceiveDeleteMessage(messageId: Int, userId: Int) {
-        let remoteIdStr = String(messageId)
-        if let index = messages.firstIndex(where: { $0.remoteId == remoteIdStr }) {
+        if let index = messages.firstIndex(where: { $0.serverId == messageId }) {
             let message = messages[index]
             messages.remove(at: index)
             modelContext.delete(message)

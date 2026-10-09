@@ -17,7 +17,7 @@ struct SuggestedPhotosRow: View {
                             selection.insert(photo.id)
                         }
                     } label: {
-                        RemotePhotoView(remoteId: photo.remoteId.flatMap(Int.init) ?? 0, size: .thumb)
+                        RemotePhotoView(remoteId: photo.serverId ?? 0, size: .thumb)
                             .frame(width: 72, height: 72)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                             .overlay(alignment: .topTrailing) {

@@ -40,7 +40,7 @@ nonisolated struct RelationEdge: Equatable, Hashable, Sendable {
 extension PersonRelation {
     var edge: RelationEdge {
         RelationEdge(
-            id: remoteId.flatMap(Int.init) ?? 0,
+            id: serverId ?? 0,
             fromId: fromId,
             toId: toId,
             kind: kind

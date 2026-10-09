@@ -64,7 +64,7 @@ struct EditPersonView: View {
                 }
 
                 // Relationships live on the server and are named from the whole graph, so there is nothing to show for a person it has never seen.
-                if let personId = person.remoteId.flatMap(Int.init) {
+                if let personId = person.serverId {
                     PersonRelationsSection(
                         personId: personId,
                         personName: person.name,
