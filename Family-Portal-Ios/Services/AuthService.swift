@@ -14,13 +14,14 @@ final class AuthService {
     private let googleSignInService = GoogleSignInService()
     private let appleSignInService = AppleSignInService()
 
-    var onWillLogout: (@MainActor () async -> Void)?
+    // These three keep their explicit `@MainActor`: without it, `@Observable`'s generated storage infers a different closure type and the accessors no longer compile.
+    @MainActor var onWillLogout: (@MainActor () async -> Void)?
 
     /// Runs when the data on this device cannot be vouched for as the signing-in account's, before the new identity is published — see `LocalAccountOwner`.
-    var onUnownedLocalData: (@MainActor (LocalDataResetScope) async -> Void)?
+    @MainActor var onUnownedLocalData: (@MainActor (LocalDataResetScope) async -> Void)?
 
     /// Runs after the server has destroyed the account. Nothing remains to reconcile against, so the store is erased outright.
-    var onAccountDeleted: (@MainActor () async -> Void)?
+    @MainActor var onAccountDeleted: (@MainActor () async -> Void)?
 
     private let accountOwner = LocalAccountOwner()
 
