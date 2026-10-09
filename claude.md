@@ -390,6 +390,11 @@ network answers.
 - The toggles show the server's last confirmed values; a save moves them optimistically and puts them back on failure, so a failed save never reads as saved. A failed first read shows Retry rather than defaults — showing defaults would invite saving them. Missing fields decode as the server's defaults, so previews are never turned on implicitly
 - Separately, the section reads `UNUserNotificationCenter`'s authorization and says when iOS itself is blocking notifications on this iPhone, with a link to its settings
 
+### Push notifications (`PushNotificationService`)
+
+- `AppDelegate.didFinishLaunching` makes the service `UNUserNotificationCenter`'s delegate. iOS delivers the tap that cold-launched the app only to a delegate set before launch finishes, and registration — where it used to be set — runs after sign-in, a full sync and chat
+- That tap can still arrive before the scene's `.task` hands over the `DeepLinkRouter`, so a payload with no router yet waits in `pendingPayload` and is opened when `router` is set
+
 ### Original photos (`OriginalPhotoActions`)
 
 - The photo page's toolbar offers **Share Original** and **Save to Photos** for an uploaded photo — the web's "Download original". `APIClient.downloadOriginal` fetches `api/photo/{id}/original?download=1` (bytes as uploaded, never a resized variant) with the token and one refresh-and-retry on 401, straight to disk, into a folder of its own named after `Content-Disposition` (`OriginalPhotoFile.filename`). The folder is removed when the share sheet closes or the save finishes

@@ -28,7 +28,16 @@ final class PushNotificationService: NSObject {
 
     private var isRegistering = false
 
-    weak var router: DeepLinkRouter?
+    /// Set once the app's scene is up, which on a cold launch is after the tapped notification has been delivered; a payload that arrives first waits in `pendingPayload`.
+    @ObservationIgnored weak var router: DeepLinkRouter? {
+        didSet {
+            guard let router, let payload = pendingPayload else { return }
+            pendingPayload = nil
+            router.open(pushPayload: payload)
+        }
+    }
+
+    @ObservationIgnored private var pendingPayload: [AnyHashable: Any]?
 
     private override init() {
         super.init()
@@ -39,8 +48,8 @@ final class PushNotificationService: NSObject {
         isRegistering = true
         defer { isRegistering = false }
 
+        // The delegate is set at launch by `AppDelegate`.
         let center = UNUserNotificationCenter.current()
-        center.delegate = self
 
         let settings = await center.notificationSettings()
         authorizationStatus = settings.authorizationStatus
@@ -137,8 +146,17 @@ extension PushNotificationService: UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse
     ) async {
         await clearBadge()
+        let payload = response.notification.request.content.userInfo
         await MainActor.run {
-            router?.open(pushPayload: response.notification.request.content.userInfo)
+            open(pushPayload: payload)
+        }
+    }
+
+    private func open(pushPayload payload: [AnyHashable: Any]) {
+        if let router {
+            router.open(pushPayload: payload)
+        } else {
+            pendingPayload = payload
         }
     }
 }
