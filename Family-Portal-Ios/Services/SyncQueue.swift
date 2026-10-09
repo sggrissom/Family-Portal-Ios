@@ -212,6 +212,9 @@ actor SyncQueue {
     private var operations: [PendingOperation]
     private let store: SyncQueueStore
 
+    /// The operation a sync run is sending right now. Nothing is merged into it or cancelled against it: the run dequeues it by id once the server answers, which would throw away whatever had been folded in mid-flight, and a request already on the wire cannot be taken back.
+    private var executingId: UUID?
+
     init(store: SyncQueueStore = SyncQueueStore()) {
         self.store = store
         operations = store.load()
@@ -230,8 +233,29 @@ actor SyncQueue {
     }
 
     func dequeue(_ operationId: UUID) {
+        finishExecuting(operationId)
         operations.removeAll { $0.id == operationId }
         saveToStorage()
+    }
+
+    /// Marks `operationId` as on the wire until it is dequeued, marked, or `endExecuting()` is called.
+    func beginExecuting(_ operationId: UUID) {
+        executingId = operationId
+    }
+
+    func endExecuting() {
+        executingId = nil
+    }
+
+    private func finishExecuting(_ operationId: UUID) {
+        if executingId == operationId {
+            executingId = nil
+        }
+    }
+
+    /// Whether a new operation may be merged into `operation` or cancel it out.
+    private func isSettled(_ operation: PendingOperation) -> Bool {
+        operation.id != executingId
     }
 
     func readyOperations(syncedLocalIds: Set<String>) -> [PendingOperation] {
@@ -247,6 +271,7 @@ actor SyncQueue {
     /// - Returns: the operation if this failure used up its last retry and it was dropped, which the caller has to tell the user about.
     @discardableResult
     func markFailed(_ operationId: UUID) -> PendingOperation? {
+        finishExecuting(operationId)
         guard let index = operations.firstIndex(where: { $0.id == operationId }) else {
             return nil
         }
@@ -272,6 +297,7 @@ actor SyncQueue {
     /// - Returns: the operation if this run used up its allowance and it was dropped.
     @discardableResult
     func markBlocked(_ operationId: UUID) -> PendingOperation? {
+        finishExecuting(operationId)
         guard let index = operations.firstIndex(where: { $0.id == operationId }) else {
             return nil
         }
@@ -324,7 +350,7 @@ actor SyncQueue {
     }
 
     private func replaceExistingOperation(of type: SyncOperationType, localId: String, with incoming: PendingOperation) -> Bool {
-        guard let index = operations.lastIndex(where: { $0.type == type && $0.localId == localId }) else {
+        guard let index = operations.lastIndex(where: { $0.type == type && $0.localId == localId && isSettled($0) }) else {
             return false
         }
 
@@ -344,6 +370,7 @@ actor SyncQueue {
         operations.removeAll { operation in
             guard operation.type == .removePersonFromPhoto,
                   operation.localId == incoming.localId,
+                  isSettled(operation),
                   let payload = try? JSONDecoder().decode(RemovePersonFromPhotoPayload.self, from: operation.payload)
             else {
                 return false
@@ -356,7 +383,7 @@ actor SyncQueue {
             return true
         }
 
-        if let existingIndex = operations.lastIndex(where: { $0.type == .addPeopleToPhoto && $0.localId == incoming.localId }),
+        if let existingIndex = operations.lastIndex(where: { $0.type == .addPeopleToPhoto && $0.localId == incoming.localId && isSettled($0) }),
            let existingPayload = try? JSONDecoder().decode(AddPeopleToPhotoPayload.self, from: operations[existingIndex].payload) {
             var mergedPeople = Set(existingPayload.personLocalIds)
             mergedPeople.formUnion(peopleToAdd)
@@ -409,7 +436,7 @@ actor SyncQueue {
             return false
         }
 
-        if let addIndex = operations.lastIndex(where: { $0.type == .addPeopleToPhoto && $0.localId == incoming.localId }),
+        if let addIndex = operations.lastIndex(where: { $0.type == .addPeopleToPhoto && $0.localId == incoming.localId && isSettled($0) }),
            let addPayload = try? JSONDecoder().decode(AddPeopleToPhotoPayload.self, from: operations[addIndex].payload) {
             let remainingPeople = addPayload.personLocalIds.filter { $0 != incomingPayload.personLocalId }
 
@@ -437,7 +464,7 @@ actor SyncQueue {
             }
         }
 
-        if let existingIndex = operations.lastIndex(where: { $0.type == .removePersonFromPhoto && $0.localId == incoming.localId }),
+        if let existingIndex = operations.lastIndex(where: { $0.type == .removePersonFromPhoto && $0.localId == incoming.localId && isSettled($0) }),
            let existingPayload = try? JSONDecoder().decode(RemovePersonFromPhotoPayload.self, from: operations[existingIndex].payload),
            existingPayload.personLocalId == incomingPayload.personLocalId {
             var replacement = incoming

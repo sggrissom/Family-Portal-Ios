@@ -249,25 +249,30 @@ final class SyncService {
         isProcessingQueue = true
         defer { isProcessingQueue = false }
 
+        var unblockedMore = false
         repeat {
             queueRunRequested = false
-            await runQueueOnce()
-        } while queueRunRequested && networkMonitor.isConnected
+            unblockedMore = await runQueueOnce()
+        } while (queueRunRequested || unblockedMore) && networkMonitor.isConnected
     }
 
-    private func runQueueOnce() async {
+    /// - Returns: whether the run synced a record that operations it could not start on were waiting for. Those go in another run straight away rather than waiting for the next foreground or edit — a person and their measurements added offline should arrive together.
+    private func runQueueOnce() async -> Bool {
         let syncedLocalIds = await fetchAllSyncedLocalIds()
         let operations = await syncQueue.readyOperations(syncedLocalIds: syncedLocalIds)
+        let blockedAtStart = Set(await syncQueue.blockedOperations(syncedLocalIds: syncedLocalIds).map(\.id))
         var discarded: [PendingOperation] = []
         var accountedFor = Set<UUID>()
         var wentOffline = false
 
         for operation in operations {
+            await syncQueue.beginExecuting(operation.id)
             do {
                 try await executeOperation(operation)
                 await syncQueue.dequeue(operation.id)
             } catch {
                 if isNetworkError(error) {
+                    await syncQueue.endExecuting()
                     wentOffline = true
                     break
                 }
@@ -288,6 +293,7 @@ final class SyncService {
             }
         }
 
+        var unblocked = false
         if !wentOffline {
             let syncedNow = await fetchAllSyncedLocalIds()
             let blocked = await syncQueue.blockedOperations(syncedLocalIds: syncedNow)
@@ -296,6 +302,8 @@ final class SyncService {
                     discarded.append(dropped)
                 }
             }
+            unblocked = await syncQueue.readyOperations(syncedLocalIds: syncedNow)
+                .contains { blockedAtStart.contains($0.id) }
         }
 
         if !discarded.isEmpty {
@@ -303,6 +311,7 @@ final class SyncService {
         }
 
         await updatePendingCount()
+        return unblocked
     }
 
     func acknowledgeDiscardedChanges() {
@@ -372,6 +381,7 @@ final class SyncService {
             additionalAnchorIds: resolveAdditionalAnchors(payload)
         )
         let response: AddPersonResponseDTO = try await apiClient.callRPC(.addPerson, payload: request)
+        dropPulledCopies(of: person, serverId: response.person.id)
         applyPersonDTO(response.person, to: person)
         try modelContext.save()
     }
@@ -457,6 +467,7 @@ final class SyncService {
             measurementDate: payload.measurementDate
         )
         let response: AddGrowthDataResponseDTO = try await apiClient.callRPC(.addGrowthData, payload: request)
+        dropPulledCopies(of: growthData, serverId: response.growthData.id)
         applyGrowthDataDTO(response.growthData, to: growthData)
         try modelContext.save()
     }
@@ -487,6 +498,11 @@ final class SyncService {
             weight: value(weight, payload.weightValue, payload.weightUnit)
         )
         let response: AddCheckupResponseDTO = try await apiClient.callRPC(.addCheckup, payload: request)
+        for dto in response.growthData {
+            if let record = intToMeasurementType(dto.measurementType) == .height ? height : weight {
+                dropPulledCopies(of: record, serverId: dto.id)
+            }
+        }
         applyCheckupResponse(response, height: height, weight: weight)
         try modelContext.save()
     }
@@ -514,6 +530,7 @@ final class SyncService {
             tagIds: payload.tagRemoteIds
         )
         let response: AddMilestoneResponseDTO = try await apiClient.callRPC(.addMilestone, payload: request)
+        dropPulledCopies(of: milestone, serverId: response.milestone.id)
         applyMilestoneDTO(response.milestone, to: milestone)
         try modelContext.save()
     }
@@ -538,6 +555,7 @@ final class SyncService {
             photoDate: photo.photoDate,
             personIds: personIds
         )
+        dropPulledCopies(of: photo, serverId: response.id)
         applyPhotoDTO(response, to: photo)
 
         photo.imageData = nil
@@ -1066,6 +1084,50 @@ final class SyncService {
         try modelContext.save()
         guard let id = serverId else { return }
         try await enqueueOperation(type: type, localId: localId.uuidString, payload: DeletePayload(remoteId: id), dependsOnLocalId: nil)
+    }
+
+    // MARK: - Pulled copies
+
+    // A pull can run while a create is on the wire. If the server saved the record before the pull read, and the pull's answer is applied before the create's, the pull stores its own copy under the new server id and the local record then takes the same id: two records that no later pull would ever tell apart. The create's answer is the moment to notice, and the local record — the one queued operations name — is the one kept.
+
+    private func dropPulledCopies(of person: Person, serverId: Int) {
+        let remoteId = String(serverId)
+        for copy in others(of: person, #Predicate<Person> { $0.remoteId == remoteId }) {
+            // Their records came with the copy from the same pull; deleting it would cascade them away until the next one.
+            let records = copy.growthData
+            let milestones = copy.milestones
+            copy.growthData = []
+            copy.milestones = []
+            for record in records { record.person = person }
+            for milestone in milestones { milestone.person = person }
+            modelContext.delete(copy)
+        }
+    }
+
+    private func dropPulledCopies(of growthData: GrowthData, serverId: Int) {
+        let remoteId = String(serverId)
+        for copy in others(of: growthData, #Predicate<GrowthData> { $0.remoteId == remoteId }) {
+            modelContext.delete(copy)
+        }
+    }
+
+    private func dropPulledCopies(of milestone: Milestone, serverId: Int) {
+        let remoteId = String(serverId)
+        for copy in others(of: milestone, #Predicate<Milestone> { $0.remoteId == remoteId }) {
+            modelContext.delete(copy)
+        }
+    }
+
+    private func dropPulledCopies(of photo: Photo, serverId: Int) {
+        let remoteId = String(serverId)
+        for copy in others(of: photo, #Predicate<Photo> { $0.remoteId == remoteId }) {
+            modelContext.delete(copy)
+        }
+    }
+
+    private func others<Model: PersistentModel & RemoteIdentifiable>(of record: Model, _ predicate: Predicate<Model>) -> [Model] {
+        let matches = (try? modelContext.fetch(FetchDescriptor<Model>(predicate: predicate))) ?? []
+        return matches.filter { $0 !== record }
     }
 
     // MARK: - Lookup Helpers

@@ -291,6 +291,8 @@ network answers.
 ### SyncService (`@Observable`)
 - `performFullSync()` — processes queue then pulls family data
 - `processQueue()` allows only **one run at a time**. `@MainActor` is not mutual exclusion: a run suspends on every request and an operation is dequeued only *after* it succeeds, so a second run entering during that gap reads the same ready set and sends the same request twice — for an upload, a second photo on the server. A caller turned away sets `queueRunRequested` instead of dropping its work, and the run in flight goes round again, because it may already have taken its snapshot of the queue
+- A run that syncs a record other operations were blocked on goes round again at once (`runQueueOnce` returns whether it unblocked anything). Without that, a person and their measurement added offline arrived a foreground apart: the person in this run, the measurement whenever something next triggered one
+- A pull can overlap a create on the wire. When the pull reads the server after the create committed but is applied before the create's answer, it stores its own copy under the new server id, and the local record then takes the same id — a duplicate no later pull can tell apart. Each create executor calls `dropPulledCopies` before applying its answer: the local record, the one queued operations name, keeps the id, and a person's copy hands over its measurements and milestones rather than cascading them away
 - `pullFamilyData()` — fetches all data via `GetFamilyTimeline`, upserts locally
 - Push methods: `addPerson`, `addGrowthData`, `updateGrowthData`, `deleteGrowthData`, `addMilestone`, `updateMilestone`, `deleteMilestone`, `deletePhoto`
 - Offline support via `SyncQueue` — operations queued when offline, processed on reconnect
@@ -322,6 +324,7 @@ network answers.
 ### SyncQueue (actor)
 - Persists pending operations to UserDefaults (JSON-encoded); `defaults` is injectable so tests use a scratch suite
 - Operation types live in `SyncOperationType`; the update-shaped ones (updatePerson, updateGrowthData, updateMilestone, updatePhoto, setProfilePhoto, updatePhotoTags, updateMilestoneTags) coalesce last-wins per record, the create/delete ones do not
+- Nothing merges into, or cancels against, the operation a run is sending (`beginExecuting`, cleared by `dequeue`/`markFailed`/`markBlocked`/`endExecuting`). The run dequeues it by id once the server answers, so a tag folded into it mid-flight was thrown away unsent, and an untag that cancelled an add already on the wire left the person tagged on the server
 - Dependency tracking: child operations wait for parent remoteId (e.g., addGrowthData waits for person sync)
 - Max 5 retries before discarding failed operations. `markFailed` *returns* the operation it discarded, because that is the moment a local change stops being "not synced yet" and becomes "never syncing" — `SyncService.discardedChangeWarning` reports it and Settings shows it until dismissed
 - A network error breaks the queue run rather than marking anything failed: being offline must never spend a retry
