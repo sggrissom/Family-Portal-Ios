@@ -66,21 +66,10 @@ nonisolated struct DashboardNudgeDTO: Decodable, Sendable, Identifiable, Equatab
     /// Stable per occurrence (`birthday:4:2026`), which is what a dismissal remembers.
     let key: String
     let text: String
-    let personId: Int
-    let count: Int
+    @OrZero var personId: Int
+    @OrZero var count: Int
 
     var id: String { key }
-
-    private enum CodingKeys: String, CodingKey { case kind, key, text, personId, count }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        kind = try container.decode(String.self, forKey: .kind)
-        key = try container.decode(String.self, forKey: .key)
-        text = try container.decode(String.self, forKey: .text)
-        personId = try container.decodeIfPresent(Int.self, forKey: .personId) ?? 0
-        count = try container.decodeIfPresent(Int.self, forKey: .count) ?? 0
-    }
 }
 
 nonisolated struct DashboardSeasonDTO: Decodable, Sendable, Identifiable {
@@ -111,61 +100,29 @@ nonisolated struct DashboardSeasonDTO: Decodable, Sendable, Identifiable {
 
 nonisolated struct DashboardYearDTO: Decodable, Sendable, Identifiable {
     let yearsAgo: Int
-    let photos: [ImageDTO]
-    let milestones: [MilestoneDTO]
+    @OrZero var photos: [ImageDTO]
+    @OrZero var milestones: [MilestoneDTO]
 
     var id: Int { yearsAgo }
-
-    private enum CodingKeys: String, CodingKey { case yearsAgo, photos, milestones }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        yearsAgo = try container.decode(Int.self, forKey: .yearsAgo)
-        photos = try container.decodeList(ImageDTO.self, forKey: .photos)
-        milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
-    }
 }
 
 nonisolated struct DashboardRecentDTO: Decodable, Sendable {
     /// The first day of the window, `YYYY-MM-DD`.
-    let from: String
-    let photos: [PhotoWithPeopleDTO]
-    let milestones: [MilestoneDTO]
-    let growth: [GrowthDataDTO]
-
-    private enum CodingKeys: String, CodingKey { case from, photos, milestones, growth }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        from = try container.decodeIfPresent(String.self, forKey: .from) ?? ""
-        photos = try container.decodeList(PhotoWithPeopleDTO.self, forKey: .photos)
-        milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
-        growth = try container.decodeList(GrowthDataDTO.self, forKey: .growth)
-    }
+    @OrZero var from: String
+    @OrZero var photos: [PhotoWithPeopleDTO]
+    @OrZero var milestones: [MilestoneDTO]
+    @OrZero var growth: [GrowthDataDTO]
 }
 
 nonisolated struct GetDashboardResponseDTO: Decodable, Sendable {
     /// The day the server answered for — the request's `today`, echoed. A cached dashboard whose `today` is not the device's today is stale in the ways that matter (birthdays, open events).
-    let today: String
-    let people: [PersonDTO]
-    let relations: [RelationDTO]
-    let nudges: [DashboardNudgeDTO]
-    let seasons: [DashboardSeasonDTO]
-    let onThisDay: [DashboardYearDTO]
+    @OrZero var today: String
+    @OrZero var people: [PersonDTO]
+    @OrZero var relations: [RelationDTO]
+    @OrZero var nudges: [DashboardNudgeDTO]
+    @OrZero var seasons: [DashboardSeasonDTO]
+    @OrZero var onThisDay: [DashboardYearDTO]
     let recent: DashboardRecentDTO
-
-    private enum CodingKeys: String, CodingKey { case today, people, relations, nudges, seasons, onThisDay, recent }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        today = try container.decodeIfPresent(String.self, forKey: .today) ?? ""
-        people = try container.decodeList(PersonDTO.self, forKey: .people)
-        relations = try container.decodeList(RelationDTO.self, forKey: .relations)
-        nudges = try container.decodeList(DashboardNudgeDTO.self, forKey: .nudges)
-        seasons = try container.decodeList(DashboardSeasonDTO.self, forKey: .seasons)
-        onThisDay = try container.decodeList(DashboardYearDTO.self, forKey: .onThisDay)
-        recent = try container.decode(DashboardRecentDTO.self, forKey: .recent)
-    }
 }
 
 // MARK: - ListOpenEvents
@@ -173,29 +130,14 @@ nonisolated struct GetDashboardResponseDTO: Decodable, Sendable {
 /// An event whose results can be entered now: running today, or ended within the last few days.
 nonisolated struct OpenEventDTO: Decodable, Sendable, Identifiable {
     let event: EventSummaryDTO
-    let activityName: String
+    @OrZero var activityName: String
 
     var id: Int { event.id }
-
-    private enum CodingKeys: String, CodingKey { case event, activityName }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        event = try container.decode(EventSummaryDTO.self, forKey: .event)
-        activityName = try container.decodeIfPresent(String.self, forKey: .activityName) ?? ""
-    }
 }
 
 nonisolated struct ListOpenEventsResponseDTO: Decodable, Sendable {
     /// Newest first.
-    let events: [OpenEventDTO]
-
-    private enum CodingKeys: String, CodingKey { case events }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        events = try container.decodeList(OpenEventDTO.self, forKey: .events)
-    }
+    @OrZero var events: [OpenEventDTO]
 }
 
 // MARK: - GetSameAge
@@ -206,10 +148,10 @@ nonisolated struct SameAgeRowDTO: Decodable, Sendable, Identifiable {
     let date: Date
     let height: GrowthDataDTO?
     let weight: GrowthDataDTO?
-    let milestones: [MilestoneDTO]
-    let photoIds: [Int]
+    @OrZero var milestones: [MilestoneDTO]
+    @OrZero var photoIds: [Int]
     /// The photos in the window that best show this person, best first, for the side-by-side montage. Empty from a server that predates it.
-    let portraits: [PortraitPhotoDTO]
+    @OrZero var portraits: [PortraitPhotoDTO]
 
     var id: Int { person.id }
 
@@ -217,37 +159,16 @@ nonisolated struct SameAgeRowDTO: Decodable, Sendable, Identifiable {
     var isEmpty: Bool {
         height == nil && weight == nil && milestones.isEmpty && photoIds.isEmpty && portraits.isEmpty
     }
-
-    private enum CodingKeys: String, CodingKey { case person, date, height, weight, milestones, photoIds, portraits }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        person = try container.decode(PersonDTO.self, forKey: .person)
-        date = try container.decode(Date.self, forKey: .date)
-        height = try container.decodeIfPresent(GrowthDataDTO.self, forKey: .height)
-        weight = try container.decodeIfPresent(GrowthDataDTO.self, forKey: .weight)
-        milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
-        photoIds = try container.decodeList(Int.self, forKey: .photoIds)
-        portraits = try container.decodeList(PortraitPhotoDTO.self, forKey: .portraits)
-    }
 }
 
 /// An age worth offering, and how many people have something there.
 nonisolated struct SameAgeOptionDTO: Decodable, Sendable, Equatable {
     let ageMonths: Int
-    let peopleCount: Int
+    @OrZero var peopleCount: Int
 
     init(ageMonths: Int, peopleCount: Int) {
         self.ageMonths = ageMonths
         self.peopleCount = peopleCount
-    }
-
-    private enum CodingKeys: String, CodingKey { case ageMonths, peopleCount }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        ageMonths = try container.decode(Int.self, forKey: .ageMonths)
-        peopleCount = try container.decodeIfPresent(Int.self, forKey: .peopleCount) ?? 0
     }
 }
 
@@ -287,7 +208,7 @@ nonisolated struct GetSameAgeResponseDTO: Decodable, Sendable {
 /// One activity appearance and which of the family's people were in it, once however many were.
 nonisolated struct TimelineAppearanceDTO: Decodable, Sendable, Identifiable {
     let detail: AppearanceDetailDTO
-    let personIds: [Int]
+    @OrZero var personIds: [Int]
 
     var id: Int { detail.id }
 
@@ -296,32 +217,15 @@ nonisolated struct TimelineAppearanceDTO: Decodable, Sendable, Identifiable {
         self.detail = detail
         self.personIds = personIds
     }
-
-    private enum CodingKeys: String, CodingKey { case detail, personIds }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        detail = try container.decode(AppearanceDetailDTO.self, forKey: .detail)
-        personIds = try container.decodeList(Int.self, forKey: .personIds)
-    }
 }
 
 // MARK: - GetFaceReview
 
 /// The only part of `GetFaceReview` the app reads: whether face tagging is on, and how many photos wait for review. Face review itself is web-only; the account menu links to it with this count.
 nonisolated struct FaceReviewSummaryDTO: Decodable, Sendable {
-    let enabled: Bool
-    let unknownCount: Int
-    let autoCount: Int
-
-    private enum CodingKeys: String, CodingKey { case enabled, unknownCount, autoCount }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
-        unknownCount = try container.decodeIfPresent(Int.self, forKey: .unknownCount) ?? 0
-        autoCount = try container.decodeIfPresent(Int.self, forKey: .autoCount) ?? 0
-    }
+    @OrZero var enabled: Bool
+    @OrZero var unknownCount: Int
+    @OrZero var autoCount: Int
 }
 
 /// The body for an argument-less proc — vbeam still requires one.

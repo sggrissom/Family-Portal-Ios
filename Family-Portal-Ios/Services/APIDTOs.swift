@@ -1,13 +1,57 @@
 @preconcurrency import Foundation
 
 extension KeyedDecodingContainer {
-    /// A list that may be missing: Go marshals a nil slice as `null`, and an absent key reads the same way. Every DTO file decodes its lists through this.
+    /// A list that may be missing: Go marshals a nil slice as `null`, and an absent key reads the same way. For the hand-written decoders that remain; a field that only needs this is `@OrZero`.
     nonisolated func decodeList<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> [T] {
         try decodeIfPresent([T].self, forKey: key) ?? []
     }
+
+    nonisolated func decode<Value: Decodable & ZeroValue>(_ type: OrZero<Value>.Type, forKey key: Key) throws -> OrZero<Value> {
+        OrZero(wrappedValue: try decodeIfPresent(Value.self, forKey: key) ?? .zero)
+    }
 }
 
-nonisolated struct AuthResponseDTO: Sendable {
+/// What Go marshals for an unset field, and so what a missing key means: `omitempty` drops zero values, a nil slice arrives as `null`, and a server older than a field never sends it.
+nonisolated protocol ZeroValue {
+    static var zero: Self { get }
+}
+
+nonisolated extension Int: ZeroValue {}
+nonisolated extension Double: ZeroValue {}
+nonisolated extension Bool: ZeroValue { static var zero: Bool { false } }
+nonisolated extension String: ZeroValue { static var zero: String { "" } }
+nonisolated extension Array: ZeroValue { static var zero: Array { [] } }
+nonisolated extension Dictionary: ZeroValue { static var zero: Dictionary { [:] } }
+
+/// A field that reads as its zero value when the key is missing or `null`, rather than failing the whole response. The one rule every DTO shares, written once instead of as a hand-written decoder per type; fields left plain still throw when missing, so a malformed response is still caught.
+@propertyWrapper
+nonisolated struct OrZero<Value: ZeroValue> {
+    var wrappedValue: Value
+
+    init(wrappedValue: Value) {
+        self.wrappedValue = wrappedValue
+    }
+}
+
+nonisolated extension OrZero: Decodable where Value: Decodable {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        wrappedValue = container.decodeNil() ? .zero : try container.decode(Value.self)
+    }
+}
+
+nonisolated extension OrZero: Encodable where Value: Encodable {
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(wrappedValue)
+    }
+}
+
+nonisolated extension OrZero: Equatable where Value: Equatable {}
+nonisolated extension OrZero: Hashable where Value: Hashable {}
+nonisolated extension OrZero: Sendable where Value: Sendable {}
+
+nonisolated struct AuthResponseDTO: Codable, Sendable {
     let id: Int
     let name: String
     let email: String
@@ -16,59 +60,16 @@ nonisolated struct AuthResponseDTO: Sendable {
     /// The person record standing in for this account, which is the subject every derived relationship label is phrased against. `omitempty` on the Go side, so an account never linked to a person simply omits the key.
     let personId: Int?
     /// Every family this account can see and its role in each — what `FamilyAccess` reads to decide which add, edit and delete controls to show.
-    let families: [FamilyRefDTO]
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(Int.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        email = try container.decode(String.self, forKey: .email)
-        isAdmin = try container.decode(Bool.self, forKey: .isAdmin)
-        familyId = try container.decodeIfPresent(Int.self, forKey: .familyId)
-        personId = try container.decodeIfPresent(Int.self, forKey: .personId)
-        families = try container.decodeIfPresent([FamilyRefDTO].self, forKey: .families) ?? []
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(name, forKey: .name)
-        try container.encode(email, forKey: .email)
-        try container.encode(isAdmin, forKey: .isAdmin)
-        try container.encodeIfPresent(familyId, forKey: .familyId)
-        try container.encodeIfPresent(personId, forKey: .personId)
-        try container.encode(families, forKey: .families)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case id, name, email, isAdmin, familyId, personId, families
-    }
+    @OrZero var families: [FamilyRefDTO]
 }
 
 /// One family in the auth response (backend/users.go `FamilyRef`). `role` is the backend's `AccessLevel`; see `FamilyAccess`.
 nonisolated struct FamilyRefDTO: Codable, Sendable, Equatable {
     let id: Int
-    let name: String
-    let role: Int
-    let isPrimary: Bool
-
-    init(id: Int, name: String = "", role: Int, isPrimary: Bool = false) {
-        self.id = id
-        self.name = name
-        self.role = role
-        self.isPrimary = isPrimary
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(Int.self, forKey: .id)
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
-        role = try container.decodeIfPresent(Int.self, forKey: .role) ?? 0
-        isPrimary = try container.decodeIfPresent(Bool.self, forKey: .isPrimary) ?? false
-    }
+    @OrZero var name: String = ""
+    @OrZero var role: Int
+    @OrZero var isPrimary: Bool = false
 }
-
-extension AuthResponseDTO: Codable {}
 
 nonisolated struct LoginResponseDTO: Codable, Sendable {
     let success: Bool
@@ -115,34 +116,12 @@ nonisolated struct DeleteAccountResponseDTO: Codable, Sendable {
     let error: String?
 }
 
-nonisolated struct RefreshResponseDTO: Sendable {
+nonisolated struct RefreshResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
     let token: String?
     let auth: AuthResponseDTO?
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        success = try container.decode(Bool.self, forKey: .success)
-        error = try container.decodeIfPresent(String.self, forKey: .error)
-        token = try container.decodeIfPresent(String.self, forKey: .token)
-        auth = try container.decodeIfPresent(AuthResponseDTO.self, forKey: .auth)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(success, forKey: .success)
-        try container.encodeIfPresent(error, forKey: .error)
-        try container.encodeIfPresent(token, forKey: .token)
-        try container.encodeIfPresent(auth, forKey: .auth)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case success, error, token, auth
-    }
 }
-
-extension RefreshResponseDTO: Codable {}
 
 nonisolated struct MobileVersionPolicyDTO: Codable, Sendable {
     let status: String
@@ -155,29 +134,14 @@ nonisolated struct MobileVersionPolicyDTO: Codable, Sendable {
 nonisolated struct FamilyInfoDTO: Codable, Sendable, Identifiable {
     let id: Int
     let name: String
-    let inviteCode: String
-    let role: Int
-    let isPrimary: Bool
-
-    init(id: Int, name: String, inviteCode: String, role: Int, isPrimary: Bool) {
-        self.id = id
-        self.name = name
-        self.inviteCode = inviteCode
-        self.role = role
-        self.isPrimary = isPrimary
-    }
+    var inviteCode: String
+    @OrZero var role: Int
+    @OrZero var isPrimary: Bool
 
     func withInviteCode(_ inviteCode: String) -> FamilyInfoDTO {
-        FamilyInfoDTO(id: id, name: name, inviteCode: inviteCode, role: role, isPrimary: isPrimary)
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(Int.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        inviteCode = try container.decode(String.self, forKey: .inviteCode)
-        role = try container.decodeIfPresent(Int.self, forKey: .role) ?? 0
-        isPrimary = try container.decodeIfPresent(Bool.self, forKey: .isPrimary) ?? false
+        var copy = self
+        copy.inviteCode = inviteCode
+        return copy
     }
 }
 
@@ -185,15 +149,7 @@ nonisolated struct FamilyInfoResponseDTO: Codable, Sendable {
     let id: Int
     let name: String
     let inviteCode: String
-    let families: [FamilyInfoDTO]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(Int.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        inviteCode = try container.decode(String.self, forKey: .inviteCode)
-        families = try container.decodeList(FamilyInfoDTO.self, forKey: .families)
-    }
+    @OrZero var families: [FamilyInfoDTO]
 }
 
 nonisolated struct JoinFamilyRequestDTO: Codable, Sendable {
@@ -212,25 +168,11 @@ nonisolated struct FamilyMemberDTO: Codable, Sendable, Identifiable {
     let userId: Int
     let name: String
     let email: String
-    let role: Int
-    let isOwner: Bool
-    let isSelf: Bool
+    @OrZero var role: Int
+    @OrZero var isOwner: Bool
+    @OrZero var isSelf: Bool
 
     var id: Int { userId }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        userId = try container.decode(Int.self, forKey: .userId)
-        name = try container.decode(String.self, forKey: .name)
-        email = try container.decode(String.self, forKey: .email)
-        role = try container.decodeIfPresent(Int.self, forKey: .role) ?? 0
-        isOwner = try container.decodeIfPresent(Bool.self, forKey: .isOwner) ?? false
-        isSelf = try container.decodeIfPresent(Bool.self, forKey: .isSelf) ?? false
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case userId, name, email, role, isOwner, isSelf
-    }
 }
 
 nonisolated struct FamilyIdRequestDTO: Codable, Sendable {
@@ -238,16 +180,9 @@ nonisolated struct FamilyIdRequestDTO: Codable, Sendable {
 }
 
 nonisolated struct ListFamilyMembersResponseDTO: Codable, Sendable {
-    let familyId: Int
-    let members: [FamilyMemberDTO]
-    let callerIsOwner: Bool
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
-        members = try container.decodeList(FamilyMemberDTO.self, forKey: .members)
-        callerIsOwner = try container.decodeIfPresent(Bool.self, forKey: .callerIsOwner) ?? false
-    }
+    @OrZero var familyId: Int
+    @OrZero var members: [FamilyMemberDTO]
+    @OrZero var callerIsOwner: Bool
 }
 
 nonisolated struct LeaveFamilyResponseDTO: Codable, Sendable {
@@ -264,29 +199,14 @@ nonisolated struct RemoveFamilyMemberRequestDTO: Codable, Sendable {
 nonisolated struct RemoveFamilyMemberResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
-    let members: [FamilyMemberDTO]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        success = try container.decode(Bool.self, forKey: .success)
-        error = try container.decodeIfPresent(String.self, forKey: .error)
-        members = try container.decodeList(FamilyMemberDTO.self, forKey: .members)
-    }
+    @OrZero var members: [FamilyMemberDTO]
 }
 
 nonisolated struct RotateInviteCodeResponseDTO: Codable, Sendable {
     let success: Bool
     let error: String?
-    let familyId: Int
-    let inviteCode: String
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        success = try container.decode(Bool.self, forKey: .success)
-        error = try container.decodeIfPresent(String.self, forKey: .error)
-        familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
-        inviteCode = try container.decodeIfPresent(String.self, forKey: .inviteCode) ?? ""
-    }
+    @OrZero var familyId: Int
+    @OrZero var inviteCode: String
 }
 
 nonisolated struct RegisterPushDeviceRequestDTO: Codable, Sendable {
@@ -315,66 +235,15 @@ nonisolated struct PersonDTO: Codable, Sendable {
     let gender: Int
     let birthday: Date
     /// The server's own rendering of the age. Not used — `AgeCalculator` computes it locally, because this goes stale the moment a birthday passes.
-    let age: String
-    /// True while `birthday` is a due date rather than a birth date; it keeps deciding weeks-vs-months after the due date passes.
-    let isPregnancy: Bool
-    let profilePhotoId: Int?
-    let profileCropX: Double?
-    let profileCropY: Double?
-    let profileCropScale: Double?
+    @OrZero var age: String
+    /// True while `birthday` is a due date rather than a birth date; it keeps deciding weeks-vs-months after the due date passes. Absent from a server predating the field, which reads as "not a pregnancy".
+    @OrZero var isPregnancy: Bool = false
+    var profilePhotoId: Int? = nil
+    var profileCropX: Double? = nil
+    var profileCropY: Double? = nil
+    var profileCropScale: Double? = nil
     /// How this person relates to the *caller's* own person, worded by the server ("daughter", "grandfather"). Derived, viewer-relative and `omitempty`: absent whenever the graph does not connect the two.
-    let relationship: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, familyId, name, gender, birthday, age, isPregnancy
-        case profilePhotoId, profileCropX, profileCropY, profileCropScale
-        case relationship
-    }
-
-    nonisolated init(
-        id: Int,
-        familyId: Int,
-        name: String,
-        gender: Int,
-        birthday: Date,
-        age: String,
-        isPregnancy: Bool = false,
-        profilePhotoId: Int? = nil,
-        profileCropX: Double? = nil,
-        profileCropY: Double? = nil,
-        profileCropScale: Double? = nil,
-        relationship: String? = nil
-    ) {
-        self.id = id
-        self.familyId = familyId
-        self.name = name
-        self.gender = gender
-        self.birthday = birthday
-        self.age = age
-        self.isPregnancy = isPregnancy
-        self.profilePhotoId = profilePhotoId
-        self.profileCropX = profileCropX
-        self.profileCropY = profileCropY
-        self.profileCropScale = profileCropScale
-        self.relationship = relationship
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(Int.self, forKey: .id)
-        familyId = try container.decode(Int.self, forKey: .familyId)
-        name = try container.decode(String.self, forKey: .name)
-        gender = try container.decode(Int.self, forKey: .gender)
-        birthday = try container.decode(Date.self, forKey: .birthday)
-        age = try container.decodeIfPresent(String.self, forKey: .age) ?? ""
-        // `decodeIfPresent` so a response from a server predating the field reads as "not a pregnancy" rather than failing to decode.
-        isPregnancy = try container.decodeIfPresent(Bool.self, forKey: .isPregnancy) ?? false
-        profilePhotoId = try container.decodeIfPresent(Int.self, forKey: .profilePhotoId)
-        profileCropX = try container.decodeIfPresent(Double.self, forKey: .profileCropX)
-        profileCropY = try container.decodeIfPresent(Double.self, forKey: .profileCropY)
-        profileCropScale = try container.decodeIfPresent(Double.self, forKey: .profileCropScale)
-        relationship = try container.decodeIfPresent(String.self, forKey: .relationship)
-    }
+    var relationship: String? = nil
 }
 
 nonisolated struct GrowthDataDTO: Codable, Sendable {
@@ -394,32 +263,18 @@ nonisolated struct MilestoneDTO: Codable, Sendable {
     let familyId: Int
     let descriptionText: String
     let category: String
-    let context: String
+    @OrZero var context: String
     let milestoneDate: Date
     let createdAt: Date
-    let photoIds: [Int]
+    @OrZero var photoIds: [Int]
     /// Tags on this milestone. `TagIds` carries `omitempty`, so absent and empty mean the same thing on the way in — unlike `photoIds` on the way out.
-    let tagIds: [Int]
+    @OrZero var tagIds: [Int]
 
     enum CodingKeys: String, CodingKey {
         case id, personId, familyId, category, context, milestoneDate, createdAt
         case descriptionText = "description"
         case photoIds
         case tagIds
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        personId = try c.decode(Int.self, forKey: .personId)
-        familyId = try c.decode(Int.self, forKey: .familyId)
-        descriptionText = try c.decode(String.self, forKey: .descriptionText)
-        category = try c.decode(String.self, forKey: .category)
-        context = try c.decodeIfPresent(String.self, forKey: .context) ?? ""
-        milestoneDate = try c.decode(Date.self, forKey: .milestoneDate)
-        createdAt = try c.decode(Date.self, forKey: .createdAt)
-        photoIds = try c.decodeList(Int.self, forKey: .photoIds)
-        tagIds = try c.decodeList(Int.self, forKey: .tagIds)
     }
 }
 
@@ -438,43 +293,12 @@ nonisolated struct ImageDTO: Codable, Sendable {
     let photoDate: Date
     let createdAt: Date
     let status: Int
-    let tagIds: [Int]
+    @OrZero var tagIds: [Int]
 
     enum CodingKeys: String, CodingKey {
-        case id
-        case familyId
-        case ownerUserId
-        case originalFilename
-        case mimeType
-        case fileSize
-        case width
-        case height
-        case filePath
-        case title
+        case id, familyId, ownerUserId, originalFilename, mimeType, fileSize, width, height, filePath, title
         case descriptionText = "description"
-        case photoDate
-        case createdAt
-        case status
-        case tagIds
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        familyId = try c.decode(Int.self, forKey: .familyId)
-        ownerUserId = try c.decode(Int.self, forKey: .ownerUserId)
-        originalFilename = try c.decode(String.self, forKey: .originalFilename)
-        mimeType = try c.decode(String.self, forKey: .mimeType)
-        fileSize = try c.decode(Int.self, forKey: .fileSize)
-        width = try c.decode(Int.self, forKey: .width)
-        height = try c.decode(Int.self, forKey: .height)
-        filePath = try c.decode(String.self, forKey: .filePath)
-        title = try c.decode(String.self, forKey: .title)
-        descriptionText = try c.decode(String.self, forKey: .descriptionText)
-        photoDate = try c.decode(Date.self, forKey: .photoDate)
-        createdAt = try c.decode(Date.self, forKey: .createdAt)
-        status = try c.decode(Int.self, forKey: .status)
-        tagIds = try c.decodeList(Int.self, forKey: .tagIds)
+        case photoDate, createdAt, status, tagIds
     }
 }
 
@@ -482,22 +306,9 @@ nonisolated struct TagDTO: Codable, Sendable, Identifiable {
     let id: Int
     let familyId: Int
     let name: String
-    let color: String
+    @OrZero var color: String
     /// What photos this tag should be suggested for, e.g. "kids at the lake cabin". Only the Tags screen shows it; it is not mirrored into `FamilyTag`.
-    let autoPhrase: String
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        familyId = try c.decode(Int.self, forKey: .familyId)
-        name = try c.decode(String.self, forKey: .name)
-        color = try c.decodeIfPresent(String.self, forKey: .color) ?? ""
-        autoPhrase = try c.decodeIfPresent(String.self, forKey: .autoPhrase) ?? ""
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case id, familyId, name, color, autoPhrase
-    }
+    @OrZero var autoPhrase: String
 }
 
 // MARK: - Tag vocabulary (backend/tags.go)
@@ -529,16 +340,7 @@ nonisolated struct TagResponseDTO: Decodable, Sendable {
 }
 
 nonisolated struct ListTagsResponseDTO: Codable, Sendable {
-    let tags: [TagDTO]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        tags = try container.decodeList(TagDTO.self, forKey: .tags)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case tags
-    }
+    @OrZero var tags: [TagDTO]
 }
 
 nonisolated struct PhotoWithPeopleDTO: Codable, Sendable {
@@ -550,17 +352,9 @@ nonisolated struct PhotoWithPeopleDTO: Codable, Sendable {
 
 nonisolated struct GetPersonResponseDTO: Codable, Sendable {
     let person: PersonDTO?
-    let growthData: [GrowthDataDTO]
-    let milestones: [MilestoneDTO]
-    let photos: [ImageDTO]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        person = try container.decodeIfPresent(PersonDTO.self, forKey: .person)
-        growthData = try container.decodeList(GrowthDataDTO.self, forKey: .growthData)
-        milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
-        photos = try container.decodeList(ImageDTO.self, forKey: .photos)
-    }
+    @OrZero var growthData: [GrowthDataDTO]
+    @OrZero var milestones: [MilestoneDTO]
+    @OrZero var photos: [ImageDTO]
 }
 
 nonisolated struct ListPeopleResponseDTO: Codable, Sendable {
@@ -573,14 +367,7 @@ nonisolated struct AddGrowthDataResponseDTO: Codable, Sendable {
 
 /// Only the values the request sent, height first.
 nonisolated struct AddCheckupResponseDTO: Decodable, Sendable {
-    let growthData: [GrowthDataDTO]
-
-    private enum CodingKeys: String, CodingKey { case growthData }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        growthData = try container.decodeList(GrowthDataDTO.self, forKey: .growthData)
-    }
+    @OrZero var growthData: [GrowthDataDTO]
 }
 
 nonisolated struct UpdateGrowthDataResponseDTO: Codable, Sendable {
@@ -610,21 +397,11 @@ nonisolated struct GetPhotoRequestDTO: Encodable, Sendable {
 /// One photo with what the analysis knows about it. The app mirrors photos through `ListFamilyPhotos`, so this is fetched only by the photo page, for `place` and `suggestions`.
 nonisolated struct GetPhotoResponseDTO: Decodable, Sendable {
     let image: ImageDTO
-    let people: [PersonDTO]
+    @OrZero var people: [PersonDTO]
     /// Only for members of the family that owns the photo, and only when it carries a location.
     let place: PhotoPlaceDTO?
     /// Pending tag suggestions, for people who can tag the photo. Empty wherever the vision daemon isn't running.
-    let suggestions: [SuggestedTagDTO]
-
-    private enum CodingKeys: String, CodingKey { case image, people, place, suggestions }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        image = try c.decode(ImageDTO.self, forKey: .image)
-        people = try c.decodeList(PersonDTO.self, forKey: .people)
-        place = try c.decodeIfPresent(PhotoPlaceDTO.self, forKey: .place)
-        suggestions = try c.decodeList(SuggestedTagDTO.self, forKey: .suggestions)
-    }
+    @OrZero var suggestions: [SuggestedTagDTO]
 }
 
 /// The sync pull sends this empty and gets every photo in one page. Search fills `query` and pages through `cursor`.
@@ -645,72 +422,30 @@ nonisolated struct ListFamilyPhotosRequestDTO: Encodable, Sendable {
 }
 
 nonisolated struct ListFamilyPhotosResponseDTO: Decodable, Sendable {
-    let photos: [PhotoWithPeopleDTO]
+    @OrZero var photos: [PhotoWithPeopleDTO]
     /// Empty on the last page. A search's cursors look like `s60`.
-    let nextCursor: String
+    @OrZero var nextCursor: String
     /// For a search: the people named in the query, whom every result shows.
-    let matchedPersonIds: [Int]
+    @OrZero var matchedPersonIds: [Int]
     /// `"semantic"`, or `"text"` when the vision daemon is unavailable and only titles and descriptions were searched. Empty for a plain listing.
-    let searchMode: String
-
-    private enum CodingKeys: String, CodingKey { case photos, nextCursor, matchedPersonIds, searchMode }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        photos = try c.decodeList(PhotoWithPeopleDTO.self, forKey: .photos)
-        nextCursor = try c.decodeIfPresent(String.self, forKey: .nextCursor) ?? ""
-        matchedPersonIds = try c.decodeList(Int.self, forKey: .matchedPersonIds)
-        searchMode = try c.decodeIfPresent(String.self, forKey: .searchMode) ?? ""
-    }
+    @OrZero var searchMode: String
 }
 
 nonisolated struct FamilyTimelineItemDTO: Codable, Sendable {
     let person: PersonDTO
-    let growthData: [GrowthDataDTO]
-    let milestones: [MilestoneDTO]
-    let photos: [ImageDTO]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        person = try container.decode(PersonDTO.self, forKey: .person)
-        growthData = try container.decodeList(GrowthDataDTO.self, forKey: .growthData)
-        milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
-        photos = try container.decodeList(ImageDTO.self, forKey: .photos)
-    }
+    @OrZero var growthData: [GrowthDataDTO]
+    @OrZero var milestones: [MilestoneDTO]
+    @OrZero var photos: [ImageDTO]
 }
 
 nonisolated struct GetFamilyTimelineResponseDTO: Decodable, Sendable {
-    let people: [FamilyTimelineItemDTO]
+    @OrZero var people: [FamilyTimelineItemDTO]
     /// The stored edges among `people`, the same set `ListPeople` returns. The app syncs through this one proc, so without them the roster would have no way to band a family by generation short of a call per person.
-    let relations: [RelationDTO]
+    @OrZero var relations: [RelationDTO] = []
     /// Every year with an entry, newest first, whatever the window — History's **Jump to year** menu.
-    let years: [Int]
+    @OrZero var years: [Int] = []
     /// Empty unless the request set `includeActivities`. Appearances are not in SwiftData; History fetches them per window and caches them beside the activity snapshots.
-    let appearances: [TimelineAppearanceDTO]
-
-    nonisolated init(
-        people: [FamilyTimelineItemDTO],
-        relations: [RelationDTO] = [],
-        years: [Int] = [],
-        appearances: [TimelineAppearanceDTO] = []
-    ) {
-        self.people = people
-        self.relations = relations
-        self.years = years
-        self.appearances = appearances
-    }
-
-    private enum CodingKeys: String, CodingKey { case people, relations, years, appearances }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        people = try container.decodeList(FamilyTimelineItemDTO.self, forKey: .people)
-        // A server predating the field, and Go marshalling an empty slice as `null`, both read as "no edges" rather than failing the whole pull.
-        relations = try container.decodeList(RelationDTO.self, forKey: .relations)
-        // Both newer than the pull, so both optional for the same reason.
-        years = try container.decodeList(Int.self, forKey: .years)
-        appearances = try container.decodeList(TimelineAppearanceDTO.self, forKey: .appearances)
-    }
+    @OrZero var appearances: [TimelineAppearanceDTO] = []
 }
 
 // MARK: - Request DTOs
@@ -821,26 +556,11 @@ nonisolated struct RelationViewDTO: Codable, Sendable, Identifiable {
 
 /// One stored edge of the graph as it travels — `Relation` in backend/relation.go, carried by `ListPeople` and `GetFamilyTimeline`.
 nonisolated struct RelationDTO: Codable, Sendable, Identifiable {
-    let id: Int
-    let fromId: Int
-    let toId: Int
+    @OrZero var id: Int
+    @OrZero var fromId: Int
+    @OrZero var toId: Int
     /// `RelationKind`'s raw value. Decoded as an `Int` rather than the enum so a kind added server-side is dropped rather than failing the whole pull.
-    let kind: Int
-
-    nonisolated init(id: Int, fromId: Int, toId: Int, kind: Int) {
-        self.id = id
-        self.fromId = fromId
-        self.toId = toId
-        self.kind = kind
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decodeIfPresent(Int.self, forKey: .id) ?? 0
-        fromId = try container.decodeIfPresent(Int.self, forKey: .fromId) ?? 0
-        toId = try container.decodeIfPresent(Int.self, forKey: .toId) ?? 0
-        kind = try container.decodeIfPresent(Int.self, forKey: .kind) ?? 0
-    }
+    @OrZero var kind: Int
 }
 
 nonisolated struct GetPersonRelationsRequestDTO: Encodable, Sendable {
@@ -848,24 +568,11 @@ nonisolated struct GetPersonRelationsRequestDTO: Encodable, Sendable {
 }
 
 nonisolated struct GetPersonRelationsResponseDTO: Codable, Sendable {
-    let personId: Int
-    let relations: [RelationViewDTO]
+    /// A refusal sends the whole struct zero-valued, so every field here defaults.
+    @OrZero var personId: Int
+    @OrZero var relations: [RelationViewDTO]
     /// False when the caller may see this person but not edit them, which is the server's own answer rather than something the app re-derives.
-    let manageable: Bool
-
-    nonisolated init(personId: Int, relations: [RelationViewDTO], manageable: Bool) {
-        self.personId = personId
-        self.relations = relations
-        self.manageable = manageable
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        personId = try container.decodeIfPresent(Int.self, forKey: .personId) ?? 0
-        // Go marshals an empty slice as `null`, and a refusal sends the whole struct zero-valued.
-        relations = try container.decodeList(RelationViewDTO.self, forKey: .relations)
-        manageable = try container.decodeIfPresent(Bool.self, forKey: .manageable) ?? false
-    }
+    @OrZero var manageable: Bool
 }
 
 nonisolated struct AddRelationRequestDTO: Encodable, Sendable {
@@ -998,21 +705,9 @@ nonisolated struct EmptyResponseDTO: Decodable, Sendable {}
 
 nonisolated struct AddPersonResponseDTO: Decodable, Sendable {
     let person: PersonDTO
-    let growthData: [GrowthDataDTO]
-    let milestones: [MilestoneDTO]
-    let photos: [ImageDTO]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        person = try container.decode(PersonDTO.self, forKey: .person)
-        growthData = try container.decodeList(GrowthDataDTO.self, forKey: .growthData)
-        milestones = try container.decodeList(MilestoneDTO.self, forKey: .milestones)
-        photos = try container.decodeList(ImageDTO.self, forKey: .photos)
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case person, growthData, milestones, photos
-    }
+    @OrZero var growthData: [GrowthDataDTO]
+    @OrZero var milestones: [MilestoneDTO]
+    @OrZero var photos: [ImageDTO]
 }
 
 nonisolated struct UpdatePersonResponseDTO: Decodable, Sendable {

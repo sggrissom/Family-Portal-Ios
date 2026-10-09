@@ -25,61 +25,31 @@ nonisolated struct PhotoFaceDTO: Decodable, Sendable, Identifiable, Equatable {
 
 /// Unnamed faces the server thinks are the same person, with its best guess when one is close enough.
 nonisolated struct FaceGroupDTO: Decodable, Sendable, Identifiable {
-    let familyId: Int
-    let faces: [PhotoFaceDTO]
+    @OrZero var familyId: Int
+    @OrZero var faces: [PhotoFaceDTO]
     /// 0 when nobody is close enough to suggest.
-    let suggestedPersonId: Int
+    @OrZero var suggestedPersonId: Int
 
     /// The web keys a group by its first face too: groups are re-clustered on every load, so nothing else is stable.
     var id: Int { faces.first?.id ?? 0 }
-
-    private enum CodingKeys: String, CodingKey { case familyId, faces, suggestedPersonId }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        familyId = try c.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
-        faces = try c.decodeList(PhotoFaceDTO.self, forKey: .faces)
-        suggestedPersonId = try c.decodeIfPresent(Int.self, forKey: .suggestedPersonId) ?? 0
-    }
 }
 
 /// A family the caller can label faces in, with the people a face can be named as — sorted by name on the server.
 nonisolated struct FaceReviewFamilyDTO: Decodable, Sendable {
     let familyId: Int
-    let name: String
-    let people: [PersonDTO]
-
-    private enum CodingKeys: String, CodingKey { case familyId, name, people }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        familyId = try c.decode(Int.self, forKey: .familyId)
-        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        people = try c.decodeList(PersonDTO.self, forKey: .people)
-    }
+    @OrZero var name: String
+    @OrZero var people: [PersonDTO]
 }
 
 nonisolated struct GetFaceReviewResponseDTO: Decodable, Sendable {
     /// False where the server isn't running face recognition; there is then nothing to review.
-    let enabled: Bool
-    let groups: [FaceGroupDTO]
+    @OrZero var enabled: Bool
+    @OrZero var groups: [FaceGroupDTO]
     /// Auto-tagged faces, least certain first, capped by the server.
-    let autoTagged: [PhotoFaceDTO]
-    let families: [FaceReviewFamilyDTO]
-    let unknownCount: Int
-    let autoCount: Int
-
-    private enum CodingKeys: String, CodingKey { case enabled, groups, autoTagged, families, unknownCount, autoCount }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
-        groups = try c.decodeList(FaceGroupDTO.self, forKey: .groups)
-        autoTagged = try c.decodeList(PhotoFaceDTO.self, forKey: .autoTagged)
-        families = try c.decodeList(FaceReviewFamilyDTO.self, forKey: .families)
-        unknownCount = try c.decodeIfPresent(Int.self, forKey: .unknownCount) ?? 0
-        autoCount = try c.decodeIfPresent(Int.self, forKey: .autoCount) ?? 0
-    }
+    @OrZero var autoTagged: [PhotoFaceDTO]
+    @OrZero var families: [FaceReviewFamilyDTO]
+    @OrZero var unknownCount: Int
+    @OrZero var autoCount: Int
 
     func people(inFamily familyId: Int) -> [PersonDTO] {
         families.first { $0.familyId == familyId }?.people ?? []
@@ -105,17 +75,9 @@ nonisolated struct AssignFacesRequestDTO: Encodable, Sendable {
 }
 
 nonisolated struct AssignFacesResponseDTO: Decodable, Sendable {
-    let assigned: Int
+    @OrZero var assigned: Int
     /// Other photos the server tagged on its own once it learned the face.
-    let autoTagged: Int
-
-    private enum CodingKeys: String, CodingKey { case assigned, autoTagged }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        assigned = try c.decodeIfPresent(Int.self, forKey: .assigned) ?? 0
-        autoTagged = try c.decodeIfPresent(Int.self, forKey: .autoTagged) ?? 0
-    }
+    @OrZero var autoTagged: Int
 }
 
 /// The body of `RejectFaces` and `DismissFaces`.
@@ -124,12 +86,5 @@ nonisolated struct FaceIdsRequestDTO: Encodable, Sendable {
 }
 
 nonisolated struct FaceIdsResponseDTO: Decodable, Sendable {
-    let updated: Int
-
-    private enum CodingKeys: String, CodingKey { case updated }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        updated = try c.decodeIfPresent(Int.self, forKey: .updated) ?? 0
-    }
+    @OrZero var updated: Int
 }

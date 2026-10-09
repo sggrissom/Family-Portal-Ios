@@ -4,16 +4,6 @@ import Foundation
 // Dates stay the server's own ISO strings rather than `Date`s. The reader is a port of `frontend/lib/book.ts`, which reads every date as the day its string names (`dayOf`), and a `Date` would bring the device's time zone back into a question the web answers without one.
 // Every list is decoded leniently, since Go marshals a nil slice as `null`.
 
-fileprivate extension KeyedDecodingContainer {
-    nonisolated func decodeText(forKey key: Key) throws -> String {
-        try decodeIfPresent(String.self, forKey: key) ?? ""
-    }
-
-    nonisolated func decodeNumber(forKey key: Key) throws -> Int {
-        try decodeIfPresent(Int.self, forKey: key) ?? 0
-    }
-}
-
 // MARK: - Requests
 
 /// `familyId` 0 is the caller's primary family.
@@ -29,19 +19,15 @@ nonisolated struct GetBookRequestDTO: Encodable, Sendable {
 
 nonisolated struct BookSummaryDTO: Decodable, Sendable, Identifiable, Hashable {
     let id: Int
-    let personIds: [Int]
-    let personNames: [String]
-    let preset: String
-    let title: String
-    let startDate: String
-    let endDate: String
+    @OrZero var personIds: [Int]
+    @OrZero var personNames: [String]
+    @OrZero var preset: String
+    @OrZero var title: String
+    @OrZero var startDate: String
+    @OrZero var endDate: String
     /// 0 when there is no cover, or one the viewer may not see.
-    let coverPhotoId: Int
-    let updatedAt: String
-
-    private enum CodingKeys: String, CodingKey {
-        case id, personIds, personNames, preset, title, startDate, endDate, coverPhotoId, updatedAt
-    }
+    @OrZero var coverPhotoId: Int
+    @OrZero var updatedAt: String
 
     init(id: Int, personIds: [Int], personNames: [String], preset: String, title: String, startDate: String, endDate: String, coverPhotoId: Int, updatedAt: String) {
         self.id = id
@@ -54,33 +40,12 @@ nonisolated struct BookSummaryDTO: Decodable, Sendable, Identifiable, Hashable {
         self.coverPhotoId = coverPhotoId
         self.updatedAt = updatedAt
     }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        personIds = try c.decodeList(Int.self, forKey: .personIds)
-        personNames = try c.decodeList(String.self, forKey: .personNames)
-        preset = try c.decodeText(forKey: .preset)
-        title = try c.decodeText(forKey: .title)
-        startDate = try c.decodeText(forKey: .startDate)
-        endDate = try c.decodeText(forKey: .endDate)
-        coverPhotoId = try c.decodeNumber(forKey: .coverPhotoId)
-        updatedAt = try c.decodeText(forKey: .updatedAt)
-    }
 }
 
 /// Newest-edited first, as the server sorts them. `canEdit` is whether the viewer may create and change books.
 nonisolated struct ListBooksResponseDTO: Decodable, Sendable {
-    let books: [BookSummaryDTO]
-    let canEdit: Bool
-
-    private enum CodingKeys: String, CodingKey { case books, canEdit }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        books = try c.decodeList(BookSummaryDTO.self, forKey: .books)
-        canEdit = try c.decodeIfPresent(Bool.self, forKey: .canEdit) ?? false
-    }
+    @OrZero var books: [BookSummaryDTO]
+    @OrZero var canEdit: Bool
 }
 
 // MARK: - One book
@@ -94,19 +59,17 @@ nonisolated enum BookItemKind: Int, Sendable {
 /// A reference to a source record. `photoId` pairs a milestone with one of its attached photos; `caption` overrides a photo's caption in this book only.
 nonisolated struct BookItemDTO: Codable, Sendable, Hashable {
     /// Raw rather than `BookItemKind`: a kind added server-side is skipped by the reader instead of failing the whole book.
-    var kind: Int
-    var sourceId: Int
-    var photoId: Int
-    var caption: String
+    @OrZero var kind: Int
+    @OrZero var sourceId: Int
+    @OrZero var photoId: Int
+    @OrZero var caption: String
     /// Kept: stays when photos are picked again.
-    var pinned: Bool
+    @OrZero var pinned: Bool
 
     var itemKind: BookItemKind? { BookItemKind(rawValue: kind) }
 
     /// `itemKey`: one record, whatever its caption or photo.
     var key: String { "\(kind):\(sourceId)" }
-
-    private enum CodingKeys: String, CodingKey { case kind, sourceId, photoId, caption, pinned }
 
     init(kind: BookItemKind, sourceId: Int, photoId: Int = 0, caption: String = "", pinned: Bool = false) {
         self.kind = kind.rawValue
@@ -115,46 +78,32 @@ nonisolated struct BookItemDTO: Codable, Sendable, Hashable {
         self.caption = caption
         self.pinned = pinned
     }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        kind = try c.decodeNumber(forKey: .kind)
-        sourceId = try c.decodeNumber(forKey: .sourceId)
-        photoId = try c.decodeNumber(forKey: .photoId)
-        caption = try c.decodeText(forKey: .caption)
-        pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
-    }
 }
 
 /// A saved book. `startDate`/`endDate` are half-open — `endDate` is the day after the last one covered — except that a first-year book also keeps its first birthday.
 /// Mutable so the editor can work on a copy and assemble it as it goes.
 nonisolated struct BookDTO: Decodable, Sendable {
     var id: Int
-    var personIds: [Int]
-    var preset: String
-    var title: String
-    var startDate: String
-    var endDate: String
-    var coverPhotoId: Int
-    var density: String
+    @OrZero var personIds: [Int]
+    @OrZero var preset: String
+    @OrZero var title: String
+    @OrZero var startDate: String
+    @OrZero var endDate: String
+    @OrZero var coverPhotoId: Int
+    @OrZero var density: String
     /// Empty means every category.
-    var categories: [String]
-    var match: String
-    var introduction: String
-    var letter: String
-    var signature: String
-    var showGrowth: Bool
-    var items: [BookItemDTO]
+    @OrZero var categories: [String]
+    @OrZero var match: String
+    @OrZero var introduction: String
+    @OrZero var letter: String
+    @OrZero var signature: String
+    @OrZero var showGrowth: Bool
+    @OrZero var items: [BookItemDTO]
     /// Records the editor took out, which a re-pick must never bring back.
-    var excluded: [BookItemDTO]
-    var revision: Int
+    @OrZero var excluded: [BookItemDTO]
+    @OrZero var revision: Int
     /// When the editor last looked at what the family record holds; anything created since is offered as new.
-    var reviewedAt: String
-
-    private enum CodingKeys: String, CodingKey {
-        case id, personIds, preset, title, startDate, endDate, coverPhotoId, density, categories, match
-        case introduction, letter, signature, showGrowth, items, excluded, revision, reviewedAt
-    }
+    @OrZero var reviewedAt: String
 
     init(
         id: Int = 1,
@@ -195,38 +144,14 @@ nonisolated struct BookDTO: Decodable, Sendable {
         self.revision = revision
         self.reviewedAt = reviewedAt
     }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        personIds = try c.decodeList(Int.self, forKey: .personIds)
-        preset = try c.decodeText(forKey: .preset)
-        title = try c.decodeText(forKey: .title)
-        startDate = try c.decodeText(forKey: .startDate)
-        endDate = try c.decodeText(forKey: .endDate)
-        coverPhotoId = try c.decodeNumber(forKey: .coverPhotoId)
-        density = try c.decodeText(forKey: .density)
-        categories = try c.decodeList(String.self, forKey: .categories)
-        match = try c.decodeText(forKey: .match)
-        introduction = try c.decodeText(forKey: .introduction)
-        letter = try c.decodeText(forKey: .letter)
-        signature = try c.decodeText(forKey: .signature)
-        showGrowth = try c.decodeIfPresent(Bool.self, forKey: .showGrowth) ?? false
-        items = try c.decodeList(BookItemDTO.self, forKey: .items)
-        excluded = try c.decodeList(BookItemDTO.self, forKey: .excluded)
-        revision = try c.decodeNumber(forKey: .revision)
-        reviewedAt = try c.decodeText(forKey: .reviewedAt)
-    }
 }
 
 nonisolated struct BookPersonDTO: Decodable, Sendable {
     let id: Int
-    let name: String
-    let birthday: String
-    let isPregnancy: Bool
-    let profilePhotoId: Int
-
-    private enum CodingKeys: String, CodingKey { case id, name, birthday, isPregnancy, profilePhotoId }
+    @OrZero var name: String
+    @OrZero var birthday: String
+    @OrZero var isPregnancy: Bool
+    @OrZero var profilePhotoId: Int
 
     init(id: Int, name: String, birthday: String, isPregnancy: Bool = false, profilePhotoId: Int = 0) {
         self.id = id
@@ -235,28 +160,17 @@ nonisolated struct BookPersonDTO: Decodable, Sendable {
         self.isPregnancy = isPregnancy
         self.profilePhotoId = profilePhotoId
     }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        name = try c.decodeText(forKey: .name)
-        birthday = try c.decodeText(forKey: .birthday)
-        isPregnancy = try c.decodeIfPresent(Bool.self, forKey: .isPregnancy) ?? false
-        profilePhotoId = try c.decodeNumber(forKey: .profilePhotoId)
-    }
 }
 
 nonisolated struct BookMilestoneDTO: Decodable, Sendable {
     let id: Int
-    let personId: Int
-    let description: String
-    let category: String
-    let context: String
-    let milestoneDate: String
-    let createdAt: String
-    let photoIds: [Int]
-
-    private enum CodingKeys: String, CodingKey { case id, personId, description, category, context, milestoneDate, createdAt, photoIds }
+    @OrZero var personId: Int
+    @OrZero var description: String
+    @OrZero var category: String
+    @OrZero var context: String
+    @OrZero var milestoneDate: String
+    @OrZero var createdAt: String
+    @OrZero var photoIds: [Int]
 
     init(id: Int, personId: Int, description: String, category: String = "development", context: String = "", milestoneDate: String, createdAt: String? = nil, photoIds: [Int] = []) {
         self.id = id
@@ -268,33 +182,19 @@ nonisolated struct BookMilestoneDTO: Decodable, Sendable {
         self.createdAt = createdAt ?? milestoneDate
         self.photoIds = photoIds
     }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        personId = try c.decodeNumber(forKey: .personId)
-        description = try c.decodeText(forKey: .description)
-        category = try c.decodeText(forKey: .category)
-        context = try c.decodeText(forKey: .context)
-        milestoneDate = try c.decodeText(forKey: .milestoneDate)
-        createdAt = try c.decodeText(forKey: .createdAt)
-        photoIds = try c.decodeList(Int.self, forKey: .photoIds)
-    }
 }
 
 nonisolated struct BookImageDTO: Decodable, Sendable {
     let id: Int
-    let originalFilename: String
-    let width: Int
-    let height: Int
-    let title: String
-    let description: String
-    let photoDate: String
-    let createdAt: String
+    @OrZero var originalFilename: String
+    @OrZero var width: Int
+    @OrZero var height: Int
+    @OrZero var title: String
+    @OrZero var description: String
+    @OrZero var photoDate: String
+    @OrZero var createdAt: String
     /// 0 is ready; anything else is still processing or failed, and the reader leaves it out.
-    let status: Int
-
-    private enum CodingKeys: String, CodingKey { case id, originalFilename, width, height, title, description, photoDate, createdAt, status }
+    @OrZero var status: Int
 
     init(id: Int, originalFilename: String = "photo.jpg", width: Int = 800, height: Int = 600, title: String = "", description: String = "", photoDate: String, createdAt: String? = nil, status: Int = 0) {
         self.id = id
@@ -307,31 +207,16 @@ nonisolated struct BookImageDTO: Decodable, Sendable {
         self.createdAt = createdAt ?? photoDate
         self.status = status
     }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        originalFilename = try c.decodeText(forKey: .originalFilename)
-        width = try c.decodeNumber(forKey: .width)
-        height = try c.decodeNumber(forKey: .height)
-        title = try c.decodeText(forKey: .title)
-        description = try c.decodeText(forKey: .description)
-        photoDate = try c.decodeText(forKey: .photoDate)
-        createdAt = try c.decodeText(forKey: .createdAt)
-        status = try c.decodeNumber(forKey: .status)
-    }
 }
 
 nonisolated struct BookGrowthDTO: Decodable, Sendable {
     let id: Int
-    let personId: Int
+    @OrZero var personId: Int
     /// 0 height, 1 weight, as in every response.
-    let measurementType: Int
-    let value: Double
-    let unit: String
-    let measurementDate: String
-
-    private enum CodingKeys: String, CodingKey { case id, personId, measurementType, value, unit, measurementDate }
+    @OrZero var measurementType: Int
+    @OrZero var value: Double
+    @OrZero var unit: String
+    @OrZero var measurementDate: String
 
     init(id: Int, personId: Int, measurementType: Int, value: Double, unit: String, measurementDate: String) {
         self.id = id
@@ -340,16 +225,6 @@ nonisolated struct BookGrowthDTO: Decodable, Sendable {
         self.value = value
         self.unit = unit
         self.measurementDate = measurementDate
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        personId = try c.decodeNumber(forKey: .personId)
-        measurementType = try c.decodeNumber(forKey: .measurementType)
-        value = try c.decodeIfPresent(Double.self, forKey: .value) ?? 0
-        unit = try c.decodeText(forKey: .unit)
-        measurementDate = try c.decodeText(forKey: .measurementDate)
     }
 }
 
@@ -394,19 +269,9 @@ nonisolated struct GetBookResponseDTO: Decodable, Sendable, Identifiable {
 
     let book: BookDTO
     let sources: BookSourcesDTO
-    let canEdit: Bool
+    @OrZero var canEdit: Bool
     /// The server's clock when it answered, which a save sends back as `reviewedAt`: the device's clock is not the one `createdAt` was stamped with.
-    let now: String
-
-    private enum CodingKeys: String, CodingKey { case book, sources, canEdit, now }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        book = try c.decode(BookDTO.self, forKey: .book)
-        sources = try c.decode(BookSourcesDTO.self, forKey: .sources)
-        canEdit = try c.decodeIfPresent(Bool.self, forKey: .canEdit) ?? false
-        now = try c.decodeText(forKey: .now)
-    }
+    @OrZero var now: String
 }
 
 // MARK: - Writes
@@ -422,17 +287,8 @@ nonisolated struct GetBookSourcesRequestDTO: Encodable, Sendable {
 
 nonisolated struct GetBookSourcesResponseDTO: Decodable, Sendable {
     let sources: BookSourcesDTO
-    let startDate: String
-    let endDate: String
-
-    private enum CodingKeys: String, CodingKey { case sources, startDate, endDate }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        sources = try c.decode(BookSourcesDTO.self, forKey: .sources)
-        startDate = try c.decodeText(forKey: .startDate)
-        endDate = try c.decodeText(forKey: .endDate)
-    }
+    @OrZero var startDate: String
+    @OrZero var endDate: String
 }
 
 /// Everything about a book the editor can change. The whole thing is sent on every save; the server checks every reference against the book's people and the editor's access.
