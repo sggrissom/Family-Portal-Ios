@@ -443,6 +443,7 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   using today"). Done queues `AddPeopleToPhoto`, `UpdatePhotoTags` and
   `UpdatePhoto` (`inputType: "keep"` unless the date changed) behind each
   upload, including for photos still being read; it never cancels an upload
+- `updatePhoto(_:keepingDate:)` takes the choice explicitly. Anything without a date control — the photo page's title and description — passes `true`: a dated update sends only the day and wiped the capture time. A queued update is replaced whole, so `keepingDate: true` turns into a dated update while a date change for the same photo is still waiting to be sent
 - Milestone and measurement are **disabled** on an empty roster rather than
   opening a form that could never save
 - An unrecognised remembered id resolves to *nobody*, never to somebody near it: a

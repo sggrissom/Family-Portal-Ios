@@ -315,7 +315,8 @@ private struct PhotoDetailContent: View {
 
         Task {
             do {
-                try await syncService.updatePhoto(photo)
+                // No date control here, so the date is kept: a dated update would send only the day and drop the capture time.
+                try await syncService.updatePhoto(photo, keepingDate: true)
             } catch {
                 saveError = "Couldn't save changes: \(error.localizedDescription)"
                 syncedTitle = nil
