@@ -121,8 +121,7 @@ extension AnalysisService {
     /// The review, and the badge count on the way to it. `nil` on failure.
     func tagSuggestions() async -> GetTagSuggestionsResponseDTO? {
         do {
-            struct EmptyPayload: Encodable {}
-            let response: GetTagSuggestionsResponseDTO = try await apiClient.callRPC(.getTagSuggestions, payload: EmptyPayload())
+            let response: GetTagSuggestionsResponseDTO = try await apiClient.callRPC(.getTagSuggestions, payload: EmptyRequestDTO())
             tagSuggestionReview = response
             return response
         } catch {

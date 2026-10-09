@@ -387,29 +387,12 @@ final class ActivityService {
 
     // MARK: - Internals
 
-    /// Decode before caching, never after: caching a payload this build cannot read would make the failure permanent.
     private func read<Response: Decodable & Sendable, Request: Encodable & Sendable>(
         _ proc: RPCMethod,
         payload: Request,
         key: ActivitySnapshotKey
     ) -> ActivityRead<Response> {
-        let apiClient = self.apiClient
-        let cache = self.cache
-
-        return ActivityRead(
-            cached: { await cache.load(Response.self, key: key) },
-            live: {
-                let data = try await apiClient.callRPCData(proc, payload: payload)
-                let value: Response
-                do {
-                    value = try APIClient.decode(Response.self, from: data)
-                } catch {
-                    throw APIError.decoding(error)
-                }
-                await cache.store(data, key: key)
-                return value
-            }
-        )
+        cache.read(proc, payload: payload, key: key, apiClient: apiClient)
     }
 }
 

@@ -97,3 +97,23 @@ actor ActivitySnapshotCache {
         return attributes?[.modificationDate] as? Date ?? .distantPast
     }
 }
+
+extension ActivitySnapshotCache {
+    /// An online-first read through this cache, for `ActivityService` and `BookService`. Decode before caching, never after: caching a payload this build cannot read would make the failure permanent.
+    nonisolated func read<Value: Decodable & Sendable, Request: Encodable & Sendable>(
+        _ proc: RPCMethod,
+        payload: Request,
+        key: ActivitySnapshotKey,
+        apiClient: APIClient
+    ) -> ActivityRead<Value> {
+        ActivityRead(
+            cached: { await self.load(Value.self, key: key) },
+            live: {
+                let data = try await apiClient.callRPCData(proc, payload: payload)
+                let value = try APIClient.decodeResponse(Value.self, from: data)
+                await self.store(data, key: key)
+                return value
+            }
+        )
+    }
+}

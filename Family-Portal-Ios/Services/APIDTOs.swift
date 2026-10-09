@@ -71,7 +71,8 @@ nonisolated struct FamilyRefDTO: Codable, Sendable, Equatable {
     @OrZero var isPrimary: Bool = false
 }
 
-nonisolated struct LoginResponseDTO: Codable, Sendable {
+/// What every sign-in answers with — password, Google, Apple, a new account — and what `api/refresh` answers with too.
+nonisolated struct SessionResponseDTO: Codable, Sendable, Refusable {
     let success: Bool
     let error: String?
     let token: String?
@@ -89,18 +90,11 @@ nonisolated struct CreateAccountRequestDTO: Codable, Sendable {
     let initialPersonBirthdate: String
 }
 
-nonisolated struct CreateAccountResponseDTO: Codable, Sendable {
-    let success: Bool
-    let error: String?
-    let token: String?
-    let auth: AuthResponseDTO?
-}
-
 nonisolated struct RequestPasswordResetRequestDTO: Codable, Sendable {
     let email: String
 }
 
-nonisolated struct RequestPasswordResetResponseDTO: Codable, Sendable {
+nonisolated struct RequestPasswordResetResponseDTO: Codable, Sendable, Refusable {
     let success: Bool
     let error: String?
 }
@@ -111,16 +105,9 @@ nonisolated struct DeleteAccountRequestDTO: Codable, Sendable {
     let confirmEmail: String
 }
 
-nonisolated struct DeleteAccountResponseDTO: Codable, Sendable {
+nonisolated struct DeleteAccountResponseDTO: Codable, Sendable, Refusable {
     let success: Bool
     let error: String?
-}
-
-nonisolated struct RefreshResponseDTO: Codable, Sendable {
-    let success: Bool
-    let error: String?
-    let token: String?
-    let auth: AuthResponseDTO?
 }
 
 nonisolated struct MobileVersionPolicyDTO: Codable, Sendable {
@@ -156,7 +143,8 @@ nonisolated struct JoinFamilyRequestDTO: Codable, Sendable {
     let inviteCode: String
 }
 
-nonisolated struct JoinFamilyResponseDTO: Codable, Sendable {
+/// Joining or leaving a family: the refreshed identity, since the account's families and primary family may both have changed.
+nonisolated struct FamilyChangeResponseDTO: Codable, Sendable, Refusable {
     let success: Bool
     let error: String?
     let auth: AuthResponseDTO?
@@ -185,24 +173,18 @@ nonisolated struct ListFamilyMembersResponseDTO: Codable, Sendable {
     @OrZero var callerIsOwner: Bool
 }
 
-nonisolated struct LeaveFamilyResponseDTO: Codable, Sendable {
-    let success: Bool
-    let error: String?
-    let auth: AuthResponseDTO?
-}
-
 nonisolated struct RemoveFamilyMemberRequestDTO: Codable, Sendable {
     let familyId: Int
     let userId: Int
 }
 
-nonisolated struct RemoveFamilyMemberResponseDTO: Codable, Sendable {
+nonisolated struct RemoveFamilyMemberResponseDTO: Codable, Sendable, Refusable {
     let success: Bool
     let error: String?
     @OrZero var members: [FamilyMemberDTO]
 }
 
-nonisolated struct RotateInviteCodeResponseDTO: Codable, Sendable {
+nonisolated struct RotateInviteCodeResponseDTO: Codable, Sendable, Refusable {
     let success: Bool
     let error: String?
     @OrZero var familyId: Int
@@ -596,7 +578,7 @@ nonisolated struct RemoveRelationRequestDTO: Encodable, Sendable {
 }
 
 /// `RelationActionResponse`. Refusals arrive as HTTP 200 with `success: false`, and `relations` is a struct, so `omitempty` does nothing for it: a refusal still carries a zero-valued one that must not be mistaken for "this person has no relationships".
-nonisolated struct RelationActionResponseDTO: Decodable, Sendable {
+nonisolated struct RelationActionResponseDTO: Decodable, Sendable, Refusable {
     let success: Bool
     let error: String?
     let relations: GetPersonRelationsResponseDTO?

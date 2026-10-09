@@ -51,7 +51,7 @@ struct FamilyDTOTests {
     @Test("Decodes both outcomes of JoinFamily")
     func decodesJoinResponses() throws {
         let success = try APIClient.decode(
-            JoinFamilyResponseDTO.self,
+            FamilyChangeResponseDTO.self,
             from: Data("""
             {
               "success": true,
@@ -63,7 +63,7 @@ struct FamilyDTOTests {
         #expect(success.auth?.familyId == 3)
 
         let failure = try APIClient.decode(
-            JoinFamilyResponseDTO.self,
+            FamilyChangeResponseDTO.self,
             from: Data(#"{ "success": false, "error": "Invalid invite code" }"#.utf8)
         )
         #expect(!failure.success)

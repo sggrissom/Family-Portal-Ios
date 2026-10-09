@@ -143,7 +143,7 @@ struct FamilyMembershipTests {
         do {
             _ = try await Self.service(server).removeMember(familyId: 7, userId: 2)
             Issue.record("Expected the refusal to throw")
-        } catch let error as MembershipError {
+        } catch let error as ServerRefusal {
             #expect(error.localizedDescription == message)
         }
     }
@@ -184,7 +184,7 @@ struct FamilyMembershipTests {
         do {
             _ = try await Self.service(server).leaveFamily(familyId: 7)
             Issue.record("Expected the refusal to throw")
-        } catch let error as MembershipError {
+        } catch let error as ServerRefusal {
             #expect(error.localizedDescription == message)
         }
     }
@@ -208,7 +208,7 @@ struct FamilyMembershipTests {
         let server = FakeHTTPServer()
         server.route("rpc/RotateInviteCode", respond: .json(["success": true]))
 
-        await #expect(throws: MembershipError.self) {
+        await #expect(throws: ServerRefusal.self) {
             _ = try await Self.service(server).rotateInviteCode(familyId: 7)
         }
     }
