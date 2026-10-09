@@ -56,24 +56,32 @@ enum APIError: LocalizedError {
     }
 }
 
-enum AccountDeletionError: LocalizedError, Equatable {
-    case refused(String)
+/// A refusal the backend carries in the response body rather than the status code: vbeam answers `{ success: false, error: … }` with HTTP 200, and account deletion sends the same envelope with a 400. `message` is the server's own sentence, or the caller's fallback when it gave none.
+nonisolated struct ServerRefusal: LocalizedError, Equatable, Sendable {
+    let message: String
 
-    static let fallbackMessage = "Could not delete your account."
+    static let accountDeletionFallback = "Could not delete your account."
 
-    var errorDescription: String? {
-        switch self {
-        case .refused(let message):
-            return message
-        }
+    var errorDescription: String? { message }
+}
+
+/// A response that reports a refusal in its body. See `ServerRefusal`.
+nonisolated protocol Refusable {
+    var success: Bool { get }
+    var error: String? { get }
+}
+
+nonisolated extension Refusable {
+    /// The response when the server agreed; otherwise throws its sentence, or `fallback` when it gave none.
+    func accepted(or fallback: String) throws -> Self {
+        guard success else { throw ServerRefusal(message: error ?? fallback) }
+        return self
     }
 }
 
 enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
-    case put = "PUT"
-    case delete = "DELETE"
 }
 
 actor APIClient {
@@ -127,6 +135,15 @@ actor APIClient {
 
     nonisolated static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         try sharedDecoder.decode(type, from: data)
+    }
+
+    /// `decode` for a response body, with a failure reported as `APIError.decoding`.
+    nonisolated static func decodeResponse<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        do {
+            return try decode(type, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
     }
 
     private var baseURL: URL
@@ -202,54 +219,12 @@ actor APIClient {
 
     func getAccessToken() -> String? { accessToken }
 
-    func uploadMultipart<T: Decodable>(path: String, formData: Data, boundary: String, retryOnAuthFailure: Bool = true) async throws -> T {
-        guard let url = makeURL(for: path) else {
-            throw APIError.invalidURL
-        }
-
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = HTTPMethod.post.rawValue
-        urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
-        urlRequest.httpBody = formData
-
-        addAuthHeaders(to: &urlRequest, requiresAuth: true)
-
-        do {
-            let (data, response) = try await session.data(for: urlRequest)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw APIError.invalidResponse
-            }
-
-            captureTokens(from: httpResponse)
-
-            if httpResponse.statusCode == 401, retryOnAuthFailure {
-                try await refreshAccessToken()
-                return try await uploadMultipart(path: path, formData: formData, boundary: boundary, retryOnAuthFailure: false)
-            }
-
-            guard (200...299).contains(httpResponse.statusCode) else {
-                let message = String(data: data, encoding: .utf8)
-                if httpResponse.statusCode == 401 {
-                    throw APIError.unauthorized
-                }
-                throw APIError.server(statusCode: httpResponse.statusCode, message: message)
-            }
-
-            guard !data.isEmpty else {
-                throw APIError.invalidResponse
-            }
-
-            do {
-                return try Self.decode(T.self, from: data)
-            } catch {
-                throw APIError.decoding(error)
-            }
-        } catch let error as APIError {
-            throw error
-        } catch {
-            throw APIError.network(error)
-        }
+    func uploadMultipart<T: Decodable>(path: String, formData: Data, boundary: String) async throws -> T {
+        var request = try makeRequest(path, method: .post)
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = formData
+        let data = try await send(request, requiresAuth: true, retryOnAuthFailure: true)
+        return try Self.decodeResponse(T.self, from: data)
     }
 
     func callRPC<T: Decodable, Body: Encodable>(_ proc: RPCMethod, payload: Body) async throws -> T {
@@ -284,11 +259,7 @@ actor APIClient {
             requiresAuth: requiresAuth,
             retryOnAuthFailure: retryOnAuthFailure
         )
-        do {
-            return try Self.decode(T.self, from: data)
-        } catch {
-            throw APIError.decoding(error)
-        }
+        return try Self.decodeResponse(T.self, from: data)
     }
 
     func requestData<Body: Encodable>(
@@ -298,56 +269,66 @@ actor APIClient {
         requiresAuth: Bool = true,
         retryOnAuthFailure: Bool = true
     ) async throws -> Data {
-        guard let url = makeURL(for: path) else {
-            throw APIError.invalidURL
-        }
-
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = method.rawValue
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
-
-        if let body = body {
+        var request = try makeRequest(path, method: method)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let body {
             do {
-                urlRequest.httpBody = try Self.sharedEncoder.encode(body)
+                request.httpBody = try Self.sharedEncoder.encode(body)
             } catch {
                 throw APIError.network(error)
             }
         }
+        return try await send(request, requiresAuth: requiresAuth, retryOnAuthFailure: retryOnAuthFailure)
+    }
 
-        addAuthHeaders(to: &urlRequest, requiresAuth: requiresAuth)
+    /// One round trip with this client's headers. A 401 on an authenticated request refreshes the token and retries once, when `retryOnAuthFailure` allows; any other status outside 2xx, or an empty body, throws.
+    private func send(_ request: URLRequest, requiresAuth: Bool, retryOnAuthFailure: Bool) async throws -> Data {
+        var request = request
+        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+        addAuthHeaders(to: &request, requiresAuth: requiresAuth)
+        let (data, response) = try await transport(request)
 
+        if response.statusCode == 401, requiresAuth, retryOnAuthFailure {
+            try await refreshAccessToken()
+            return try await send(request, requiresAuth: requiresAuth, retryOnAuthFailure: false)
+        }
+        guard (200...299).contains(response.statusCode) else {
+            if response.statusCode == 401 {
+                throw APIError.unauthorized
+            }
+            throw APIError.server(statusCode: response.statusCode, message: String(data: data, encoding: .utf8))
+        }
+        guard !data.isEmpty else {
+            throw APIError.invalidResponse
+        }
+        return data
+    }
+
+    /// The bare exchange: a transport failure is `.network`, and any tokens the response sets are kept unless `capturingTokens` is off.
+    private func transport(_ request: URLRequest, capturingTokens: Bool = true) async throws -> (Data, HTTPURLResponse) {
+        let data: Data
+        let response: URLResponse
         do {
-            let (data, response) = try await session.data(for: urlRequest)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw APIError.invalidResponse
-            }
-
-            captureTokens(from: httpResponse)
-
-            if httpResponse.statusCode == 401, retryOnAuthFailure, requiresAuth {
-                try await refreshAccessToken()
-                return try await requestData(path: path, method: method, body: body, requiresAuth: requiresAuth, retryOnAuthFailure: false)
-            }
-
-            guard (200...299).contains(httpResponse.statusCode) else {
-                let message = String(data: data, encoding: .utf8)
-                if httpResponse.statusCode == 401 {
-                    throw APIError.unauthorized
-                }
-                throw APIError.server(statusCode: httpResponse.statusCode, message: message)
-            }
-
-            guard !data.isEmpty else {
-                throw APIError.invalidResponse
-            }
-
-            return data
-        } catch let error as APIError {
-            throw error
+            (data, response) = try await session.data(for: request)
         } catch {
             throw APIError.network(error)
         }
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        if capturingTokens {
+            captureTokens(from: http)
+        }
+        return (data, http)
+    }
+
+    private func makeRequest(_ path: String, method: HTTPMethod) throws -> URLRequest {
+        guard let url = makeURL(for: path) else {
+            throw APIError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = method.rawValue
+        return request
     }
 
     func checkMobileVersion(appVersion: String) async throws -> MobileVersionPolicyDTO {
@@ -367,36 +348,18 @@ actor APIClient {
             throw APIError.invalidURL
         }
 
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = HTTPMethod.get.rawValue
-        urlRequest.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+        var request = URLRequest(url: url)
+        request.httpMethod = HTTPMethod.get.rawValue
+        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
 
-        do {
-            let (data, response) = try await session.data(for: urlRequest)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw APIError.invalidResponse
-            }
-
-            guard (200...299).contains(httpResponse.statusCode) else {
-                throw APIError.server(
-                    statusCode: httpResponse.statusCode,
-                    message: String(data: data, encoding: .utf8)
-                )
-            }
-
-            do {
-                return try Self.decode(MobileVersionPolicyDTO.self, from: data)
-            } catch {
-                throw APIError.decoding(error)
-            }
-        } catch let error as APIError {
-            throw error
-        } catch {
-            throw APIError.network(error)
+        let (data, response) = try await transport(request, capturingTokens: false)
+        guard (200...299).contains(response.statusCode) else {
+            throw APIError.server(statusCode: response.statusCode, message: String(data: data, encoding: .utf8))
         }
+        return try Self.decodeResponse(MobileVersionPolicyDTO.self, from: data)
     }
 
-    /// Throws `AccountDeletionError.refused` with the server's own sentence for a wrong password or a mistyped email.
+    /// Throws a `ServerRefusal` with the server's own sentence for a wrong password or a mistyped email.
     func deleteAccount(password: String, confirmEmail: String) async throws {
         let payload = DeleteAccountRequestDTO(password: password, confirmEmail: confirmEmail)
 
@@ -404,27 +367,18 @@ actor APIClient {
         do {
             data = try await requestData(path: "api/delete-account", method: .post, body: payload)
         } catch APIError.server(let statusCode, let message) where statusCode == 400 {
-            throw AccountDeletionError.refused(Self.deletionRefusal(from: message))
-        }
-
-        let response: DeleteAccountResponseDTO
-        do {
-            response = try Self.decode(DeleteAccountResponseDTO.self, from: data)
-        } catch {
-            throw APIError.decoding(error)
+            throw ServerRefusal(message: Self.deletionRefusal(from: message))
         }
 
         // Belt and braces: a `success: false` returning normally would otherwise be read as a deleted account and erase the device.
-        guard response.success else {
-            throw AccountDeletionError.refused(response.error ?? AccountDeletionError.fallbackMessage)
-        }
+        _ = try Self.decodeResponse(DeleteAccountResponseDTO.self, from: data).accepted(or: ServerRefusal.accountDeletionFallback)
     }
 
     private static func deletionRefusal(from message: String?) -> String {
         guard let message, let data = message.data(using: .utf8),
               let response = try? decode(DeleteAccountResponseDTO.self, from: data),
               let error = response.error, !error.isEmpty else {
-            return AccountDeletionError.fallbackMessage
+            return ServerRefusal.accountDeletionFallback
         }
         return error
     }
@@ -462,53 +416,27 @@ actor APIClient {
             throw APIError.missingRefreshToken
         }
 
-        struct EmptyBody: Encodable {}
-        let path = "api/refresh"
-        guard let url = makeURL(for: path) else {
-            throw APIError.invalidURL
-        }
+        var request = try makeRequest("api/refresh", method: .post)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+        addAuthHeaders(to: &request, requiresAuth: false)
 
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = HTTPMethod.post.rawValue
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
-        addAuthHeaders(to: &urlRequest, requiresAuth: false)
-
-        do {
-            let (data, response) = try await session.data(for: urlRequest)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw APIError.invalidResponse
-            }
-
-            captureTokens(from: httpResponse)
-
-            guard (200...299).contains(httpResponse.statusCode) else {
-                let message = String(data: data, encoding: .utf8)
-                if httpResponse.statusCode == 401 {
-                    await endSession()
-                }
-                throw APIError.refreshFailed(message)
-            }
-
-            let refreshResponse: RefreshResponseDTO
-            do {
-                refreshResponse = try Self.decode(RefreshResponseDTO.self, from: data)
-            } catch {
-                throw APIError.decoding(error)
-            }
-
-            guard refreshResponse.success, let token = refreshResponse.token else {
+        let (data, response) = try await transport(request)
+        guard (200...299).contains(response.statusCode) else {
+            if response.statusCode == 401 {
                 await endSession()
-                throw APIError.refreshFailed(refreshResponse.error)
             }
-
-            setAccessToken(token)
-            return refreshResponse.auth
-        } catch let error as APIError {
-            throw error
-        } catch {
-            throw APIError.network(error)
+            throw APIError.refreshFailed(String(data: data, encoding: .utf8))
         }
+
+        let refresh = try Self.decodeResponse(SessionResponseDTO.self, from: data)
+        guard refresh.success, let token = refresh.token else {
+            await endSession()
+            throw APIError.refreshFailed(refresh.error)
+        }
+
+        setAccessToken(token)
+        return refresh.auth
     }
 
     private func endSession() async {
@@ -796,18 +724,18 @@ extension APIClient {
         var request = URLRequest(url: url)
         request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
         addAuthHeaders(to: &request, requiresAuth: true)
+        let fileURL: URL
+        let response: URLResponse
         do {
-            let (fileURL, response) = try await session.download(for: request, delegate: progress.map(DownloadProgressDelegate.init))
-            guard let http = response as? HTTPURLResponse else {
-                try? FileManager.default.removeItem(at: fileURL)
-                throw APIError.invalidResponse
-            }
-            captureTokens(from: http)
-            return (fileURL, http)
-        } catch let error as APIError {
-            throw error
+            (fileURL, response) = try await session.download(for: request, delegate: progress.map(DownloadProgressDelegate.init))
         } catch {
             throw APIError.network(error)
         }
+        guard let http = response as? HTTPURLResponse else {
+            try? FileManager.default.removeItem(at: fileURL)
+            throw APIError.invalidResponse
+        }
+        captureTokens(from: http)
+        return (fileURL, http)
     }
 }

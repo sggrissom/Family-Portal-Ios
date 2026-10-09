@@ -48,25 +48,10 @@ struct PersonRelationService {
         from response: RelationActionResponseDTO,
         fallback: String
     ) throws -> GetPersonRelationsResponseDTO {
-        guard response.success else {
-            throw RelationError.refused(response.error ?? fallback)
-        }
         // A success always carries the rebuilt list; treating a missing one as an empty roster would wipe every relationship off the screen.
-        guard let relations = response.relations else {
-            throw RelationError.refused(fallback)
+        guard let relations = try response.accepted(or: fallback).relations else {
+            throw ServerRefusal(message: fallback)
         }
         return relations
-    }
-}
-
-/// A refusal the backend carries in the response body rather than the status code, the way the membership procs do: vbeam answers `{ success: false, error: … }` with HTTP 200.
-enum RelationError: LocalizedError {
-    case refused(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .refused(let message):
-            return message
-        }
     }
 }

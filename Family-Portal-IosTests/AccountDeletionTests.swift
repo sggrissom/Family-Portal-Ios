@@ -40,7 +40,7 @@ struct AccountDeletionTests {
         let server = FakeHTTPServer()
         server.route("api/delete-account", respond: Self.refusal(Self.confirmEmailMismatch))
 
-        await #expect(throws: AccountDeletionError.refused(Self.confirmEmailMismatch)) {
+        await #expect(throws: ServerRefusal(message: Self.confirmEmailMismatch)) {
             try await server.apiClient().deleteAccount(
                 password: "hunter2",
                 confirmEmail: "typo@example.com"
@@ -53,7 +53,7 @@ struct AccountDeletionTests {
         let server = FakeHTTPServer()
         server.route("api/delete-account", respond: Self.refusal(Self.incorrectPassword))
 
-        let error = await #expect(throws: AccountDeletionError.self) {
+        let error = await #expect(throws: ServerRefusal.self) {
             try await server.apiClient().deleteAccount(
                 password: "wrong",
                 confirmEmail: "ada@example.com"
@@ -71,7 +71,7 @@ struct AccountDeletionTests {
         let server = FakeHTTPServer()
         server.route("api/delete-account", respond: .status(400, message: "<html>Bad Request</html>"))
 
-        await #expect(throws: AccountDeletionError.refused(AccountDeletionError.fallbackMessage)) {
+        await #expect(throws: ServerRefusal(message: ServerRefusal.accountDeletionFallback)) {
             try await server.apiClient().deleteAccount(
                 password: "hunter2",
                 confirmEmail: "ada@example.com"
@@ -87,7 +87,7 @@ struct AccountDeletionTests {
             respond: .json(["success": false, "error": Self.incorrectPassword])
         )
 
-        await #expect(throws: AccountDeletionError.refused(Self.incorrectPassword)) {
+        await #expect(throws: ServerRefusal(message: Self.incorrectPassword)) {
             try await server.apiClient().deleteAccount(
                 password: "wrong",
                 confirmEmail: "ada@example.com"

@@ -38,35 +38,17 @@ final class AuthService {
 
     @MainActor
     func login(email: String, password: String) async {
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            struct LoginRequest: Encodable {
-                let email: String
-                let password: String
-            }
-
-            let response: LoginResponseDTO = try await APIClient.shared.request(
+        struct LoginRequest: Encodable {
+            let email: String
+            let password: String
+        }
+        await signIn(fallback: "Login failed.") {
+            try await APIClient.shared.request(
                 path: "api/login",
-                method: .post,
                 body: LoginRequest(email: email, password: password),
                 requiresAuth: false
             )
-
-            if response.success, let token = response.token, let auth = response.auth {
-                await APIClient.shared.setAccessToken(token)
-                await adoptSession(auth)
-            } else {
-                errorMessage = response.error ?? "Login failed."
-            }
-        } catch let error as APIError {
-            errorMessage = error.errorDescription
-        } catch {
-            errorMessage = error.localizedDescription
         }
-
-        isLoading = false
     }
 
     @MainActor
@@ -95,21 +77,10 @@ final class AuthService {
         )
 
         do {
-            let response: CreateAccountResponseDTO = try await APIClient.shared.callPublicRPC(
-                .createAccount,
-                payload: request
-            )
-
-            guard response.success, let token = response.token, let auth = response.auth else {
-                return response.error ?? "Could not create your account."
-            }
-
-            await APIClient.shared.setAccessToken(token)
+            let response: SessionResponseDTO = try await APIClient.shared.callPublicRPC(.createAccount, payload: request)
+            try await adopt(response, fallback: "Could not create your account.")
             errorMessage = nil
-            await adoptSession(auth)
             return nil
-        } catch let error as APIError {
-            return error.errorDescription
         } catch {
             return error.localizedDescription
         }
@@ -125,13 +96,8 @@ final class AuthService {
                 .requestPasswordReset,
                 payload: RequestPasswordResetRequestDTO(email: email)
             )
-
-            guard response.success else {
-                return response.error ?? "Could not send the reset email."
-            }
+            _ = try response.accepted(or: "Could not send the reset email.")
             return nil
-        } catch let error as APIError {
-            return error.errorDescription
         } catch {
             return error.localizedDescription
         }
@@ -139,37 +105,14 @@ final class AuthService {
 
     @MainActor
     func loginWithGoogle(familyCode: String = "") async {
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            let idToken = try await googleSignInService.signIn()
-
-            let response: LoginResponseDTO = try await APIClient.shared.request(
+        await signIn(fallback: "Google sign-in failed.") {
+            let idToken = try await self.googleSignInService.signIn()
+            return try await APIClient.shared.request(
                 path: "api/login/google/token",
-                method: .post,
                 body: GoogleTokenLoginRequestDTO(idToken: idToken, familyCode: familyCode),
                 requiresAuth: false
             )
-
-            if response.success, let token = response.token, let auth = response.auth {
-                await APIClient.shared.setAccessToken(token)
-                await adoptSession(auth)
-            } else {
-                errorMessage = response.error ?? "Google sign-in failed."
-            }
-        } catch let error as GoogleSignInError {
-            if case .cancelled = error {
-            } else {
-                errorMessage = error.errorDescription
-            }
-        } catch let error as APIError {
-            errorMessage = error.errorDescription
-        } catch {
-            errorMessage = error.localizedDescription
         }
-
-        isLoading = false
     }
 
     /// Lets a screen that shows `errorMessage` start clean rather than showing another screen's failure.
@@ -187,20 +130,13 @@ final class AuthService {
     /// classified in one place rather than in the view.
     @MainActor
     func loginWithApple(_ result: Result<ASAuthorization, Error>, familyCode: String = "") async {
-        isLoading = true
         isAppleSigningIn = true
-        errorMessage = nil
-        defer {
-            isAppleSigningIn = false
-            isLoading = false
-        }
+        defer { isAppleSigningIn = false }
 
-        do {
-            let credential = try appleSignInService.credential(from: result)
-
-            let response: LoginResponseDTO = try await APIClient.shared.request(
+        await signIn(fallback: "Apple sign-in failed.") {
+            let credential = try self.appleSignInService.credential(from: result)
+            return try await APIClient.shared.request(
                 path: "api/login/apple/token",
-                method: .post,
                 body: AppleTokenLoginRequestDTO(
                     idToken: credential.identityToken,
                     name: credential.name,
@@ -209,23 +145,32 @@ final class AuthService {
                 ),
                 requiresAuth: false
             )
+        }
+    }
 
-            if response.success, let token = response.token, let auth = response.auth {
-                await APIClient.shared.setAccessToken(token)
-                await adoptSession(auth)
-            } else {
-                errorMessage = response.error ?? "Apple sign-in failed."
-            }
-        } catch let error as AppleSignInError {
-            if case .cancelled = error {
-            } else {
-                errorMessage = error.errorDescription
-            }
-        } catch let error as APIError {
-            errorMessage = error.errorDescription
+    /// Every sign-in ends the same way: a token and an identity to adopt, or a sentence for `errorMessage`. Backing out of Google's or Apple's own sheet is not an error worth showing.
+    @MainActor
+    private func signIn(fallback: String, _ exchange: @MainActor () async throws -> SessionResponseDTO) async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            try await adopt(exchange(), fallback: fallback)
+        } catch GoogleSignInError.cancelled, AppleSignInError.cancelled {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Keeps the token and adopts the identity a sign-in answered with, or throws the server's refusal.
+    @MainActor
+    private func adopt(_ response: SessionResponseDTO, fallback: String) async throws {
+        guard response.success, let token = response.token, let auth = response.auth else {
+            throw ServerRefusal(message: response.error ?? fallback)
+        }
+        await APIClient.shared.setAccessToken(token)
+        await adoptSession(auth)
     }
 
     // MARK: - Families
@@ -235,16 +180,9 @@ final class AuthService {
     @MainActor
     func loadFamilyInfo() async -> String? {
         do {
-            struct EmptyPayload: Encodable {}
-            let response: FamilyInfoResponseDTO = try await APIClient.shared.callRPC(
-                .getFamilyInfo,
-                payload: EmptyPayload()
-            )
+            let response: FamilyInfoResponseDTO = try await APIClient.shared.callRPC(.getFamilyInfo, payload: EmptyRequestDTO())
             families = response.families
             return nil
-        } catch let error as APIError {
-            families = []
-            return error.errorDescription
         } catch {
             families = []
             return error.localizedDescription
@@ -254,21 +192,14 @@ final class AuthService {
     @MainActor
     func joinFamily(inviteCode: String) async -> String? {
         do {
-            let response: JoinFamilyResponseDTO = try await APIClient.shared.callRPC(
+            let response: FamilyChangeResponseDTO = try await APIClient.shared.callRPC(
                 .joinFamily,
                 payload: JoinFamilyRequestDTO(inviteCode: inviteCode)
             )
-
-            guard response.success else {
-                return response.error ?? "Could not join that family."
-            }
-
-            if let auth = response.auth {
+            if let auth = try response.accepted(or: "Could not join that family.").auth {
                 setCurrentUser(auth)
             }
             return await loadFamilyInfo()
-        } catch let error as APIError {
-            return error.errorDescription
         } catch {
             return error.localizedDescription
         }
@@ -298,17 +229,11 @@ final class AuthService {
     func logout() async {
         await onWillLogout?()
 
-        do {
-            struct EmptyBody: Encodable {}
-            let _: LogoutResponseDTO = try await APIClient.shared.request(
-                path: "api/logout",
-                method: .post,
-                body: EmptyBody?.none,
-                requiresAuth: true,
-                retryOnAuthFailure: false
-            )
-        } catch {
-        }
+        let _: LogoutResponseDTO? = try? await APIClient.shared.request(
+            path: "api/logout",
+            body: EmptyRequestDTO?.none,
+            retryOnAuthFailure: false
+        )
 
         googleSignInService.signOut()
 

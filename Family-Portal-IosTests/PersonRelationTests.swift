@@ -235,7 +235,7 @@ struct PersonRelationTests {
             "relations": ["personId": 0, "relations": [], "manageable": false]
         ]))
 
-        await #expect(throws: RelationError.self) {
+        await #expect(throws: ServerRefusal.self) {
             try await PersonRelationService(apiClient: server.apiClient())
                 .addRelation(personId: 13, anchorId: 13, stated: .sibling)
         }

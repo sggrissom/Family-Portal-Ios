@@ -56,7 +56,7 @@ struct AuthDTOTests {
           }
         }
         """
-        let dto = try APIClient.decode(CreateAccountResponseDTO.self, from: Data(json.utf8))
+        let dto = try APIClient.decode(SessionResponseDTO.self, from: Data(json.utf8))
 
         #expect(dto.success)
         #expect(dto.token == "jwt-token")
@@ -110,7 +110,7 @@ struct AuthDTOTests {
         let json = """
         { "success": false, "error": "Email already registered" }
         """
-        let dto = try APIClient.decode(CreateAccountResponseDTO.self, from: Data(json.utf8))
+        let dto = try APIClient.decode(SessionResponseDTO.self, from: Data(json.utf8))
 
         #expect(!dto.success)
         #expect(dto.error == "Email already registered")

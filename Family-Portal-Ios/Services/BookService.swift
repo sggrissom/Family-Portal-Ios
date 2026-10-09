@@ -28,8 +28,10 @@ final class BookService {
     /// `ErrBookChanged`, word for word: the save the server refuses because someone else saved first.
     static let changedMessage = "Someone else saved this book after you opened it. Reload to see their changes."
 
+    /// Matched on the refusal's own body rather than `localizedDescription`, which is only whatever `APIError` chose to show and changes with it.
     static func isChangedConflict(_ error: Error) -> Bool {
-        error.localizedDescription == changedMessage
+        guard case APIError.server(_, let message) = error else { return false }
+        return message?.trimmingCharacters(in: .whitespacesAndNewlines) == changedMessage
     }
 
     /// The records a new book would draw on, and the dates the server settled for it. Not cached: it is asked once, just before a create.
@@ -60,28 +62,11 @@ final class BookService {
         let _: EmptyResponseDTO = try await apiClient.callRPC(.deleteBook, payload: DeleteBookRequestDTO(id: id))
     }
 
-    /// Decode before caching, never after: caching a payload this build cannot read would make the failure permanent.
     private func read<Response: Decodable & Sendable, Request: Encodable & Sendable>(
         _ proc: RPCMethod,
         payload: Request,
         key: ActivitySnapshotKey
     ) -> ActivityRead<Response> {
-        let apiClient = self.apiClient
-        let cache = self.cache
-
-        return ActivityRead(
-            cached: { await cache.load(Response.self, key: key) },
-            live: {
-                let data = try await apiClient.callRPCData(proc, payload: payload)
-                let value: Response
-                do {
-                    value = try APIClient.decode(Response.self, from: data)
-                } catch {
-                    throw APIError.decoding(error)
-                }
-                await cache.store(data, key: key)
-                return value
-            }
-        )
+        cache.read(proc, payload: payload, key: key, apiClient: apiClient)
     }
 }
