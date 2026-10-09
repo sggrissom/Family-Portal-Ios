@@ -89,57 +89,27 @@ nonisolated enum ActivityResultKind: String, CaseIterable, Sendable {
 nonisolated struct EntryViewDTO: Decodable, Sendable, Identifiable {
     let entry: ActivityEntryDTO
     /// *Server* person ids — resolve what the local store knows, render the rest as nothing.
-    let personIds: [Int]
+    @OrZero var personIds: [Int]
 
     var id: Int { entry.id }
-
-    private enum CodingKeys: String, CodingKey { case entry, personIds }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        entry = try container.decode(ActivityEntryDTO.self, forKey: .entry)
-        personIds = try container.decodeList(Int.self, forKey: .personIds)
-    }
 }
 
 nonisolated struct AppearanceViewDTO: Decodable, Sendable, Identifiable {
     let appearance: AppearanceDTO
-    let results: [ActivityResultDTO]
-    let photoIds: [Int]
+    @OrZero var results: [ActivityResultDTO]
+    @OrZero var photoIds: [Int]
 
     var id: Int { appearance.id }
-
-    private enum CodingKeys: String, CodingKey { case appearance, results, photoIds }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        appearance = try container.decode(AppearanceDTO.self, forKey: .appearance)
-        results = try container.decodeList(ActivityResultDTO.self, forKey: .results)
-        photoIds = try container.decodeList(Int.self, forKey: .photoIds)
-    }
 }
 
 nonisolated struct AppearanceDetailDTO: Decodable, Sendable, Identifiable {
     let appearance: AppearanceDTO
-    let results: [ActivityResultDTO]
-    let photoIds: [Int]
+    @OrZero var results: [ActivityResultDTO]
+    @OrZero var photoIds: [Int]
     let entry: ActivityEntryDTO
     let event: EventSummaryDTO
 
     var id: Int { appearance.id }
-
-    private enum CodingKeys: String, CodingKey {
-        case appearance, results, photoIds, entry, event
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        appearance = try container.decode(AppearanceDTO.self, forKey: .appearance)
-        results = try container.decodeList(ActivityResultDTO.self, forKey: .results)
-        photoIds = try container.decodeList(Int.self, forKey: .photoIds)
-        entry = try container.decode(ActivityEntryDTO.self, forKey: .entry)
-        event = try container.decode(EventSummaryDTO.self, forKey: .event)
-    }
 }
 
 nonisolated struct SeasonSummaryDTO: Decodable, Sendable, Identifiable {
@@ -193,135 +163,54 @@ nonisolated struct ListActivityVocabularyRequestDTO: Encodable, Sendable {
 // MARK: - Responses
 
 nonisolated struct ListActivitiesResponseDTO: Decodable, Sendable {
-    let familyId: Int
-    let activities: [ActivityDTO]
-
-    private enum CodingKeys: String, CodingKey { case familyId, activities }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
-        activities = try container.decodeList(ActivityDTO.self, forKey: .activities)
-    }
+    @OrZero var familyId: Int
+    @OrZero var activities: [ActivityDTO]
 }
 
 nonisolated struct ListSeasonsResponseDTO: Decodable, Sendable {
-    let activityId: Int
-    let seasons: [SeasonDTO]
-
-    private enum CodingKeys: String, CodingKey { case activityId, seasons }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        activityId = try container.decodeIfPresent(Int.self, forKey: .activityId) ?? 0
-        seasons = try container.decodeList(SeasonDTO.self, forKey: .seasons)
-    }
+    @OrZero var activityId: Int
+    @OrZero var seasons: [SeasonDTO]
 }
 
 nonisolated struct GetSeasonOverviewResponseDTO: Decodable, Sendable {
     let activity: ActivityDTO
     let season: SeasonDTO
-    let events: [ActivityEventDTO]
-    let entries: [EntryViewDTO]
-    let appearances: [AppearanceViewDTO]
-
-    private enum CodingKeys: String, CodingKey {
-        case activity, season, events, entries, appearances
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        activity = try container.decode(ActivityDTO.self, forKey: .activity)
-        season = try container.decode(SeasonDTO.self, forKey: .season)
-        events = try container.decodeList(ActivityEventDTO.self, forKey: .events)
-        entries = try container.decodeList(EntryViewDTO.self, forKey: .entries)
-        appearances = try container.decodeList(AppearanceViewDTO.self, forKey: .appearances)
-    }
+    @OrZero var events: [ActivityEventDTO]
+    @OrZero var entries: [EntryViewDTO]
+    @OrZero var appearances: [AppearanceViewDTO]
 }
 
 nonisolated struct GetEventDetailResponseDTO: Decodable, Sendable {
     let event: ActivityEventDTO
     let season: SeasonSummaryDTO
-    let photoIds: [Int]
-    let appearances: [AppearanceDetailDTO]
-
-    private enum CodingKeys: String, CodingKey {
-        case event, season, photoIds, appearances
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        event = try container.decode(ActivityEventDTO.self, forKey: .event)
-        season = try container.decode(SeasonSummaryDTO.self, forKey: .season)
-        photoIds = try container.decodeList(Int.self, forKey: .photoIds)
-        appearances = try container.decodeList(AppearanceDetailDTO.self, forKey: .appearances)
-    }
+    @OrZero var photoIds: [Int]
+    @OrZero var appearances: [AppearanceDetailDTO]
 }
 
 nonisolated struct GetEntryHistoryResponseDTO: Decodable, Sendable {
     let entry: EntryViewDTO
     let season: SeasonSummaryDTO
-    let appearances: [AppearanceDetailDTO]
-
-    private enum CodingKeys: String, CodingKey { case entry, season, appearances }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        entry = try container.decode(EntryViewDTO.self, forKey: .entry)
-        season = try container.decode(SeasonSummaryDTO.self, forKey: .season)
-        appearances = try container.decodeList(AppearanceDetailDTO.self, forKey: .appearances)
-    }
+    @OrZero var appearances: [AppearanceDetailDTO]
 }
 
 nonisolated struct GetPersonSeasonResponseDTO: Decodable, Sendable {
-    let personId: Int
-    let seasonId: Int
-    let seasons: [SeasonSummaryDTO]
-    let entries: [EntryViewDTO]
-    let appearances: [AppearanceDetailDTO]
-
-    private enum CodingKeys: String, CodingKey {
-        case personId, seasonId, seasons, entries, appearances
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        personId = try container.decodeIfPresent(Int.self, forKey: .personId) ?? 0
-        seasonId = try container.decodeIfPresent(Int.self, forKey: .seasonId) ?? 0
-        seasons = try container.decodeList(SeasonSummaryDTO.self, forKey: .seasons)
-        entries = try container.decodeList(EntryViewDTO.self, forKey: .entries)
-        appearances = try container.decodeList(AppearanceDetailDTO.self, forKey: .appearances)
-    }
+    @OrZero var personId: Int
+    @OrZero var seasonId: Int
+    @OrZero var seasons: [SeasonSummaryDTO]
+    @OrZero var entries: [EntryViewDTO]
+    @OrZero var appearances: [AppearanceDetailDTO]
 }
 
 nonisolated struct ListActivityVocabularyResponseDTO: Decodable, Sendable {
-    let activityId: Int
-    let adjudications: [String]
-    let awards: [String]
-    let categories: [String]
-    let styles: [String]
-    let divisions: [String]
-    let levels: [String]
-    let formats: [String]
-    let hosts: [String]
-
-    private enum CodingKeys: String, CodingKey {
-        case activityId, adjudications, awards, categories
-        case styles, divisions, levels, formats, hosts
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        activityId = try container.decodeIfPresent(Int.self, forKey: .activityId) ?? 0
-        adjudications = try container.decodeList(String.self, forKey: .adjudications)
-        awards = try container.decodeList(String.self, forKey: .awards)
-        categories = try container.decodeList(String.self, forKey: .categories)
-        styles = try container.decodeList(String.self, forKey: .styles)
-        divisions = try container.decodeList(String.self, forKey: .divisions)
-        levels = try container.decodeList(String.self, forKey: .levels)
-        formats = try container.decodeList(String.self, forKey: .formats)
-        hosts = try container.decodeList(String.self, forKey: .hosts)
-    }
+    @OrZero var activityId: Int
+    @OrZero var adjudications: [String]
+    @OrZero var awards: [String]
+    @OrZero var categories: [String]
+    @OrZero var styles: [String]
+    @OrZero var divisions: [String]
+    @OrZero var levels: [String]
+    @OrZero var formats: [String]
+    @OrZero var hosts: [String]
 }
 
 // MARK: - Write requests
@@ -480,14 +369,6 @@ nonisolated struct SetEventPhotosRequestDTO: Encodable, Sendable {
 }
 
 nonisolated struct SetEventPhotosResponseDTO: Decodable, Sendable {
-    let eventId: Int
-    let photoIds: [Int]
-
-    private enum CodingKeys: String, CodingKey { case eventId, photoIds }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        eventId = try container.decodeIfPresent(Int.self, forKey: .eventId) ?? 0
-        photoIds = try container.decodeList(Int.self, forKey: .photoIds)
-    }
+    @OrZero var eventId: Int
+    @OrZero var photoIds: [Int]
 }

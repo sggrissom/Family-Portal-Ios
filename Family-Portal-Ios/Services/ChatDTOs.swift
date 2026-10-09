@@ -2,51 +2,16 @@ import Foundation
 
 // MARK: - Chat Message DTOs
 
-nonisolated struct ChatMessageDTO: Sendable {
+/// Keys match `type ChatMessage` in backend/chat.go, which marshals camelCase. Author identity and timestamp drive bubble alignment and date grouping, so those stay required and a missing key fails loudly rather than defaulting.
+nonisolated struct ChatMessageDTO: Codable, Sendable {
     let id: Int
-    let familyId: Int
+    @OrZero var familyId: Int
     let userId: Int
-    let userName: String
+    @OrZero var userName: String
     let content: String
     let createdAt: Date
-    let clientMessageId: String
-
-    // Keys match `type ChatMessage` in backend/chat.go, which marshals camelCase.
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case familyId
-        case userId
-        case userName
-        case content
-        case createdAt
-        case clientMessageId
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(Int.self, forKey: .id)
-        familyId = try container.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
-        // Author identity and timestamp drive bubble alignment and date grouping, so a missing key has to fail loudly rather than default.
-        userId = try container.decode(Int.self, forKey: .userId)
-        userName = try container.decodeIfPresent(String.self, forKey: .userName) ?? ""
-        content = try container.decode(String.self, forKey: .content)
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
-        clientMessageId = try container.decodeIfPresent(String.self, forKey: .clientMessageId) ?? ""
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(familyId, forKey: .familyId)
-        try container.encode(userId, forKey: .userId)
-        try container.encode(userName, forKey: .userName)
-        try container.encode(content, forKey: .content)
-        try container.encode(createdAt, forKey: .createdAt)
-        try container.encode(clientMessageId, forKey: .clientMessageId)
-    }
+    @OrZero var clientMessageId: String
 }
-
-extension ChatMessageDTO: Codable {}
 
 // MARK: - Request/Response DTOs
 
@@ -55,25 +20,9 @@ nonisolated struct SendMessageRequestDTO: Encodable, Sendable {
     let clientMessageId: String
 }
 
-nonisolated struct SendMessageResponseDTO: Sendable {
+nonisolated struct SendMessageResponseDTO: Codable, Sendable {
     let message: ChatMessageDTO
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        message = try container.decode(ChatMessageDTO.self, forKey: .message)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(message, forKey: .message)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case message
-    }
 }
-
-extension SendMessageResponseDTO: Codable {}
 
 nonisolated struct GetChatMessagesRequestDTO: Encodable, Sendable {
     let limit: Int
@@ -81,25 +30,9 @@ nonisolated struct GetChatMessagesRequestDTO: Encodable, Sendable {
     let offset: Int
 }
 
-nonisolated struct GetChatMessagesResponseDTO: Sendable {
+nonisolated struct GetChatMessagesResponseDTO: Codable, Sendable {
     let messages: [ChatMessageDTO]
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        messages = try container.decode([ChatMessageDTO].self, forKey: .messages)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(messages, forKey: .messages)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case messages
-    }
 }
-
-extension GetChatMessagesResponseDTO: Codable {}
 
 nonisolated struct DeleteMessageRequestDTO: Encodable, Sendable {
     let messageId: Int
@@ -110,25 +43,9 @@ nonisolated struct DeleteMessageRequestDTO: Encodable, Sendable {
     }
 }
 
-nonisolated struct DeleteMessageResponseDTO: Sendable {
+nonisolated struct DeleteMessageResponseDTO: Codable, Sendable {
     let success: Bool
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        success = try container.decode(Bool.self, forKey: .success)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(success, forKey: .success)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case success
-    }
 }
-
-extension DeleteMessageResponseDTO: Codable {}
 
 // MARK: - WebSocket Message Types
 

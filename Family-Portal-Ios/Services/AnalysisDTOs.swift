@@ -13,14 +13,7 @@ nonisolated struct SuggestMilestoneCategoryRequestDTO: Encodable, Sendable {
 
 nonisolated struct SuggestMilestoneCategoryResponseDTO: Decodable, Sendable {
     /// Empty when there is no suggestion.
-    let category: String
-
-    private enum CodingKeys: String, CodingKey { case category }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        category = try c.decodeIfPresent(String.self, forKey: .category) ?? ""
-    }
+    @OrZero var category: String
 }
 
 nonisolated struct SuggestMilestonePhotosRequestDTO: Encodable, Sendable {
@@ -33,17 +26,9 @@ nonisolated struct SuggestMilestonePhotosRequestDTO: Encodable, Sendable {
 
 /// At most eight photos of the person from about two weeks either side of the date, best match first.
 nonisolated struct SuggestMilestonePhotosResponseDTO: Decodable, Sendable {
-    let photoIds: [Int]
+    @OrZero var photoIds: [Int]
     /// False when the photos are only the nearest by date, because the description could not be compared.
-    let ranked: Bool
-
-    private enum CodingKeys: String, CodingKey { case photoIds, ranked }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        photoIds = try c.decodeList(Int.self, forKey: .photoIds)
-        ranked = try c.decodeIfPresent(Bool.self, forKey: .ranked) ?? false
-    }
+    @OrZero var ranked: Bool
 }
 
 // MARK: - Milestone matches
@@ -111,19 +96,10 @@ nonisolated struct GetPersonPhotoInsightsRequestDTO: Encodable, Sendable {
 }
 
 nonisolated struct GetPersonPhotoInsightsResponseDTO: Decodable, Sendable {
-    let growingUp: [PortraitPhotoDTO]
-    let oftenWith: [OftenWithDTO]
+    @OrZero var growingUp: [PortraitPhotoDTO]
+    @OrZero var oftenWith: [OftenWithDTO]
     /// A face to show in place of the initials when the person has no profile photo. A suggestion only; never stored.
     let header: PortraitPhotoDTO?
-
-    private enum CodingKeys: String, CodingKey { case growingUp, oftenWith, header }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        growingUp = try c.decodeList(PortraitPhotoDTO.self, forKey: .growingUp)
-        oftenWith = try c.decodeList(OftenWithDTO.self, forKey: .oftenWith)
-        header = try c.decodeIfPresent(PortraitPhotoDTO.self, forKey: .header)
-    }
 
     /// The label under a growing-up face: the age, or the year for someone with no birthday.
     static func label(for portrait: PortraitPhotoDTO) -> String {
@@ -146,17 +122,8 @@ nonisolated struct PhotoPlaceDTO: Decodable, Sendable {
 nonisolated struct SuggestedTagDTO: Decodable, Sendable, Identifiable {
     /// A **suggestion** id, which is what accept and reject take — never a tag id.
     let id: Int
-    let label: String
-    let color: String
-
-    private enum CodingKeys: String, CodingKey { case id, label, color }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(Int.self, forKey: .id)
-        label = try c.decodeIfPresent(String.self, forKey: .label) ?? ""
-        color = try c.decodeIfPresent(String.self, forKey: .color) ?? ""
-    }
+    @OrZero var label: String
+    @OrZero var color: String
 }
 
 /// `AcceptTagSuggestions` and `RejectTagSuggestions`. Suggestion ids, not tag ids.
@@ -165,14 +132,7 @@ nonisolated struct SuggestionIdsRequestDTO: Encodable, Sendable {
 }
 
 nonisolated struct SuggestionIdsResponseDTO: Decodable, Sendable {
-    let updated: Int
-
-    private enum CodingKeys: String, CodingKey { case updated }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        updated = try c.decodeIfPresent(Int.self, forKey: .updated) ?? 0
-    }
+    @OrZero var updated: Int
 }
 
 /// One suggestion in the review, with the photo it is about.
@@ -189,41 +149,20 @@ nonisolated struct TagSuggestionDTO: Decodable, Sendable, Identifiable {
 /// Every pending suggestion for one tag or catalog label, best first.
 nonisolated struct SuggestionGroupDTO: Decodable, Sendable, Identifiable {
     let key: String
-    let label: String
-    let tagId: Int
-    let color: String
-    let familyId: Int
-    let suggestions: [TagSuggestionDTO]
+    @OrZero var label: String
+    @OrZero var tagId: Int
+    @OrZero var color: String
+    @OrZero var familyId: Int
+    @OrZero var suggestions: [TagSuggestionDTO]
 
     var id: String { key }
-
-    private enum CodingKeys: String, CodingKey { case key, label, tagId, color, familyId, suggestions }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        key = try c.decode(String.self, forKey: .key)
-        label = try c.decodeIfPresent(String.self, forKey: .label) ?? ""
-        tagId = try c.decodeIfPresent(Int.self, forKey: .tagId) ?? 0
-        color = try c.decodeIfPresent(String.self, forKey: .color) ?? ""
-        familyId = try c.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
-        suggestions = try c.decodeList(TagSuggestionDTO.self, forKey: .suggestions)
-    }
 }
 
 nonisolated struct GetTagSuggestionsResponseDTO: Decodable, Sendable {
     /// False where photo analysis isn't running at all, as opposed to having nothing to suggest.
-    let enabled: Bool
-    let groups: [SuggestionGroupDTO]
-    let total: Int
-
-    private enum CodingKeys: String, CodingKey { case enabled, groups, total }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
-        groups = try c.decodeList(SuggestionGroupDTO.self, forKey: .groups)
-        total = try c.decodeIfPresent(Int.self, forKey: .total) ?? 0
-    }
+    @OrZero var enabled: Bool
+    @OrZero var groups: [SuggestionGroupDTO]
+    @OrZero var total: Int
 
     /// The review is worth a link only when there is something in it.
     var hasSuggestions: Bool {
@@ -234,37 +173,21 @@ nonisolated struct GetTagSuggestionsResponseDTO: Decodable, Sendable {
 /// One place in `ListPhotoPlaces`: the family's own named places first, then cities, by photo count.
 nonisolated struct PhotoPlaceCountDTO: Decodable, Sendable, Identifiable, Equatable {
     let key: String
-    let name: String
-    let count: Int
+    @OrZero var name: String
+    @OrZero var count: Int
 
     var id: String { key }
 
     /// A place the family named, rather than a city.
     var isFamilyPlace: Bool { key.hasPrefix("f") }
 
-    private enum CodingKeys: String, CodingKey { case key, name, count }
-
     init(key: String, name: String, count: Int) {
         self.key = key
         self.name = name
         self.count = count
     }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        key = try c.decode(String.self, forKey: .key)
-        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        count = try c.decodeIfPresent(Int.self, forKey: .count) ?? 0
-    }
 }
 
 nonisolated struct ListPhotoPlacesResponseDTO: Decodable, Sendable {
-    let places: [PhotoPlaceCountDTO]
-
-    private enum CodingKeys: String, CodingKey { case places }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        places = try c.decodeList(PhotoPlaceCountDTO.self, forKey: .places)
-    }
+    @OrZero var places: [PhotoPlaceCountDTO]
 }
