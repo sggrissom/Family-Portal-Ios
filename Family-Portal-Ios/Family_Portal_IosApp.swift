@@ -1,10 +1,20 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import UserNotifications
 import GoogleSignIn
 
 /// SwiftUI has no hook for the APNs token, so registration results still arrive through a UIApplicationDelegate.
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    /// The notification delegate has to be in place before launch finishes, or a cold launch from a tapped notification never hears which notification it was.
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = PushNotificationService.shared
+        return true
+    }
+
     func application(
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
