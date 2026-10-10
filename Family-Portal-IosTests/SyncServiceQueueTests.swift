@@ -110,7 +110,7 @@ struct SyncServiceQueueTests {
 
         try await harness.service.uploadPhoto(photo)
         // Waits on the upload above, which is about to fail offline.
-        try await harness.service.updatePhoto(photo)
+        try await harness.service.updatePhoto(photo, keepingDate: false)
 
         harness.monitor.isConnected = true
         await harness.service.processQueue()
@@ -131,7 +131,7 @@ struct SyncServiceQueueTests {
         try harness.context.save()
 
         try await harness.service.uploadPhoto(photo)
-        try await harness.service.updatePhoto(photo)
+        try await harness.service.updatePhoto(photo, keepingDate: false)
 
         harness.monitor.isConnected = true
         await harness.service.processQueue()
@@ -303,7 +303,7 @@ struct SyncServiceQueueTests {
         await Task.detached { blockUntilSignalled(arrived) }.value
         photo.title = "Sunset"
         try harness.context.save()
-        try await harness.service.updatePhoto(photo)
+        try await harness.service.updatePhoto(photo, keepingDate: false)
 
         release.signal()
         await run

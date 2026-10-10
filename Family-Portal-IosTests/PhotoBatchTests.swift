@@ -55,6 +55,30 @@ struct PhotoBatchTests {
         #expect(payloads.map(\.keepDate) == [true, false])
     }
 
+    @Test("A caption edit keeps the capture time, but not over a date change still queued")
+    func captionEditKeepsDate() async throws {
+        let harness = try TestSync.harness(connected: false)
+        let photo = try await Self.queuedPhoto(in: harness)
+
+        photo.title = "Beach day"
+        try await harness.service.updatePhoto(photo, keepingDate: true)
+        var payload = try await Self.queuedUpdate(for: photo, in: harness)
+        #expect(payload.keepDate == true)
+
+        try await PhotoImporter.queueDetails(PhotoImporter.BatchChoices(), changedDate: Date(timeIntervalSince1970: 0), for: photo, context: harness.context, syncService: harness.service)
+        photo.title = "Beach day, again"
+        try await harness.service.updatePhoto(photo, keepingDate: true)
+        payload = try await Self.queuedUpdate(for: photo, in: harness)
+        #expect(payload.keepDate == false)
+        #expect(payload.title == "Beach day, again")
+    }
+
+    private static func queuedUpdate(for photo: Photo, in harness: TestSync.Harness) async throws -> UpdatePhotoPayload {
+        let updates = await harness.service.syncQueue.allOperations().filter { $0.type == .updatePhoto && $0.localId == photo.id.uuidString }
+        #expect(updates.count == 1)
+        return try JSONDecoder().decode(UpdatePhotoPayload.self, from: try #require(updates.first).payload)
+    }
+
     @Test("Nothing chosen queues nothing beyond the upload, and tags nobody")
     func nothingChosen() async throws {
         let harness = try TestSync.harness(connected: false)

@@ -908,13 +908,21 @@ final class SyncService {
         try await deleteRecord(photo, localId: photo.id, serverId: photo.serverId, as: .deletePhoto)
     }
 
-    /// `keepingDate` sends `inputType: "keep"`: the server keeps whatever date the photo has, which after an upload is the one it read from the file itself.
-    func updatePhoto(_ photo: Photo, keepingDate: Bool = false) async throws {
+    /// `keepingDate` sends `inputType: "keep"`: the server keeps whatever date the photo has, which after an upload is the one it read from the file itself. Anything without a date control must keep it — a dated update sends only the day, and would wipe the capture time.
+    /// The update replaces any queued one whole, so a date change still waiting to be sent turns this into a dated update rather than being lost to a later caption edit.
+    func updatePhoto(_ photo: Photo, keepingDate: Bool) async throws {
+        let keepsDate: Bool
+        if keepingDate {
+            keepsDate = !(await hasQueuedDateChange(for: photo))
+        } else {
+            keepsDate = false
+        }
+
         let payload = UpdatePhotoPayload(
             title: photo.title,
             description: photo.descriptionText,
             photoDate: dateToAPIString(photo.photoDate),
-            keepDate: keepingDate
+            keepDate: keepsDate
         )
 
         try await enqueueOperation(
@@ -923,6 +931,16 @@ final class SyncService {
             payload: payload,
             dependsOnLocalId: unsyncedId(photo)
         )
+    }
+
+    private func hasQueuedDateChange(for photo: Photo) async -> Bool {
+        await syncQueue.allOperations().contains { operation in
+            guard operation.type == .updatePhoto, operation.localId == photo.id.uuidString,
+                  let payload = try? JSONDecoder().decode(UpdatePhotoPayload.self, from: operation.payload) else {
+                return false
+            }
+            return payload.keepDate != true
+        }
     }
 
     func uploadPhoto(_ photo: Photo) async throws {
