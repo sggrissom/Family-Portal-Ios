@@ -170,6 +170,77 @@ struct SyncQueueTests {
         #expect(await queue.count() == 2)
     }
 
+    // MARK: - The operation on the wire
+
+    @Test("A tag added while another is being sent survives that send")
+    func addDuringSendIsKept() async throws {
+        let (queue, _) = Self.scratchQueue()
+
+        let sending = try Self.operation(
+            .addPeopleToPhoto, localId: "photo", payload: AddPeopleToPhotoPayload(personLocalIds: ["p1"])
+        )
+        await queue.enqueue(sending)
+        await queue.beginExecuting(sending.id)
+        await queue.enqueue(try Self.operation(
+            .addPeopleToPhoto, localId: "photo", payload: AddPeopleToPhotoPayload(personLocalIds: ["p2"])
+        ))
+        await queue.dequeue(sending.id)
+
+        let operations = await queue.allOperations()
+        #expect(operations.count == 1)
+        let payload = try JSONDecoder().decode(AddPeopleToPhotoPayload.self, from: operations[0].payload)
+        #expect(payload.personLocalIds == ["p2"])
+    }
+
+    @Test("Untagging someone whose tag is being sent queues the removal")
+    func removeDuringSendIsQueued() async throws {
+        let (queue, _) = Self.scratchQueue()
+
+        let sending = try Self.operation(
+            .addPeopleToPhoto, localId: "photo", payload: AddPeopleToPhotoPayload(personLocalIds: ["p1"])
+        )
+        await queue.enqueue(sending)
+        await queue.beginExecuting(sending.id)
+        await queue.enqueue(try Self.operation(
+            .removePersonFromPhoto, localId: "photo", payload: RemovePersonFromPhotoPayload(personLocalId: "p1")
+        ))
+        await queue.dequeue(sending.id)
+
+        let operations = await queue.allOperations()
+        #expect(operations.map(\.type) == [.removePersonFromPhoto])
+    }
+
+    @Test("Re-tagging someone whose removal is being sent queues the tag")
+    func addDuringRemoveSendIsQueued() async throws {
+        let (queue, _) = Self.scratchQueue()
+
+        let sending = try Self.operation(
+            .removePersonFromPhoto, localId: "photo", payload: RemovePersonFromPhotoPayload(personLocalId: "p1")
+        )
+        await queue.enqueue(sending)
+        await queue.beginExecuting(sending.id)
+        await queue.enqueue(try Self.operation(
+            .addPeopleToPhoto, localId: "photo", payload: AddPeopleToPhotoPayload(personLocalIds: ["p1"])
+        ))
+        await queue.dequeue(sending.id)
+
+        let operations = await queue.allOperations()
+        #expect(operations.map(\.type) == [.addPeopleToPhoto])
+    }
+
+    @Test("Once its send has settled, an operation merges again")
+    func mergingResumesAfterSend() async throws {
+        let (queue, _) = Self.scratchQueue()
+
+        let sending = try Self.operation(.updatePerson, localId: "A", payload: ["v": 1])
+        await queue.enqueue(sending)
+        await queue.beginExecuting(sending.id)
+        await queue.markFailed(sending.id)
+        await queue.enqueue(try Self.operation(.updatePerson, localId: "A", payload: ["v": 2]))
+
+        #expect(await queue.count() == 1)
+    }
+
     // MARK: - Creates and deletes never merge
 
     @Test("Repeated creates are never collapsed")

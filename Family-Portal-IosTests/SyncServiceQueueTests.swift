@@ -120,7 +120,7 @@ struct SyncServiceQueueTests {
         #expect(operations.allSatisfy { $0.blockedCount == 0 && $0.retryCount == 0 })
     }
 
-    @Test("A dependency satisfied during the run costs its children nothing")
+    @Test("A dependency satisfied during a sync releases its children in the same sync, at no cost")
     func dependencySatisfiedMidRunCostsNothing() async throws {
         let harness = try TestSync.harness(connected: false)
         harness.server.route("api/upload-photo", respond: .json(["image": Fixture.image(id: 77, title: "Beach")]))
@@ -137,17 +137,95 @@ struct SyncServiceQueueTests {
         await harness.service.processQueue()
 
         #expect(photo.remoteId == "77")
-        #expect(harness.server.requests(for: "rpc/UpdatePhoto").isEmpty)
+        // Sent without waiting for another trigger; the 503 is the only thing it was charged for.
+        #expect(harness.server.requests(for: "rpc/UpdatePhoto").count == 1)
 
         let operations = await harness.service.syncQueue.allOperations()
         #expect(operations.count == 1)
         #expect(operations.first?.type == .updatePhoto)
         #expect(operations.first?.blockedCount == 0)
-        #expect(operations.first?.retryCount == 0)
+        #expect(operations.first?.retryCount == 1)
+    }
 
-        // And the next run does reach it.
+    @Test("A person and their measurement added offline both arrive in one sync")
+    func offlineChainArrivesTogether() async throws {
+        let harness = try TestSync.harness(connected: false)
+        harness.server.route("rpc/AddPerson", respond: .json(["person": Fixture.person(id: 12)]))
+        harness.server.route("rpc/AddGrowthData", respond: .json([
+            "growthData": Fixture.growthData(id: 90, personId: 12)
+        ]))
+
+        let person = Person(name: "Rowan", gender: .other, birthday: Date())
+        harness.context.insert(person)
+        let measurement = GrowthData(measurementType: .height, value: 104.5, unit: .centimeters, date: Date())
+        measurement.person = person
+        harness.context.insert(measurement)
+        try harness.context.save()
+
+        try await harness.service.addPerson(person)
+        try await harness.service.addGrowthData(measurement, for: person)
+
+        harness.monitor.isConnected = true
         await harness.service.processQueue()
-        #expect(harness.server.requests(for: "rpc/UpdatePhoto").count == 1)
+
+        #expect(measurement.remoteId == "90")
+        #expect(await harness.service.syncQueue.count() == 0)
+    }
+
+    // MARK: - Copies a concurrent pull stored
+
+    @Test("A create whose record a pull already stored keeps the local record, with the copy's children")
+    func createAdoptsPulledCopy() async throws {
+        let harness = try TestSync.harness(connected: false)
+        harness.server.route("rpc/AddPerson", respond: .json(["person": Fixture.person(id: 12)]))
+
+        let person = Person(name: "Rowan", gender: .other, birthday: Date())
+        harness.context.insert(person)
+        try harness.context.save()
+        try await harness.service.addPerson(person)
+
+        // What a pull reading the server after the create landed leaves behind.
+        let copy = Person(name: "Rowan", gender: .other, birthday: Date())
+        copy.remoteId = "12"
+        harness.context.insert(copy)
+        let pulledMeasurement = GrowthData(measurementType: .height, value: 104.5, unit: .centimeters, date: Date())
+        pulledMeasurement.remoteId = "90"
+        pulledMeasurement.person = copy
+        harness.context.insert(pulledMeasurement)
+        try harness.context.save()
+
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        let people = try harness.context.fetch(FetchDescriptor<Person>())
+        #expect(people.count == 1)
+        #expect(people.first?.id == person.id)
+        #expect(person.remoteId == "12")
+        #expect(pulledMeasurement.person?.id == person.id)
+        #expect(try harness.context.fetch(FetchDescriptor<GrowthData>()).count == 1)
+    }
+
+    @Test("An upload whose photo a pull already stored leaves one photo")
+    func uploadAdoptsPulledCopy() async throws {
+        let harness = try TestSync.harness(connected: false)
+        harness.server.route("api/upload-photo", respond: .json(["image": Fixture.image(id: 77, title: "Beach")]))
+
+        let photo = Photo(title: "Beach", descriptionText: "", photoDate: Date(), imageData: Data([0xFF, 0xD8]))
+        harness.context.insert(photo)
+        try harness.context.save()
+        try await harness.service.uploadPhoto(photo)
+
+        let copy = Photo(title: "Beach", descriptionText: "", photoDate: Date())
+        copy.remoteId = "77"
+        harness.context.insert(copy)
+        try harness.context.save()
+
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        let photos = try harness.context.fetch(FetchDescriptor<Photo>())
+        #expect(photos.count == 1)
+        #expect(photos.first?.id == photo.id)
     }
 
     // MARK: - Photo upload
