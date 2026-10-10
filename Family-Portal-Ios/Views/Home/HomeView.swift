@@ -184,19 +184,23 @@ struct HomeView: View {
                                 Text("\(Copy.home.eventTiming[season.eventTiming] ?? ""): \(event.name) · \(DaySummaries.dayLabel(event.startDate.recordDayKey, today: today))")
                                     .font(.subheadline)
                             }
-                            if season.canContribute {
+                            if season.canContribute && season.canAddResults {
                                 HStack {
                                     Button(Copy.home.addPhotos) {
                                         navigator.push(.event(id: event.id, name: event.name))
                                     }
                                     .buttonStyle(.bordered)
-                                    if season.canAddResults {
-                                        Button(Copy.home.addResults) {
-                                            navigator.push(.event(id: event.id, name: event.name))
-                                        }
-                                        .buttonStyle(.borderedProminent)
+                                    Button(Copy.home.addResults) {
+                                        navigator.push(.event(id: event.id, name: event.name))
                                     }
+                                    .buttonStyle(.borderedProminent)
                                 }
+                                .font(.subheadline)
+                            } else {
+                                Button(Copy.home.viewEvent) {
+                                    navigator.push(.event(id: event.id, name: event.name))
+                                }
+                                .buttonStyle(.bordered)
                                 .font(.subheadline)
                             }
                         }

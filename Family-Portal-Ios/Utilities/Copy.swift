@@ -138,6 +138,7 @@ nonisolated enum Copy {
         static let checkupTitle = "Measured"
         static let addPhotos = "Add photos"
         static let addResults = "Add results"
+        static let viewEvent = "View event"
 
         static func turned(name: String, age: Int) -> String {
             "\(name) turned \(age)"
