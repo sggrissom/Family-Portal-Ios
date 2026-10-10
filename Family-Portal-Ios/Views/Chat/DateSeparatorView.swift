@@ -30,14 +30,9 @@ struct DateSeparatorView: View {
             return "Yesterday"
         } else if let daysAgo = calendar.dateComponents([.day], from: date, to: Date()).day,
                   daysAgo < 7 {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "EEEE"
-            return formatter.string(from: date)
+            return date.formatted(.dateTime.weekday(.wide))
         } else {
-            let formatter = DateFormatter()
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .none
-            return formatter.string(from: date)
+            return date.formatted(date: .abbreviated, time: .omitted)
         }
     }
 }

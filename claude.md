@@ -327,14 +327,14 @@ network answers.
 - `APIClientRefreshTests` is `.serialized`: token storage (keychain, shared cookie jar) is process-wide
 
 ### SyncQueue (actor)
-- Persists pending operations to UserDefaults (JSON-encoded); `defaults` is injectable so tests use a scratch suite
+- Persists pending operations as one JSON file (`SyncQueueStore`, written atomically, adopting any queue an older build left in UserDefaults); the file URL and legacy defaults are injectable so tests use scratch ones
 - Operation types live in `SyncOperationType`; the update-shaped ones (updatePerson, updateGrowthData, updateMilestone, updatePhoto, setProfilePhoto, updatePhotoTags, updateMilestoneTags) coalesce last-wins per record, the create/delete ones do not
 - Nothing merges into, or cancels against, the operation a run is sending (`beginExecuting`, cleared by `dequeue`/`markFailed`/`markBlocked`/`endExecuting`). The run dequeues it by id once the server answers, so a tag folded into it mid-flight was thrown away unsent, and an untag that cancelled an add already on the wire left the person tagged on the server
 - Dependency tracking: child operations wait for parent remoteId (e.g., addGrowthData waits for person sync)
 - Max 5 retries before discarding failed operations. `markFailed` *returns* the operation it discarded, because that is the moment a local change stops being "not synced yet" and becomes "never syncing" — `SyncService.discardedChangeWarning` reports it and Settings shows it until dismissed
 - A network error breaks the queue run rather than marking anything failed: being offline must never spend a retry
 - Blocked is tracked apart from failed. An operation waiting on something unsynced spends a `blockedCount`, never a `retryCount` — nothing was sent, so the server never said no — but 20 blocked runs discards it, because a parent whose own create was discarded is never coming. `blockedOperations` is the exact complement of `readyOperations`: an operation the dependency gate holds back never reaches `executeOperation`, so `processQueue` has to ask for it by name or nothing ever accounts for it. It re-reads the synced set first, since a parent that succeeded earlier in the same run has already unblocked its children
-- `PendingOperation` decodes by hand only so a missing `blockedCount` defaults to 0. The queue persists as one `[PendingOperation]` blob, so one operation from an older build failing to decode would take every pending change on the device with it — add new fields the same way
+- `PendingOperation.blockedCount` is `@OrZero` so operations written before it existed decode as 0. The queue persists as one `[PendingOperation]` blob, so one operation from an older build failing to decode would take every pending change on the device with it — add new fields the same way, and remove fields freely (decoding ignores extra keys: `UploadPhotoPayload` dropped its caption and date, now read from the photo when the upload runs)
 
 ### Photo gallery (`PhotoGalleryView`, `PhotoImporter`, `PhotoFilter`, `PhotoFilterView`)
 

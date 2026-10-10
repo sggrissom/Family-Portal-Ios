@@ -190,23 +190,7 @@ final class ChatService: ChatWebSocketDelegate {
         messages.append(message)
         sortMessages()
 
-        do {
-            let responseDTO = try await apiClient.sendMessage(
-                content: trimmed,
-                clientMessageId: clientMessageId
-            )
-
-            message.serverId = responseDTO.id
-            message.createdAt = responseDTO.createdAt
-            message.isSending = false
-
-            try modelContext.save()
-        } catch {
-            message.isSending = false
-            message.sendFailed = true
-            try? modelContext.save()
-            self.error = error.localizedDescription
-        }
+        await deliver(message)
     }
 
     func retrySendMessage(_ message: ChatMessage) async {
@@ -215,6 +199,11 @@ final class ChatService: ChatWebSocketDelegate {
         message.isSending = true
         message.sendFailed = false
 
+        await deliver(message)
+    }
+
+    /// Sends a message already on screen, adopting the server's id and time or marking it failed.
+    private func deliver(_ message: ChatMessage) async {
         do {
             let responseDTO = try await apiClient.sendMessage(
                 content: message.content,
