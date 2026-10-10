@@ -247,6 +247,11 @@ phone and the dashboard answer the same questions from the same graph.
 
 ### ChatService (`@Observable`, `@MainActor`)
 - `ChatWebSocketService` resets its reconnect backoff only when a frame actually arrives, not when `performConnect` returns — the handshake is still in flight then, and resetting there turned a refused handshake into a reconnect every second. A 403 or 404 handshake (the server refuses an account with no membership row for its family) is permanent: the socket goes `.failed` without retrying
+- The socket authenticates with the `authToken` cookie alone, so `ChatWebSocketService` takes an `authenticate` closure that runs before **every** connect, reconnects included: `ensureFreshAccessToken()`, or a forced `refreshAccessToken()` after a 401 handshake. Without it, a socket that dropped after the token expired retried ten times on the dead cookie and stayed `.failed`
+- A receive loop whose task is no longer `webSocketTask` exits without reconnecting: tearing a connection down fails its pending receive, and reconnecting from there tore down the connection that replaced it. The watchdog reconnects from a task of its own, since the reconnect cancels the watchdog and would cut its own backoff sleep short
+- The app retires a `ChatService` with `disconnect()` before dropping it (`retireChatService`) — on sign-out, erase and re-initialization. The receive loop keeps the socket service alive, so dropping it alone left the previous account's socket connected
+- `reconcileSent` matches a message this device sent by `clientMessageId`, from the socket echo **and** from a history page, and clears `sendFailed`: a send whose answer was lost still reached the server, and retrying it would post it twice
+- The "stopped typing" timer returns when its sleep is cancelled. Swallowing the cancellation with `try?` sent "stopped" on every keystroke that rescheduled it
 
 
 One family room, backed by three procs (`SendMessage`, `GetChatMessages`,

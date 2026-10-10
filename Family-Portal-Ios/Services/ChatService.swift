@@ -48,7 +48,14 @@ final class ChatService: ChatWebSocketDelegate {
         self.currentUserName = currentUserName
 
         let baseURL = await apiClient.getBaseURL()
-        self.webSocketService = ChatWebSocketService(baseURL: baseURL)
+        // The socket authenticates with the auth cookie, which only `APIClient` keeps fresh. Every connect — reconnects included — asks first, and a handshake the server refused forces a refresh, since the cookie may have expired inside the proactive margin.
+        self.webSocketService = ChatWebSocketService(baseURL: baseURL) { [apiClient] handshakeRefused in
+            if handshakeRefused {
+                _ = try? await apiClient.refreshAccessToken()
+            } else {
+                await apiClient.ensureFreshAccessToken()
+            }
+        }
 
         await webSocketService.setDelegate(self)
 
@@ -148,7 +155,7 @@ final class ChatService: ChatWebSocketDelegate {
 
         for dto in dtos {
             guard known.insert(dto.id).inserted else { continue }
-            if !dto.clientMessageId.isEmpty, sentClientMessageIds.contains(dto.clientMessageId) {
+            if reconcileSent(dto) {
                 continue
             }
 
@@ -265,7 +272,8 @@ final class ChatService: ChatWebSocketDelegate {
 
         typingDebounceTask?.cancel()
         typingDebounceTask = Task {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            // A cancelled sleep throws: the next keystroke rescheduled this, and sending "stopped" now would flicker the indicator off for everyone watching.
+            guard (try? await Task.sleep(for: .seconds(3))) != nil else { return }
             await webSocketService.sendTypingIndicator(isTyping: false)
         }
     }
@@ -280,13 +288,8 @@ final class ChatService: ChatWebSocketDelegate {
     // MARK: - ChatWebSocketDelegate
 
     func didReceiveMessage(_ dto: ChatMessageDTO) {
-        if !dto.clientMessageId.isEmpty, sentClientMessageIds.contains(dto.clientMessageId) {
-            if let existing = messages.first(where: { $0.clientMessageId == dto.clientMessageId }) {
-                existing.serverId = dto.id
-                existing.createdAt = dto.createdAt
-                existing.isSending = false
-                try? modelContext.save()
-            }
+        if reconcileSent(dto) {
+            try? modelContext.save()
             return
         }
 
@@ -363,6 +366,18 @@ final class ChatService: ChatWebSocketDelegate {
     }
 
     // MARK: - Helpers
+
+    /// Whether `dto` is a message this device sent, matched by its client id. The local copy takes the server's id and time, and stops reading as failed: a send whose answer was lost on a weak signal still reached the server, and retrying it would post it twice.
+    private func reconcileSent(_ dto: ChatMessageDTO) -> Bool {
+        guard !dto.clientMessageId.isEmpty, sentClientMessageIds.contains(dto.clientMessageId) else { return false }
+        if let existing = messages.first(where: { $0.clientMessageId == dto.clientMessageId }) {
+            existing.serverId = dto.id
+            existing.createdAt = dto.createdAt
+            existing.isSending = false
+            existing.sendFailed = false
+        }
+        return true
+    }
 
     private func loadLocalMessages() {
         let descriptor = FetchDescriptor<ChatMessage>(
