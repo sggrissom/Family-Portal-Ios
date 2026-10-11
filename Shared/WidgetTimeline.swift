@@ -183,16 +183,50 @@ nonisolated enum WidgetTimeline {
         return memory(snapshot, at: date, filter: MemoryFilter(content: .quotes, personId: personId), rotationHours: slotHours, calendar: calendar)
     }
 
-    /// The Family ages widget on the day `date` falls on. nil without a snapshot.
-    static func ages(_ snapshot: WidgetSnapshot?, at date: Date, personId: Int? = nil, calendar: Calendar = .current) -> FamilyAges? {
+    /// Who the Family widget is configured for: People when any are chosen, otherwise Person, otherwise everyone (empty).
+    static func familySelection(people: [Int]?, person: Int?) -> [Int] {
+        if let people, !people.isEmpty { return people }
+        return person.map { [$0] } ?? []
+    }
+
+    /// The Family widget on the day `date` falls on, for the people chosen — `personIds` in the family's own order, or everyone when it is empty. nil without a snapshot.
+    ///
+    /// A chosen person the family list cannot give an age for (no birthday in the record) is still a row, with no age, rather than silently missing.
+    static func ages(_ snapshot: WidgetSnapshot?, at date: Date, personIds: [Int] = [], calendar: Calendar = .current) -> FamilyAges? {
         guard let snapshot else { return nil }
         let day = WidgetDay.key(date, calendar: calendar)
-        let members = (snapshot.family ?? []).filter { personId == nil || $0.personId == personId }
-        let rows = members.compactMap { member in
-            member.ageByDay[day].map { FamilyAges.Row(name: member.name, age: $0) }
+        let family = snapshot.family ?? []
+        let chosen = Set(personIds)
+        let members = chosen.isEmpty ? family : family.filter { $0.personId.map(chosen.contains) == true }
+
+        var rows = members.enumerated().map { index, member in
+            FamilyAges.Row(id: member.personId.map { "person:\($0)" } ?? "row:\(index)", personId: member.personId, name: member.name, age: member.ageByDay[day])
         }
-        let birthdays = members.compactMap { $0.birthdayByDay[day] }.sorted { $0.inDays < $1.inDays }.map(\.text)
-        return FamilyAges(rows: rows, birthdays: birthdays, isStale: day > snapshot.horizon)
+        let listed = Set(members.compactMap(\.personId))
+        for id in personIds where !listed.contains(id) {
+            guard let person = snapshot.person(id), !rows.contains(where: { $0.personId == id }) else { continue }
+            rows.append(FamilyAges.Row(id: "person:\(id)", personId: id, name: person.name, age: nil))
+        }
+
+        let birthdays = members.compactMap { member in
+            member.birthdayByDay[day].map {
+                FamilyAges.Birthday(personId: member.personId, name: member.name, turning: $0.turning, inDays: $0.inDays, text: $0.text)
+            }
+        }
+        .enumerated()
+        .sorted { ($0.element.inDays, $0.offset) < ($1.element.inDays, $1.offset) }
+        .map(\.element)
+
+        let isStale = day > snapshot.horizon
+        // Past the horizon nothing is known for today; yesterday's ages must not read as current.
+        if isStale { rows = [] }
+
+        // The spotlight walks everyone with an age, one a day, so every one of them gets a turn.
+        let aged = rows.filter { $0.age != nil }
+        let dayNumber = calendar.dateComponents([.day], from: Date(timeIntervalSince1970: 0), to: calendar.startOfDay(for: date)).day ?? 0
+        let spotlight = aged.isEmpty ? nil : aged[((dayNumber % aged.count) + aged.count) % aged.count]
+
+        return FamilyAges(rows: rows, birthdays: isStale ? [] : birthdays, isStale: isStale, spotlight: spotlight)
     }
 
     private static func moment(_ snapshot: WidgetSnapshot, source: WidgetMoment.Source) -> WidgetMoment {
@@ -247,16 +281,45 @@ nonisolated struct MemoryFilter: Equatable, Sendable {
     }
 }
 
-/// What the Family ages widget shows on one day.
+/// What the Family widget shows on one day.
 nonisolated struct FamilyAges: Equatable, Sendable {
-    struct Row: Equatable, Hashable, Sendable {
+    struct Row: Equatable, Hashable, Sendable, Identifiable {
+        /// Stable across entries: the server id when there is one.
+        var id: String
+        var personId: Int?
         var name: String
-        var age: String
+        /// nil for a chosen person with no age to show.
+        var age: String?
+    }
+
+    struct Birthday: Equatable, Hashable, Sendable {
+        var personId: Int?
+        var name: String
+        /// nil from a snapshot that carried only the sentence.
+        var turning: Int?
+        var inDays: Int
+        /// "Theo turns 5 in 5 days".
+        var text: String
     }
 
     var rows: [Row]
-    /// Upcoming birthdays, soonest first.
-    var birthdays: [String]
+    /// Upcoming birthdays, soonest first; same-day ones in family order.
+    var birthdays: [Birthday]
     /// Past the horizon the app has not worked the ages out, and the rows are empty.
     var isStale: Bool
+    /// The small widget's person of the day when no birthday is near.
+    var spotlight: Row? = nil
+
+    /// Every birthday on the soonest day that has one: two people can share a day.
+    var nextBirthdays: [Birthday] {
+        guard let first = birthdays.first else { return [] }
+        return birthdays.filter { $0.inDays == first.inDays }
+    }
+
+    /// The overview's cells for a grid of `capacity`: everyone when they fit, otherwise one cell fewer and a count of everyone left out, so nobody is missing without saying so.
+    func overview(capacity: Int) -> (shown: [Row], more: Int) {
+        guard rows.count > capacity else { return (rows, 0) }
+        let shown = Array(rows.prefix(max(0, capacity - 1)))
+        return (shown, rows.count - shown.count)
+    }
 }

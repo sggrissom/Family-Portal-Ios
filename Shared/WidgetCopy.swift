@@ -13,11 +13,50 @@ nonisolated enum WidgetCopy {
     static let quoteDescription = "Something your family said, changing through the day."
     static let noQuotes = "No quotes yet"
     static let noQuotesDetail = "Quotes saved in Family Record appear here."
-    static let agesName = "Family Ages"
-    static let agesDescription = "How old everyone is, and whose birthday is coming up."
+    /// The gallery's name. The widget's kind stays `FamilyAges`, so widgets already placed survive the rename.
+    static let agesName = "Family"
+    static let agesDescription = "Everyone's ages and the next birthday. Medium shows six people at a glance; choose People to pick who."
     static let family = "Family"
+    static let familySpotlight = "Family spotlight"
+    static let birthdayLabel = "Birthday"
     static let noAges = "No birthdays yet"
     static let noAgesDetail = "Add birthdays in Family Record."
+    /// A chosen person with no birthday in the record.
+    static let noAge = "No birthday"
+
+    /// "Turns 12".
+    static func turns(_ age: Int) -> String { "Turns \(age)" }
+
+    /// "12 today!"
+    static func ageToday(_ age: Int) -> String { "\(age) today!" }
+
+    /// "Today", "Tomorrow", "In 4 days".
+    static func countdown(_ days: Int) -> String {
+        switch days {
+        case 0: "Today"
+        case 1: "Tomorrow"
+        default: "In \(days) days"
+        }
+    }
+
+    /// "+1 more birthday", "+2 more birthdays".
+    static func moreBirthdays(_ n: Int) -> String {
+        n == 1 ? "+1 more birthday" : "+\(n) more birthdays"
+    }
+
+    /// "+3 more": the people a full grid could not show.
+    static func morePeople(_ n: Int) -> String { "+\(n) more" }
+    static let openFamily = "Open family"
+
+    /// "Theo & Mia: birthdays tomorrow" — two or more birthdays on one day, in one line.
+    static func sharedBirthday(_ names: [String], inDays days: Int) -> String {
+        let when = switch days {
+        case 0: "today"
+        case 1: "tomorrow"
+        default: "in \(days) days"
+        }
+        return "\(Self.names(names)): birthdays \(when)"
+    }
 
     /// How far ahead a birthday is mentioned.
     static let birthdayLookaheadDays = 14

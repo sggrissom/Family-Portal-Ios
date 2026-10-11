@@ -62,6 +62,8 @@ nonisolated struct WidgetBirthday: Codable, Equatable, Hashable, Sendable {
     var inDays: Int
     /// "Theo turns 5 in 5 days".
     var text: String
+    /// The age the birthday brings, so a widget can lay it out rather than reading it back out of `text`. Optional: a snapshot from before it existed has only the sentence.
+    var turning: Int? = nil
 }
 
 nonisolated struct WidgetItem: Codable, Equatable, Hashable, Sendable, Identifiable {
