@@ -109,3 +109,19 @@ nonisolated struct WidgetStore: Sendable {
         return decoder
     }()
 }
+
+/// How far the Shuffle button has moved the Memory widget along its pool. In the App Group's defaults, because the button runs in the extension and the widget reads it on its next reload.
+nonisolated enum WidgetShuffle {
+
+    private static let key = "memoryShuffleOffset"
+
+    static func offset(in defaults: UserDefaults? = UserDefaults(suiteName: WidgetStore.appGroupIdentifier)) -> Int {
+        defaults?.integer(forKey: key) ?? 0
+    }
+
+    static func advance(in defaults: UserDefaults? = UserDefaults(suiteName: WidgetStore.appGroupIdentifier)) {
+        guard let defaults else { return }
+        // Wraps long before overflow; only its value modulo the pool matters.
+        defaults.set((defaults.integer(forKey: key) + 1) % 1_000_000, forKey: key)
+    }
+}

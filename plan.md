@@ -1,6 +1,6 @@
 # Widgets plan: Home Screen, Lock Screen, StandBy and CarPlay
 
-Status: Phase 0 done; Phases 1–3 implemented (`widgets/1-on-this-day`, `widgets/2-carplay-standby`, `widgets/3-deep-links`).
+Status: Phase 0 done; Phases 1–4 implemented (`widgets/1-on-this-day` … `widgets/4-memory`).
 Written: October 10, 2026, against iOS `ac6a533` and the Family Portal backend on local main.
 
 ## Goal

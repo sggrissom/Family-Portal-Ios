@@ -6,5 +6,6 @@ import WidgetKit
 struct FamilyRecordWidgetsBundle: WidgetBundle {
     var body: some Widget {
         OnThisDayWidget()
+        MemoryWidget()
     }
 }
