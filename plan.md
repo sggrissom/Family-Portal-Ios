@@ -1,4 +1,97 @@
-# Widgets plan: Home Screen, Lock Screen, StandBy and CarPlay
+# Widget redesign plan
+
+Status: proposed; documentation only. The first widget implementation is working, but the presentation and content need a second pass.
+Updated: October 11, 2026. Reviewed against iOS main `3c4c137` and the current widget layouts.
+
+This redesign is the next widget work. The original delivery plan below is retained as historical context; its catalogue and prospective implementation notes are superseded where this section differs. Keep the existing snapshot architecture, account reset behavior, filters, rotation and deep links.
+
+## What needs to change
+
+- **Large Memory wastes its canvas on text.** A short milestone appears beneath a header, a prominent shuffle button, and almost an entire empty card. `MemoryView` reuses `OnThisDayView`; `WidgetTimeline.memory` supplies one item, and `LargeMomentView` renders it as a two-line footnote followed by a spacer. Its larger text fallback runs only when there are no captions, so this ordinary text-only case never reaches it.
+- **Family Ages silently leaves people out.** `FamilyAgesView` takes the first four rows when a birthday exists (five otherwise), while only offering a small Home Screen size. A six-person family cannot fit, and the birthday sentence can truncate. This is a content/size mismatch, not a request for smaller fonts.
+- **The Quote direction is good.** One readable quote with attribution is a useful small widget. Improve its hierarchy and long-text behavior without turning it into a dashboard.
+- **Layouts must work with the actual content and appearance.** Translucent/tinted appearance needs readable hierarchy without relying on a colored background, and a photo-first layout needs an intentional text-only fallback.
+
+## Product direction and size contract
+
+Make each widget answer one question: what memory can I enjoy, what happened around this date, what did someone say, or how is my family growing? Larger sizes should offer a richer composition, not simply stretch the small card.
+
+| Widget | Small | Medium | Large | Lock Screen / StandBy / CarPlay |
+| --- | --- | --- | --- | --- |
+| Memory | One photo with a short caption, or a prominent quote/milestone | Photo and its own context side by side; text-only gets the full width | One featured memory: a dominant image with context, or an intentionally composed text card | Keep existing small-surface support; verify background removal and tinted rendering |
+| On This Day | One dated memory | Featured image/text with truthful date context | Up to four available photos with their own captions, or a text-led composition when photos are absent | Keep rectangular text presentation and small-surface support |
+| Quote | Quote first, person/date second | More room for the quote and attribution, not more unrelated records | Do not add a large size in this pass | Keep rectangular support; prioritize legibility |
+| Family Ages (gallery name: Family) | Selected person, otherwise birthday/family spotlight; never a partial roster labeled as the whole family | Family overview: two columns of three people, with a separate birthday area | More generous overview with room for additional family members and birthday context | Inline/rectangular show one person or birthday, not a chopped-off roster |
+
+Keep existing widget kind identifiers and configuration values so installed widgets survive the redesign. A gallery display-name change must not create a replacement widget kind. Existing Family Ages person selections remain selected; unfiltered small widgets adopt the explicit spotlight behavior below.
+
+## 1. Memory: let the content determine the composition
+
+- **Photo or illustrated milestone:** let the image occupy most of a large card, with a compact caption area for the person's name, the memory's title and date. Use the milestone's attached photo where available (the builder already resolves `photoRemoteIds`). Do not add an unrelated portrait as though it illustrated the event. Artwork should fit rather than crop when cropping would remove the work.
+- **Text-only milestone:** use a substantial, readable headline as the focal point, with person and date as secondary context. A short milestone belongs in the central body of the card rather than a tiny row along the top. Reserve a quiet footer for the date and shuffle. A longer description may use the body area and a clear continuation cue; tap opens the complete record.
+- **Quote:** reuse the Quote widget's typography and attribution rules at the appropriate size. Keep the quote intact when it fits; use a readable excerpt when it does not. Avoid duplicating decorative quotation marks already in the stored text.
+- **No layout padding with unrelated content.** Memory remains one memory per entry. Do not fill a large card with arbitrary other milestones, repeat the same image, or require a photo for text records to be eligible. Intentional breathing room is fine; a footnote-sized record stranded above a blank canvas is not.
+- Move shuffle into a consistently positioned, secondary footer control on medium/large, with reserved space so it cannot cover text. Retain an accessible label and adequate tap target. Hide/disable it when the filtered pool has fewer than two items. Keep the current shared-offset behavior in this pass and document that shuffle affects Memory widgets; per-instance shuffle can be separate work.
+- Missing/corrupt cached image files must choose the text composition, not an empty image rectangle. `hasImage` currently only checks for a filename; rendering must also account for load failure. An untitled photo with no usable image should use an honest unavailable/refresh state or another eligible item, not a fabricated description.
+
+## 2. On This Day: richer without misleading associations
+
+- Keep its multi-item behavior separate from Memory's single-record composition. Use a dominant image for one photo; balanced layouts for two to four. Do not reserve empty grid cells.
+- If there are no photos, feature one milestone/quote prominently and add at most two clearly separated, dated text records when there is room. With only one record, use the same intentional text composition as Memory.
+- Captions must identify the record they describe. The current medium layout can choose another text item from the day's pool, and the large layout can pull captions from other years; do not present that text as the featured photo's caption. Show another record in a distinct block with its own person/date and destination.
+- The snapshot includes a ±2-day anniversary window. Only exact-day matches should say “On this day” in the card; nearby records should say “Around this day” with the actual date. Memory fallback must say “A memory,” not imply an anniversary. Preserve the current selection window.
+- Every separately displayed record in medium/large should open its own photo or milestone using supported widget links. A one-record composition uses that record as the whole-widget destination. Keep shuffle isolated from navigation.
+
+## 3. Family: useful for six people and larger households
+
+### Overview sizes
+
+- Add `systemMedium` and `systemLarge` to the existing Family Ages widget. Medium is the recommended family-overview size in gallery copy.
+- Medium baseline: a compact “Family” heading, six readable name/age cells in two columns of three, and a dedicated birthday footer. Large uses a roomier two-column roster, targeting eight people at standard text size, plus birthday context. Optional portraits are deferred; names and ages should carry the design.
+- Offer an optional **People** selection for the overview so a household with parents, children, and linked relatives can choose the intended roster explicitly. Unset means the existing ordered family set; do not infer “children” from the youngest generation. Preserve the existing single-Person setting for compatibility and spotlight use; a nonempty People selection takes precedence, otherwise Person, otherwise the existing family set. Explain this precedence in configuration copy.
+- Use stable identity and order. Do not rotate a partial list and imply everyone is visible. If the selected set exceeds capacity, reserve a visible “+N more · Open family” indicator; capacity includes the indicator and birthday area. Count every omitted member. Larger text may reduce capacity, but omissions must remain explicit.
+- Ages should use existing app formatting (including infant and pregnancy summaries). Missing ages should be explicit when a selected person cannot supply an age, rather than silently dropping that selection. Do not show yesterday's age or birthday as current beyond the snapshot horizon.
+
+### Small and accessory sizes
+
+- A selected person gets their name and age as the focus, plus birthday context if relevant.
+- With no person selection, lead with the next birthday within the existing 14-day window. Use separate lines such as name, “Turns 12,” and “In 4 days”; on the day use “12 today!” Keep the essential age/countdown visible instead of ending at “in…”.
+- If no birthday is near, show one person's name/age, explicitly labeled “Family spotlight,” and cycle fairly through the effective people set on daily timeline entries. This is a spotlight, never a purported complete family roster. Daily rotation must reach every eligible person.
+- Handle same-day birthdays without silently favoring the first person: show two names when they fit, otherwise one plus an explicit additional-birthday count. Overview sizes show more birthday details within their reserved area.
+- Accessory sizes use concise one-person/birthday copy. Keep privacy-sensitive text handling. Preserve the dashboard destination unless a person destination is verified through the existing router.
+
+## 4. Shared visual and content rules
+
+- Use a consistent hierarchy: small context label, meaningful content as the focal point, quiet attribution/date, secondary action. Avoid repeating widget names and large decorative symbols at the expense of content.
+- Favor readable semantic text sizes and wrapping; never solve the six-person layout by shrinking every label. Long names may truncate only after allowing appropriate space; birthday age/countdown must stay understandable. Long quotes/milestones may show an excerpt and open the complete record.
+- Check full-color, tinted/accented and vibrant appearances, light/dark backgrounds, and removed widget backgrounds. Text must remain legible independently of photos or tint; use an appropriate scrim for text over photos in full color.
+- Make signed-out, empty filter, no quotes, unavailable image and stale snapshot states deliberate at every supported size. Never broaden a person/content filter merely to fill space, or substitute another account's data.
+- Gallery descriptions/previews should explain the sizes honestly and include realistic six-person, short-text and photo examples. Retain synthetic placeholders for signed-out previews.
+
+## Implementation sequence
+
+These are follow-up implementation PRs; this PR changes only this plan.
+
+- [ ] **A — Content-aware memory layouts.** Update `FamilyRecordWidgets/OnThisDayWidget.swift`, `MemoryWidget.swift`, `QuoteWidget.swift` and `WidgetComponents.swift`. Share small presentation components where useful, but separate single-memory and multi-record composition. Add missing-image handling, reserved shuffle space and truthful date captions. Reuse existing item metadata before expanding the snapshot.
+- [ ] **B — Family overview and spotlight.** Update `FamilyAgesWidget.swift`, `WidgetIntents.swift`, `Shared/WidgetTimeline.swift` and `WidgetCopy.swift`; add medium/large layouts, optional People selection, visible overflow and explicit spotlight rules. Carry stable person IDs through `FamilyAges.Row` and structured birthday metadata (person ID, turning age, days remaining) instead of parsing display strings. Adjust `WidgetSnapshot.swift` and `WidgetSnapshotBuilder.swift` only as needed; retain existing family ordering and precomputed daily ages.
+- [ ] **C — Compatibility and visual acceptance.** Add realistic previews, targeted selection/copy tests, simulator screenshots, and installed-widget upgrade checks. Verify the existing iOS 18 minimum and supported surfaces, including the original still-open CarPlay rendering check. CI must build the embedded extension and pass tests.
+
+Keep the extension offline and file-only, preserve image downsampling/budgets, snapshot atomic writes and sign-out cleanup. For new snapshot fields, use backward-compatible optional decoding/defaults where safe; bump the version only when older readers would misinterpret data. Verify behavior with old snapshots and existing saved intents. No backend change is expected for this redesign; verify existing deep-link destinations before adding new ones.
+
+## Acceptance checklist
+
+- [ ] Render a synthetic short, photo-less milestone in a large widget: the memory is the visual focus, shuffle is secondary, and there is no unused photo-grid area.
+- [ ] Memory previews cover short/long milestone, short/long quote, portrait/landscape photo, artwork, and unavailable image at each supported size.
+- [ ] Six selected people all appear simultaneously in medium Family at standard text size, with a readable birthday footer. Test the full household and linked relatives separately; selection must make the intended roster explicit.
+- [ ] Family fixtures cover 0, 1, 4, 6, 8 and 10 people, long/duplicate names, infant/pregnancy ages, missing birthday, same-day birthdays and larger text. Overflow counts are accurate and spotlight selection is fair.
+- [ ] Birthday countdown is readable and correct today/tomorrow/within the window; local midnight and expired snapshots do not leave incorrect current-day copy.
+- [ ] On This Day previews cover 0–4 photos, one text record, multiple years and nearby dates. No unrelated caption is presented as a photo's context; taps open the displayed record.
+- [ ] Check signed-out, stale, empty-filter, offline and old-snapshot cases. Existing widget kinds, person selections, rotation choices and record links survive an upgrade.
+- [ ] Capture Home Screen screenshots at small/medium/large, including a narrow iPhone layout and tinted mode; check accessory, StandBy and CarPlay presentations on supported simulators/devices. Verify VoiceOver order and shuffle labeling. Unit tests alone do not establish layout quality.
+
+---
+
+# Original delivery plan: Home Screen, Lock Screen, StandBy and CarPlay
 
 Status: Phase 0 done; Phases 1–5 implemented as stacked PRs (`widgets/1-on-this-day` … `widgets/5-quote-ages`). The CarPlay Simulator check (risk 3) is still open.
 Written: October 10, 2026, against iOS `ac6a533` and the Family Portal backend on local main.
