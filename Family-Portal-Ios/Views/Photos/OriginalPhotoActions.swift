@@ -74,7 +74,7 @@ final class OriginalPhotoActions {
             }
             do {
                 let original = try await apiClient.downloadOriginal(photoId: photoId) { fraction in
-                    Task { @MainActor [weak self] in self?.progress = fraction }
+                    Task { @MainActor in self.progress = fraction }
                 }
                 // Cancelled just as the bytes landed: nothing to show them to.
                 guard !Task.isCancelled else {

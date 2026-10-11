@@ -147,9 +147,7 @@ extension PushNotificationService: UNUserNotificationCenterDelegate {
     ) async {
         await clearBadge()
         let payload = response.notification.request.content.userInfo
-        await MainActor.run {
-            open(pushPayload: payload)
-        }
+        await open(pushPayload: payload)
     }
 
     private func open(pushPayload payload: [AnyHashable: Any]) {

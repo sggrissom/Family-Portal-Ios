@@ -16,7 +16,7 @@ struct CalendarDateRegressionTests {
         return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
     }
 
-    static let zones = ["UTC", "America/Chicago", "America/Los_Angeles", "Asia/Tokyo", "Pacific/Kiritimati"]
+    nonisolated static let zones = ["UTC", "America/Chicago", "America/Los_Angeles", "Asia/Tokyo", "Pacific/Kiritimati"]
 
     @Test("Server dates survive an unchanged activity save in every zone", arguments: zones)
     func activityRoundTrip(zone: String) {
