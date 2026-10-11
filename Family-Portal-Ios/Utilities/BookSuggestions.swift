@@ -39,7 +39,7 @@ nonisolated struct BookCategory: Hashable, Sendable, Identifiable {
     var id: String { value }
 
     static let all = [
-        BookCategory(value: "milestones", label: "Milestones"),
+        BookCategory(value: "milestones", label: "Moments"),
         BookCategory(value: "quotes", label: "Quotes"),
         BookCategory(value: "artwork", label: "Artwork"),
         BookCategory(value: "photos", label: "Photos"),

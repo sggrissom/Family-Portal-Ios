@@ -83,7 +83,7 @@ struct EditMilestoneView: View {
 
                 MilestonePhotosSection(
                     photos: photoChoices,
-                    emptyDescription: "Tag \(milestone.person?.name ?? "this person") in a photo to attach it to a milestone.",
+                    emptyDescription: "Tag \(milestone.person?.name ?? "this person") in a photo to attach it to a moment.",
                     selection: $selectedPhotoIds
                 )
             }
@@ -96,7 +96,7 @@ struct EditMilestoneView: View {
             .task(id: lookupKey) {
                 await lookUpSuggestions()
             }
-            .navigationTitle("Edit Milestone")
+            .navigationTitle("Edit Moment")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -158,7 +158,7 @@ struct EditMilestoneView: View {
                 }
                 try await syncService.updateMilestone(milestone, photos: photos)
             } catch {
-                errorPresenter.report(error, title: "Couldn't Save Milestone")
+                errorPresenter.report(error, title: "Couldn't Save Moment")
             }
         }
     }

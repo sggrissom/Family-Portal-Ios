@@ -34,7 +34,7 @@ nonisolated enum SyncOperationType: String, Codable, Sendable {
         case .createCheckup:
             return "a checkup"
         case .createMilestone, .updateMilestone, .deleteMilestone:
-            return "a milestone"
+            return "a moment"
         case .updatePhotoTags, .updateMilestoneTags:
             return "a set of tags"
         case .uploadPhoto, .updatePhoto, .deletePhoto, .addPeopleToPhoto, .removePersonFromPhoto:
