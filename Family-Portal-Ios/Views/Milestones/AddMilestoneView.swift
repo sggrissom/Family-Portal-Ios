@@ -22,7 +22,8 @@ struct AddMilestoneView: View {
     @State private var descriptionText = ""
     @State private var category: MilestoneCategory = .development
     @State private var context = ""
-    @State private var artwork: [PickedArtwork] = []
+    @State private var isReadingPhotos = false
+    @State private var newPhotos: [PickedMilestonePhoto] = []
     @State private var when = WhenEntry()
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var tagRemoteIds: [Int] = []
@@ -107,7 +108,7 @@ struct AddMilestoneView: View {
                         .id(person?.id)
                 }
 
-                MilestonePhotoSections(category: category, artwork: $artwork, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds)
+                MilestonePhotoSections(category: category, newPhotos: $newPhotos, isReadingPhotos: $isReadingPhotos, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds)
 
                 Section {
                     DisclosureGroup(Copy.milestone.more, isExpanded: $showsMore) {
@@ -146,7 +147,7 @@ struct AddMilestoneView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isSaving ? Copy.milestone.saving : Copy.milestone.save) { save() }
-                        .disabled(isSaving)
+                        .disabled(isSaving || isReadingPhotos)
                 }
             }
             // The eligible photos are the person's, so a selection made against somebody else is no longer about anything.
@@ -198,6 +199,7 @@ struct AddMilestoneView: View {
     }
 
     private func save() {
+        guard !isReadingPhotos else { return }
         guard let person else {
             error = Copy.milestone.pickPerson
             return
@@ -227,11 +229,11 @@ struct AddMilestoneView: View {
         // Resolved here rather than in the picker, so a photo untagged or deleted while the form was open drops out instead of being sent as an id the server rejects.
         let chosen = photoChoices.filter { selectedPhotoIds.contains($0.id) }
         let tags = tagRemoteIds
-        let picked = category == .artwork ? artwork : []
+        let picked = newPhotos
 
         Task {
             do {
-                let photos = chosen + (try await ArtworkPhotos.queue(
+                let photos = chosen + (try await MilestonePhotoUploads.queue(
                     picked, artist: person, context: modelContext, syncService: syncService
                 ))
                 // The tags go in the create itself, so there is no window where the milestone is on the server without them.
