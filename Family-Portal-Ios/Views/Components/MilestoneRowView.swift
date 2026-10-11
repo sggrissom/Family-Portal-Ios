@@ -42,7 +42,7 @@ struct MilestoneRowView: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens milestone details and attached photos")
+        .accessibilityHint("Opens moment details and attached photos")
         .sheet(isPresented: $showingDetail) {
             MilestoneDetailSheetView(milestone: milestone)
         }

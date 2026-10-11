@@ -114,8 +114,8 @@ struct AddMilestoneView: View {
                         NavigationLink {
                             MilestonePhotoPickerView(
                                 photos: photoChoices,
-                                emptyDescription: person.map { "Tag \($0.name) in a photo to attach it to a milestone." }
-                                    ?? "Choose who this milestone is for to see their photos.",
+                                emptyDescription: person.map { "Tag \($0.name) in a photo to attach it to a moment." }
+                                    ?? "Choose who this moment is for to see their photos.",
                                 selection: $selectedPhotoIds
                             )
                         } label: {
@@ -244,7 +244,7 @@ struct AddMilestoneView: View {
                 saved = milestone
             } catch {
                 dismiss()
-                errorPresenter.report(error, title: "Couldn't Save Milestone")
+                errorPresenter.report(error, title: "Couldn't Save Moment")
             }
         }
     }

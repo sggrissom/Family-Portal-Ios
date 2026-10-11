@@ -87,7 +87,7 @@ struct ManageTagsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { tag in
-            Text("\"\(tag.name)\" will be removed from all milestones and photos.")
+            Text("\"\(tag.name)\" will be removed from all moments and photos.")
         }
     }
 
@@ -118,7 +118,7 @@ struct ManageTagsView: View {
         } header: {
             Text("New Tag")
         } footer: {
-            Text("Tags organize your family's milestones and photos.")
+            Text("Tags organize your family's moments and photos.")
         }
     }
 

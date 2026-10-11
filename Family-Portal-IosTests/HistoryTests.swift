@@ -124,7 +124,7 @@ struct HistoryTests {
 
         #expect(view.records.milestones.map(\.id) == [family.old.id])
         #expect(view.records.photos.isEmpty)
-        #expect(Copy.history.resultsFor("bike", 1) == "1 milestone matching \"bike\"")
+        #expect(Copy.history.resultsFor("bike", 1) == "1 moment matching \"bike\"")
     }
 
     @Test("Years are listed newest first")
