@@ -1,6 +1,6 @@
 # Widgets plan: Home Screen, Lock Screen, StandBy and CarPlay
 
-Status: Phase 0 done; Phase 1 implemented (`widgets/1-on-this-day`).
+Status: Phase 0 done; Phases 1–2 implemented (`widgets/1-on-this-day`, `widgets/2-carplay-standby`).
 Written: October 10, 2026, against iOS `ac6a533` and the Family Portal backend on local main.
 
 ## Goal
@@ -147,7 +147,7 @@ Alternatively, I can attempt the `pbxproj` edit and let CI validate it, but the 
 ### Phase 2: CarPlay and StandBy polish
 
 - The accented and vibrant layouts for `systemSmall`, a `containerBackground` that can be removed, and a check in the CarPlay Simulator (Xcode → I/O → External Displays → CarPlay) and StandBy.
-- `BGAppRefreshTask` registration (Info.plist `BGTaskSchedulerPermittedIdentifiers` plus `UIBackgroundModes: fetch`), scheduled for after local midnight.
+- `BGAppRefreshTask` registration (Info.plist `BGTaskSchedulerPermittedIdentifiers` plus `UIBackgroundModes: fetch`), scheduled for after local midnight. *As built, it publishes from the store without pulling first: a background launch has no restored session, so a pull would have to restore one outside the normal sign-in path.*
 - The "stale" footnote once the snapshot's horizon has run out.
 
 ### Phase 3: deep links into the record

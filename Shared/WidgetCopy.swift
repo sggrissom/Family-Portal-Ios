@@ -9,6 +9,7 @@ nonisolated enum WidgetCopy {
     static let signedOut = "Sign in to Family Record"
     static let signedOutDetail = "Your family's memories will appear here."
     static let nothing = "Nothing here yet"
+    static let stale = "Open Family Record to refresh"
     static let nothingDetail = "Add photos and milestones in Family Record."
 
     static func yearsAgo(_ n: Int) -> String {

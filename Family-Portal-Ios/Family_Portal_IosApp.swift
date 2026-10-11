@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = PushNotificationService.shared
+        // Background task handlers have to be registered before launch finishes, like the notification delegate.
+        WidgetBackgroundRefresh.register()
         return true
     }
 
