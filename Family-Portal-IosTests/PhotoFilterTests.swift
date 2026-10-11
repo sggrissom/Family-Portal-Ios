@@ -19,7 +19,8 @@ struct PhotoFilterTests {
         people: [Person] = [],
         tagIds: [Int] = []
     ) throws -> Photo {
-        let photo = Photo(title: title, descriptionText: description, photoDate: date)
+        // `date` is when the photo was taken here; a photo date is that wall clock labelled UTC.
+        let photo = Photo(title: title, descriptionText: description, photoDate: date.localWallClock())
         photo.tagRemoteIds = tagIds
         context.insert(photo)
         photo.taggedPeople = people

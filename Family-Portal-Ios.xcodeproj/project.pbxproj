@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		3322F9AD2F2B1DB4001AEB43 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 33BC6D712F2326CF00A38756 /* GoogleSignIn */; };
 		3322F9AE2F2B1DB4001AEB43 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 33BC6D722F2326CF00A38756 /* GoogleSignInSwift */; };
+		33B45D37307BF05700436010 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 33B45D36307BF05700436010 /* WidgetKit.framework */; };
+		33B45D39307BF05700436010 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 33B45D38307BF05700436010 /* SwiftUI.framework */; };
+		33B45D46307BF05800436010 /* FamilyRecordWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 33B45D34307BF05700436010 /* FamilyRecordWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -19,14 +22,45 @@
 			remoteGlobalIDString = 33BC6D532F2326CE00A38756;
 			remoteInfo = "Family-Portal-Ios";
 		};
+		33B45D44307BF05800436010 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 33BC6D4C2F2326CE00A38756 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 33B45D33307BF05700436010;
+			remoteInfo = FamilyRecordWidgetsExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		33B45D4B307BF05800436010 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				33B45D46307BF05800436010 /* FamilyRecordWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		33AA0001AAAA0000BBBB0002 /* Family-Portal-IosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Family-Portal-IosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		33B45D34307BF05700436010 /* FamilyRecordWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FamilyRecordWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		33B45D36307BF05700436010 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		33B45D38307BF05700436010 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		33BC6D542F2326CE00A38756 /* Family Record.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Family Record.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		33B45D4A307BF05800436010 /* Exceptions for "FamilyRecordWidgets" folder in "FamilyRecordWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 33B45D33307BF05700436010 /* FamilyRecordWidgetsExtension */;
+		};
 		33BC6D732F2326CF00A38756 /* Exceptions for "Family-Portal-Ios" folder in "Family Record" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -37,9 +71,22 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		33957899307BF12F0083A28F /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		33AA0001AAAA0000BBBB0003 /* Family-Portal-IosTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "Family-Portal-IosTests";
+			sourceTree = "<group>";
+		};
+		33B45D3A307BF05700436010 /* FamilyRecordWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				33B45D4A307BF05800436010 /* Exceptions for "FamilyRecordWidgets" folder in "FamilyRecordWidgetsExtension" target */,
+			);
+			path = FamilyRecordWidgets;
 			sourceTree = "<group>";
 		};
 		33BC6D562F2326CE00A38756 /* Family-Portal-Ios */ = {
@@ -60,6 +107,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		33B45D31307BF05700436010 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				33B45D39307BF05700436010 /* SwiftUI.framework in Frameworks */,
+				33B45D37307BF05700436010 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		33BC6D512F2326CE00A38756 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -72,11 +128,23 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		33B45D35307BF05700436010 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				33B45D36307BF05700436010 /* WidgetKit.framework */,
+				33B45D38307BF05700436010 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		33BC6D4B2F2326CE00A38756 = {
 			isa = PBXGroup;
 			children = (
+				33957899307BF12F0083A28F /* Shared */,
 				33BC6D562F2326CE00A38756 /* Family-Portal-Ios */,
 				33AA0001AAAA0000BBBB0003 /* Family-Portal-IosTests */,
+				33B45D3A307BF05700436010 /* FamilyRecordWidgets */,
+				33B45D35307BF05700436010 /* Frameworks */,
 				33BC6D552F2326CE00A38756 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -86,6 +154,7 @@
 			children = (
 				33BC6D542F2326CE00A38756 /* Family Record.app */,
 				33AA0001AAAA0000BBBB0002 /* Family-Portal-IosTests.xctest */,
+				33B45D34307BF05700436010 /* FamilyRecordWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -116,6 +185,29 @@
 			productReference = 33AA0001AAAA0000BBBB0002 /* Family-Portal-IosTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		33B45D33307BF05700436010 /* FamilyRecordWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 33B45D47307BF05800436010 /* Build configuration list for PBXNativeTarget "FamilyRecordWidgetsExtension" */;
+			buildPhases = (
+				33B45D30307BF05700436010 /* Sources */,
+				33B45D31307BF05700436010 /* Frameworks */,
+				33B45D32307BF05700436010 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				33957899307BF12F0083A28F /* Shared */,
+				33B45D3A307BF05700436010 /* FamilyRecordWidgets */,
+			);
+			name = FamilyRecordWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = FamilyRecordWidgetsExtension;
+			productReference = 33B45D34307BF05700436010 /* FamilyRecordWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		33BC6D532F2326CE00A38756 /* Family Record */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 33BC6D5F2F2326CF00A38756 /* Build configuration list for PBXNativeTarget "Family Record" */;
@@ -123,12 +215,15 @@
 				33BC6D502F2326CE00A38756 /* Sources */,
 				33BC6D512F2326CE00A38756 /* Frameworks */,
 				33BC6D522F2326CE00A38756 /* Resources */,
+				33B45D4B307BF05800436010 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				33B45D45307BF05800436010 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
+				33957899307BF12F0083A28F /* Shared */,
 				33BC6D562F2326CE00A38756 /* Family-Portal-Ios */,
 			);
 			name = "Family Record";
@@ -147,12 +242,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2620;
+				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					33AA0001AAAA0000BBBB0001 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 33BC6D532F2326CE00A38756;
+					};
+					33B45D33307BF05700436010 = {
+						CreatedOnToolsVersion = 27.0;
 					};
 					33BC6D532F2326CE00A38756 = {
 						CreatedOnToolsVersion = 26.2;
@@ -178,12 +276,20 @@
 			targets = (
 				33BC6D532F2326CE00A38756 /* Family Record */,
 				33AA0001AAAA0000BBBB0001 /* Family-Portal-IosTests */,
+				33B45D33307BF05700436010 /* FamilyRecordWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		33AA0001AAAA0000BBBB0006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		33B45D32307BF05700436010 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -207,6 +313,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		33B45D30307BF05700436010 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		33BC6D502F2326CE00A38756 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -221,6 +334,11 @@
 			isa = PBXTargetDependency;
 			target = 33BC6D532F2326CE00A38756 /* Family Record */;
 			targetProxy = 33AA0001AAAA0000BBBB000B /* PBXContainerItemProxy */;
+		};
+		33B45D45307BF05800436010 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 33B45D33307BF05700436010 /* FamilyRecordWidgetsExtension */;
+			targetProxy = 33B45D44307BF05800436010 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -262,6 +380,66 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Family Record.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Family Record";
+			};
+			name = Release;
+		};
+		33B45D48307BF05800436010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FamilyRecordWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FamilyRecordWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios.FamilyRecordWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		33B45D49307BF05800436010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FamilyRecordWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FamilyRecordWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios.FamilyRecordWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -464,6 +642,15 @@
 			buildConfigurations = (
 				33AA0001AAAA0000BBBB0008 /* Debug */,
 				33AA0001AAAA0000BBBB0009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		33B45D47307BF05800436010 /* Build configuration list for PBXNativeTarget "FamilyRecordWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				33B45D48307BF05800436010 /* Debug */,
+				33B45D49307BF05800436010 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

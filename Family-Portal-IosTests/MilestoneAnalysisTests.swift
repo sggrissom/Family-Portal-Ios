@@ -86,12 +86,14 @@ struct MilestoneAnalysisTests {
         server.route("rpc/SuggestMilestonePhotos", respond: .json(["photoIds": [9, 3, 7], "ranked": true]))
         let service = AnalysisService(apiClient: server.apiClient())
 
-        let ids = await service.suggestMilestonePhotos(personId: 12, description: "First steps", date: Date())
+        // Callers pass a record date, as the forms do: a raw `Date()` names tomorrow's UTC day in a western evening.
+        let today = Date().localRecordDay()
+        let ids = await service.suggestMilestonePhotos(personId: 12, description: "First steps", date: today)
 
         #expect(ids == [9, 3, 7])
         let body = try Self.body(of: try #require(server.requests(for: "rpc/SuggestMilestonePhotos").first))
         #expect(body["inputType"] as? String == "date")
-        #expect(body["milestoneDate"] as? String == dateToAPIString(Date().localRecordDay()))
+        #expect(body["milestoneDate"] as? String == dateToAPIString(today))
         #expect(body["excludeIds"] as? [Int] == [])
     }
 
