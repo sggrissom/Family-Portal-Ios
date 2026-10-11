@@ -9,6 +9,8 @@ struct ContentView: View {
     @Environment(AppNavigator.self) private var navigator
     @Environment(AddFlow.self) private var addFlow
     @Environment(ChatService.self) private var chatService: ChatService?
+    @Environment(SyncService.self) private var syncService
+    @Environment(\.modelContext) private var modelContext
 
     @Query private var people: [Person]
 
@@ -94,6 +96,8 @@ struct ContentView: View {
         .onChange(of: deepLinkRouter.pending) { _, _ in openPendingLink() }
         // A person link names a server id; one this device has not seen yet stays pending until the sync after a cold launch brings it.
         .onChange(of: people.count) { _, _ in openPendingLink() }
+        // Likewise a milestone, which nothing above is counting.
+        .onChange(of: syncService.lastSyncDate) { _, _ in openPendingLink() }
     }
 
     /// Every link is routed here, in one place. Tab roots are selected; History, Chat and Same age open on More, where they live; Settings is pushed onto the current tab, as the account menu pushes it.
@@ -126,7 +130,37 @@ struct ContentView: View {
             guard let person = people.first(where: { $0.serverId == remoteId }) else { return }
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.person(person.id, tab: tab ?? .story)], on: .home)
+        case .photo(let remoteId):
+            _ = deepLinkRouter.claim { $0 == link }
+            // A photo can always be shown: from the store when it is here, from the server when it is not yet.
+            if let photo = fetchPhoto(remoteId: remoteId) {
+                navigator.show(PhotoRoute(id: photo.id), on: .photos)
+            } else {
+                navigator.show([.remotePhoto(id: remoteId)], on: .photos)
+            }
+        case .milestone(let remoteId):
+            guard let milestone = fetchMilestone(remoteId: remoteId) else { return }
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([.milestone(milestone.id)], on: .home)
         }
+    }
+}
+
+private extension ContentView {
+    // Fetched rather than queried: links are rare, and a `@Query` over every photo would redraw the shell on each change.
+
+    func fetchPhoto(remoteId: Int) -> Photo? {
+        let id = String(remoteId)
+        var descriptor = FetchDescriptor<Photo>(predicate: #Predicate { $0.remoteId == id })
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
+    }
+
+    func fetchMilestone(remoteId: Int) -> Milestone? {
+        let id = String(remoteId)
+        var descriptor = FetchDescriptor<Milestone>(predicate: #Predicate { $0.remoteId == id })
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
     }
 }
 

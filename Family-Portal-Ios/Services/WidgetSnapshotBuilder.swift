@@ -36,8 +36,17 @@ struct WidgetSnapshotBuilder {
     var calendar = Calendar.current
     var siteURL = AppConstants.defaultServerURL
 
-    /// The link every item opens until the app can route to the record itself.
+    /// Where an item not on the server yet opens: Home, since a link can only name a server id.
     static let homeLink = "/dashboard"
+
+    /// The record's own page, as the web names it and `DeepLink` parses it.
+    static func link(_ photo: Photo) -> String {
+        photo.serverId.map { "/view-photo/\($0)" } ?? homeLink
+    }
+
+    static func link(_ milestone: Milestone) -> String {
+        milestone.serverId.map { "/milestone/\($0)" } ?? homeLink
+    }
 
     // MARK: - Publishing
 
@@ -139,7 +148,7 @@ struct WidgetSnapshotBuilder {
                 title: photo.title,
                 personIds: photo.taggedPeople.compactMap(Self.serverId),
                 imageFile: nil,
-                link: Self.homeLink
+                link: Self.link(photo)
             )
         }
 
@@ -157,7 +166,7 @@ struct WidgetSnapshotBuilder {
                 title: milestone.displayText,
                 personIds: milestone.person.flatMap(Self.serverId).map { [$0] } ?? [],
                 imageFile: nil,
-                link: Self.homeLink
+                link: Self.link(milestone)
             )
         }
 
