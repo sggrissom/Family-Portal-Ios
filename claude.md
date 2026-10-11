@@ -25,6 +25,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── TagService.swift                            # tag vocabulary writes: online-only, never queued
 │   ├── FaceReviewService.swift, FaceReviewDTOs.swift # face review: online-only, never queued
 │   ├── BookService.swift, BookDTOs.swift           # books: reads cached like activities, writes online-only
+│   ├── WidgetSnapshotBuilder.swift, WidgetPublisher.swift  # the widgets' snapshot in the App Group
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
 │   ├── Shell/         AppNavigator (tabs, per-tab paths, AppRoute, filters),
@@ -512,6 +513,15 @@ The web's `/books`, `/book/<id>`, `/new-book` and `/edit-book/<id>`. Reached fro
 - Save sends `reviewedAt` as `GetBook`'s `now` — the server's clock, which stamped `createdAt` — and omits it on create (Go cannot parse an empty time). Every category chosen is sent as `[]`, the server's "everything"
 - Removing an item moves it to `excluded`, which a re-pick never brings back; "Keep" (`pinned`) survives re-picks. A drag reorders a chapter's items among the slots they already hold in the book's list
 - The reader is set on its own paper (`BookPalette`) in the system serif, with no editing chrome. The growth chart runs birth → one year in a first-year book and the book's own first → last day otherwise (the web clamps every book to the first year)
+
+### Widgets (`FamilyRecordWidgets/`, `Shared/`, `WidgetSnapshotBuilder`, `WidgetPublisher`)
+
+See `plan.md`. The app publishes, the extension only reads.
+
+- `Shared/` is compiled into **both** targets: the snapshot model (`WidgetSnapshot`), the App Group store (`WidgetStore`, `group.com.familyrecord.ios/Widgets/`: `snapshot.json` plus `images/<remoteId>.jpg`), the timeline logic (`WidgetTimeline`, `WidgetMoment`) and the widgets' words (`WidgetCopy`). Types there are `nonisolated` because the app defaults to main-actor isolation and the extension does not. The extension never touches the network, the keychain or SwiftData
+- `WidgetSnapshotBuilder` picks 14 days of "On this day" (`Utilities/OnThisDay.swift`, the port of `onThisDay` in `backend/dashboard.go`: 1–30 years, ±2 days, ≤8 photos a year newest first; 29 February moves to 1 March as Go's `AddDate` does) and a 40-item pool, downsamples at most 60 images to 600 px (local bytes for a pending upload, else the `medium` variant through `PhotoImageCache`), writes, prunes, and reuses any image already on disk. A photo item whose image could not be had is dropped; a milestone keeps its words
+- `WidgetPublisher` runs one build at a time (a request during a run reruns it). It publishes after every `performFullSync` (`SyncService.onFullSyncFinished`, not awaited) and on backgrounding when the snapshot is over 6 hours old. `clear()` bumps a generation so a run already downloading cannot write after it; it runs whenever `isAuthenticated` goes false and from `LocalDataReset.erase(.everything)`
+- The widget walks its timeline in 3-hour slots from local midnight: a day's pictures take turns, and a day with nothing shows a pool item chosen by slot, so a reload never reshuffles what is on screen
 
 ### Error presentation and logging
 - `ErrorPresenter` (`@Observable`, app scope, injected into the environment) plus the `.appErrorAlert()` modifier applied once at the root. Views report failures through it rather than swallowing them

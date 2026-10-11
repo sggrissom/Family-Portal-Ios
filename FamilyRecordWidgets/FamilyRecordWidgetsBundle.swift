@@ -1,17 +1,10 @@
-//
-//  FamilyRecordWidgetsBundle.swift
-//  FamilyRecordWidgets
-//
-//  Created by Grissom on 10/11/26.
-//
-
-import WidgetKit
 import SwiftUI
+import WidgetKit
 
+/// The widgets read only what the app publishes into the App Group (`WidgetStore`). See `plan.md`.
 @main
 struct FamilyRecordWidgetsBundle: WidgetBundle {
     var body: some Widget {
-        FamilyRecordWidgets()
-        FamilyRecordWidgetsControl()
+        OnThisDayWidget()
     }
 }

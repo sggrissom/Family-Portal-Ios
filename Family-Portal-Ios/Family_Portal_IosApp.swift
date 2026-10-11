@@ -83,6 +83,9 @@ struct Family_Portal_IosApp: App {
                     await setupServices()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .background {
+                        publishWidgets(onlyIfStale: true)
+                    }
                     if newPhase == .active {
                         Task {
                             await PushNotificationService.shared.clearBadge()
@@ -103,6 +106,8 @@ struct Family_Portal_IosApp: App {
                             await PushNotificationService.shared.registerForPushNotifications()
                         }
                     } else {
+                        // Logout, an expired session and a deleted account all land here: the widgets must not keep showing the family.
+                        WidgetPublisher.shared.clear()
                         retireChatService()
                         // The next account starts on Home with empty stacks, not on the last one's screens.
                         navigator = AppNavigator()
@@ -141,6 +146,10 @@ struct Family_Portal_IosApp: App {
             await PushNotificationService.shared.unregisterForPushNotifications()
         }
 
+        syncService.onFullSyncFinished = {
+            self.publishWidgets()
+        }
+
         authService.onUnownedLocalData = { scope in
             await self.eraseLocalData(scope)
         }
@@ -165,9 +174,31 @@ struct Family_Portal_IosApp: App {
             scope,
             context: container.mainContext,
             syncQueue: syncService.syncQueue,
-            photoCache: .shared
+            photoCache: .shared,
+            widgets: .shared
         )
         deepLinkRouter.clear()
+    }
+
+    /// Rebuilds the widgets' snapshot from the store, for whoever is signed in. Not awaited by the caller: downloading the images is nobody's reason to wait.
+    @MainActor
+    private func publishWidgets(onlyIfStale: Bool = false) {
+        guard let userId = authService.currentUser?.id else { return }
+        let context = container.mainContext
+        // Asked for on the way to the background, where the run would otherwise be suspended halfway through its downloads.
+        let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "widget-snapshot")
+        Task {
+            defer {
+                if backgroundTask != .invalid {
+                    UIApplication.shared.endBackgroundTask(backgroundTask)
+                }
+            }
+            if onlyIfStale {
+                await WidgetPublisher.shared.publishIfStale(context: context, ownerUserId: userId)
+            } else {
+                await WidgetPublisher.shared.publish(context: context, ownerUserId: userId)
+            }
+        }
     }
 
     /// Closes the socket before letting the service go. Dropping it alone left the connection open, still authenticated as whoever it was opened for, because the socket's receive loop keeps its owner alive.

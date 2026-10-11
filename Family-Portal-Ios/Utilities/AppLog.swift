@@ -19,4 +19,6 @@ nonisolated enum AppLog {
     static let auth = Logger(subsystem: subsystem, category: "auth")
 
     static let ui = Logger(subsystem: subsystem, category: "ui")
+
+    static let widgets = Logger(subsystem: subsystem, category: "widgets")
 }
