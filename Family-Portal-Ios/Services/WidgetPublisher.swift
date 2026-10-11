@@ -19,11 +19,15 @@ final class WidgetPublisher {
     private let reloadTimelines: () -> Void
     private let defaults: UserDefaults
 
+    /// Called after each snapshot lands — the app schedules the next background refresh from it.
+    var onPublished: (() -> Void)?
+
     private var running: Task<Void, Never>?
     private var rerunRequested = false
     private var generation = 0
 
     private static let lastPublishedKey = "com.familyrecord.widgetSnapshotPublishedAt"
+    private static let ownerKey = "com.familyrecord.widgetSnapshotOwner"
 
     init(
         makeStore: @escaping () -> WidgetStore? = { WidgetStore.shared() },
@@ -39,6 +43,11 @@ final class WidgetPublisher {
 
     var lastPublished: Date? {
         defaults.object(forKey: Self.lastPublishedKey) as? Date
+    }
+
+    /// Whose snapshot the widgets are showing, or nil once they have been cleared. A background refresh republishes only for this account: it runs with no session restored, and a widget that was signed out must stay signed out.
+    var liveOwner: Int? {
+        defaults.object(forKey: Self.ownerKey) as? Int
     }
 
     /// Rebuilds the snapshot in the background of whatever asked. Returns once this request's run — or the run that absorbed it — is done.
@@ -77,6 +86,7 @@ final class WidgetPublisher {
         rerunRequested = false
         makeStore()?.removeAll()
         defaults.removeObject(forKey: Self.lastPublishedKey)
+        defaults.removeObject(forKey: Self.ownerKey)
         reloadTimelines()
     }
 
@@ -88,7 +98,9 @@ final class WidgetPublisher {
         }
         guard snapshot != nil, generation == self.generation else { return }
         defaults.set(Date(), forKey: Self.lastPublishedKey)
+        defaults.set(ownerUserId, forKey: Self.ownerKey)
         reloadTimelines()
+        onPublished?()
         AppLog.widgets.info("Published widget snapshot")
     }
 }

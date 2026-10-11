@@ -46,6 +46,7 @@ struct OnThisDayWidget: Widget {
 struct OnThisDayView: View {
     let moment: WidgetMoment
     @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
         content
@@ -53,10 +54,10 @@ struct OnThisDayView: View {
             .containerBackground(for: .widget) { background }
     }
 
-    /// A small widget's photo is its background, so StandBy and CarPlay can take it away and leave the words.
+    /// A small widget's photo is its background, so StandBy and CarPlay can take it away and leave the words. Only in full color: tinted, a photo behind words is neither.
     @ViewBuilder
     private var background: some View {
-        if family == .systemSmall, let featured = moment.featured, featured.hasImage {
+        if family == .systemSmall, renderingMode == .fullColor, let featured = moment.featured, featured.hasImage {
             FilledImage(file: featured.imageFile)
         } else {
             Rectangle().fill(.fill.tertiary)
@@ -76,13 +77,21 @@ struct OnThisDayView: View {
                 case .accessoryRectangular:
                     AccessoryMomentView(moment: moment, item: featured)
                 case .systemMedium:
-                    MediumMomentView(moment: moment, item: featured)
+                    withFootnote { MediumMomentView(moment: moment, item: featured) }
                 case .systemLarge:
-                    LargeMomentView(moment: moment, item: featured)
+                    withFootnote { LargeMomentView(moment: moment, item: featured) }
                 default:
                     SmallMomentView(moment: moment, item: featured)
                 }
             }
+        }
+    }
+
+    /// The sizes with room to say the snapshot has run out.
+    private func withFootnote(@ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            content().frame(maxHeight: .infinity)
+            StaleFootnote(moment: moment)
         }
     }
 
@@ -116,25 +125,66 @@ private func caption(_ moment: WidgetMoment, _ item: WidgetItem) -> String {
 struct SmallMomentView: View {
     let moment: WidgetMoment
     let item: WidgetItem
+    @Environment(\.widgetRenderingMode) private var renderingMode
+    @Environment(\.showsWidgetContainerBackground) private var showsBackground
 
     var body: some View {
-        if item.hasImage {
-            VStack(alignment: .leading, spacing: 1) {
-                Spacer(minLength: 0)
-                Text(headline(moment, item))
-                    .font(.caption.weight(.semibold))
-                let names = WidgetCopy.names(moment.names(for: item))
-                if !names.isEmpty {
-                    Text(names).font(.caption2)
-                }
-            }
-            .lineLimit(1)
-            .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.7), radius: 3)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
+        if !item.hasImage {
             TextMomentView(moment: moment, item: item, lines: 4)
+        } else if renderingMode == .vibrant {
+            // StandBy at night draws in one tone: words read, a photo does not — so the day's words lead when it has any.
+            TextMomentView(moment: moment, item: moment.items.first { !$0.title.isEmpty } ?? item, lines: 4)
+        } else if renderingMode == .accented {
+            AccentedSmallView(moment: moment, item: item)
+        } else if showsBackground {
+            // The photo is the container background; the words sit on it.
+            overlay
+        } else {
+            // StandBy and CarPlay removed the background, so the photo moves into the content.
+            ZStack(alignment: .bottomLeading) {
+                FilledImage(file: item.imageFile)
+                    .clipShape(.rect(cornerRadius: 14))
+                overlay.padding(8)
+            }
         }
+    }
+
+    private var overlay: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Spacer(minLength: 0)
+            Text(headline(moment, item))
+                .font(.caption.weight(.semibold))
+            let names = WidgetCopy.names(moment.names(for: item))
+            if !names.isEmpty {
+                Text(names).font(.caption2)
+            }
+        }
+        .lineLimit(1)
+        .foregroundStyle(.white)
+        .shadow(color: .black.opacity(0.7), radius: 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Tinted, on glass — CarPlay and a tinted Home Screen. Words lead, and the photo is a desaturated strip beneath them rather than a tinted silhouette.
+struct AccentedSmallView: View {
+    let moment: WidgetMoment
+    let item: WidgetItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(headline(moment, item))
+                .font(.headline)
+                .widgetAccentable()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(WidgetCopy.names(moment.names(for: item)))
+                .font(.caption)
+                .lineLimit(1)
+            FilledImage(file: item.imageFile)
+                .clipShape(.rect(cornerRadius: 10))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }
 
@@ -144,22 +194,44 @@ struct TextMomentView: View {
     let item: WidgetItem
     var lines = 4
 
+    /// A photo with no title says who is in it instead.
+    private var words: String {
+        item.title.isEmpty ? WidgetCopy.names(moment.names(for: item)) : item.title
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(headline(moment, item), systemImage: item.kind.symbol)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.tint)
-            Text(item.title)
+                .widgetAccentable()
+            Text(words)
                 .font(item.kind == .quote ? .callout.italic() : .callout)
                 .lineLimit(lines)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
-            Text(WidgetCopy.names(moment.names(for: item)))
-                .font(.caption)
+            if !item.title.isEmpty {
+                Text(WidgetCopy.names(moment.names(for: item)))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+}
+
+/// Shown once the app has not run for longer than the snapshot looks ahead.
+struct StaleFootnote: View {
+    let moment: WidgetMoment
+
+    var body: some View {
+        if moment.isStale {
+            Label(WidgetCopy.stale, systemImage: "arrow.clockwise")
+                .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }
 

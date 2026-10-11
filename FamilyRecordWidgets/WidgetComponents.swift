@@ -8,8 +8,10 @@ struct SnapshotImage: View {
 
     var body: some View {
         if let image = Self.load(file) {
+            // Tinted rendering would otherwise draw a photo as a solid silhouette.
             Image(uiImage: image)
                 .resizable()
+                .widgetAccentedRenderingMode(.accentedDesaturated)
                 .scaledToFill()
         } else {
             Rectangle().fill(.quaternary)
