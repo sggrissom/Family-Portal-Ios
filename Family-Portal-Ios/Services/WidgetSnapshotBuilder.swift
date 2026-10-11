@@ -289,7 +289,8 @@ struct WidgetSnapshotBuilder {
                    ahead.inDays <= WidgetCopy.birthdayLookaheadDays {
                     member.birthdayByDay[day] = WidgetBirthday(
                         inDays: ahead.inDays,
-                        text: WidgetCopy.birthday(name, turning: ahead.turning, inDays: ahead.inDays)
+                        text: WidgetCopy.birthday(name, turning: ahead.turning, inDays: ahead.inDays),
+                        turning: ahead.turning
                     )
                 }
             }

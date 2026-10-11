@@ -5,6 +5,7 @@ nonisolated enum WidgetCopy {
     static let onThisDayName = "On This Day"
     static let onThisDayDescription = "A photo or milestone from this day in an earlier year."
     static let onThisDay = "On this day"
+    static let aroundThisDay = "Around this day"
     static let memoryName = "Memory"
     static let memoryDescription = "A photo, milestone or quote from your family's record, changing through the day."
     static let shuffle = "Shuffle"
@@ -12,11 +13,50 @@ nonisolated enum WidgetCopy {
     static let quoteDescription = "Something your family said, changing through the day."
     static let noQuotes = "No quotes yet"
     static let noQuotesDetail = "Quotes saved in Family Record appear here."
-    static let agesName = "Family Ages"
-    static let agesDescription = "How old everyone is, and whose birthday is coming up."
+    /// The gallery's name. The widget's kind stays `FamilyAges`, so widgets already placed survive the rename.
+    static let agesName = "Family"
+    static let agesDescription = "Everyone's ages and the next birthday. Medium shows six people at a glance; choose People to pick who."
     static let family = "Family"
+    static let familySpotlight = "Family spotlight"
+    static let birthdayLabel = "Birthday"
     static let noAges = "No birthdays yet"
     static let noAgesDetail = "Add birthdays in Family Record."
+    /// A chosen person with no birthday in the record.
+    static let noAge = "No birthday"
+
+    /// "Turns 12".
+    static func turns(_ age: Int) -> String { "Turns \(age)" }
+
+    /// "12 today!"
+    static func ageToday(_ age: Int) -> String { "\(age) today!" }
+
+    /// "Today", "Tomorrow", "In 4 days".
+    static func countdown(_ days: Int) -> String {
+        switch days {
+        case 0: "Today"
+        case 1: "Tomorrow"
+        default: "In \(days) days"
+        }
+    }
+
+    /// "+1 more birthday", "+2 more birthdays".
+    static func moreBirthdays(_ n: Int) -> String {
+        n == 1 ? "+1 more birthday" : "+\(n) more birthdays"
+    }
+
+    /// "+3 more": the people a full grid could not show.
+    static func morePeople(_ n: Int) -> String { "+\(n) more" }
+    static let openFamily = "Open family"
+
+    /// "Theo & Mia: birthdays tomorrow" — two or more birthdays on one day, in one line.
+    static func sharedBirthday(_ names: [String], inDays days: Int) -> String {
+        let when = switch days {
+        case 0: "today"
+        case 1: "tomorrow"
+        default: "in \(days) days"
+        }
+        return "\(Self.names(names)): birthdays \(when)"
+    }
 
     /// How far ahead a birthday is mentioned.
     static let birthdayLookaheadDays = 14
@@ -53,9 +93,27 @@ nonisolated enum WidgetCopy {
         }
     }
 
-    /// The line that dates an item: "3 years ago" on this day, or the year it happened for a memory.
-    static func when(_ item: WidgetItem) -> String {
-        if let years = item.yearsAgo { return yearsAgo(years) }
-        return String(item.date.prefix(4))
+    /// "Oct 13, 2023" for a `YYYY-MM-DD` day. The day is a calendar day, not an instant, so it is formatted in UTC where it was built.
+    static func date(_ day: String, locale: Locale = .current) -> String {
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        guard parts.count == 3,
+              let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        else { return day }
+        var style = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: locale, calendar: calendar)
+        style.timeZone = .gmt
+        return date.formatted(style)
+    }
+
+    /// "Clara · Oct 13, 2023": who and when, either of which may be missing.
+    static func attribution(_ names: [String], _ when: String) -> String {
+        [Self.names(names), when].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// Whether stored words already carry their own quotation marks (`Quotes.display` adds them), so a widget does not add a decorative pair.
+    static func isQuoted(_ text: String) -> Bool {
+        guard let first = text.first else { return false }
+        return "\"“„«‘'".contains(first)
     }
 }

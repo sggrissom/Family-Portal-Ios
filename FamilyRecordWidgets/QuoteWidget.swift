@@ -75,6 +75,7 @@ struct QuoteView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(quote.title)
                     .font(.headline)
+                    .italic()
                     .lineLimit(2)
                     .privacySensitive()
                 Text(who)
@@ -83,19 +84,20 @@ struct QuoteView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
+            // The quote is the focus; who said it, and when, sit quietly beneath. Stored quotes carry their own marks, so the glyph is only for one that does not.
             VStack(alignment: .leading, spacing: 6) {
-                Image(systemName: "quote.opening")
-                    .font(.title3)
-                    .foregroundStyle(.tint)
-                    .widgetAccentable()
-                Text(quote.title)
-                    .font(family == .systemSmall ? .callout.italic() : .title3.italic())
-                    .lineLimit(family == .systemSmall ? 5 : 4)
-                    .minimumScaleFactor(0.7)
+                if !WidgetCopy.isQuoted(quote.title) {
+                    Image(systemName: "quote.opening")
+                        .font(.title3)
+                        .foregroundStyle(.tint)
+                        .widgetAccentable()
+                }
+                FeatureText(text: quote.title, kind: .quote, room: family == .systemSmall ? .small : .medium)
                 Spacer(minLength: 0)
                 Text(who)
-                    .font(.caption)
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .widgetAccentable()
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)

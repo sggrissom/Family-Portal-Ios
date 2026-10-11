@@ -559,11 +559,83 @@ struct WidgetTimelineTests {
         #expect(WidgetTimeline.onThisDay(Self.snapshot(), at: Date()).source == .nothing)
     }
 
-    @Test("The large widget's mosaic is the featured item's year")
-    func featuredYear() {
-        let moment = WidgetMoment(source: .onThisDay, items: [
-            Self.item("a", image: true, years: 2), Self.item("b", image: true, years: 1), Self.item("c", image: true, years: 2),
-        ])
-        #expect(moment.featuredYear.map(\.id) == ["a", "c"])
+    @Test("Only the anniversary itself says On this day; nearby days name their date; memories make no claim")
+    func dating() {
+        let snapshot = Self.snapshot(onThisDay: ["2026-10-11": [
+            WidgetItem(id: "exact", kind: .milestone, date: "2023-10-11", yearsAgo: 3, title: "x", personIds: [7], link: "/"),
+            WidgetItem(id: "near", kind: .milestone, date: "2024-10-13", yearsAgo: 2, title: "y", personIds: [7], link: "/"),
+        ]])
+        let moment = WidgetTimeline.onThisDay(snapshot, at: Self.at("2026-10-11", hour: 8), calendar: Self.utc)
+        #expect(moment.day == "2026-10-11")
+        #expect(moment.dating(moment.items[0]) == .anniversary(yearsAgo: 3))
+        #expect(moment.dating(moment.items[1]) == .nearby("2024-10-13"))
+        #expect(moment.dating(moment.items[1]).label == WidgetCopy.aroundThisDay)
+
+        let memory = WidgetMoment(source: .memory, items: [Self.item("m", image: false, years: nil)], day: "2026-10-11")
+        #expect(memory.dating(memory.items[0]) == .memory("2025-10-11"))
+        #expect(memory.dating(memory.items[0]).label == WidgetCopy.memory)
+        #expect(memory.dating(memory.items[0]).compact == "A memory · 2025")
+    }
+
+    @Test("A 29 February record has its anniversary on 1 March in a common year", arguments: [
+        ("2024-02-29", "2027-03-01", true),
+        ("2024-02-29", "2027-02-28", false),
+        ("2024-02-29", "2028-02-29", true),
+        ("2024-02-29", "2028-03-01", false),
+        ("2023-10-11", "2026-10-11", true),
+        ("2023-10-11", "2026-10-12", false),
+    ])
+    func anniversary(record: String, day: String, expected: Bool) {
+        #expect(WidgetDay.isAnniversary(of: record, on: day) == expected)
+    }
+
+    @Test("A record's date reads as a calendar day, whatever the time zone")
+    func formattedDate() {
+        #expect(WidgetCopy.date("2024-10-13", locale: Locale(identifier: "en_US")) == "Oct 13, 2024")
+        #expect(WidgetCopy.attribution(["Clara"], "3 years ago") == "Clara · 3 years ago")
+        #expect(WidgetCopy.attribution([], "3 years ago") == "3 years ago")
+    }
+
+    @Test("Stored quotation marks are recognised, so no decorative pair is added")
+    func quoted() {
+        #expect(WidgetCopy.isQuoted("“Bye bye moon”"))
+        #expect(!WidgetCopy.isQuoted("Bye bye moon"))
+        #expect(!WidgetCopy.isQuoted(""))
+    }
+
+    @Test("A photo whose image cannot be drawn is left out; a milestone keeps its words")
+    func missingImages() {
+        let day = [
+            Self.item("gone", image: true),
+            WidgetItem(id: "art", kind: .artwork, date: "2025-10-11", yearsAgo: 1, title: "Drawing", personIds: [7], imageFile: "art.jpg", link: "/"),
+            Self.item("ok", image: true),
+        ]
+        let snapshot = Self.snapshot(onThisDay: ["2026-10-11": day])
+        let available: (String) -> Bool = { $0 == "ok.jpg" }
+        let moment = WidgetTimeline.onThisDay(snapshot, at: Self.at("2026-10-11", hour: 1), calendar: Self.utc, imageAvailable: available)
+        #expect(moment.items.map(\.id) == ["ok", "art"])
+        #expect(moment.items.first { $0.id == "art" }?.hasImage == false)
+        #expect(moment.pictures.map(\.id) == ["ok"])
+        #expect(moment.textRecords.map(\.id) == ["art"])
+
+        // Nothing drawable that day: the pool's untitled photo is not chosen either.
+        let fallback = Self.snapshot(onThisDay: ["2026-10-11": [Self.item("gone", image: true)]],
+                                     pool: [Self.item("gone2", image: true, years: nil), Self.item("words", image: false, years: nil, title: "Words")])
+        let memory = WidgetTimeline.onThisDay(fallback, at: Self.at("2026-10-11", hour: 1), calendar: Self.utc, imageAvailable: { _ in false })
+        #expect(memory.source == .memory)
+        #expect(memory.featured?.id == "words")
+    }
+
+    @Test("Shuffle is offered only when the usable pool has somewhere to go")
+    func shuffleNeedsTwo() {
+        let pool = [Self.item("a", image: true, years: nil), Self.item("b", image: true, years: nil)]
+        let snapshot = Self.snapshot(pool: pool)
+        let both = WidgetTimeline.memory(snapshot, at: Date(), filter: MemoryFilter(), rotationHours: 6)
+        #expect(both.poolSize == 2)
+        #expect(both.canShuffle)
+        let one = WidgetTimeline.memory(snapshot, at: Date(), filter: MemoryFilter(), rotationHours: 6, imageAvailable: { $0 == "a.jpg" })
+        #expect(one.poolSize == 1)
+        #expect(one.featured?.id == "a")
+        #expect(!one.canShuffle)
     }
 }
