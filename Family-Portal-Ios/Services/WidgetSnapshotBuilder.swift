@@ -37,6 +37,10 @@ struct WidgetSnapshotBuilder {
     /// Per year of a day's "On this day", so thirty years of photos cannot crowd out each other's days.
     var photosPerYear = 4
     var milestonesPerYear = 3
+    /// The most quotes the Quote widget carries; text only, so cheap.
+    var quoteLimit = 300
+    /// The account's own household, listed first on the Family ages widget as on the Home strip.
+    var ownFamilyId: Int?
     var calendar = Calendar.current
     var siteURL = AppConstants.defaultServerURL
 
@@ -248,6 +252,8 @@ struct WidgetSnapshotBuilder {
             .compactMap { person in Self.serverId(person).map { WidgetPerson(id: $0, name: person.name.firstName) } }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
 
+        let quotes = worded.filter { $0.category == .quote }.prefix(quoteLimit).map { item($0, yearsAgo: nil) }
+
         let snapshot = WidgetSnapshot(
             generatedAt: now,
             ownerUserId: ownerUserId,
@@ -255,10 +261,67 @@ struct WidgetSnapshotBuilder {
             people: widgetPeople,
             onThisDay: onThisDay,
             horizon: dayKeys.last ?? WidgetDay.key(now, calendar: calendar),
-            pool: pool
+            pool: pool,
+            quotes: quotes,
+            family: family(people, days: dayKeys)
         )
         return Plan(snapshot: snapshot, imageRequests: requests)
     }
+
+    // MARK: - Family ages
+
+    /// The Home strip's people — pregnancies first, then `FamilyGroups.chipOrder` — with each day's age and any birthday ahead. Worked out here because the widget has neither `FamilyStrip` nor the birthdays to run it on.
+    func family(_ people: [Person], days: [String]) -> [WidgetFamilyMember] {
+        let relations = ((try? context.fetch(FetchDescriptor<PersonRelation>())) ?? []).map(\.edge)
+        let ordered = people.filter(\.isPregnancy) + FamilyGroups.chipOrder(people: people, relations: relations, ownFamilyId: ownFamilyId)
+        let names = FamilyGroups.chipLabels(ordered)
+
+        return ordered.compactMap { person in
+            guard let birthday = person.birthday?.recordDate else { return nil }
+            let name = names[person.id] ?? person.name.firstName
+            var member = WidgetFamilyMember(personId: Self.serverId(person), name: name, ageByDay: [:])
+            for day in days {
+                guard let today = Self.recordDate(day) else { continue }
+                member.ageByDay[day] = person.isPregnancy
+                    ? FamilyStrip.dueSummary(dueDate: birthday, today: today)
+                    : FamilyStrip.compactAge(birthday: birthday, today: today)
+                if !person.isPregnancy, let ahead = Self.nextBirthday(birthday, from: today),
+                   ahead.inDays <= WidgetCopy.birthdayLookaheadDays {
+                    member.birthdayByDay[day] = WidgetBirthday(
+                        inDays: ahead.inDays,
+                        text: WidgetCopy.birthday(name, turning: ahead.turning, inDays: ahead.inDays)
+                    )
+                }
+            }
+            return member.ageByDay.values.allSatisfy(\.isEmpty) ? nil : member
+        }
+    }
+
+    /// Days from `today` to the next birthday, and the age it brings. A 29 February birthday falls on 1 March in a common year, as the server's ages do. Both are record dates.
+    static func nextBirthday(_ birthday: Date, from today: Date) -> (inDays: Int, turning: Int)? {
+        let born = birthday.recordDay, now = today.recordDay
+        guard let bornYear = born.year, let year = now.year, birthday <= today else { return nil }
+        for candidateYear in [year, year + 1] {
+            guard let date = utc.date(from: DateComponents(year: candidateYear, month: born.month, day: born.day)),
+                  date >= today,
+                  let days = utc.dateComponents([.day], from: today, to: date).day
+            else { continue }
+            return (days, candidateYear - bornYear)
+        }
+        return nil
+    }
+
+    private static func recordDate(_ day: String) -> Date? {
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return utc.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+    }
+
+    private static let utc: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        return calendar
+    }()
 
     // MARK: - Helpers
 

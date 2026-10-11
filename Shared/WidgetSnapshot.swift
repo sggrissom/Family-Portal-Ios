@@ -21,6 +21,10 @@ nonisolated struct WidgetSnapshot: Codable, Equatable, Sendable {
     var horizon: String
     /// Memories for when a day has nothing on this day, in a fixed order the widget walks by time slot so a reload never reshuffles what is on screen.
     var pool: [WidgetItem]
+    /// Every quote, for the Quote widget — words cost nothing to carry, so it is not limited to the pool's share. Optional so a snapshot from before it existed still reads.
+    var quotes: [WidgetItem]? = nil
+    /// The Home strip's people with their ages worked out for each day of the horizon, for the Family ages widget.
+    var family: [WidgetFamilyMember]? = nil
 
     func person(_ id: Int) -> WidgetPerson? {
         people.first { $0.id == id }
@@ -41,6 +45,23 @@ nonisolated struct WidgetPerson: Codable, Equatable, Hashable, Sendable, Identif
     var id: Int
     /// First name only: a widget is small, and this is what a caption reads.
     var name: String
+}
+
+/// One person on the Family ages widget. Ages are computed by the app for each day ahead, so the widget only looks one up.
+nonisolated struct WidgetFamilyMember: Codable, Equatable, Hashable, Sendable {
+    /// The server id when there is one: what the widget's person filter matches.
+    var personId: Int?
+    var name: String
+    /// Local day → "3y 4m", or for a pregnancy "Due in 5w 2d".
+    var ageByDay: [String: String]
+    /// Local day → the birthday ahead, only on the days leading up to one.
+    var birthdayByDay: [String: WidgetBirthday] = [:]
+}
+
+nonisolated struct WidgetBirthday: Codable, Equatable, Hashable, Sendable {
+    var inDays: Int
+    /// "Theo turns 5 in 5 days".
+    var text: String
 }
 
 nonisolated struct WidgetItem: Codable, Equatable, Hashable, Sendable, Identifiable {

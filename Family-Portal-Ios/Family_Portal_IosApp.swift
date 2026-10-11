@@ -186,6 +186,7 @@ struct Family_Portal_IosApp: App {
     @MainActor
     private func publishWidgets(onlyIfStale: Bool = false) {
         guard let userId = authService.currentUser?.id else { return }
+        WidgetPublisher.shared.ownFamilyId = authService.currentUser?.familyId
         let context = container.mainContext
         // Asked for on the way to the background, where the run would otherwise be suspended halfway through its downloads.
         let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "widget-snapshot")
