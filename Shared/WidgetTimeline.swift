@@ -21,8 +21,26 @@ nonisolated struct WidgetMoment: Equatable, Sendable {
     var isStale = false
     var names: [Int: String] = [:]
     var siteURL: String = ""
+    /// The local day (`YYYY-MM-DD`) the entry is shown on, which decides whether an on-this-day item is the anniversary itself or only near it.
+    var day: String = ""
+    /// How many items the configured pool offers once unusable photos are left out. Shuffle is only offered when there is somewhere to shuffle to.
+    var poolSize = 0
 
     var featured: WidgetItem? { items.first }
+
+    var canShuffle: Bool { poolSize > 1 }
+
+    /// The items with a picture, featured first.
+    var pictures: [WidgetItem] { items.filter(\.hasImage) }
+
+    /// The items that are only words, each a record of its own.
+    var textRecords: [WidgetItem] { items.filter { !$0.hasImage && !$0.title.isEmpty } }
+
+    /// How an item is dated here: the anniversary itself, a day near it, or a memory with no claim to the day.
+    func dating(_ item: WidgetItem) -> WidgetDating {
+        guard source == .onThisDay, let years = item.yearsAgo else { return .memory(item.date) }
+        return WidgetDay.isAnniversary(of: item.date, on: day) ? .anniversary(yearsAgo: years) : .nearby(item.date)
+    }
 
     func names(for item: WidgetItem) -> [String] {
         item.personIds.compactMap { names[$0] }
@@ -33,13 +51,42 @@ nonisolated struct WidgetMoment: Equatable, Sendable {
         return URL(string: siteURL + item.link)
     }
 
-    /// The featured item's year, and the other pictures from it — the large widget's mosaic.
-    var featuredYear: [WidgetItem] {
-        guard let featured, let years = featured.yearsAgo else { return featured.map { [$0] } ?? [] }
-        return items.filter { $0.yearsAgo == years }
+    static let signedOut = WidgetMoment(source: .signedOut)
+}
+
+/// What a widget may say about when an item happened. Only an exact anniversary says "On this day": the snapshot's window takes the two days either side too.
+nonisolated enum WidgetDating: Equatable, Sendable {
+    case anniversary(yearsAgo: Int)
+    /// From the ±2 day window, so it names its own day.
+    case nearby(String)
+    /// A memory from the pool, dated by its own day.
+    case memory(String)
+
+    /// The small context line: "On this day", "Around this day", "A memory".
+    var label: String {
+        switch self {
+        case .anniversary: WidgetCopy.onThisDay
+        case .nearby: WidgetCopy.aroundThisDay
+        case .memory: WidgetCopy.memory
+        }
     }
 
-    static let signedOut = WidgetMoment(source: .signedOut)
+    /// "3 years ago", or the record's own date.
+    var when: String {
+        switch self {
+        case .anniversary(let years): WidgetCopy.yearsAgo(years)
+        case .nearby(let day), .memory(let day): WidgetCopy.date(day)
+        }
+    }
+
+    /// One line for the smallest places: "3 years ago", "Oct 13, 2023", "A memory · 2021".
+    var compact: String {
+        switch self {
+        case .anniversary(let years): WidgetCopy.yearsAgo(years)
+        case .nearby(let day): WidgetCopy.date(day)
+        case .memory(let day): "\(WidgetCopy.memory) · \(day.prefix(4))"
+        }
+    }
 }
 
 nonisolated enum WidgetTimeline {
@@ -71,21 +118,30 @@ nonisolated enum WidgetTimeline {
     }
 
     /// "On this day" for `date`, or a memory when the day has none. `personId` keeps only what that person is in.
-    static func onThisDay(_ snapshot: WidgetSnapshot?, at date: Date, personId: Int? = nil, calendar: Calendar = .current) -> WidgetMoment {
+    ///
+    /// `imageAvailable` says whether a named image file can actually be drawn. A photo whose file is gone has nothing to show and is left out; a milestone loses only its picture.
+    static func onThisDay(
+        _ snapshot: WidgetSnapshot?,
+        at date: Date,
+        personId: Int? = nil,
+        calendar: Calendar = .current,
+        imageAvailable: (String) -> Bool = { _ in true }
+    ) -> WidgetMoment {
         guard let snapshot else { return .signedOut }
         let day = WidgetDay.key(date, calendar: calendar)
         let slot = slot(of: date, calendar: calendar)
         var moment = moment(snapshot, source: .onThisDay)
+        moment.day = day
         moment.isStale = day > snapshot.horizon
         let filter = MemoryFilter(content: .everything, personId: personId)
 
-        let items = (snapshot.onThisDay[day] ?? []).filter(filter.admits)
+        let items = usable((snapshot.onThisDay[day] ?? []).filter(filter.admits), imageAvailable)
         if !items.isEmpty {
             moment.items = featuring(items, slot: slot.inDay)
             return moment
         }
 
-        let pool = snapshot.pool.filter(filter.admits)
+        let pool = usable(snapshot.pool.filter(filter.admits), imageAvailable)
         guard !pool.isEmpty else {
             moment.source = .nothing
             return moment
@@ -102,11 +158,14 @@ nonisolated enum WidgetTimeline {
         filter: MemoryFilter,
         rotationHours: Int,
         shuffle: Int = 0,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        imageAvailable: (String) -> Bool = { _ in true }
     ) -> WidgetMoment {
         guard let snapshot else { return .signedOut }
         var moment = moment(snapshot, source: .memory)
-        let pool = snapshot.pool.filter(filter.admits)
+        moment.day = WidgetDay.key(date, calendar: calendar)
+        let pool = usable(snapshot.pool.filter(filter.admits), imageAvailable)
+        moment.poolSize = pool.count
         guard !pool.isEmpty else {
             moment.source = .nothing
             return moment
@@ -142,6 +201,17 @@ nonisolated enum WidgetTimeline {
             names: Dictionary(snapshot.people.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first }),
             siteURL: snapshot.siteURL
         )
+    }
+
+    /// Items whose pictures can be drawn, or which have words to stand in for a missing one. A photo is only its picture, so without it the item goes rather than showing an empty frame or a made-up caption.
+    static func usable(_ items: [WidgetItem], _ imageAvailable: (String) -> Bool) -> [WidgetItem] {
+        items.compactMap { item in
+            guard let file = item.imageFile, !imageAvailable(file) else { return item }
+            guard item.kind != .photo else { return nil }
+            var item = item
+            item.imageFile = nil
+            return item
+        }
     }
 
     /// The day's items with the featured one first. Pictures take turns by slot; a day with none features its first milestone.

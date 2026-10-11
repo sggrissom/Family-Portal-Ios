@@ -100,6 +100,21 @@ nonisolated enum WidgetDay {
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 
+    /// Whether a record from `recordDay` has its anniversary on `day`, both `YYYY-MM-DD`. A 29 February record's anniversary is 1 March in a common year, as the server's `AddDate` makes it.
+    static func isAnniversary(of recordDay: String, on day: String) -> Bool {
+        let record = recordDay.split(separator: "-").compactMap { Int($0) }
+        let shown = day.split(separator: "-").compactMap { Int($0) }
+        guard record.count == 3, shown.count == 3 else { return false }
+        var month = record[1], dayOfMonth = record[2]
+        let year = shown[0]
+        let isLeap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+        if month == 2, dayOfMonth == 29, !isLeap {
+            month = 3
+            dayOfMonth = 1
+        }
+        return month == shown[1] && dayOfMonth == shown[2]
+    }
+
     /// Local midnight of the day after `date`.
     static func nextMidnight(after date: Date, calendar: Calendar = .current) -> Date {
         let start = calendar.startOfDay(for: date)

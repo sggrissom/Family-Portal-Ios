@@ -5,6 +5,7 @@ nonisolated enum WidgetCopy {
     static let onThisDayName = "On This Day"
     static let onThisDayDescription = "A photo or milestone from this day in an earlier year."
     static let onThisDay = "On this day"
+    static let aroundThisDay = "Around this day"
     static let memoryName = "Memory"
     static let memoryDescription = "A photo, milestone or quote from your family's record, changing through the day."
     static let shuffle = "Shuffle"
@@ -53,9 +54,27 @@ nonisolated enum WidgetCopy {
         }
     }
 
-    /// The line that dates an item: "3 years ago" on this day, or the year it happened for a memory.
-    static func when(_ item: WidgetItem) -> String {
-        if let years = item.yearsAgo { return yearsAgo(years) }
-        return String(item.date.prefix(4))
+    /// "Oct 13, 2023" for a `YYYY-MM-DD` day. The day is a calendar day, not an instant, so it is formatted in UTC where it was built.
+    static func date(_ day: String, locale: Locale = .current) -> String {
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        guard parts.count == 3,
+              let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        else { return day }
+        var style = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: locale, calendar: calendar)
+        style.timeZone = .gmt
+        return date.formatted(style)
+    }
+
+    /// "Clara · Oct 13, 2023": who and when, either of which may be missing.
+    static func attribution(_ names: [String], _ when: String) -> String {
+        [Self.names(names), when].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// Whether stored words already carry their own quotation marks (`Quotes.display` adds them), so a widget does not add a decorative pair.
+    static func isQuoted(_ text: String) -> Bool {
+        guard let first = text.first else { return false }
+        return "\"“„«‘'".contains(first)
     }
 }
