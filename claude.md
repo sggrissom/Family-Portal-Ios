@@ -48,7 +48,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  MeasurementDetailView, EditMeasurementView
 │   ├── Milestones/    AddMilestoneView, MilestoneDetailView,
 │   │                  EditMilestoneView, MilestonePhotoPickerView,
-│   │                  ArtworkPhotosSection
+│   │                  MilestonePhotoUploadSection
 │   ├── Activities/    ActivitiesRootView, SeasonView, CompetitionView, …
 │   ├── Books/         BooksView (shelf), BookReaderView, BookBlocks,
 │   │                  NewBookView, BookEditorView
@@ -443,9 +443,10 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   tags included) come before its context
 - **Milestone:** chips, "What happened?", category chips, When, and an "Add
   photos / tags" disclosure. Save shows the milestone in the same sheet.
-  Artwork adds "Photos of it" (`ArtworkPhotosSection`): picks stay in the form
-  until Save, then become photos tagged to the artist, queued ahead of the
-  milestone that attaches them
+  Every category offers "Add New Photos" (`MilestonePhotoUploadSection`), with
+  "Photos of it" wording for artwork. Picks stay in the form until Save, then
+  become photos tagged to the selected person, queued ahead of the milestone
+  that attaches them. Save waits for picked images to finish loading
 - **Photos upload first.** The pick goes straight to `PhotoImporter`; the batch
   form (`PhotoBatchFormView`) opens over the import with Who's in these?, Caption
   and Tags for the whole batch and each photo's date and status.

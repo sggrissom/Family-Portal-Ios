@@ -27,28 +27,29 @@ struct ArtworkTests {
         #expect(MilestoneCategory.first.entryPrompt.label == Copy.milestone.whatHappened)
     }
 
-    @Test("A photo of the piece is tagged to the artist and uploads before the milestone that attaches it")
-    func photoUploadsAheadOfMilestone() async throws {
+    @Test("New photos are tagged and upload before milestones in every category", arguments: MilestoneCategory.allCases)
+    func photoUploadsAheadOfMilestone(category: MilestoneCategory) async throws {
         let harness = try TestSync.harness(connected: false)
         let artist = Person(name: "Rowan", gender: .other, birthday: Date())
         artist.remoteId = "12"
         harness.context.insert(artist)
-        let milestone = Milestone(descriptionText: "Drew the whole family as dinosaurs", category: .artwork, date: Date())
+        let milestone = Milestone(descriptionText: "Drew the whole family as dinosaurs", category: category, date: Date())
         milestone.person = artist
         harness.context.insert(milestone)
         try harness.context.save()
         harness.server.route("api/upload-photo", respond: .json(["image": Fixture.image(id: 77, title: "")]))
         harness.server.route("rpc/AddMilestone", respond: .json([
             "milestone": Fixture.milestone(id: 41, personId: 12, description: "Drew the whole family as dinosaurs",
-                                           category: "artwork", photoIds: [77])
+                                           category: category.rawValue, photoIds: [77])
         ]))
 
-        let photos = try await ArtworkPhotos.queue(
-            [PickedArtwork(data: Data([0xFF, 0xD8]), captureDate: nil)],
+        let photos = try await MilestonePhotoUploads.queue(
+            [PickedMilestonePhoto(data: Data([0xFF, 0xD8]), captureDate: Date(timeIntervalSince1970: 1_700_000_000))],
             artist: artist, context: harness.context, syncService: harness.service
         )
         try await harness.service.addMilestone(milestone, for: artist, photos: photos)
         #expect(photos.first?.taggedPeople.map(\.id) == [artist.id])
+        #expect(photos.first?.photoDate == Date(timeIntervalSince1970: 1_700_000_000).localWallClock())
 
         harness.monitor.isConnected = true
         await harness.service.processQueue()
@@ -56,7 +57,7 @@ struct ArtworkTests {
         #expect(harness.server.requests(for: "api/upload-photo").count == 1)
         let request = try #require(harness.server.requests(for: "rpc/AddMilestone").first)
         let body = try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
-        #expect(body["category"] as? String == "artwork")
+        #expect(body["category"] as? String == category.rawValue)
         #expect(body["photoIds"] as? [Int] == [77])
         #expect(await harness.service.syncQueue.count() == 0)
     }
