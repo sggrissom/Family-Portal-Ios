@@ -1,6 +1,6 @@
 # Widgets plan: Home Screen, Lock Screen, StandBy and CarPlay
 
-Status: research and plan only. Nothing implemented yet.
+Status: Phase 0 done; Phase 1 implemented (`widgets/1-on-this-day`).
 Written: October 10, 2026, against iOS `ac6a533` and the Family Portal backend on local main.
 
 ## Goal
@@ -121,7 +121,7 @@ Rendering rules for every widget:
 
 ## Delivery: stacked PRs
 
-Each phase ships as its own PR based on the previous one, as with earlier plans. CI (simulator build + unit tests) is the gate. There's no Swift toolchain locally.
+Each phase ships as its own PR based on the previous one, as with earlier plans. CI (simulator build + unit tests) is the gate.
 
 ### Phase 0: project setup (one-time manual step in Xcode)
 

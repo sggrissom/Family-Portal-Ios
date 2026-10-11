@@ -18,6 +18,9 @@ final class SyncService {
     /// Set when the queue gives up on an operation for good; survives the pulls that clear `syncError`.
     private(set) var discardedChangeWarning: String?
 
+    /// Called after every full sync, once the store holds the server's answer — the widgets republish from it. Not awaited, so a pull-to-refresh is not held up by image downloads.
+    @ObservationIgnored var onFullSyncFinished: (@MainActor () -> Void)?
+
     init(
         modelContext: ModelContext,
         apiClient: APIClient,
@@ -39,6 +42,7 @@ final class SyncService {
     func performFullSync() async {
         await processQueue()
         await pullFamilyData()
+        onFullSyncFinished?()
     }
 
     // MARK: - Pull

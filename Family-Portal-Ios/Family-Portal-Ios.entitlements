@@ -30,6 +30,15 @@
 	     `webcredentials` lets the sign-in screen offer the password already
 	     saved for the website, which is the most common reason a new tester
 	     stalls at a login form. -->
+	<!-- Shared with the widget extension: the app writes the widgets' snapshot
+	     and images there (Shared/WidgetStore.swift), and the widget reads
+	     nothing else. The group has to be enabled on both App IDs in the
+	     developer portal. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.familyrecord.ios</string>
+	</array>
+
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:familyrecord.app</string>
