@@ -7,34 +7,36 @@ struct OnThisDayEntry: TimelineEntry {
 }
 
 /// Every entry comes from the snapshot on disk; nothing here can reach the network.
-struct OnThisDayProvider: TimelineProvider {
+struct OnThisDayProvider: AppIntentTimelineProvider {
 
     func placeholder(in context: Context) -> OnThisDayEntry {
         OnThisDayEntry(date: Date(), moment: .placeholder)
     }
 
     /// The gallery preview shows the family when there is one to show, not a stock picture.
-    func getSnapshot(in context: Context, completion: @escaping (OnThisDayEntry) -> Void) {
+    func snapshot(for configuration: OnThisDayIntent, in context: Context) async -> OnThisDayEntry {
         let now = Date()
-        let moment = WidgetTimeline.onThisDay(WidgetStore.shared()?.read(), at: now)
-        completion(OnThisDayEntry(date: now, moment: moment.source == .signedOut && context.isPreview ? .placeholder : moment))
+        let moment = WidgetTimeline.onThisDay(WidgetStore.shared()?.read(), at: now, personId: configuration.person?.id)
+        return OnThisDayEntry(date: now, moment: moment.source == .signedOut && context.isPreview ? .placeholder : moment)
     }
 
     /// Two days of entries at every slot boundary, then a reload — which reads the file again and costs nothing on the network.
-    func getTimeline(in context: Context, completion: @escaping (Timeline<OnThisDayEntry>) -> Void) {
+    func timeline(for configuration: OnThisDayIntent, in context: Context) async -> Timeline<OnThisDayEntry> {
         let snapshot = WidgetStore.shared()?.read()
         let dates = WidgetTimeline.entryDates(from: Date())
-        let entries = dates.map { OnThisDayEntry(date: $0, moment: WidgetTimeline.onThisDay(snapshot, at: $0)) }
+        let entries = dates.map {
+            OnThisDayEntry(date: $0, moment: WidgetTimeline.onThisDay(snapshot, at: $0, personId: configuration.person?.id))
+        }
         let reload = dates.last.map { WidgetDay.nextMidnight(after: $0) } ?? Date().addingTimeInterval(86_400)
-        completion(Timeline(entries: entries, policy: .after(reload)))
+        return Timeline(entries: entries, policy: .after(reload))
     }
 }
 
 struct OnThisDayWidget: Widget {
-    static let kind = "OnThisDay"
+    nonisolated static let kind = "OnThisDay"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: Self.kind, provider: OnThisDayProvider()) { entry in
+        AppIntentConfiguration(kind: Self.kind, intent: OnThisDayIntent.self, provider: OnThisDayProvider()) { entry in
             OnThisDayView(moment: entry.moment)
         }
         .configurationDisplayName(WidgetCopy.onThisDayName)
@@ -45,6 +47,10 @@ struct OnThisDayWidget: Widget {
 
 struct OnThisDayView: View {
     let moment: WidgetMoment
+    /// What an empty widget says; Memory has its own words for a filter that matches nothing.
+    var nothing: (title: String, detail: String) = (WidgetCopy.nothing, WidgetCopy.nothingDetail)
+    /// The Memory widget's Shuffle button, on the sizes with room for it.
+    var shuffles = false
     @Environment(\.widgetFamily) private var family
     @Environment(\.widgetRenderingMode) private var renderingMode
 
@@ -70,16 +76,16 @@ struct OnThisDayView: View {
         case .signedOut:
             message(WidgetCopy.signedOut, WidgetCopy.signedOutDetail)
         case .nothing:
-            message(WidgetCopy.nothing, WidgetCopy.nothingDetail)
+            message(nothing.title, nothing.detail)
         case .onThisDay, .memory:
             if let featured = moment.featured {
                 switch family {
                 case .accessoryRectangular:
                     AccessoryMomentView(moment: moment, item: featured)
                 case .systemMedium:
-                    withFootnote { MediumMomentView(moment: moment, item: featured) }
+                    withFootnote { MediumMomentView(moment: moment, item: featured, shuffles: shuffles) }
                 case .systemLarge:
-                    withFootnote { LargeMomentView(moment: moment, item: featured) }
+                    withFootnote { LargeMomentView(moment: moment, item: featured, shuffles: shuffles) }
                 default:
                     SmallMomentView(moment: moment, item: featured)
                 }
@@ -111,15 +117,18 @@ struct OnThisDayView: View {
 
 // MARK: - Sizes
 
-/// The headline over an item: "3 years ago", or "A memory · 2021".
-private func headline(_ moment: WidgetMoment, _ item: WidgetItem) -> String {
-    moment.source == .memory ? "\(WidgetCopy.memory) · \(WidgetCopy.when(item))" : WidgetCopy.when(item)
-}
+/// The words every size puts around an item.
+enum MomentText {
+    /// The headline over an item: "3 years ago", or "A memory · 2021".
+    static func headline(_ moment: WidgetMoment, _ item: WidgetItem) -> String {
+        moment.source == .memory ? "\(WidgetCopy.memory) · \(WidgetCopy.when(item))" : WidgetCopy.when(item)
+    }
 
-/// "Clara · First steps" for a milestone, "Clara & Mia" for a photo with no title.
-private func caption(_ moment: WidgetMoment, _ item: WidgetItem) -> String {
-    let names = WidgetCopy.names(moment.names(for: item))
-    return [names, item.title].filter { !$0.isEmpty }.joined(separator: " · ")
+    /// "Clara · First steps" for a milestone, "Clara & Mia" for a photo with no title.
+    static func caption(_ moment: WidgetMoment, _ item: WidgetItem) -> String {
+        let names = WidgetCopy.names(moment.names(for: item))
+        return [names, item.title].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
 }
 
 struct SmallMomentView: View {
@@ -152,7 +161,7 @@ struct SmallMomentView: View {
     private var overlay: some View {
         VStack(alignment: .leading, spacing: 1) {
             Spacer(minLength: 0)
-            Text(headline(moment, item))
+            Text(MomentText.headline(moment, item))
                 .font(.caption.weight(.semibold))
             let names = WidgetCopy.names(moment.names(for: item))
             if !names.isEmpty {
@@ -173,7 +182,7 @@ struct AccentedSmallView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(headline(moment, item))
+            Text(MomentText.headline(moment, item))
                 .font(.headline)
                 .widgetAccentable()
                 .lineLimit(1)
@@ -201,7 +210,7 @@ struct TextMomentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(headline(moment, item), systemImage: item.kind.symbol)
+            Label(MomentText.headline(moment, item), systemImage: item.kind.symbol)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.tint)
                 .widgetAccentable()
@@ -238,6 +247,7 @@ struct StaleFootnote: View {
 struct MediumMomentView: View {
     let moment: WidgetMoment
     let item: WidgetItem
+    var shuffles = false
 
     /// A milestone from the same day reads beside the picture; failing that, the picture's own caption.
     private var words: WidgetItem? {
@@ -245,13 +255,14 @@ struct MediumMomentView: View {
     }
 
     var body: some View {
+        Group {
         if item.hasImage {
             HStack(spacing: 12) {
                 FilledImage(file: item.imageFile)
                     .aspectRatio(1, contentMode: .fit)
                     .clipShape(.rect(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(headline(moment, item))
+                    Text(MomentText.headline(moment, item))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tint)
                     if let words {
@@ -275,19 +286,27 @@ struct MediumMomentView: View {
         } else {
             TextMomentView(moment: moment, item: item, lines: 3)
         }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if shuffles { ShuffleButton() }
+        }
     }
 }
 
 struct LargeMomentView: View {
     let moment: WidgetMoment
     let item: WidgetItem
+    var shuffles = false
 
     private var pictures: [WidgetItem] {
         Array(moment.featuredYear.filter(\.hasImage).prefix(4))
     }
 
-    /// The words of that year, and failing those the day's others.
+    /// The words of that year, and failing those the day's others. A memory is one item, captioned by itself.
     private var captions: [WidgetItem] {
+        if moment.source == .memory {
+            return MomentText.caption(moment, item).isEmpty ? [] : [item]
+        }
         let year = moment.featuredYear.filter { !$0.hasImage && !$0.title.isEmpty }
         let rest = moment.items.filter { !$0.hasImage && !$0.title.isEmpty && !year.contains($0) }
         return Array((year + rest).prefix(3))
@@ -306,14 +325,22 @@ struct LargeMomentView: View {
             if !pictures.isEmpty {
                 mosaic
             }
-            ForEach(captions) { line in
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Image(systemName: line.kind.symbol)
-                        .foregroundStyle(.tint)
-                    Text(caption(moment, line))
-                        .lineLimit(2)
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(captions) { line in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Image(systemName: line.kind.symbol)
+                                .foregroundStyle(.tint)
+                            Text(MomentText.caption(moment, line))
+                                .lineLimit(2)
+                        }
+                        .font(.footnote)
+                    }
                 }
-                .font(.footnote)
+                if shuffles {
+                    Spacer(minLength: 0)
+                    ShuffleButton()
+                }
             }
             if pictures.isEmpty && captions.isEmpty {
                 TextMomentView(moment: moment, item: item, lines: 8)
@@ -360,10 +387,10 @@ struct AccessoryMomentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(headline(moment, words))
+            Text(MomentText.headline(moment, words))
                 .font(.headline)
                 .widgetAccentable()
-            Text(words.title.isEmpty ? WidgetCopy.names(moment.names(for: words)) : caption(moment, words))
+            Text(words.title.isEmpty ? WidgetCopy.names(moment.names(for: words)) : MomentText.caption(moment, words))
                 .font(.caption)
                 .lineLimit(2)
                 .privacySensitive()

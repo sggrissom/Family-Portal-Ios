@@ -275,7 +275,8 @@ struct WidgetSnapshotBuilderTests {
         fixture.photo("90", on: "2025-10-20")
         var builder = fixture.builder()
         builder.imageBudget = 3
-        builder.poolSize = 0
+        builder.poolPhotos = 0
+        builder.poolPerPerson = 0
 
         let snapshot = try #require(await builder.publish(ownerUserId: 3, now: Self.now, seed: 1))
 
@@ -283,23 +284,52 @@ struct WidgetSnapshotBuilderTests {
         #expect(fixture.images.asked == ["1", "2", "3"])
     }
 
-    @Test("The pool is mostly photos, and the same seed draws the same pool")
+    @Test("The pool draws photos, milestones and quotes apart, and the same seed draws the same pool")
     func pool() async throws {
         let fixture = try Self.fixture()
         for index in 1...10 {
             fixture.photo("\(index)", on: "2020-0\(index % 9 + 1)-01")
             fixture.milestone("\(100 + index)", "Milestone \(index)", on: "2019-0\(index % 9 + 1)-01")
+            fixture.milestone("\(200 + index)", "Quote \(index)", on: "2018-0\(index % 9 + 1)-01", category: .quote)
         }
         var builder = fixture.builder()
-        builder.poolSize = 8
+        builder.poolPhotos = 4
+        builder.poolMilestones = 3
+        builder.poolQuotes = 2
 
         let first = builder.plan(ownerUserId: 3, now: Self.now, seed: 42).snapshot.pool
         let again = builder.plan(ownerUserId: 3, now: Self.now, seed: 42).snapshot.pool
 
-        #expect(first.count == 8)
-        #expect(first.filter { $0.kind == .photo }.count == 6)
+        #expect(first.count == 9)
+        #expect(first.filter { $0.kind == .photo }.count == 4)
+        #expect(first.filter { $0.kind == .milestone }.count == 3)
+        #expect(first.filter { $0.kind == .quote }.count == 2)
         #expect(first == again)
         #expect(first.allSatisfy { $0.yearsAgo == nil })
+    }
+
+    @Test("Someone the draw left out is topped up from their own records")
+    func poolPerPerson() async throws {
+        let fixture = try Self.fixture()
+        let theo = Person(name: "Theo", gender: .male)
+        theo.remoteId = "8"
+        fixture.context.insert(theo)
+        for index in 1...10 {
+            fixture.photo("\(index)", on: "2020-0\(index % 9 + 1)-01")
+        }
+        for index in 1...4 {
+            let milestone = fixture.milestone("\(300 + index)", "Theo \(index)", on: "2021-01-0\(index)")
+            milestone.person = theo
+        }
+        var builder = fixture.builder()
+        builder.poolPhotos = 5
+        builder.poolMilestones = 0
+        builder.poolPerPerson = 3
+
+        let pool = builder.plan(ownerUserId: 3, now: Self.now, seed: 7).snapshot.pool
+
+        #expect(pool.filter { $0.personIds == [8] }.count == 3)
+        #expect(pool.filter { $0.personIds == [7] }.count == 5)
     }
 
     @Test("A run told not to write leaves the store alone")

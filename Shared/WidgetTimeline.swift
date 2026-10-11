@@ -48,7 +48,7 @@ nonisolated enum WidgetTimeline {
     static let slotHours = 3
 
     /// The entries from `now` for the next `hours`: one now, then one at every slot boundary. Slots are counted from local midnight, so a new day always starts with a new entry.
-    static func entryDates(from now: Date, hours: Int = 48, calendar: Calendar = .current) -> [Date] {
+    static func entryDates(from now: Date, hours: Int = 48, slotHours: Int = slotHours, calendar: Calendar = .current) -> [Date] {
         var dates = [now]
         let start = calendar.startOfDay(for: now)
         let end = now.addingTimeInterval(TimeInterval(hours) * 3600)
@@ -61,38 +61,68 @@ nonisolated enum WidgetTimeline {
     }
 
     /// Which slot of its day `date` falls in, and how many slots have passed since a fixed day — the walk through the pool, which must not restart every midnight.
-    static func slot(of date: Date, calendar: Calendar = .current) -> (inDay: Int, overall: Int) {
+    static func slot(of date: Date, slotHours: Int = slotHours, calendar: Calendar = .current) -> (inDay: Int, overall: Int) {
         let start = calendar.startOfDay(for: date)
         let hour = calendar.dateComponents([.hour], from: start, to: date).hour ?? 0
         let inDay = max(0, hour / slotHours)
         let days = calendar.dateComponents([.day], from: Date(timeIntervalSince1970: 0), to: start).day ?? 0
-        return (inDay, days * (24 / slotHours) + inDay)
+        let perDay = max(1, 24 / slotHours)
+        return (inDay, days * perDay + inDay)
     }
 
-    /// "On this day" for `date`, or a memory when the day has none.
-    static func onThisDay(_ snapshot: WidgetSnapshot?, at date: Date, calendar: Calendar = .current) -> WidgetMoment {
+    /// "On this day" for `date`, or a memory when the day has none. `personId` keeps only what that person is in.
+    static func onThisDay(_ snapshot: WidgetSnapshot?, at date: Date, personId: Int? = nil, calendar: Calendar = .current) -> WidgetMoment {
         guard let snapshot else { return .signedOut }
         let day = WidgetDay.key(date, calendar: calendar)
         let slot = slot(of: date, calendar: calendar)
-        var moment = WidgetMoment(
-            source: .onThisDay,
-            isStale: day > snapshot.horizon,
-            names: Dictionary(snapshot.people.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first }),
-            siteURL: snapshot.siteURL
-        )
+        var moment = moment(snapshot, source: .onThisDay)
+        moment.isStale = day > snapshot.horizon
+        let filter = MemoryFilter(content: .everything, personId: personId)
 
-        if let items = snapshot.onThisDay[day], !items.isEmpty {
+        let items = (snapshot.onThisDay[day] ?? []).filter(filter.admits)
+        if !items.isEmpty {
             moment.items = featuring(items, slot: slot.inDay)
             return moment
         }
 
-        guard !snapshot.pool.isEmpty else {
+        let pool = snapshot.pool.filter(filter.admits)
+        guard !pool.isEmpty else {
             moment.source = .nothing
             return moment
         }
         moment.source = .memory
-        moment.items = [snapshot.pool[slot.overall % snapshot.pool.count]]
+        moment.items = [pool[slot.overall % pool.count]]
         return moment
+    }
+
+    /// The Memory widget at `date`: the filtered pool, walked one item per rotation slot, `shuffle` steps ahead.
+    static func memory(
+        _ snapshot: WidgetSnapshot?,
+        at date: Date,
+        filter: MemoryFilter,
+        rotationHours: Int,
+        shuffle: Int = 0,
+        calendar: Calendar = .current
+    ) -> WidgetMoment {
+        guard let snapshot else { return .signedOut }
+        var moment = moment(snapshot, source: .memory)
+        let pool = snapshot.pool.filter(filter.admits)
+        guard !pool.isEmpty else {
+            moment.source = .nothing
+            return moment
+        }
+        let slot = slot(of: date, slotHours: rotationHours, calendar: calendar).overall
+        let index = ((slot + shuffle) % pool.count + pool.count) % pool.count
+        moment.items = [pool[index]]
+        return moment
+    }
+
+    private static func moment(_ snapshot: WidgetSnapshot, source: WidgetMoment.Source) -> WidgetMoment {
+        WidgetMoment(
+            source: source,
+            names: Dictionary(snapshot.people.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first }),
+            siteURL: snapshot.siteURL
+        )
     }
 
     /// The day's items with the featured one first. Pictures take turns by slot; a day with none features its first milestone.
@@ -103,5 +133,27 @@ nonisolated enum WidgetTimeline {
         var ordered = items
         let featured = ordered.remove(at: chosen)
         return [featured] + ordered
+    }
+}
+
+/// What the Memory widget is configured to show.
+nonisolated struct MemoryFilter: Equatable, Sendable {
+
+    enum Content: String, CaseIterable, Sendable {
+        case everything, photos, milestones, quotes
+    }
+
+    var content: Content = .everything
+    /// A server id; nil is the whole family.
+    var personId: Int? = nil
+
+    func admits(_ item: WidgetItem) -> Bool {
+        if let personId, !item.personIds.contains(personId) { return false }
+        switch content {
+        case .everything: return true
+        case .photos: return item.kind == .photo
+        case .milestones: return item.kind == .milestone || item.kind == .artwork
+        case .quotes: return item.kind == .quote
+        }
     }
 }

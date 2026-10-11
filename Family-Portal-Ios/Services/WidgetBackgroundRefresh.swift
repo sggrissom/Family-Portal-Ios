@@ -11,8 +11,9 @@ enum WidgetBackgroundRefresh {
 
     static let identifier = "com.familyrecord.ios.widget-refresh"
 
-    /// Must run before launch finishes, so it is called from `application(_:didFinishLaunchingWithOptions:)`.
-    static func register(publisher: WidgetPublisher = .shared) {
+    /// Must run before launch finishes, so it is called from `application(_:didFinishLaunchingWithOptions:)`. `publisher` has no `.shared` default because a default argument is evaluated outside the main actor.
+    static func register(publisher: WidgetPublisher? = nil) {
+        let publisher = publisher ?? .shared
         let registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: .main) { task in
             MainActor.assumeIsolated {
                 guard let task = task as? BGAppRefreshTask else {

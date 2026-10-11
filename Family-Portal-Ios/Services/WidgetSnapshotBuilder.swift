@@ -24,10 +24,14 @@ struct WidgetSnapshotBuilder {
 
     /// How many days of "On this day" a snapshot carries. Past it the widget falls back to the pool.
     var horizonDays = 14
-    /// How many memories the pool holds.
-    var poolSize = 40
+    /// The pool's make-up. Words cost nothing to carry, so milestones and quotes get room of their own: a Memory widget set to Quotes, or to one child, still has something to turn over.
+    var poolPhotos = 30
+    var poolMilestones = 15
+    var poolQuotes = 15
+    /// The fewest pool items each person is in, topped up from their own records when the draw above left them short.
+    var poolPerPerson = 6
     /// The most image files a snapshot may name — about 5 MB at `maxPixel`.
-    var imageBudget = 60
+    var imageBudget = 80
     /// The long edge of a widget image. The server's `medium` variant is 600 px, which already covers a large widget's mosaic cell at 3×.
     var maxPixel = 600
     /// Per year of a day's "On this day", so thirty years of photos cannot crowd out each other's days.
@@ -202,14 +206,24 @@ struct WidgetSnapshotBuilder {
         // MARK: Pool
 
         var random = SplitMix64(seed: seed)
-        let photoShare = (poolSize * 3) / 4
-        let pickedPhotos = photos.shuffled(using: &random).prefix(photoShare)
-        let pickedMilestones = milestones
-            .filter { !$0.descriptionText.isEmpty }
-            .shuffled(using: &random)
-            .prefix(poolSize - pickedPhotos.count)
-        let pool = (pickedPhotos.map { item($0, yearsAgo: nil) } + pickedMilestones.map { item($0, yearsAgo: nil) })
-            .shuffled(using: &random)
+        let shuffledPhotos = photos.shuffled(using: &random)
+        let worded = milestones.filter { !$0.descriptionText.isEmpty }.shuffled(using: &random)
+        var drawn: [WidgetItem] = shuffledPhotos.prefix(poolPhotos).map { item($0, yearsAgo: nil) }
+            + worded.filter { $0.category != .quote }.prefix(poolMilestones).map { item($0, yearsAgo: nil) }
+            + worded.filter { $0.category == .quote }.prefix(poolQuotes).map { item($0, yearsAgo: nil) }
+
+        var inPool = Set(drawn.map(\.id))
+        for personId in people.compactMap(Self.serverId) {
+            var count = drawn.filter { $0.personIds.contains(personId) }.count
+            let theirs = shuffledPhotos.filter { $0.taggedPeople.contains { Self.serverId($0) == personId } }.map { item($0, yearsAgo: nil) }
+                + worded.filter { $0.person.flatMap(Self.serverId) == personId }.map { item($0, yearsAgo: nil) }
+            for candidate in theirs where count < poolPerPerson && !inPool.contains(candidate.id) {
+                drawn.append(candidate)
+                inPool.insert(candidate.id)
+                count += 1
+            }
+        }
+        let pool = drawn.shuffled(using: &random)
 
         // MARK: Images, by priority
 
