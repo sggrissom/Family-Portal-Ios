@@ -96,7 +96,7 @@ struct SyncServiceQueueTests {
         #expect(await harness.service.syncQueue.count() == 0)
         #expect(harness.service.pendingOperationCount == 0)
         let warning = try #require(harness.service.discardedChangeWarning)
-        #expect(warning.contains("milestone"))
+        #expect(warning.contains("moment"))
     }
 
     @Test("A run cut short by the network costs blocked operations nothing")
@@ -342,7 +342,7 @@ struct SyncServiceQueueTests {
         #expect(harness.service.pendingOperationCount == 0)
 
         let warning = try #require(harness.service.discardedChangeWarning)
-        #expect(warning.contains("milestone"))
+        #expect(warning.contains("moment"))
 
         harness.service.acknowledgeDiscardedChanges()
         #expect(harness.service.discardedChangeWarning == nil)

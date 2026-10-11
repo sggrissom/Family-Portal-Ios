@@ -518,7 +518,7 @@ final class SyncService {
             return
         }
 
-        let personId = try serverId(of: person, "Person must be synced before adding milestones")
+        let personId = try serverId(of: person, "Person must be synced before adding moments")
 
         let request = AddMilestoneRequestDTO(
             personId: personId,
@@ -605,7 +605,7 @@ final class SyncService {
     private func executeUpdateMilestone(_ operation: PendingOperation) async throws {
         let payload = try JSONDecoder().decode(UpdateMilestonePayload.self, from: operation.payload)
 
-        let (milestone, id) = try synced(findMilestone(byLocalId: operation.localId), "Milestone must be synced before updating")
+        let (milestone, id) = try synced(findMilestone(byLocalId: operation.localId), "Moment must be synced before updating")
 
         let request = UpdateMilestoneRequestDTO(
             id: id,
@@ -659,7 +659,7 @@ final class SyncService {
             return
         }
 
-        let id = try serverId(of: milestone, "Milestone must be synced before its tags can be saved")
+        let id = try serverId(of: milestone, "Moment must be synced before its tags can be saved")
 
         let request = UpdateMilestoneTagsRequestDTO(milestoneId: id, tagIds: payload.tagRemoteIds)
         let _: EmptyResponseDTO = try await apiClient.callRPC(.updateMilestoneTags, payload: request)
@@ -1058,7 +1058,7 @@ final class SyncService {
         var remoteIds: [Int] = []
         for localId in localIds {
             guard let photo = findPhoto(byLocalId: localId) else { continue }
-            remoteIds.append(try serverId(of: photo, "Photos must be uploaded before they can be attached to a milestone"))
+            remoteIds.append(try serverId(of: photo, "Photos must be uploaded before they can be attached to a moment"))
         }
         return remoteIds
     }

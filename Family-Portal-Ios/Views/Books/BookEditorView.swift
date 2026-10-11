@@ -156,7 +156,7 @@ struct BookEditorView: View {
         } header: {
             Text("Your words")
         } footer: {
-            Text("These live only in this book. Memories worth keeping are better added as milestones, so they appear everywhere.")
+            Text("These live only in this book. Memories worth keeping are better added as moments, so they appear everywhere.")
         }
         .font(BookType.serif(.body))
     }
@@ -368,7 +368,7 @@ struct BookEditorView: View {
             .confirmationDialog("Delete this book?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
                 Button("Delete Book", role: .destructive) { Task { await delete() } }
             } message: {
-                Text("The photos and milestones stay in the family record.")
+                Text("The photos and moments stay in the family record.")
             }
         }
     }
@@ -543,7 +543,7 @@ private struct BookEditorItemRow: View {
                     Label(item.pinned ? "Don't Keep" : "Keep", systemImage: item.pinned ? "pin.slash" : "pin")
                 }
                 if let onEditOriginal {
-                    Button(action: onEditOriginal) { Label("Edit the Original Milestone", systemImage: "pencil") }
+                    Button(action: onEditOriginal) { Label("Edit the Original Moment", systemImage: "pencil") }
                 }
                 Button(role: .destructive, action: onRemove) { Label("Remove from Book", systemImage: "minus.circle") }
             } label: {
@@ -702,7 +702,7 @@ private struct BookLeftOutSection: View {
     private func summary(_ month: Month) -> String {
         var parts: [String] = []
         if !month.milestones.isEmpty {
-            parts.append("\(month.milestones.count) milestone\(month.milestones.count == 1 ? "" : "s")")
+            parts.append("\(month.milestones.count) moment\(month.milestones.count == 1 ? "" : "s")")
         }
         if !month.photos.isEmpty {
             parts.append("\(month.photos.count) photo\(month.photos.count == 1 ? "" : "s")")

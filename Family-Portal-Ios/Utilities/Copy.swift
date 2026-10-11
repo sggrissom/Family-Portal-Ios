@@ -47,7 +47,7 @@ nonisolated enum Copy {
         static let whoFor = "Who is this for?"
         static let photos = "Photos"
         static let measurement = "Measurement"
-        static let milestone = "Milestone"
+        static let milestone = "Moment"
         static let close = "Close"
     }
 
@@ -80,7 +80,7 @@ nonisolated enum Copy {
     }
 
     enum milestone {
-        static let title = "Milestone"
+        static let title = "Moment"
         static let who = "Who is this about?"
         static let whatHappened = "What happened?"
         static let placeholder = "Wrote her name for the first time"
@@ -138,6 +138,7 @@ nonisolated enum Copy {
         static let checkupTitle = "Measured"
         static let addPhotos = "Add photos"
         static let addResults = "Add results"
+        static let viewEvent = "View event"
 
         static func turned(name: String, age: Int) -> String {
             "\(name) turned \(age)"
@@ -178,7 +179,7 @@ nonisolated enum Copy {
         static let loadFailed = "Could not load records. Please try again."
         static let offline = "You're offline, and this age hasn't been opened yet."
         static let onlyOne = "Try another age to compare more people."
-        static let noSavedRecords = "No photos, milestones or measurements to compare yet. Add records to a family member’s profile to get started."
+        static let noSavedRecords = "No photos, moments or measurements to compare yet. Add records to a family member’s profile to get started."
         static let nothingAtAge = "No saved records near this age. Try another age."
         static let tryAnotherAge = "Pick another age above, or see Details for other records."
         static let openPhotoPage = "Open photo page"
@@ -332,17 +333,17 @@ nonisolated enum Copy {
         static let back = "Back"
         static let edit = "Edit"
         static let delete = "Delete"
-        static let notFound = "That milestone could not be found."
+        static let notFound = "That moment could not be found."
 
         static func confirmDelete(_ text: String) -> String {
-            "Delete this milestone: \"\(text)\"?"
+            "Delete this moment: \"\(text)\"?"
         }
 
         static func atAge(_ age: String) -> String {
             "at \(age)"
         }
 
-        static let matchesTitle = "The same milestone in the family"
+        static let matchesTitle = "The same moment in the family"
 
         /// "Clara at 14 months" — first name only, as the web writes it; the age is left off for someone with no birthday.
         static func match(name: String, ageMonths: Int) -> String {
@@ -414,8 +415,8 @@ nonisolated enum Copy {
         static let tags = "Tags"
         static let manageTags = "Manage tags →"
         static let clear = "Clear"
-        static let search = "Search milestones"
-        static let searchPlaceholder = "Search milestones"
+        static let search = "Search moments"
+        static let searchPlaceholder = "Search moments"
         static let years = "Jump to year"
         static let empty = "Nothing recorded yet. Use + to add the first thing."
         static let noMatches = "Nothing matches these filters."
@@ -425,11 +426,11 @@ nonisolated enum Copy {
         }
 
         static func resultsFor(_ query: String, _ n: Int) -> String {
-            "\(n == 1 ? "1 milestone" : "\(n) milestones") matching \"\(query)\""
+            "\(n == 1 ? "1 moment" : "\(n) moments") matching \"\(query)\""
         }
 
         enum types {
-            static let milestones = "Milestones"
+            static let milestones = "Moments"
             static let measurements = "Measurements"
             static let photos = "Photos"
             static let activities = "Activities"

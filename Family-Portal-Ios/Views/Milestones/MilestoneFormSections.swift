@@ -22,17 +22,20 @@ struct MilestoneTextSections: View {
     }
 }
 
-/// An artwork's own photos, then the person's photos from around the date, offered but never attached until tapped. Shared by the add and edit forms.
+/// New photos, then the person's photos from around the date, offered but never attached until tapped. Shared by the add and edit forms.
 struct MilestonePhotoSections: View {
     let category: MilestoneCategory
-    @Binding var artwork: [PickedArtwork]
+    @Binding var newPhotos: [PickedMilestonePhoto]
+    @Binding var isReadingPhotos: Bool
     let suggestedPhotos: [Photo]
     @Binding var selectedPhotoIds: Set<UUID>
 
     var body: some View {
-        if category == .artwork {
-            ArtworkPhotosSection(picked: $artwork)
-        }
+        MilestonePhotoUploadSection(
+            picked: $newPhotos,
+            isReading: $isReadingPhotos,
+            isArtwork: category == .artwork
+        )
 
         if !suggestedPhotos.isEmpty {
             Section(Copy.milestone.photosAroundThen) {

@@ -33,7 +33,7 @@ struct DeleteAccountView: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
-                    Text("Records stay with any family that still has another member in it. A family you are the only member of is deleted along with everything in it — people, photos, measurements and milestones.")
+                    Text("Records stay with any family that still has another member in it. A family you are the only member of is deleted along with everything in it — people, photos, measurements and moments.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -108,7 +108,7 @@ struct DeleteAccountView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This cannot be undone. Any family you are the only member of is deleted with everything in it — people, photos, measurements and milestones.")
+            Text("This cannot be undone. Any family you are the only member of is deleted with everything in it — people, photos, measurements and moments.")
         }
     }
 

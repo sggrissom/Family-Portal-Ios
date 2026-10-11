@@ -16,7 +16,8 @@ struct EditMilestoneView: View {
     @State private var date: Date
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var didSeedSelection = false
-    @State private var artwork: [PickedArtwork] = []
+    @State private var isReadingPhotos = false
+    @State private var newPhotos: [PickedMilestonePhoto] = []
     /// `SuggestMilestonePhotos`' answer, as server ids, best first. Offered, never attached until tapped.
     @State private var suggestedPhotoRemoteIds: [Int] = []
     @FocusState private var isTextFocused: Bool
@@ -79,11 +80,11 @@ struct EditMilestoneView: View {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
 
-                MilestonePhotoSections(category: category, artwork: $artwork, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds)
+                MilestonePhotoSections(category: category, newPhotos: $newPhotos, isReadingPhotos: $isReadingPhotos, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds)
 
                 MilestonePhotosSection(
                     photos: photoChoices,
-                    emptyDescription: "Tag \(milestone.person?.name ?? "this person") in a photo to attach it to a milestone.",
+                    emptyDescription: "Tag \(milestone.person?.name ?? "this person") in a photo to attach it to a moment.",
                     selection: $selectedPhotoIds
                 )
             }
@@ -96,7 +97,7 @@ struct EditMilestoneView: View {
             .task(id: lookupKey) {
                 await lookUpSuggestions()
             }
-            .navigationTitle("Edit Milestone")
+            .navigationTitle("Edit Moment")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -108,7 +109,7 @@ struct EditMilestoneView: View {
                     Button(Copy.milestone.save) {
                         save()
                     }
-                    .disabled(!isValid)
+                    .disabled(!isValid || isReadingPhotos)
                 }
             }
         }
@@ -137,6 +138,7 @@ struct EditMilestoneView: View {
     }
 
     private func save() {
+        guard !isReadingPhotos else { return }
         milestone.category = category
         milestone.setEntry(descriptionText, context: context)
         milestone.date = date.localRecordDay()
@@ -144,7 +146,7 @@ struct EditMilestoneView: View {
         // `photoIds` is the complete set the milestone should end up with, so an empty selection detaches everything — safe only once the seed has run, since before that an empty selection means "not loaded yet".
         let chosen = didSeedSelection ? photoChoices.filter { selectedPhotoIds.contains($0.id) } : nil
         let attached = attachedChoices
-        let picked = category == .artwork ? artwork : []
+        let picked = newPhotos
 
         dismiss()
 
@@ -154,11 +156,11 @@ struct EditMilestoneView: View {
                 if let artist = milestone.person, !picked.isEmpty {
                     // New pieces join the selection — or, without a seeded one, what the milestone already has.
                     photos = (chosen ?? attached)
-                        + (try await ArtworkPhotos.queue(picked, artist: artist, context: modelContext, syncService: syncService))
+                        + (try await MilestonePhotoUploads.queue(picked, artist: artist, context: modelContext, syncService: syncService))
                 }
                 try await syncService.updateMilestone(milestone, photos: photos)
             } catch {
-                errorPresenter.report(error, title: "Couldn't Save Milestone")
+                errorPresenter.report(error, title: "Couldn't Save Moment")
             }
         }
     }

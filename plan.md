@@ -1,173 +1,184 @@
-# iOS catch-up plan
+# Widgets plan: Home Screen, Lock Screen, StandBy and CarPlay
 
-Status: all five phases implemented as stacked PRs (#101 → #105), each green in CI (build + unit tests). Not yet merged, and not yet checked on a simulator or device.
-Reviewed: October 7, 2026.
+Status: research and plan only. Nothing implemented yet.
+Written: October 10, 2026, against iOS `ac6a533` and the Family Portal backend on local main.
 
-## Goal and baseline
+## Goal
 
-Bring the iOS app up to date with the Family Portal website's implemented family-record features, prioritizing useful browsing and discovery over exhaustive administrative parity. Preserve the app's native SwiftUI navigation, local-first records, offline queue, and permission checks.
+Bring the family record onto the surfaces people look at without opening the app:
 
-This plan comes from a source comparison of:
+- **On this day**: a photo or milestone from this date in an earlier year ("3 years ago · Clara took her first steps").
+- **Memory**: a random photo, milestone or quote that rotates through the day, with optional filters.
+- **CarPlay**: the same content, glanceable, on the car's dashboard.
 
-- [Family Portal iOS at 25e871d](https://github.com/sggrissom/Family-Portal-Ios/tree/25e871d).
-- [Family Portal at ef17e4d](https://github.com/sggrissom/Family-Portal/tree/ef17e4d).
+Widgets must work when the app hasn't been opened for days, never leak one account's family to the next, and never need the network or the keychain to render.
 
-All RPC names declared by iOS were present in the reviewed backend. That check does not establish full request/response or runtime compatibility. No simulator or device testing was performed for this review. Recheck both repositories before implementing each phase; a feature on web main may not yet be deployed to the app's configured server.
+## Findings
 
-Already present in iOS: books creation/reading/editing, quotes, artwork, activities/results, face review, tag suggestions, server-backed photo search, permission-aware editing, and the recent calendar-date changes. Extend these implementations rather than replacing them. Planned web features are not automatically iOS parity requirements.
+### CarPlay: a widget, not a CarPlay app
 
-## Delivery order
+- A **CarPlay app is not an option.** CarPlay apps need an Apple-granted entitlement in a fixed category list (audio, communication, navigation, EV charging, parking, quick food ordering, fueling, driving task, and voice-based conversational apps since iOS 26.4). No category fits a family photo or memory app, and apps must use Apple's templates, which have no photo-browsing template.
+- **iOS 26 brings WidgetKit widgets to every CarPlay car.** Any app's widget can appear there. It doesn't need to be a CarPlay app. The user adds it from iPhone Settings → General → CarPlay → the car → Widgets.
+  - CarPlay uses the **`systemSmall` family**, rendered StandBy-style: large type, the background removable, and content possibly drawn in **accented mode** (tinted, on glass). To support CarPlay, ship a `systemSmall` widget that still reads well in that mode.
+  - Opting out is per widget and family: `.disfavoredLocations([.carPlay], for: [.systemSmall])` (iOS 26+, so it goes behind `#available` with our 18.0 deployment target).
+  - Because CarPlay shows the same `systemSmall` widget, the StandBy and CarPlay work is the same work.
+- **Unverified (check in the CarPlay Simulator before we commit to a design):** how a full-color photo looks in CarPlay's accented mode, and whether `.widgetAccentedRenderingMode(.fullColor)` keeps it in color. If photos look bad there, the small widget's accented layout leads with text ("3 years ago today", the milestone, a name) and drops the photo or shows it desaturated.
 
-| Phase | Work | Priority | Relative size | PR |
-| --- | --- | --- | --- | --- |
-| 1 | Same age browsing and portrait-first presentation | High | Medium–large | #101 |
-| 2 | More navigation and Growing up Story preview | High | Small–medium | #102 |
-| 3 | Original-photo download/share and edit-milestone photo suggestions | Medium | Medium | #103 |
-| 4 | Push notification preferences | Medium | Small | #104 |
-| 5 | Similar-photo grouping and place filters | Lower | Medium–large | #105 |
+### WidgetKit constraints that shape the design
 
-Each phase can ship independently. Keep the changes focused; avoid a general architecture rewrite.
+- **Widgets render from a timeline.** iOS limits reloads to roughly 40–70 a day. Rotation should come from pre-computed timeline entries, not reloads.
+- **Extensions get little memory** (around 30 MB). Images must be downsampled to widget size before they reach the extension. A full-resolution photo in a widget silently fails to render.
+- **Interactive buttons** (`Button(intent:)`, iOS 17+) can drive a "shuffle" without opening the app.
+- **Configuration** goes through `AppIntentConfiguration` (iOS 17+), for example picking a person or a content type, with `AppEntity` types whose options come from local data.
 
-## Phase 1: Same age
+### What the app has today
 
-### Current gap
+| Need | What exists | Consequence |
+| --- | --- | --- |
+| On-this-day data | `GetDashboard` → `onThisDay: [DashboardYearDTO]`, rendered in `Views/Home/HomeView.swift:216`. Backend rule (`backend/dashboard.go:158`): 1–30 years back, the same calendar day **±2 days**, up to 8 photos per year, plus every milestone in the window. | The rule is simple to compute locally from SwiftData for **any** date, so the widget can be pre-filled for days ahead without the server. |
+| Records | SwiftData holds every `Photo` (`photoDate`, `remoteId`, `taggedPeople`), `Milestone` (`date`, `category` including `.quote` and `.artwork`, `descriptionText`, `photoRemoteIds`) and `Person`. | Random-memory and person filters can be computed locally. |
+| Image bytes | Usually not stored. `Photo.imageData` is nil for synced photos, which are fetched with a bearer token through `PhotoImageCache` (`Services/PhotoImageCache.swift`), variants `small/thumb/medium/large/xlarge`. | The **app** has to fetch and downsample the images and hand files to the widget. |
+| Store location | `DataStore` uses a default `ModelConfiguration`, so the store sits in the app's private container. | The widget can't open it. Moving the store into an App Group means migrating every install's database: risky, and unnecessary (see the architecture below). |
+| Tokens | `APIClient.storeToken` writes keychain items with no access group (`APIClient.swift:584`). | The widget can't authenticate. Again, the architecture below doesn't need it to. |
+| Sign-out / account switch | `LocalDataReset.erase(.everything, …)` sweeps every cache (`Services/LocalDataReset.swift`). | The widget store must be added to this sweep, followed by `WidgetCenter.shared.reloadAllTimelines()`. |
+| Deep links | `DeepLink` parses the paths in `backend/universal_links.go`. There is no photo or milestone destination. The web routes are `/view-photo/<id>` and `/milestone/<id>`. | Tapping a widget can open Home today. Opening the photo or milestone itself needs a new `DeepLink` case and the same paths added to the backend list (the two lists must match). |
+| Background work | No `BGTaskScheduler` use, no `UIBackgroundModes`. | Needs adding so the widget refreshes when the app isn't opened. |
+| Project | One app target and a test target, using Xcode 16 synchronized folders (`PBXFileSystemSynchronizedRootGroup`), team `7S5TBT3VAE`, bundle `com.familyrecord.ios`. CI runs `xcodebuild build test` on the simulator. | Adding an extension target means editing `project.pbxproj` and the developer portal (App Group, new App ID). |
 
-The website now separates Portraits from Details, discovers ages with saved content, offers age shortcuts, and starts a direct visit at a useful comparison. iOS still steps across the full age range and renders a montage followed by record rows. Its montage disappears when only one person has a portrait.
+## Architecture: the app publishes a snapshot, the widget only reads it
 
-The iOS request omits `includeAvailableAges` and `details`; its response model omits `availableAges`, `portraitAges`, and `peopleCount`. The full page and embedded strips share a loader/cache, so discovery must not accidentally be requested by every record detail.
+```
+SwiftData + PhotoImageCache (app)
+        │  WidgetSnapshotBuilder: pick items, download + downsample images
+        ▼
+App Group container  group.com.familyrecord.ios/Widgets/
+  ├── snapshot.json        (WidgetSnapshot, versioned)
+  └── images/<remoteId>.jpg (≤ ~700 px long edge, JPEG q≈0.8)
+        │  WidgetCenter.reloadAllTimelines()
+        ▼
+Widget extension: reads files only. No network, keychain or SwiftData.
+```
 
-### Implementation
+Why this instead of letting the widget fetch:
 
-- [x] Extend `OverviewDTOs.swift` for the new request flags, age options, and counts. Decode absent fields compatibly with older servers, distinguishing unavailable discovery from a genuinely empty result where necessary.
-- [x] Request age discovery for the full browse page. Keep embedded strips lightweight.
-- [x] Use portrait ages in Portraits and recorded ages in Details; step to the next available age rather than the next interval across years of empty data.
-- [x] Add the web's age shortcuts and an age picker showing how many people have content. Preserve explicitly requested ages even if empty.
-- [x] Default a direct visit to Portraits and let the server select its starting age. Preserve contextual person/age links.
-- [x] Show a portrait grid with meaningful zero-, one-, and multiple-person states. Keep missing-photo names secondary. Move alternative-photo cycling and the original image into a focused viewer.
-- [x] Keep measurements and milestones in Details, emphasizing rows with records and collapsing missing records.
-- [x] Keep controls stable and visible while loading. Track the requested age separately from the displayed response, ignore cancelled/stale results, and provide retry without losing the chosen age.
-- [x] Update cache handling so a lightweight strip response cannot satisfy a browse request that needs discovery metadata. Retain discovered options across subsequent lightweight age requests; invalidate date-sensitive defaults appropriately.
-- [x] Carry the `view=details` selection through deep-link parsing and navigation. Update contextual record links deliberately.
-- [x] Match the current web wording for newborns: the server owns the newborn window; do not reimplement its selection rules locally.
+- **Nothing to migrate.** The SwiftData store and keychain items stay where they are.
+- **Account safety lives in one place.** A sign-out deletes one directory. A widget holding its own token could outlive the session.
+- **Works offline and fits the memory limit.** Images are already small when they reach the extension.
+- **It follows how the app already works**: local-first, with the server answers cached on disk.
 
-### Acceptance
+### The snapshot
 
-- A direct visit starts with a useful comparison when one exists.
-- Younger/Older skip empty ages for the selected view.
-- Newborn, one-person, no-portrait, no-record, and explicitly empty-age cases make sense.
-- Rapid navigation never lets an older response replace the latest selection.
-- Portraits/Details links reopen the intended view; embedded strips still work.
-- Cached/offline behavior and older-server fallbacks remain usable.
+```swift
+struct WidgetSnapshot: Codable {
+    var version: Int                 // bump on format change; the widget treats unknown versions as empty
+    var generatedAt: Date
+    var ownerUserId: Int             // checked against nothing in the widget, but kept for diagnostics
+    var people: [WidgetPerson]       // id, first name — for the configuration picker and captions
+    var onThisDay: [String: [WidgetItem]]   // "YYYY-MM-DD" → items, for today + the next 13 days
+    var pool: [WidgetItem]           // ~40 items for "Memory", weighted toward photos
+}
 
-Primary files: `Services/OverviewDTOs.swift`, `Views/SameAge/`, `Utilities/DeepLink.swift`, and `Views/Shell/AppNavigator.swift`.
+struct WidgetItem: Codable, Identifiable {
+    var id: String                   // "photo:123" / "milestone:45"
+    var kind: Kind                   // photo, milestone, quote, artwork
+    var date: String                 // record day
+    var yearsAgo: Int?               // set for on-this-day items
+    var title: String                // "First steps", the quote text, or the photo title
+    var personIds: [Int]
+    var imageFile: String?           // relative to images/, nil for text-only
+    var link: String                 // site-relative path for widgetURL
+}
+```
 
-Web references: `backend/same_age.go`, `frontend/pages/same-age/same-age.tsx`, `frontend/components/SameAgePortraits.tsx`, and `frontend/lib/sameAgeNavigation.ts`.
+- **Fourteen days of "on this day"** means the widget stays correct for two weeks with no app launch. After that it falls back to the pool with an "Open Family Record to refresh" footnote.
+- **Image budget:** at most ~60 files (around 5 MB). Each publish deletes files no longer referenced. Item selection prefers photos already in `PhotoImageCache`'s disk cache, so a publish on cellular downloads little.
+- **Item order is fixed when the app publishes**, and the widget walks it by time slot. Each timeline entry is `pool[(slot + seed) % count]`, so a reload doesn't reshuffle what's on screen.
 
-Done in #101. Older servers without discovery fall back to grid stepping and the wheel picker. Deferred: manual checks on device; strips' "See everything" opens Details, while photo pages keep their strip rather than the web's Portraits link.
+### When the app publishes
 
-## Phase 2: Navigation and Growing up discovery
+1. At the end of `SyncService.performFullSync()`. This covers launch, foreground, sign-in and reconnect.
+2. When the scene moves to `.background`, cheaply, only if older than 6 hours.
+3. A **`BGAppRefreshTask`** (`com.familyrecord.ios.widget-refresh`), scheduled for after the next local midnight. It publishes from the local store, and pulls first if the network is up. iOS runs these opportunistically, which is why the 14-day horizon exists.
+4. `LocalDataReset.erase(.everything)` deletes the directory and reloads all timelines, so a signed-out widget shows a neutral "Sign in to Family Record" state.
 
-### Implementation
+## Widget catalogue
 
-- [x] Add a visible More destination containing History, Books, Same age, Activities, and Chat, following the website's browsing organization.
-- [x] Keep Add as an action and preserve its permission-dependent visibility.
-- [x] Keep account/session/settings controls in the account menu. Preserve chat unread visibility and existing per-tab navigation behavior.
-- [x] Add a compact Growing up preview to a person's Story tab when enough portraits exist. Spread the preview across the available timeline and link to the full Photos-tab collection.
-- [x] Reuse the existing photo-insights response and face crop views; do not add a second portrait-ranking mechanism.
+| Widget | Families | Configuration | Notes |
+| --- | --- | --- | --- |
+| **On this day** | `systemSmall`, `systemMedium`, `systemLarge`, `accessoryRectangular` | Person filter (optional) | Small: one photo plus "N years ago". Medium: photo plus milestone text. Large: a 2×2 mosaic for the best year plus captions. Lock Screen: text only ("2 years ago: Clara's first tooth"). Falls back to Memory when today has nothing. **This is the CarPlay widget.** |
+| **Memory** | `systemSmall`, `systemMedium`, `systemLarge` | Content: Everything / Photos / Milestones / Quotes. Person (optional). Rotate: hourly / every 6 hours / daily. | A Shuffle button (`Button(intent: ShuffleMemoryIntent())`) on medium and large advances a stored offset in the App Group and reloads that widget kind. |
+| **Quote** *(optional)* | `systemSmall`, `systemMedium`, `accessoryRectangular` | Person | Text only, so it renders well in StandBy, CarPlay and on the Lock Screen. A cheap add-on once Memory exists. |
+| **Family ages** *(later, optional)* | `accessoryRectangular`, `accessoryInline`, `systemSmall` | Person | "Clara · 3y 4m", "Theo's birthday in 5 days". Uses `FamilyStrip.compactAge`. Not a memory widget, but the most glanceable thing for CarPlay and the Lock Screen. |
 
-### Acceptance
+Tapping any widget opens `widgetURL`, the item's `link`. Phase 1 uses `/dashboard`. Phase 3 adds `/view-photo/<id>` and `/milestone/<id>`.
 
-- Books and Same age are discoverable without opening an account-management menu.
-- Existing deep links, tab reselection, add flows, and view-only accounts still behave correctly.
-- Growing up is discoverable from Story without dominating it; empty insights add no clutter.
+Rendering rules for every widget:
 
-Primary files: `ContentView.swift`, `Views/Shell/AccountMenu.swift`, `Views/Shell/AppNavigator.swift`, `Views/Family/PersonDetailView.swift`, and `Views/Family/PersonTabs.swift`.
+- Read `@Environment(\.widgetRenderingMode)`. In `.accented` or `.vibrant`, lead with text and mark the photo `.widgetAccentedRenderingMode(...)`. Pick the mode after checking it in the CarPlay Simulator.
+- `.containerBackground(for: .widget)` so StandBy and CarPlay can remove the background.
+- `.privacySensitive()` on names and text in accessory families, so a locked phone can redact them.
+- Fixed `.placeholder` content (no real photos) and a `getSnapshot` that shows real content when a snapshot is available. The widget gallery preview should show the family, not a stock photo.
 
-Web references: `frontend/components/AppNav.tsx` and `frontend/pages/profile/profile.tsx`.
+## Delivery: stacked PRs
 
-Done in #102. The unread-chat badge moved from the account avatar to the More tab and its Chat row.
+Each phase ships as its own PR based on the previous one, as with earlier plans. CI (simulator build + unit tests) is the gate. There's no Swift toolchain locally.
 
-## Phase 3: Photo actions and milestone editing
+### Phase 0: project setup (one-time manual step in Xcode)
 
-### Original photos
+Adding an extension target by hand-editing `project.pbxproj` is error-prone. It's quickest to do this part in Xcode and commit the result:
 
-- [x] Add Share original and Save to Photos actions for uploaded photos using the existing authenticated `/api/photo/{id}/original?download=1` endpoint.
-- [x] Download the original bytes rather than a resized display image. Preserve the response's filename/type when possible.
-- [x] Use the app's authentication/refresh behavior, show progress and failures, and clean up temporary share files safely.
-- [x] Request only the Photos permission required for saving, when the user chooses that action. Handle local-only photos explicitly.
+1. In the developer portal, create App Group `group.com.familyrecord.ios` and App ID `com.familyrecord.ios.widgets`. Enable the App Group on both App IDs.
+2. In Xcode, File → New → Target → **Widget Extension**, named `FamilyRecordWidgets`, with no Live Activity and no configuration intent (we add our own). Embed it in the app.
+3. Turn on the App Groups capability on both targets with the group above. Set the extension's deployment target to 18.0.
+4. Create a `Shared/` synchronized folder that belongs to **both** targets, for the snapshot model and the store.
+5. Confirm CI still builds: the scheme builds the embedded extension as a dependency.
 
-Acceptance: a user can share/save an original photo, cancellation and denied permission are handled, and offline/authentication failures are visible without losing the detail screen.
+Alternatively, I can attempt the `pbxproj` edit and let CI validate it, but the portal step still needs you.
 
-Primary files: `Views/Photos/PhotoDetailView.swift`, `Services/APIClient.swift`, and the app's privacy usage descriptions as needed.
+### Phase 1: snapshot pipeline and "On this day"
 
-### Photo suggestions while editing milestones
+- `Shared/WidgetSnapshot.swift` (model plus version) and `Shared/WidgetStore.swift` (atomic read/write in the App Group, reusing the atomic-write pattern the app already tests in `AtomicWriteTests`).
+- `Utilities/OnThisDay.swift`: the backend rule as a pure function over plain values (1–30 years, ±2 days, ≤8 photos per year). **Leap days:** Go's `AddDate(-1, 0, 0)` on Feb 29 normalizes to Mar 1, but `Calendar.date(byAdding:)` gives Feb 28. Match Go so the widget and Home agree.
+- `Services/WidgetSnapshotBuilder.swift`: SwiftData → items → downsample images (`CGImageSourceCreateThumbnailAtIndex`) → write → prune → `WidgetCenter.reloadAllTimelines()`.
+- Hooks: after a full sync, on backgrounding, and in `LocalDataReset`.
+- The extension's `OnThisDayWidget` (static configuration first), with `widgetURL("/dashboard")`.
+- Tests: the on-this-day rule (window edges, year limits, leap day, the photo cap), the builder's selection and pruning (with a fake image source), and that a reset deletes the directory.
 
-- [x] Reuse the existing suggestion service in `EditMilestoneView`, based on the current person, description, and date.
-- [x] Debounce requests, discard stale responses, and exclude already selected attachments.
-- [x] Suggestions require an explicit selection; they must not change attachments automatically.
-- [x] Preserve current selections when suggestions fail or the device is offline, including artwork attachment behavior.
+### Phase 2: CarPlay and StandBy polish
 
-Acceptance: editing offers nearby photos, saving preserves the user's complete attachment selection, and unavailable analysis does not block ordinary editing.
+- The accented and vibrant layouts for `systemSmall`, a `containerBackground` that can be removed, and a check in the CarPlay Simulator (Xcode → I/O → External Displays → CarPlay) and StandBy.
+- `BGAppRefreshTask` registration (Info.plist `BGTaskSchedulerPermittedIdentifiers` plus `UIBackgroundModes: fetch`), scheduled for after local midnight.
+- The "stale" footnote once the snapshot's horizon has run out.
 
-Web references: `frontend/pages/photos/view-photo.tsx` and `frontend/pages/milestones/edit-milestone.tsx`.
+### Phase 3: deep links into the record
 
-Done in #103. Deferred: manual checks of the share sheet and the Photos add-only permission prompt on device.
+- `DeepLink.photo(remoteId:)` for `/view-photo/<id>` and `DeepLink.milestone(remoteId:)` for `/milestone/<id>`, routed through `DeepLinkRouter` → `AppNavigator` (resolve the server id to the local `UUID`, as `.person` does).
+- **Backend PR:** add both paths to `universal_links.go`. Strictly speaking `widgetURL` doesn't need the association, but the "same list" rule in `DeepLink.swift` should hold, and push notifications can then use these destinations too.
+- Tests in `DeepLinkTests`.
 
-## Phase 4: Notification preferences
+### Phase 4: "Memory" widget, configuration and shuffle
 
-- [x] Add DTOs/service calls for `GetNotificationPreferences` and `UpdateNotificationPreferences`.
-- [x] Expose the existing chat-notification and message-preview preferences in Settings.
-- [x] Follow the server's defaults and validation; do not enable message previews implicitly.
-- [x] Treat saves as online-only and retain/recover the last confirmed values after failure.
-- [x] Explain the distinction between account preferences and iOS notification authorization.
+- `PersonEntity: AppEntity`, read from `snapshot.people`, plus `MemoryWidgetIntent: WidgetConfigurationIntent` (content type, person, rotation).
+- The rotating timeline (24 h of entries at the chosen interval, `.after` at the end).
+- `ShuffleMemoryIntent` for the interactive button.
+- The person filter on "On this day" too.
 
-Acceptance: changes made on web are reflected in the app, app changes persist on the server, and failed saves never appear successful.
+### Phase 5 (optional): Quote and Family ages
 
-Primary files: `Services/RPCMethod.swift` and `Views/Settings/SettingsView.swift`, with a small service/DTO addition following existing conventions.
+These only need small additions to the snapshot. Add them if Phase 4 lands well.
 
-Web reference: `frontend/pages/settings/settings.tsx`.
+## Risks and open questions
 
-Done in #104. Deferred: confirming the configured server has the two procs deployed; without them the section shows Retry rather than defaults.
+1. **Photos of the kids on a car screen** can be seen by passengers and anyone glancing in, and on a borrowed or rental car's display. Should "On this day" show photos in CarPlay at all, or text only there (`disfavoredLocations` on the photo widget plus a text-only widget for the car)? My recommendation is to allow photos, since the user adds the widget deliberately, and to offer the text-only Quote widget as the car-friendly option.
+2. **Linked households.** The local store includes linked households' people and photos (`familyRemoteId`). Does the dashboard's `ListFamilyPhotos` include them? The local rule should match whatever Home shows. Verify against `backend/dashboard.go` and `ListFamilyPhotos` before Phase 1.
+3. **Rendering in accented mode is unverified** (see Findings). It could push the CarPlay design toward text-first.
+4. **Background refresh isn't guaranteed.** The 14-day horizon plus a refresh on every sync covers this. A user who never opens the app will see the stale footnote after two weeks.
+5. **Phase 0 needs the developer portal** (App Group and a new App ID). Neither CI nor I can do that.
 
-## Phase 5: Photo browsing parity
+## Sources
 
-- [x] Add similar-photo groups with a representative image, count badge, and group viewer.
-- [x] Support the web's choice to show similar photos separately.
-- [x] Add place filters backed by the existing server APIs.
-- [x] Keep ranked search distinct from grouped browsing, as on the website.
-- [x] Define how server grouping/place metadata coexists with the local photo mirror, pending uploads, paging, and offline filters before changing the gallery.
-- [x] Do not silently omit server-returned photos merely because their local mirror record has not arrived.
-
-Acceptance: users can open every photo in a group, filters compose predictably, search preserves server ranking, and offline browsing still works. Photo-date filtering must preserve the recent calendar-date fixes.
-
-Primary files: `Views/Photos/PhotoGalleryView.swift`, `PhotoFilter.swift`, `PhotoFilterView.swift`, and the photo DTO/service layer.
-
-Web reference: `frontend/pages/photos/family-photos.tsx`.
-
-Done in #105. Groups and places are laid over the local mirror rather than replacing it (see `Services/PhotoBrowse.swift`): groups load once per session and fold whatever the local filters show; a place filter fetches the matching server ids, and photos the device lacks are shown from the server. Deferred: manual checks on device and with large libraries (group loading walks every page once per session).
-
-## Deferred management parity
-
-These are existing web capabilities, but are not prerequisites for the browsing catch-up:
-
-- Family-to-family links and per-person sharing controls.
-- Person merge and deletion, including impact previews and permissions.
-- Naming/managing family places.
-- Full-family import/export and administrative diagnostics.
-
-Keep them as separate decisions. Family membership and invite-code management already exist in iOS and should not be confused with family-to-family sharing. If offering a browser fallback for a web-only setting, account for universal links: opening `/settings` normally can return to the app.
-
-Book publishing, public sharing, print/PDF output, annual interviews, video, and other planned features should be evaluated against actual web implementation when their turn comes.
-
-## Validation and completion
-
-For implementation PRs:
-
-- Add focused DTO/behavior tests for changed contracts, absent/null fields, age discovery, cancellation, deep links, and failed preference saves.
-- Reuse existing tests for permissions, photo attachments, dates, books, and navigation where affected.
-- Build and run the relevant iOS tests with Xcode; manually check the changed screens on a small iPhone and iPad.
-- Check offline, slow-network, view-only, empty-data, and multi-person cases relevant to each phase.
-- Verify the target backend deployment supports new contracts or retain a tested fallback.
-- Mark each completed phase with its PR and note any intentionally deferred acceptance criteria.
-
-Documentation-only changes do not require application tests. This plan does not claim that runtime parity has been verified.
+- Apple, [What's new in widgets (WWDC25)](https://developer.apple.com/videos/play/wwdc2025/278/): CarPlay uses `systemSmall` in a StandBy style, the `disfavoredLocations([.carPlay], …)` opt-out, accented rendering.
+- Apple, [Turbocharge your app for CarPlay (WWDC25)](https://developer.apple.com/videos/play/wwdc2025/216/).
+- 9to5Mac, [iOS 26 adds CarPlay widgets](https://9to5mac.com/2025/10/30/ios-26-adds-carplay-widgets-a-major-new-feature-for-your-vehicle/): any iPhone widget, set up in iPhone Settings.
+- 9to5Mac, [iOS 26.4 adds voice-based AI apps to CarPlay](https://9to5mac.com/2026/02/18/ios-26-4-adds-support-for-voice-based-ai-apps-to-carplay/): the CarPlay app categories.
+- Local source: `backend/dashboard.go` (`onThisDay`), `backend/universal_links.go`, `frontend/main.tsx` (the web's photo and milestone routes).

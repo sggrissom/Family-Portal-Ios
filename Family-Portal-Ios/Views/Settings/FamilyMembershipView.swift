@@ -63,7 +63,7 @@ struct FamilyMembershipView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { member in
-            Text("\(member.name) loses access to \(family.name) immediately. Anything they added — people, photos, measurements, milestones — stays with the family.")
+            Text("\(member.name) loses access to \(family.name) immediately. Anything they added — people, photos, measurements, moments — stays with the family.")
         }
         .confirmationDialog("Leave Family", isPresented: $confirmingLeave) {
             Button("Leave \(family.name)", role: .destructive) {
@@ -95,7 +95,7 @@ struct FamilyMembershipView: View {
 
     /// Only shown to somebody who has a member to remove: removing yourself is leaving.
     private var membersFooter: String {
-        let shared = "Members can see and edit this family's people, photos, measurements and milestones, except those marked view only, who can see everything but change nothing."
+        let shared = "Members can see and edit this family's people, photos, measurements and moments, except those marked view only, who can see everything but change nothing."
 
         guard callerIsOwner else {
             return "\(shared) Only \(ownerName) can remove members."
