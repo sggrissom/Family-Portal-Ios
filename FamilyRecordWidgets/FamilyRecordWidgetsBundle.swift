@@ -7,5 +7,7 @@ struct FamilyRecordWidgetsBundle: WidgetBundle {
     var body: some Widget {
         OnThisDayWidget()
         MemoryWidget()
+        QuoteWidget()
+        FamilyAgesWidget()
     }
 }

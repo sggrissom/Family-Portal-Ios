@@ -8,6 +8,27 @@ nonisolated enum WidgetCopy {
     static let memoryName = "Memory"
     static let memoryDescription = "A photo, milestone or quote from your family's record, changing through the day."
     static let shuffle = "Shuffle"
+    static let quoteName = "Quote"
+    static let quoteDescription = "Something your family said, changing through the day."
+    static let noQuotes = "No quotes yet"
+    static let noQuotesDetail = "Quotes saved in Family Record appear here."
+    static let agesName = "Family Ages"
+    static let agesDescription = "How old everyone is, and whose birthday is coming up."
+    static let family = "Family"
+    static let noAges = "No birthdays yet"
+    static let noAgesDetail = "Add birthdays in Family Record."
+
+    /// How far ahead a birthday is mentioned.
+    static let birthdayLookaheadDays = 14
+
+    /// "Theo turns 5 today", "Theo turns 5 tomorrow", "Theo turns 5 in 5 days".
+    static func birthday(_ name: String, turning: Int, inDays days: Int) -> String {
+        switch days {
+        case 0: "\(name) turns \(turning) today"
+        case 1: "\(name) turns \(turning) tomorrow"
+        default: "\(name) turns \(turning) in \(days) days"
+        }
+    }
     static let nothingMatches = "Nothing to show yet"
     static let nothingMatchesDetail = "Nothing in the record matches this widget's choices."
     static let memory = "A memory"

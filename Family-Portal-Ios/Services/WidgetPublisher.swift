@@ -28,6 +28,7 @@ final class WidgetPublisher {
 
     private static let lastPublishedKey = "com.familyrecord.widgetSnapshotPublishedAt"
     private static let ownerKey = "com.familyrecord.widgetSnapshotOwner"
+    private static let familyKey = "com.familyrecord.widgetSnapshotFamily"
 
     init(
         makeStore: @escaping () -> WidgetStore? = { WidgetStore.shared() },
@@ -48,6 +49,12 @@ final class WidgetPublisher {
     /// Whose snapshot the widgets are showing, or nil once they have been cleared. A background refresh republishes only for this account: it runs with no session restored, and a widget that was signed out must stay signed out.
     var liveOwner: Int? {
         defaults.object(forKey: Self.ownerKey) as? Int
+    }
+
+    /// The account's own household, which the Family ages widget lists first as the Home strip does. Kept with the owner so a background refresh orders the family the same way.
+    var ownFamilyId: Int? {
+        get { defaults.object(forKey: Self.familyKey) as? Int }
+        set { defaults.set(newValue, forKey: Self.familyKey) }
     }
 
     /// Rebuilds the snapshot in the background of whatever asked. Returns once this request's run — or the run that absorbed it — is done.
@@ -87,12 +94,14 @@ final class WidgetPublisher {
         makeStore()?.removeAll()
         defaults.removeObject(forKey: Self.lastPublishedKey)
         defaults.removeObject(forKey: Self.ownerKey)
+        defaults.removeObject(forKey: Self.familyKey)
         reloadTimelines()
     }
 
     private func runOnce(context: ModelContext, ownerUserId: Int, generation: Int) async {
         guard let store = makeStore() else { return }
-        let builder = WidgetSnapshotBuilder(context: context, store: store, images: images)
+        var builder = WidgetSnapshotBuilder(context: context, store: store, images: images)
+        builder.ownFamilyId = ownFamilyId
         let snapshot = await builder.publish(ownerUserId: ownerUserId) { [self] in
             generation == self.generation
         }

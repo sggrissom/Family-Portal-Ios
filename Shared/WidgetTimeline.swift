@@ -117,6 +117,25 @@ nonisolated enum WidgetTimeline {
         return moment
     }
 
+    /// The Quote widget: every quote (or the pool's, from an older snapshot), turned over every `slotHours`.
+    static func quote(_ snapshot: WidgetSnapshot?, at date: Date, personId: Int? = nil, calendar: Calendar = .current) -> WidgetMoment {
+        guard var snapshot else { return .signedOut }
+        snapshot.pool = snapshot.quotes ?? snapshot.pool
+        return memory(snapshot, at: date, filter: MemoryFilter(content: .quotes, personId: personId), rotationHours: slotHours, calendar: calendar)
+    }
+
+    /// The Family ages widget on the day `date` falls on. nil without a snapshot.
+    static func ages(_ snapshot: WidgetSnapshot?, at date: Date, personId: Int? = nil, calendar: Calendar = .current) -> FamilyAges? {
+        guard let snapshot else { return nil }
+        let day = WidgetDay.key(date, calendar: calendar)
+        let members = (snapshot.family ?? []).filter { personId == nil || $0.personId == personId }
+        let rows = members.compactMap { member in
+            member.ageByDay[day].map { FamilyAges.Row(name: member.name, age: $0) }
+        }
+        let birthdays = members.compactMap { $0.birthdayByDay[day] }.sorted { $0.inDays < $1.inDays }.map(\.text)
+        return FamilyAges(rows: rows, birthdays: birthdays, isStale: day > snapshot.horizon)
+    }
+
     private static func moment(_ snapshot: WidgetSnapshot, source: WidgetMoment.Source) -> WidgetMoment {
         WidgetMoment(
             source: source,
@@ -156,4 +175,18 @@ nonisolated struct MemoryFilter: Equatable, Sendable {
         case .quotes: return item.kind == .quote
         }
     }
+}
+
+/// What the Family ages widget shows on one day.
+nonisolated struct FamilyAges: Equatable, Sendable {
+    struct Row: Equatable, Hashable, Sendable {
+        var name: String
+        var age: String
+    }
+
+    var rows: [Row]
+    /// Upcoming birthdays, soonest first.
+    var birthdays: [String]
+    /// Past the horizon the app has not worked the ages out, and the rows are empty.
+    var isStale: Bool
 }
