@@ -29,6 +29,9 @@ struct DeepLinkTests {
         ("/profile/7?tab=growth", DeepLink.person(remoteId: 7, tab: .growth)),
         // Legacy: a person's activities are now a tab of their page.
         ("/person-activities/7", DeepLink.person(remoteId: 7, tab: .activities)),
+        // A record's own page, which the widgets open.
+        ("/view-photo/123", DeepLink.photo(remoteId: 123)),
+        ("/milestone/45", DeepLink.milestone(remoteId: 45)),
     ])
     func knownPaths(path: String, expected: DeepLink) {
         #expect(DeepLink.parse(path: path) == expected)
@@ -62,6 +65,9 @@ struct DeepLinkTests {
         "/profile/ada",
         "/profile/7/edit",
         "/chat/12",
+        "/view-photo",
+        "/view-photo/abc",
+        "/milestone/45/edit",
     ])
     func unknownPathsAreRefused(path: String) {
         #expect(DeepLink.parse(path: path) == nil)
@@ -84,6 +90,12 @@ struct DeepLinkTests {
     func foreignURLsAreRefused(raw: String) throws {
         let url = try #require(URL(string: raw))
         #expect(DeepLink.parse(url: url) == nil)
+    }
+
+    @Test("A widget's tap URL routes to the record")
+    func widgetURLRoutes() throws {
+        let url = try #require(URL(string: AppConstants.defaultServerURL + "/view-photo/9"))
+        #expect(DeepLink.parse(url: url) == .photo(remoteId: 9))
     }
 
     @Test("The host is matched without regard to case")

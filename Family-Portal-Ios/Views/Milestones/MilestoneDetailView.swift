@@ -38,6 +38,25 @@ struct MilestoneDetailSheetView: View {
     }
 }
 
+/// A milestone pushed by local id — what a link to one opens. A milestone deleted since shows nothing rather than a stale page.
+struct MilestoneRouteView: View {
+    @Query private var milestones: [Milestone]
+
+    init(milestoneId: UUID) {
+        _milestones = Query(filter: #Predicate<Milestone> { $0.id == milestoneId })
+    }
+
+    var body: some View {
+        if let milestone = milestones.first {
+            MilestoneDetailContent(milestone: milestone)
+                .navigationTitle(milestone.category.label)
+                .navigationBarTitleDisplayMode(.inline)
+        } else {
+            ContentUnavailableView(Copy.milestoneDetail.notFound, systemImage: "star.slash")
+        }
+    }
+}
+
 /// The milestone page itself, without the sheet's chrome, so a match can push another milestone onto the same stack.
 struct MilestoneDetailContent: View {
     let milestone: Milestone

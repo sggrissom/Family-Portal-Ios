@@ -16,6 +16,10 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case sameAge(ageMonths: Int?, from: Int, view: SameAgeMode = .portraits)
     /// `/profile/<serverId>?tab=` — the id the server knows them by, not the local `UUID`; resolving one to the other is the router's job and can fail. `tab` nil is the person's Story.
     case person(remoteId: Int, tab: PersonTab? = nil)
+    /// `/view-photo/<serverId>` — the photo page. One this device does not hold yet opens from the server.
+    case photo(remoteId: Int)
+    /// `/milestone/<serverId>` — the milestone page. Waits, as a person does, for a sync to bring a milestone this device has not seen.
+    case milestone(remoteId: Int)
 
     /// Parses a site-relative path. The fragment is ignored, and the query only where a destination reads one (`/profile`'s `tab`, `/same-age`'s `age`, `from` and `view`).
     static func parse(path rawPath: String) -> DeepLink? {
@@ -52,6 +56,10 @@ nonisolated enum DeepLink: Equatable, Sendable {
             return Int(segments[1]).map { DeepLink.person(remoteId: $0, tab: queryValue("tab", in: query).flatMap(PersonTab.init(rawValue:))) }
         case "person-activities" where segments.count == 2:
             return Int(segments[1]).map { DeepLink.person(remoteId: $0, tab: .activities) }
+        case "view-photo" where segments.count == 2:
+            return Int(segments[1]).map { DeepLink.photo(remoteId: $0) }
+        case "milestone" where segments.count == 2:
+            return Int(segments[1]).map { DeepLink.milestone(remoteId: $0) }
         default:
             return nil
         }

@@ -180,8 +180,8 @@ struct WidgetSnapshotBuilderTests {
         #expect(today[1].title == "“Bye bye moon”")
         #expect(today[2].imageFile == "101.jpg")
         #expect(today[2].personIds == [7])
-        #expect(today.allSatisfy { $0.link == "/dashboard" })
-        #expect(snapshot.url(for: today[0])?.absoluteString == "https://example.test/dashboard")
+        #expect(today.map(\.link) == ["/milestone/55", "/milestone/56", "/view-photo/101"])
+        #expect(snapshot.url(for: today[2])?.absoluteString == "https://example.test/view-photo/101")
 
         #expect(fixture.store.read() == snapshot)
         #expect(fixture.store.hasImage("101.jpg"))
@@ -237,6 +237,8 @@ struct WidgetSnapshotBuilderTests {
 
         let today = try #require(snapshot.onThisDay["2026-10-11"])
         #expect(today.map(\.id) == ["photo:local-\(pending.id.uuidString)"])
+        // No server id to name, so a tap opens Home.
+        #expect(today[0].link == "/dashboard")
         #expect(today[0].imageFile == "local-\(pending.id.uuidString).jpg")
     }
 

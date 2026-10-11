@@ -47,6 +47,8 @@ enum AppRoute: Hashable {
     case similarPhotos(ids: [Int])
     /// A photo the server returned that this device doesn't hold yet.
     case remotePhoto(id: Int)
+    /// One milestone by local id, as its own page — where a link to it lands.
+    case milestone(UUID)
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
     case event(id: Int, name: String)
 
@@ -133,6 +135,12 @@ final class AppNavigator {
         borrowedFrom[selectedTab] = routes.firstIndex(where: \.isBorrowed)
     }
 
+    /// A photo as a link asks for it: the tab's root, then the photo.
+    func show(_ photo: PhotoRoute, on tab: MainTab) {
+        show([], on: tab)
+        push(photo)
+    }
+
     func popToRoot(_ tab: MainTab) {
         paths[tab] = NavigationPath()
         borrowedFrom[tab] = nil
@@ -204,6 +212,8 @@ private struct AppRouteDestination: View {
             RemotePhotoDetailView(remoteId: id)
         case .event(let id, let name):
             CompetitionView(eventId: id, eventName: name)
+        case .milestone(let id):
+            MilestoneRouteView(milestoneId: id)
         }
     }
 }
