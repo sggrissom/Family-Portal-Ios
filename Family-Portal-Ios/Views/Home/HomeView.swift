@@ -218,7 +218,9 @@ struct HomeView: View {
     @ViewBuilder
     private func onThisDay(_ dashboard: GetDashboardResponseDTO) -> some View {
         if !dashboard.onThisDay.isEmpty {
-            let names = people.byServerId().mapValues(\.name.firstName)
+            let byServerId = people.byServerId()
+            let names = byServerId.mapValues(\.name.firstName)
+            let birthdays = byServerId.compactMapValues(\.birthday)
             let photosById = photos.byServerId()
             section(Copy.home.onThisDay) {
                 ForEach(dashboard.onThisDay) { year in
@@ -234,7 +236,17 @@ struct HomeView: View {
                                 }
                             }
                         }
-                        ForEach(year.milestones, id: \.id) { milestone in
+                        let folded = Interviews.fold(year.milestones)
+                        ForEach(folded.groups) { answers in
+                            let personId = answers.answers.first?.personId ?? 0
+                            InterviewCardView(model: InterviewCardModel(
+                                answers: answers,
+                                personName: names[personId],
+                                birthday: birthdays[personId],
+                                interview: year.interviews.first { $0.id == answers.interviewId }
+                            ))
+                        }
+                        ForEach(folded.loose, id: \.id) { milestone in
                             let category = MilestoneCategory(rawValue: milestone.category) ?? .other
                             HStack(alignment: .firstTextBaseline, spacing: 6) {
                                 Image(systemName: category.icon)

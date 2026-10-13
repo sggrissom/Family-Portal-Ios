@@ -135,7 +135,9 @@ struct WidgetSnapshotBuilder {
         let photos = ((try? context.fetch(FetchDescriptor<Photo>())) ?? [])
             .filter(Self.canShow)
             .sorted(by: Self.isNewer)
+        // Interview answers are left out: "Goldfish crackers" means nothing on a Home Screen without its question, and one interview would crowd the pool with forty of them.
         let milestones = ((try? context.fetch(FetchDescriptor<Milestone>())) ?? [])
+            .filter { $0.interviewId == 0 }
             .sorted { ($0.date, Self.itemKey($0)) < ($1.date, Self.itemKey($1)) }
 
         let photosByRemoteId = Dictionary(

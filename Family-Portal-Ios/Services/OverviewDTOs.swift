@@ -102,6 +102,8 @@ nonisolated struct DashboardYearDTO: Decodable, Sendable, Identifiable {
     let yearsAgo: Int
     @OrZero var photos: [ImageDTO]
     @OrZero var milestones: [MilestoneDTO]
+    /// The interviews any of `milestones` answer, so their answers fold into one card with its title and portrait.
+    @OrZero var interviews: [InterviewDTO]
 
     var id: Int { yearsAgo }
 }
@@ -152,6 +154,8 @@ nonisolated struct SameAgeRowDTO: Decodable, Sendable, Identifiable {
     @OrZero var photoIds: [Int]
     /// The photos in the window that best show this person, best first, for the side-by-side montage. Empty from a server that predates it.
     @OrZero var portraits: [PortraitPhotoDTO]
+    /// The interviews any of `milestones` answer — see `DashboardYearDTO.interviews`.
+    @OrZero var interviews: [InterviewDTO]
 
     var id: Int { person.id }
 

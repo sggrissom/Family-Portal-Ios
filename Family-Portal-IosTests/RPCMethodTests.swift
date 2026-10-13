@@ -162,6 +162,24 @@ struct RPCMethodTests {
         #expect(RPCMethod.updateNotificationPreferences.rawValue == "UpdateNotificationPreferences")
     }
 
+    @Test("Interview proc names match the backend")
+    func interviewProcNames() {
+        #expect(RPCMethod.getInterviewSetup.rawValue == "GetInterviewSetup")
+        #expect(RPCMethod.startInterview.rawValue == "StartInterview")
+        #expect(RPCMethod.getInterview.rawValue == "GetInterview")
+        #expect(RPCMethod.saveInterviewAnswer.rawValue == "SaveInterviewAnswer")
+        #expect(RPCMethod.addInterviewQuestion.rawValue == "AddInterviewQuestion")
+        #expect(RPCMethod.updateInterview.rawValue == "UpdateInterview")
+        #expect(RPCMethod.deleteInterview.rawValue == "DeleteInterview")
+        #expect(RPCMethod.getPersonInterviews.rawValue == "GetPersonInterviews")
+        #expect(RPCMethod.getFamilyInterviews.rawValue == "GetFamilyInterviews")
+        #expect(RPCMethod.compareInterviewAnswers.rawValue == "CompareInterviewAnswers")
+        #expect(RPCMethod.saveHistoricalInterview.rawValue == "SaveHistoricalInterview")
+        #expect(RPCMethod.getInterviewQuestions.rawValue == "GetInterviewQuestions")
+        #expect(RPCMethod.saveInterviewQuestions.rawValue == "SaveInterviewQuestions")
+        #expect(RPCMethod.mergeInterviewQuestions.rawValue == "MergeInterviewQuestions")
+    }
+
     @Test("Every proc name is distinct and non-empty")
     func procNamesAreDistinct() {
         let names = RPCMethod.allCases.map(\.rawValue)

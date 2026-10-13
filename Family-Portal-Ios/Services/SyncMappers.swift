@@ -133,6 +133,8 @@ func applyMilestoneDTO(_ dto: MilestoneDTO, to milestone: Milestone) {
     milestone.date = dto.milestoneDate.recordDate
     milestone.photoRemoteIds = dto.photoIds
     milestone.tagRemoteIds = dto.tagIds
+    milestone.interviewId = dto.interviewId
+    milestone.questionId = dto.questionId
 }
 
 func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {

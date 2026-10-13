@@ -20,6 +20,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case photo(remoteId: Int)
     /// `/milestone/<serverId>` — the milestone page. Waits, as a person does, for a sync to bring a milestone this device has not seen.
     case milestone(remoteId: Int)
+    /// `/interview/<serverId>` — one annual interview, and `/interview/<serverId>/ask`, its conduct screen. Interviews are read from the server, so unlike a milestone there is nothing to wait for.
+    case interview(id: Int, ask: Bool = false)
 
     /// Parses a site-relative path. The fragment is ignored, and the query only where a destination reads one (`/profile`'s `tab`, `/same-age`'s `age`, `from` and `view`).
     static func parse(path rawPath: String) -> DeepLink? {
@@ -60,6 +62,10 @@ nonisolated enum DeepLink: Equatable, Sendable {
             return Int(segments[1]).map { DeepLink.photo(remoteId: $0) }
         case "milestone" where segments.count == 2:
             return Int(segments[1]).map { DeepLink.milestone(remoteId: $0) }
+        case "interview" where segments.count == 2:
+            return Int(segments[1]).map { DeepLink.interview(id: $0) }
+        case "interview" where segments.count == 3 && segments[2] == "ask":
+            return Int(segments[1]).map { DeepLink.interview(id: $0, ask: true) }
         default:
             return nil
         }

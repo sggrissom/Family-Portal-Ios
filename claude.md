@@ -25,6 +25,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── TagService.swift                            # tag vocabulary writes: online-only, never queued
 │   ├── FaceReviewService.swift, FaceReviewDTOs.swift # face review: online-only, never queued
 │   ├── BookService.swift, BookDTOs.swift           # books: reads cached like activities, writes online-only
+│   ├── InterviewService.swift, InterviewDTOs.swift # annual interview: reads cached like books, writes online-only
 │   ├── WidgetSnapshotBuilder.swift, WidgetPublisher.swift  # the widgets' snapshot in the App Group
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
@@ -53,6 +54,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Activities/    ActivitiesRootView, SeasonView, CompetitionView, …
 │   ├── Books/         BooksView (shelf), BookReaderView, BookBlocks,
 │   │                  NewBookView, BookEditorView
+│   ├── Interviews/    InterviewView (one interview's page)
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
 │   │                  DateSeparatorView, UserAvatarView
@@ -65,12 +67,14 @@ Family-Portal-Ios/Family-Portal-Ios/
 │                      PhotoThumbnailView, RemotePhotoView, SyncStatusView,
 │                      FlowLayout, ZoomableView, TagChipsView, TagPickerView,
 │                      FamilyRosterSections, CoAnchorPicker, AgeChartView,
-│                      DaySummaryViews, DetailSheetComponents, RecordStyle
+│                      DaySummaryViews, DetailSheetComponents, RecordStyle,
+│                      InterviewCardView (an interview's answers as one card)
 └── Utilities/
     ├── Constants.swift, AgeCalculator.swift, PreviewData.swift
     ├── Copy.swift                    # every user-facing string the web has words for (copy.ts)
     ├── WhenEntry, Checkup, AgeSteps, DaySummary, Story, HistoryFilter,
     │   AgeChart, FamilyStrip          # ports of the web's frontend/lib grouping, with its fixtures
+    ├── Interviews.swift              # port of frontend/lib/interviews.ts: folding, titles, what changed
     ├── RelationGraph.swift           # walks the stored edges
     ├── FamilyGroups.swift            # bands the roster by generation
     ├── FamilyAccess.swift            # per-family role → which add/edit/delete controls show (authCache.ts)
@@ -99,7 +103,7 @@ All models are `@Model` classes with `remoteId: String?` for backend sync.
 | Person | name, gender: Gender, birthday: Date?, isPregnancy: Bool, relationship: String? | family: Family?, growthData: [GrowthData] (cascade), milestones: [Milestone] (cascade), photos: [Photo] |
 | PersonRelation | fromId: Int, toId: Int, kind: RelationKind | — (holds *server* person ids, not a relationship) |
 | GrowthData | measurementType, value: Double, unit: MeasurementUnit, date | person: Person? |
-| Milestone | descriptionText, category: MilestoneCategory, context (quotes only), date | person: Person? |
+| Milestone | descriptionText, category: MilestoneCategory, context (a quote's context, an interview answer's question), date, interviewId, questionId | person: Person? |
 | Photo | imageData: Data? (externalStorage), title, descriptionText, photoDate, tagRemoteIds: [Int] | taggedPeople: [Person] |
 | User | name, email, familyId: UUID? | — |
 | FamilyTag | name, colorHex, familyId | — (records hold tag ids, not a relationship) |
@@ -513,6 +517,18 @@ The web's `/books`, `/book/<id>`, `/new-book` and `/edit-book/<id>`. Reached fro
 - Save sends `reviewedAt` as `GetBook`'s `now` — the server's clock, which stamped `createdAt` — and omits it on create (Go cannot parse an empty time). Every category chosen is sent as `[]`, the server's "everything"
 - Removing an item moves it to `excluded`, which a re-pick never brings back; "Keep" (`pinned`) survives re-picks. A drag reorders a chapter's items among the slots they already hold in the book's list
 - The reader is set on its own paper (`BookPalette`) in the system serif, with no editing chrome. The growth chart runs birth → one year in a first-year book and the book's own first → last day otherwise (the web clamps every book to the first year)
+
+### Annual interview (`InterviewService`, `Utilities/Interviews.swift`, `Views/Interviews/`)
+
+The web's `/interview/<id>` and the folding of answers everywhere moments are listed. The phased plan is at the top of `plan.md`.
+
+- An **answer** is a moment: `category == .interview`, `interviewId`/`questionId` set, `context` holding the question as it was asked. Answers arrive in the ordinary pull and live in SwiftData. Only the interview procs create them, so `MilestoneCategory.pickable` (every case but `.interview`) is what the add and edit forms offer, and `UpdateMilestone` refuses a switch to or from it
+- Editing an answer changes its text, photos and tags only: `EditMilestoneView` hides the category and the date (the date follows the interview), and `setEntry` leaves an answer's `context` alone. The answer's page shows the question above it and links to its interview
+- **Fold.** `Interviews.fold` (a port of `groupInterviewAnswers`) turns answers into one `InterviewAnswers` group per interview. `DaySummaries.summarize` folds (History, Story, Home's recent), and Home's on-this-day and same-age rows fold their DTOs, taking the title and portrait from the response's `interviews`. The store's cards have no `InterviewDTO`, so they go without a portrait or a custom title. Widgets leave answers out of the pool entirely
+- The **interview** itself (`InterviewDTO`) and the question list are server-only, read through `ActivitySnapshotCache` like books. Writes are online only and never queued. `UpdateInterview` assigns every field, so `UpdateInterviewRequestDTO` is built from the whole interview plus the change; `ErrInterviewChanged` is matched word for word (`InterviewService.isChangedConflict`)
+- A write that changes answers on the server (a new date rewrites them all; a delete removes them) is followed locally: a date change pulls, and a delete removes the local answers at once
+- `GetInterview`'s `previous` is a Go `map[int]…`, which marshals its keys as strings, so it decodes as `[String: …]` behind `previous(for:)`
+- `/interview/<id>` and `/interview/<id>/ask` are universal links (`backend/universal_links.go` claims `/interview/*` and excludes the setup, past-entry, import and compare pages until the app has screens for them)
 
 ### Widgets (`FamilyRecordWidgets/`, `Shared/`, `WidgetSnapshotBuilder`, `WidgetPublisher`)
 

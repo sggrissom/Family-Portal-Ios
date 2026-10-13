@@ -91,8 +91,17 @@ struct SameAgeRows: View {
                                 }
                             }
                         }
-                        ForEach(row.milestones, id: \.id) { milestone in
+                        let folded = Interviews.fold(row.milestones)
+                        ForEach(folded.loose, id: \.id) { milestone in
                             milestoneLine(milestone, row: row)
+                        }
+                        ForEach(folded.groups) { answers in
+                            InterviewCardView(model: InterviewCardModel(
+                                answers: answers,
+                                personName: nil,
+                                birthday: row.person.birthday,
+                                interview: row.interviews.first { $0.id == answers.interviewId }
+                            ))
                         }
                     }
                 }

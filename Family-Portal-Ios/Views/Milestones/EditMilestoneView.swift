@@ -33,6 +33,9 @@ struct EditMilestoneView: View {
         _date = State(initialValue: milestone.date.displayDay())
     }
 
+    /// An interview answer, edited without its category or date.
+    private var isAnswer: Bool { milestone.category == .interview }
+
     private var isValid: Bool {
         !descriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -66,18 +69,32 @@ struct EditMilestoneView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Picker(Copy.milestone.category, selection: $category) {
-                        ForEach(MilestoneCategory.allCases, id: \.self) { option in
-                            Text(option.label)
+                if isAnswer {
+                    // An interview answer: the question and the date belong to the interview, so only the answer is edited here.
+                    Section {
+                        TextField(Copy.interview.ask.answerPlaceholder, text: $descriptionText, axis: .vertical)
+                            .lineLimit(1...6)
+                            .focused($isTextFocused)
+                    } header: {
+                        Text(milestone.context)
+                            .textCase(nil)
+                    } footer: {
+                        Text(Copy.interview.answerDateHint)
+                    }
+                } else {
+                    Section {
+                        Picker(Copy.milestone.category, selection: $category) {
+                            ForEach(MilestoneCategory.pickable, id: \.self) { option in
+                                Text(option.label)
+                            }
                         }
                     }
-                }
 
-                MilestoneTextSections(category: category, descriptionText: $descriptionText, context: $context, isFocused: $isTextFocused)
+                    MilestoneTextSections(category: category, descriptionText: $descriptionText, context: $context, isFocused: $isTextFocused)
 
-                Section {
-                    DatePicker("Date", selection: $date, displayedComponents: .date)
+                    Section {
+                        DatePicker("Date", selection: $date, displayedComponents: .date)
+                    }
                 }
 
                 MilestonePhotoSections(category: category, newPhotos: $newPhotos, isReadingPhotos: $isReadingPhotos, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds)
@@ -97,7 +114,7 @@ struct EditMilestoneView: View {
             .task(id: lookupKey) {
                 await lookUpSuggestions()
             }
-            .navigationTitle("Edit Moment")
+            .navigationTitle(isAnswer ? Copy.interview.editAnswer : "Edit Moment")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -141,7 +158,9 @@ struct EditMilestoneView: View {
         guard !isReadingPhotos else { return }
         milestone.category = category
         milestone.setEntry(descriptionText, context: context)
-        milestone.date = date.localRecordDay()
+        if !isAnswer {
+            milestone.date = date.localRecordDay()
+        }
 
         // `photoIds` is the complete set the milestone should end up with, so an empty selection detaches everything — safe only once the seed has run, since before that an empty selection means "not loaded yet".
         let chosen = didSeedSelection ? photoChoices.filter { selectedPhotoIds.contains($0.id) } : nil

@@ -251,12 +251,16 @@ nonisolated struct MilestoneDTO: Codable, Sendable {
     @OrZero var photoIds: [Int]
     /// Tags on this milestone. `TagIds` carries `omitempty`, so absent and empty mean the same thing on the way in — unlike `photoIds` on the way out.
     @OrZero var tagIds: [Int]
+    /// Set only on an interview answer (`omitempty`), so every other moment reads 0.
+    @OrZero var interviewId: Int
+    @OrZero var questionId: Int
 
     enum CodingKeys: String, CodingKey {
         case id, personId, familyId, category, context, milestoneDate, createdAt
         case descriptionText = "description"
         case photoIds
         case tagIds
+        case interviewId, questionId
     }
 }
 

@@ -91,7 +91,7 @@ struct AddMilestoneView: View {
                             categorySuggested = false
                         }
                     )) {
-                        ForEach(MilestoneCategory.allCases, id: \.self) { option in
+                        ForEach(MilestoneCategory.pickable, id: \.self) { option in
                             Label(option.label, systemImage: option.icon)
                                 .tag(option)
                         }
