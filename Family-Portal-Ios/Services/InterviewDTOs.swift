@@ -240,3 +240,60 @@ nonisolated struct SaveHistoricalInterviewRequestDTO: Encodable, Sendable {
     let personId: Int
     let interview: HistoricalInterviewDTO
 }
+
+// MARK: - The question list
+
+nonisolated struct GetInterviewQuestionsRequestDTO: Encodable, Sendable {
+    /// 0 is the caller's own family.
+    let familyId: Int
+}
+
+nonisolated struct QuestionUsageDTO: Decodable, Sendable, Hashable {
+    @OrZero var interviews: Int
+    @OrZero var answers: Int
+
+    /// Asked or answered before: it can be retired but never deleted.
+    var inUse: Bool { interviews > 0 || answers > 0 }
+}
+
+/// The family's list, or the built-in one (unsaved, `id` 0) before anyone has saved it.
+nonisolated struct InterviewQuestionsResponseDTO: Decodable, Sendable {
+    @OrZero var familyId: Int
+    /// The save check, like a book's.
+    @OrZero var revision: Int
+    @OrZero var questions: [InterviewQuestionDTO]
+    /// Built-ins added since the family saved its list, offered and never added on their own.
+    @OrZero var suggested: [InterviewQuestionDTO]
+    @OrZero var defaults: [InterviewQuestionDTO]
+    /// By question id; a Go `map[int]…` arrives with string keys.
+    @OrZero var usage: [String: QuestionUsageDTO]
+
+    func usage(of questionId: Int) -> QuestionUsageDTO? {
+        usage[String(questionId)]
+    }
+}
+
+nonisolated struct InterviewQuestionInputDTO: Codable, Sendable, Equatable {
+    let id: Int
+    let text: String
+    let section: String
+    let minAgeYears: Int
+    let maxAgeYears: Int
+    let defaultKey: String
+    let archived: Bool
+}
+
+/// The whole list in its new order. A question left out keeps its place at the end; `deleteIds` are removed, which the server allows only for one never asked.
+nonisolated struct SaveInterviewQuestionsRequestDTO: Encodable, Sendable {
+    let familyId: Int
+    let revision: Int
+    let questions: [InterviewQuestionInputDTO]
+    let deleteIds: [Int]
+}
+
+/// Moves every answer of `fromId` onto `intoId` and retires `fromId`.
+nonisolated struct MergeInterviewQuestionsRequestDTO: Encodable, Sendable {
+    let fromId: Int
+    let intoId: Int
+    let revision: Int
+}

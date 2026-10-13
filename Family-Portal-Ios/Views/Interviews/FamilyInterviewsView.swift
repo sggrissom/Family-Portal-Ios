@@ -33,6 +33,14 @@ struct FamilyInterviewsView: View {
                 Label(Copy.interview.compare.link, systemImage: "person.2")
                     .font(.subheadline)
             }
+            if authService.access.canContributeAnywhere {
+                NavigationLink {
+                    InterviewQuestionsView()
+                } label: {
+                    Label(Copy.interview.family.editQuestions, systemImage: "list.bullet")
+                        .font(.subheadline)
+                }
+            }
 
             if response.people.isEmpty {
                 Text(Copy.interview.family.empty)

@@ -1,6 +1,6 @@
 # Annual interview plan (iOS)
 
-Status: in progress. Updated October 12, 2026.
+Status: built in five stacked PRs (#132–#136), October 12, 2026.
 
 The web built the annual interview in PRs #157–#162 of Family-Portal
 (`docs/plans/annual-interview.md`). Its phase 7 is iOS parity, built here

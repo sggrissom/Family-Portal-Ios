@@ -56,7 +56,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  NewBookView, BookEditorView
 │   ├── Interviews/    InterviewView (one interview's page), InterviewSetupView,
 │   │                  InterviewAskView + InterviewSession (conduct), PersonInterviewsTab,
-│   │                  FamilyInterviewsView (More), InterviewCompareView, PastInterviewView
+│   │                  FamilyInterviewsView (More), InterviewCompareView, PastInterviewView,
+│   │                  InterviewQuestionsView (the question list)
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
 │   │                  DateSeparatorView, UserAvatarView
@@ -78,6 +79,7 @@ Family-Portal-Ios/Family-Portal-Ios/
     ├── WhenEntry, Checkup, AgeSteps, DaySummary, Story, HistoryFilter,
     │   AgeChart, FamilyStrip          # ports of the web's frontend/lib grouping, with its fixtures
     ├── Interviews.swift              # port of frontend/lib/interviews.ts: folding, titles, what changed
+    ├── InterviewQuestionList.swift   # port of frontend/lib/interviewQuestions.ts: the editor's draft
     ├── RelationGraph.swift           # walks the stored edges
     ├── FamilyGroups.swift            # bands the roster by generation
     ├── FamilyAccess.swift            # per-family role → which add/edit/delete controls show (authCache.ts)
@@ -536,6 +538,7 @@ The web's `/interview/<id>` and the folding of answers everywhere moments are li
 - Entry points: the person page's Interviews tab (`PersonInterviewsTab`: Start or Continue, then each interview as a card, from one cached `GetPersonInterviews`), Home's `interview` and `interview-continue` nudges, and `/interview/<id>/ask`. The tab shows for anyone with an interview, or anyone this account can interview; the person page's tabs scroll sideways (`PersonTabBar`), since a child can now have seven
 - **Looking back** (`Interviews.grid`, `timelines`, `sorted`, `filtered`, `byAge` — ports of `interviewGrid`, `questionTimelines`, `sortTimelines`, `filterTimelines` and `compareByAge`, with the web's fixture in `InterviewOverTimeTests`): the Interviews tab offers **Questions** (one card per question, its answers by age, filter and sort) first, where the web starts on Years, since a grid of years does not fit a phone; **Years** is a `Grid` that scrolls sideways as a whole. Swift's sort is not stable, so the sorts tie-break on list position to match the web's. `FamilyInterviewsView` (More → Interviews, `GetFamilyInterviews`) lists children first with Start, Continue or "Due soon"; `InterviewCompareView` (`CompareInterviewAnswers`) is "Compare at the same age"
 - **Past interviews** (`PastInterviewView`, `PastInterviewDraft`): the web's `/interview/past/<id>`, from the tab ("Type in a past one") and the family page. When it was is a `WhenControl` starting on By age; the request goes as `when.request(now:)`, an age resolved by the server, since unlike a moment nothing is stored locally first. Listed questions go by `Interviews.ref`, extras by their text with "Add to my list"; blank means not asked. One `SaveHistoricalInterview` writes it all, then the screen pulls. The interview page's **Edit answers** sheet sends one `SaveInterviewAnswer` per changed answer (empty deletes it)
+- **Question editor** (`InterviewQuestionsView`, `QuestionListDraft` — a port of `frontend/lib/interviewQuestions.ts`, cases in `InterviewQuestionListTests`): the web's `/interview-questions`, from setup ("Edit the question list") and the family page. Edits are a draft until Save sends the whole list in section order with the revision it read (`ErrInterviewQuestionsChanged` refuses a stale one). `QuestionRow.questionId` is the server's id (0 until saved) and `key` its identity. Reordering is Move up/Move down in a row's context menu (the web's non-drag fallback); swipe to retire, or to delete one never asked (`usage`, string-keyed like `previous`). Merge is offered only with nothing unsaved, as on the web
 - `/interview/<id>` and `/interview/<id>/ask` are universal links (`backend/universal_links.go` claims `/interview/*` and excludes the setup, past-entry, import and compare pages until the app has screens for them)
 
 ### Widgets (`FamilyRecordWidgets/`, `Shared/`, `WidgetSnapshotBuilder`, `WidgetPublisher`)

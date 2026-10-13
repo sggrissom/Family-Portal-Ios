@@ -60,6 +60,8 @@ enum AppRoute: Hashable {
     case interviewAsk(id: Int)
     /// Typing in a past interview for a person, by server id.
     case interviewPast(personId: Int)
+    /// The family's question list.
+    case interviewQuestions
     /// The family's Interviews page, under More.
     case interviews
     /// One question's answers by age, everyone side by side. 0 lets the server choose the question.
@@ -235,6 +237,8 @@ private struct AppRouteDestination: View {
             InterviewAskView(interviewId: id)
         case .interviewPast(let personId):
             PastInterviewView(personId: personId)
+        case .interviewQuestions:
+            InterviewQuestionsView()
         case .interviews:
             FamilyInterviewsView()
         case .interviewCompare(let questionId):

@@ -73,6 +73,14 @@ struct InterviewSetupView: View {
                 Text(Copy.interview.setup.age(name, age))
             }
 
+            Section {
+                NavigationLink(Copy.interview.setup.editList) {
+                    InterviewQuestionsView()
+                }
+            } header: {
+                Text(Copy.interview.setup.questions(count))
+            }
+
             ForEach(Interviews.sections(setup.questions), id: \.self) { section in
                 let inSection = setup.questions.filter { $0.section == section }
                 let allOn = inSection.allSatisfy { checked.contains(Interviews.ref($0)) }
