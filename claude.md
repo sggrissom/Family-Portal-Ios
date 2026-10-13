@@ -55,7 +55,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Books/         BooksView (shelf), BookReaderView, BookBlocks,
 │   │                  NewBookView, BookEditorView
 │   ├── Interviews/    InterviewView (one interview's page), InterviewSetupView,
-│   │                  InterviewAskView + InterviewSession (conduct), PersonInterviewsTab
+│   │                  InterviewAskView + InterviewSession (conduct), PersonInterviewsTab,
+│   │                  FamilyInterviewsView (More), InterviewCompareView
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
 │   │                  DateSeparatorView, UserAvatarView
@@ -87,7 +88,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 
 ## Architecture
 
-- **UI**: SwiftUI, tab-based: Home · Photos · **+** · Growth · More (the web's phone bar). **+** presents the add sheet. More (`MoreView`) lists History, Books, Same age, Activities and Chat, pushed onto More's own stack and badged with unread chat; deep links to History, Chat and Same age open there. The account menu keeps Tags, Face review, Settings and Log out, pushed onto the current tab and handed back when the tab is left (`AppRoute.isBorrowed`). See `redesign-plan.md`
+- **UI**: SwiftUI, tab-based: Home · Photos · **+** · Growth · More (the web's phone bar). **+** presents the add sheet. More (`MoreView`) lists History, Books, Same age, Activities, Interviews and Chat, pushed onto More's own stack and badged with unread chat; deep links to History, Chat and Same age open there. The account menu keeps Tags, Face review, Settings and Log out, pushed onto the current tab and handed back when the tab is left (`AppRoute.isBorrowed`). See `redesign-plan.md`
 - **State**: `@Observable` classes, `@Query` for SwiftData reads
 - **Persistence**: SwiftData with models: Family, Person, PersonRelation, GrowthData, Milestone, Photo, User, ChatMessage, FamilyTag
 - **Networking**: `APIClient` actor with JWT auth, auto-refresh on 401
@@ -533,6 +534,7 @@ The web's `/interview/<id>` and the folding of answers everywhere moments are li
 - **Conduct** (`InterviewSetupView`, `InterviewAskView`, `InterviewSession`): setup is one `GetInterviewSetup` call (never cached — a missed in-progress interview would start a second one the server refuses) and starts with saved questions by id and unsaved built-ins by `defaultKey`. `InterviewSession` is a port of `ask.tsx`'s state: an answer saves when the parent moves on, the text being typed is held in `InterviewDrafts` (UserDefaults, the web's localStorage) until the save succeeds, and a save that fails for a lost connection or a 5xx retries every 4 s behind a quiet "Not saved yet" line, while a refusal is shown and not retried. `finish` awaits every save before marking the interview complete, then the screen pulls so the answers reach the store. Return in the answer field moves on, as Enter does on the web
 - A portrait goes straight to `api/upload-photo` (`InterviewService.uploadPortrait`) rather than through the queue, because `UpdateInterview` needs its id now. `CameraCaptureView` wraps the system camera (`NSCameraUsageDescription`); without one, the library picker stands in
 - Entry points: the person page's Interviews tab (`PersonInterviewsTab`: Start or Continue, then each interview as a card, from one cached `GetPersonInterviews`), Home's `interview` and `interview-continue` nudges, and `/interview/<id>/ask`. The tab shows for anyone with an interview, or anyone this account can interview; the person page's tabs scroll sideways (`PersonTabBar`), since a child can now have seven
+- **Looking back** (`Interviews.grid`, `timelines`, `sorted`, `filtered`, `byAge` — ports of `interviewGrid`, `questionTimelines`, `sortTimelines`, `filterTimelines` and `compareByAge`, with the web's fixture in `InterviewOverTimeTests`): the Interviews tab offers **Questions** (one card per question, its answers by age, filter and sort) first, where the web starts on Years, since a grid of years does not fit a phone; **Years** is a `Grid` that scrolls sideways as a whole. Swift's sort is not stable, so the sorts tie-break on list position to match the web's. `FamilyInterviewsView` (More → Interviews, `GetFamilyInterviews`) lists children first with Start, Continue or "Due soon"; `InterviewCompareView` (`CompareInterviewAnswers`) is "Compare at the same age"
 - `/interview/<id>` and `/interview/<id>/ask` are universal links (`backend/universal_links.go` claims `/interview/*` and excludes the setup, past-entry, import and compare pages until the app has screens for them)
 
 ### Widgets (`FamilyRecordWidgets/`, `Shared/`, `WidgetSnapshotBuilder`, `WidgetPublisher`)

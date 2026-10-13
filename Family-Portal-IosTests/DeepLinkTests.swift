@@ -36,6 +36,9 @@ struct DeepLinkTests {
         ("/interview/12", DeepLink.interview(id: 12)),
         ("/interview/12/ask", DeepLink.interview(id: 12, ask: true)),
         ("/interview/new/7", DeepLink.interviewSetup(personId: 7)),
+        ("/interviews", DeepLink.interviews),
+        ("/interview/compare?question=31", DeepLink.interviewCompare(questionId: 31)),
+        ("/interview/compare", DeepLink.interviewCompare(questionId: 0)),
     ])
     func knownPaths(path: String, expected: DeepLink) {
         #expect(DeepLink.parse(path: path) == expected)
@@ -76,7 +79,6 @@ struct DeepLinkTests {
         "/interview/new/ada",
         "/interview/past/7",
         "/interview/import",
-        "/interview/compare",
         "/interview/12/edit",
     ])
     func unknownPathsAreRefused(path: String) {
