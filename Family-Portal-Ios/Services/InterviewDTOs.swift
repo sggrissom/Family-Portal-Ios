@@ -213,3 +213,30 @@ nonisolated struct CompareInterviewAnswersResponseDTO: Decodable, Sendable {
     @OrZero var questions: [InterviewQuestionDTO]
     @OrZero var rows: [CompareRowDTO]
 }
+
+// MARK: - Past interviews
+
+/// One answer to a past interview. A question on the list goes by `ref` (`id:12`, or `key:fav-food` for an unsaved built-in); one that isn't goes by `newText`, kept on the list when `keep`.
+nonisolated struct ImportAnswerDTO: Encodable, Sendable, Equatable {
+    let ref: String
+    let answer: String
+    let newText: String
+    let keep: Bool
+}
+
+/// When it was — a date, or an age the server resolves against the birthday ("when she was 4" is often all a family knows) — and what was said.
+nonisolated struct HistoricalInterviewDTO: Encodable, Sendable {
+    /// "date" or "age".
+    let inputType: String
+    let date: String
+    let ageYears: Int
+    let ageMonths: Int
+    let title: String
+    let notes: String
+    let answers: [ImportAnswerDTO]
+}
+
+nonisolated struct SaveHistoricalInterviewRequestDTO: Encodable, Sendable {
+    let personId: Int
+    let interview: HistoricalInterviewDTO
+}

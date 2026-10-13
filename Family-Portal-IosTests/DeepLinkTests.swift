@@ -36,6 +36,7 @@ struct DeepLinkTests {
         ("/interview/12", DeepLink.interview(id: 12)),
         ("/interview/12/ask", DeepLink.interview(id: 12, ask: true)),
         ("/interview/new/7", DeepLink.interviewSetup(personId: 7)),
+        ("/interview/past/7", DeepLink.interviewPast(personId: 7)),
         ("/interviews", DeepLink.interviews),
         ("/interview/compare?question=31", DeepLink.interviewCompare(questionId: 31)),
         ("/interview/compare", DeepLink.interviewCompare(questionId: 0)),
@@ -77,7 +78,7 @@ struct DeepLinkTests {
         "/milestone/45/edit",
         // Interview pages the app has no screen for yet, and a setup link with no person id.
         "/interview/new/ada",
-        "/interview/past/7",
+        "/interview/past/ada",
         "/interview/import",
         "/interview/12/edit",
     ])

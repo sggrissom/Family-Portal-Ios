@@ -98,6 +98,13 @@ struct FamilyInterviewsView: View {
                     .background(MilestoneCategory.interview.color.opacity(0.2), in: Capsule())
             }
             if canContribute {
+                NavigationLink {
+                    PastInterviewView(personId: person.id)
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .frame(width: 28, height: 28)
+                }
+                .accessibilityLabel(Copy.interview.family.typeIn)
                 if row.inProgress.id > 0 {
                     NavigationLink(Copy.interview.family.continue(row.answered, row.inProgress.questionIds.count)) {
                         InterviewAskView(interviewId: row.inProgress.id)

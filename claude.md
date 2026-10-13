@@ -56,7 +56,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  NewBookView, BookEditorView
 │   ├── Interviews/    InterviewView (one interview's page), InterviewSetupView,
 │   │                  InterviewAskView + InterviewSession (conduct), PersonInterviewsTab,
-│   │                  FamilyInterviewsView (More), InterviewCompareView
+│   │                  FamilyInterviewsView (More), InterviewCompareView, PastInterviewView
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
 │   │                  DateSeparatorView, UserAvatarView
@@ -535,6 +535,7 @@ The web's `/interview/<id>` and the folding of answers everywhere moments are li
 - A portrait goes straight to `api/upload-photo` (`InterviewService.uploadPortrait`) rather than through the queue, because `UpdateInterview` needs its id now. `CameraCaptureView` wraps the system camera (`NSCameraUsageDescription`); without one, the library picker stands in
 - Entry points: the person page's Interviews tab (`PersonInterviewsTab`: Start or Continue, then each interview as a card, from one cached `GetPersonInterviews`), Home's `interview` and `interview-continue` nudges, and `/interview/<id>/ask`. The tab shows for anyone with an interview, or anyone this account can interview; the person page's tabs scroll sideways (`PersonTabBar`), since a child can now have seven
 - **Looking back** (`Interviews.grid`, `timelines`, `sorted`, `filtered`, `byAge` — ports of `interviewGrid`, `questionTimelines`, `sortTimelines`, `filterTimelines` and `compareByAge`, with the web's fixture in `InterviewOverTimeTests`): the Interviews tab offers **Questions** (one card per question, its answers by age, filter and sort) first, where the web starts on Years, since a grid of years does not fit a phone; **Years** is a `Grid` that scrolls sideways as a whole. Swift's sort is not stable, so the sorts tie-break on list position to match the web's. `FamilyInterviewsView` (More → Interviews, `GetFamilyInterviews`) lists children first with Start, Continue or "Due soon"; `InterviewCompareView` (`CompareInterviewAnswers`) is "Compare at the same age"
+- **Past interviews** (`PastInterviewView`, `PastInterviewDraft`): the web's `/interview/past/<id>`, from the tab ("Type in a past one") and the family page. When it was is a `WhenControl` starting on By age; the request goes as `when.request(now:)`, an age resolved by the server, since unlike a moment nothing is stored locally first. Listed questions go by `Interviews.ref`, extras by their text with "Add to my list"; blank means not asked. One `SaveHistoricalInterview` writes it all, then the screen pulls. The interview page's **Edit answers** sheet sends one `SaveInterviewAnswer` per changed answer (empty deletes it)
 - `/interview/<id>` and `/interview/<id>/ask` are universal links (`backend/universal_links.go` claims `/interview/*` and excludes the setup, past-entry, import and compare pages until the app has screens for them)
 
 ### Widgets (`FamilyRecordWidgets/`, `Shared/`, `WidgetSnapshotBuilder`, `WidgetPublisher`)
