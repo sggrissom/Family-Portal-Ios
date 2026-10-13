@@ -86,9 +86,12 @@ struct InterviewQuestionListTests {
     @Test("Refuses a blank or duplicate section name")
     func addSection() {
         var draft = Self.sample()
-        #expect(!draft.addSection("  "))
-        #expect(!draft.addSection("People"))
-        #expect(draft.addSection("This year"))
+        let blank = draft.addSection("  ")
+        let duplicate = draft.addSection("People")
+        let added = draft.addSection("This year")
+        #expect(!blank)
+        #expect(!duplicate)
+        #expect(added)
     }
 
     @Test("Reset restores retired built-ins and adds missing ones, keeping the family's own")
