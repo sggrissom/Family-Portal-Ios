@@ -141,3 +141,62 @@ enum Interviews {
         return names
     }
 }
+
+/// What is being typed into an answer, held until it saves — the web's localStorage drafts. Keyed by interview and question, so a phone that sleeps or loses signal mid-sentence finds the words again on the way back in.
+/// Also remembers "show earlier answers while asking", which, like the web's, belongs to this device rather than the account.
+struct InterviewDrafts {
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    private static let prefix = "interview-draft:"
+    private static let showPreviousKey = "interview-show-previous"
+
+    private static func key(_ interviewId: Int, _ questionId: Int) -> String {
+        "\(prefix)\(interviewId):\(questionId)"
+    }
+
+    func save(_ text: String, interviewId: Int, questionId: Int) {
+        defaults.set(text, forKey: Self.key(interviewId, questionId))
+    }
+
+    func clear(interviewId: Int, questionId: Int) {
+        defaults.removeObject(forKey: Self.key(interviewId, questionId))
+    }
+
+    /// Every draft held for one interview, by question id.
+    func drafts(interviewId: Int) -> [Int: String] {
+        let prefix = "\(Self.prefix)\(interviewId):"
+        var drafts: [Int: String] = [:]
+        for (key, value) in defaults.dictionaryRepresentation() where key.hasPrefix(prefix) {
+            if let questionId = Int(key.dropFirst(prefix.count)), let text = value as? String {
+                drafts[questionId] = text
+            }
+        }
+        return drafts
+    }
+
+    var showsPrevious: Bool {
+        get { defaults.object(forKey: Self.showPreviousKey) as? Bool ?? true }
+        nonmutating set { defaults.set(newValue, forKey: Self.showPreviousKey) }
+    }
+}
+
+extension Interviews {
+    /// "Age 6: Goldfish · Age 5: apple slices" — the faded line under an answer — `previousLine`.
+    static func previousLine(_ previous: [PreviousAnswerDTO], limit: Int = 3) -> String {
+        previous.prefix(limit).map { "\(Copy.interview.ask.atAge($0.ageYears)): \($0.text)" }.joined(separator: " · ")
+    }
+
+    /// Zero is no bound — `questionFitsAge`. Outside the range a question starts unchecked; the parent can still ask it.
+    static func fits(_ question: InterviewQuestionDTO, age: Int) -> Bool {
+        (question.minAgeYears == 0 || age >= question.minAgeYears) && (question.maxAgeYears == 0 || age <= question.maxAgeYears)
+    }
+
+    /// How setup names a question before the family's list is saved: by id, or by its built-in key — `questionRef`.
+    static func ref(_ question: InterviewQuestionDTO) -> String {
+        question.id > 0 ? "id:\(question.id)" : "key:\(question.defaultKey)"
+    }
+}

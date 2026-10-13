@@ -20,6 +20,10 @@ final class InterviewService {
         cache.read(.getInterview, payload: GetInterviewRequestDTO(id: id), key: ActivitySnapshotKey(.getInterview, id), apiClient: apiClient)
     }
 
+    func personInterviews(personId: Int) -> ActivityRead<GetPersonInterviewsResponseDTO> {
+        cache.read(.getPersonInterviews, payload: GetPersonInterviewsRequestDTO(personId: personId), key: ActivitySnapshotKey(.getPersonInterviews, personId), apiClient: apiClient)
+    }
+
     // MARK: - Writes
 
     /// `ErrInterviewChanged`, word for word: someone else saved first.
@@ -28,6 +32,35 @@ final class InterviewService {
     static func isChangedConflict(_ error: Error) -> Bool {
         guard case APIError.server(_, let message) = error else { return false }
         return message?.trimmingCharacters(in: .whitespacesAndNewlines) == changedMessage
+    }
+
+    /// Not cached: setup is asked once, just before a start, and an in-progress interview it missed would start a second one the server refuses.
+    func setup(personId: Int) async throws -> GetInterviewSetupResponseDTO {
+        try await apiClient.callRPC(.getInterviewSetup, payload: GetInterviewSetupRequestDTO(personId: personId))
+    }
+
+    func start(_ request: StartInterviewRequestDTO) async throws -> InterviewDTO {
+        let response: InterviewResponseDTO = try await apiClient.callRPC(.startInterview, payload: request)
+        return response.interview
+    }
+
+    func saveAnswer(_ request: SaveInterviewAnswerRequestDTO) async throws -> SaveInterviewAnswerResponseDTO {
+        try await apiClient.callRPC(.saveInterviewAnswer, payload: request)
+    }
+
+    func addQuestion(_ request: AddInterviewQuestionRequestDTO) async throws -> AddInterviewQuestionResponseDTO {
+        try await apiClient.callRPC(.addInterviewQuestion, payload: request)
+    }
+
+    /// A portrait goes straight to the server rather than through the upload queue: the interview needs its id now, and the conduct screen is online anyway.
+    func uploadPortrait(_ imageData: Data, personId: Int) async throws -> ImageDTO {
+        try await PhotoSyncService(apiClient: apiClient).uploadPhoto(
+            imageData: imageData,
+            title: "",
+            description: "",
+            photoDate: Date().localWallClock(),
+            personIds: [personId]
+        )
     }
 
     func updateInterview(_ request: UpdateInterviewRequestDTO) async throws -> InterviewDTO {

@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// A person's page: a header, then **Story · Quotes · Artwork · Photos · Growth · Activities**, Quotes and Artwork only once there are some. Switching person keeps the tab, and the tab is part of the deep link (`/profile/<id>?tab=`).
+/// A person's page: a header, then **Story · Quotes · Artwork · Interviews · Photos · Growth · Activities**, Quotes, Artwork and Interviews only once there are some (Interviews also for anyone this account can interview). Switching person keeps the tab, and the tab is part of the deep link (`/profile/<id>?tab=`).
 struct PersonDetailView: View {
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
@@ -45,12 +45,9 @@ struct PersonDetailView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 8)
 
-                Picker(Copy.person.tabs.story, selection: $tab) {
-                    ForEach(tabs(for: person)) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
+                // A scrolling row rather than a segmented control: with Interviews, a child can have seven tabs, and seven segments do not fit a phone's width.
+                PersonTabBar(tabs: tabs(for: person), selection: $tab)
+                    .padding(.bottom, 8)
 
                 Divider()
 
@@ -208,14 +205,17 @@ struct PersonDetailView: View {
 
     // MARK: - Tabs
 
-    /// Quotes and Artwork only for somebody who has some, as on the web.
+    /// Quotes and Artwork only for somebody who has some, as on the web. Interviews for somebody who has had one, or whom this account could interview — never a due date.
     private func tabs(for person: Person) -> [PersonTab] {
         let hasQuotes = person.milestones.contains { milestone in milestone.category == .quote }
         let hasArtwork = person.milestones.contains { milestone in milestone.category == .artwork }
+        let hasInterviews = person.milestones.contains { milestone in milestone.interviewId > 0 }
+        let canInterview = canEdit && !person.isPregnancy && person.serverId != nil
         return PersonTab.allCases.filter { option in
             switch option {
             case .quotes: hasQuotes || tab == .quotes
             case .artwork: hasArtwork || tab == .artwork
+            case .interviews: hasInterviews || canInterview || tab == .interviews
             default: true
             }
         }
@@ -235,6 +235,14 @@ struct PersonDetailView: View {
             PersonQuotesTab(person: person)
         case .artwork:
             PersonArtworkTab(person: person)
+        case .interviews:
+            // `GetPersonInterviews` is addressed by server id, like a person's season.
+            if let remoteId = person.serverId {
+                PersonInterviewsTab(personId: remoteId, personName: person.name, canContribute: canEdit)
+                    .id(remoteId)
+            } else {
+                ContentUnavailableView("Not synced yet", systemImage: "icloud.and.arrow.up")
+            }
         case .photos:
             PersonPhotosTab(person: person, insights: insights)
         case .growth:
@@ -246,6 +254,42 @@ struct PersonDetailView: View {
                     .id(remoteId)
             } else {
                 ContentUnavailableView("Not synced yet", systemImage: "icloud.and.arrow.up")
+            }
+        }
+    }
+}
+
+/// The person page's tabs as a row of capsules that scrolls sideways — the web's profile tabs. The chosen one is kept in view.
+private struct PersonTabBar: View {
+    let tabs: [PersonTab]
+    @Binding var selection: PersonTab
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(tabs) { option in
+                        let isSelected = option == selection
+                        Button {
+                            selection = option
+                        } label: {
+                            Text(option.label)
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 7)
+                                .foregroundStyle(isSelected ? Color.white : Color.primary)
+                                .background(isSelected ? Color.accentColor : Color(.secondarySystemBackground), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .id(option)
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .onAppear { proxy.scrollTo(selection, anchor: .center) }
+            .onChange(of: selection) { _, tab in
+                withAnimation { proxy.scrollTo(tab, anchor: .center) }
             }
         }
     }

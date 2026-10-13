@@ -102,3 +102,70 @@ nonisolated struct DeleteInterviewRequestDTO: Encodable, Sendable {
 nonisolated struct DeleteInterviewResponseDTO: Decodable, Sendable {
     @OrZero var personId: Int
 }
+
+// MARK: - Conduct
+
+nonisolated struct GetInterviewSetupRequestDTO: Encodable, Sendable {
+    let personId: Int
+}
+
+/// The setup screen's one call: the family's list (or the built-in one, unsaved), and any interview already in progress for this person.
+nonisolated struct GetInterviewSetupResponseDTO: Decodable, Sendable {
+    let person: PersonDTO
+    @OrZero var questions: [InterviewQuestionDTO]
+    @OrZero var retired: [InterviewQuestionDTO]
+    /// `id` 0 when there is none — Go sends the zero struct.
+    let inProgress: InterviewDTO
+    @OrZero var answered: Int
+}
+
+/// Saved questions go by id; built-ins the family has never saved go by `defaultKey`, and the server copies the list in on this first write.
+nonisolated struct StartInterviewRequestDTO: Encodable, Sendable {
+    let personId: Int
+    /// `YYYY-MM-DD`.
+    let date: String
+    let questionIds: [Int]
+    let defaultKeys: [String]
+    let oneOffQuestions: [String]
+}
+
+/// Creates, rewrites or deletes the answer moment: an empty answer deletes it, and `skipped` records the question as passed.
+nonisolated struct SaveInterviewAnswerRequestDTO: Encodable, Sendable {
+    let interviewId: Int
+    let questionId: Int
+    let answer: String
+    let skipped: Bool
+}
+
+nonisolated struct SaveInterviewAnswerResponseDTO: Decodable, Sendable {
+    let interview: InterviewDTO
+    /// `id` 0 when the answer was cleared or skipped.
+    let answer: MilestoneDTO?
+}
+
+/// A follow-up, inserted after `afterQuestionId`. `keep` adds it to the family's list; otherwise it is asked just this once.
+nonisolated struct AddInterviewQuestionRequestDTO: Encodable, Sendable {
+    let interviewId: Int
+    let text: String
+    let afterQuestionId: Int
+    let keep: Bool
+}
+
+nonisolated struct AddInterviewQuestionResponseDTO: Decodable, Sendable {
+    let interview: InterviewDTO
+    let question: InterviewQuestionDTO
+}
+
+// MARK: - Looking back
+
+nonisolated struct GetPersonInterviewsRequestDTO: Encodable, Sendable {
+    let personId: Int
+}
+
+/// Everything the person's Interviews tab needs in one call: their interviews oldest first, every answer, and every question involved.
+nonisolated struct GetPersonInterviewsResponseDTO: Decodable, Sendable {
+    let person: PersonDTO
+    @OrZero var interviews: [InterviewDTO]
+    @OrZero var answers: [MilestoneDTO]
+    @OrZero var questions: [InterviewQuestionDTO]
+}

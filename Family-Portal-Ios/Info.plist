@@ -37,6 +37,8 @@
 	<string>$(GOOGLE_CLIENT_ID)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Family Record uses the camera to take a portrait at an interview.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Family Record saves the original photos you choose to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

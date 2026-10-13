@@ -41,7 +41,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Auth/          LoginView, CreateAccountView, ForgotPasswordView,
 │   │                  UpdateRequiredView
 │   ├── Family/        AddPersonView, EditPersonView, PersonDetailView,
-│   │                  PersonTabs (Story/Quotes/Artwork/Photos/Growth), PersonRelationsSection,
+│   │                  PersonTabs (Story/Quotes/Artwork/Interviews/Photos/Growth), PersonRelationsSection,
 │   │                  ProfilePhotoPickerView
 │   ├── Photos/        PhotoGalleryView, PhotoDetailView, TagPeopleView,
 │   │                  PhotoRoute, PhotoFilter, PhotoFilterView,
@@ -54,7 +54,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Activities/    ActivitiesRootView, SeasonView, CompetitionView, …
 │   ├── Books/         BooksView (shelf), BookReaderView, BookBlocks,
 │   │                  NewBookView, BookEditorView
-│   ├── Interviews/    InterviewView (one interview's page)
+│   ├── Interviews/    InterviewView (one interview's page), InterviewSetupView,
+│   │                  InterviewAskView + InterviewSession (conduct), PersonInterviewsTab
 │   ├── Chat/          ChatView, MessageBubbleView, MessageInputView,
 │   │                  TypingIndicatorView, ConnectionStatusView,
 │   │                  DateSeparatorView, UserAvatarView
@@ -68,7 +69,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │                      FlowLayout, ZoomableView, TagChipsView, TagPickerView,
 │                      FamilyRosterSections, CoAnchorPicker, AgeChartView,
 │                      DaySummaryViews, DetailSheetComponents, RecordStyle,
-│                      InterviewCardView (an interview's answers as one card)
+│                      InterviewCardView (an interview's answers as one card),
+│                      CameraCaptureView (the system camera, for one photo)
 └── Utilities/
     ├── Constants.swift, AgeCalculator.swift, PreviewData.swift
     ├── Copy.swift                    # every user-facing string the web has words for (copy.ts)
@@ -528,6 +530,9 @@ The web's `/interview/<id>` and the folding of answers everywhere moments are li
 - The **interview** itself (`InterviewDTO`) and the question list are server-only, read through `ActivitySnapshotCache` like books. Writes are online only and never queued. `UpdateInterview` assigns every field, so `UpdateInterviewRequestDTO` is built from the whole interview plus the change; `ErrInterviewChanged` is matched word for word (`InterviewService.isChangedConflict`)
 - A write that changes answers on the server (a new date rewrites them all; a delete removes them) is followed locally: a date change pulls, and a delete removes the local answers at once
 - `GetInterview`'s `previous` is a Go `map[int]…`, which marshals its keys as strings, so it decodes as `[String: …]` behind `previous(for:)`
+- **Conduct** (`InterviewSetupView`, `InterviewAskView`, `InterviewSession`): setup is one `GetInterviewSetup` call (never cached — a missed in-progress interview would start a second one the server refuses) and starts with saved questions by id and unsaved built-ins by `defaultKey`. `InterviewSession` is a port of `ask.tsx`'s state: an answer saves when the parent moves on, the text being typed is held in `InterviewDrafts` (UserDefaults, the web's localStorage) until the save succeeds, and a save that fails for a lost connection or a 5xx retries every 4 s behind a quiet "Not saved yet" line, while a refusal is shown and not retried. `finish` awaits every save before marking the interview complete, then the screen pulls so the answers reach the store. Return in the answer field moves on, as Enter does on the web
+- A portrait goes straight to `api/upload-photo` (`InterviewService.uploadPortrait`) rather than through the queue, because `UpdateInterview` needs its id now. `CameraCaptureView` wraps the system camera (`NSCameraUsageDescription`); without one, the library picker stands in
+- Entry points: the person page's Interviews tab (`PersonInterviewsTab`: Start or Continue, then each interview as a card, from one cached `GetPersonInterviews`), Home's `interview` and `interview-continue` nudges, and `/interview/<id>/ask`. The tab shows for anyone with an interview, or anyone this account can interview; the person page's tabs scroll sideways (`PersonTabBar`), since a child can now have seven
 - `/interview/<id>` and `/interview/<id>/ask` are universal links (`backend/universal_links.go` claims `/interview/*` and excludes the setup, past-entry, import and compare pages until the app has screens for them)
 
 ### Widgets (`FamilyRecordWidgets/`, `Shared/`, `WidgetSnapshotBuilder`, `WidgetPublisher`)
