@@ -171,4 +171,22 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
 
     case getNotificationPreferences = "GetNotificationPreferences"
     case updateNotificationPreferences = "UpdateNotificationPreferences"
+
+    // MARK: - Annual interview (backend/interview*.go)
+    // Reads are cached like books; writes are online only and never queued. Answers are moments, but only these procs create them.
+
+    case getInterviewSetup = "GetInterviewSetup"
+    case startInterview = "StartInterview"
+    case getInterview = "GetInterview"
+    case saveInterviewAnswer = "SaveInterviewAnswer"
+    case addInterviewQuestion = "AddInterviewQuestion"
+    case updateInterview = "UpdateInterview"
+    case deleteInterview = "DeleteInterview"
+    case getPersonInterviews = "GetPersonInterviews"
+    case getFamilyInterviews = "GetFamilyInterviews"
+    case compareInterviewAnswers = "CompareInterviewAnswers"
+    case saveHistoricalInterview = "SaveHistoricalInterview"
+    case getInterviewQuestions = "GetInterviewQuestions"
+    case saveInterviewQuestions = "SaveInterviewQuestions"
+    case mergeInterviewQuestions = "MergeInterviewQuestions"
 }

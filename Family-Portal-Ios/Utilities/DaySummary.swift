@@ -37,6 +37,8 @@ struct DaySummary: Identifiable {
     let day: String
     var birthdays: [DayBirthday] = []
     var milestones: [Milestone] = []
+    /// Interview answers, one group per interview, so 40 answers are one card.
+    var interviews: [InterviewAnswers<Milestone>] = []
     var events: [DayEvent] = []
     var checkups: [DayCheckup] = []
     var photos: DayPhotoGroup?
@@ -87,9 +89,17 @@ enum DaySummaries {
         }
 
         var attachedPhotoIds = Set<Int>()
-        for milestone in records.milestones {
+        let (interviews, loose) = Interviews.fold(records.milestones)
+        for milestone in loose {
             attachedPhotoIds.formUnion(milestone.photoRemoteIds)
             edit(milestone.date.recordDayKey) { $0.milestones.append(milestone) }
+        }
+        for interview in interviews {
+            guard let first = interview.answers.first else { continue }
+            for answer in interview.answers {
+                attachedPhotoIds.formUnion(answer.photoRemoteIds)
+            }
+            edit(first.date.recordDayKey) { $0.interviews.append(interview) }
         }
 
         for appearance in records.appearances {

@@ -32,6 +32,10 @@ struct DaySummaryView: View {
                     .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
             }
 
+            ForEach(day.interviews) { interview in
+                InterviewCardView(model: InterviewCardModel(answers: interview, showsPerson: subjectId == nil))
+            }
+
             ForEach(day.events) { event in
                 eventCard(event)
             }

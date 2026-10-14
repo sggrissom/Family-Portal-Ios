@@ -13,6 +13,9 @@ final class Milestone {
     var photoRemoteIds: [Int] = []
     /// Ids of the `FamilyTag`s on this milestone; see `Photo.tagRemoteIds`.
     var tagRemoteIds: [Int] = []
+    /// For an interview answer, the server ids of its interview and question; 0 for every other moment. `context` then holds the question as it was asked.
+    var interviewId: Int = 0
+    var questionId: Int = 0
 
     var person: Person?
 

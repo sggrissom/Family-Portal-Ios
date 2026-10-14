@@ -142,6 +142,9 @@ struct ContentView: View {
             guard let milestone = fetchMilestone(remoteId: remoteId) else { return }
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.milestone(milestone.id)], on: .home)
+        case .interview(let id, _):
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([.interview(id: id)], on: .home)
         }
     }
 }
@@ -170,6 +173,7 @@ private extension ContentView {
         .environment(MobileVersionService())
         .environment(ActivityService())
         .environment(BookService())
+        .environment(InterviewService())
         .environment(DeepLinkRouter())
         .environment(AppNavigator())
         .environment(AddFlow())

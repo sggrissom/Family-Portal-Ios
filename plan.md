@@ -1,3 +1,60 @@
+# Annual interview plan (iOS)
+
+Status: in progress. Updated October 12, 2026.
+
+The web built the annual interview in PRs #157–#162 of Family-Portal
+(`docs/plans/annual-interview.md`). Its phase 7 is iOS parity, built here
+after the web settled the design. iOS copies the web's screens and words and
+keeps none of its own logic: parsing, matching and the default question list
+stay on the server.
+
+## The model, as iOS sees it
+
+- An **answer** is a moment with `category: "interview"`, `interviewId` and
+  `questionId`. `context` holds the question as it was asked. Answers arrive
+  in the ordinary `GetFamilyTimeline` pull, so they live in SwiftData like
+  every other moment.
+- An **interview** (the sitting) and the family's **question list** are not
+  in SwiftData. They are online-first reads through `ActivitySnapshotCache`,
+  like books, and every write is online-only and never queued: a write
+  carries a version, and answers are created by the server.
+- Today iOS reads an answer as an "Other" moment, so one interview shows as
+  ~45 loose rows, and editing one sends a category switch the server refuses.
+  That is why the folding comes first.
+
+## Rules
+
+- **Fold.** Wherever moments are listed, the answers of one interview are one
+  card (`InterviewFold`, a port of `groupInterviewAnswers`): History, Story,
+  Home's recent and on-this-day, same age. Widgets leave answers out.
+- **Lock.** `interview` is never offered by a category picker. Editing an
+  answer changes its text, photos and tags only; the question and the date
+  belong to the interview.
+- **Words** come from `copy.ts` (`copy.interview`), mirrored in `Copy.interview`.
+
+## Phases (stacked PRs)
+
+1. **Foundations and the interview page.** The `interview` category and the
+   answer fields, folding everywhere, the locked answer editor, the
+   `/interview/<id>` page (portrait, what changed, answers by section, edit
+   details, delete), the `/interview/` universal link (with the web PR
+   claiming it).
+2. **Conduct and resume.** Setup (date, checklist by section with age
+   filtering, one-offs, "show earlier answers"), the one-question-at-a-time
+   screen (autosave with a local draft and quiet retry, skip, jump list,
+   follow-up questions, portrait from the camera, finish), the Home nudges
+   `interview` and `interview-continue`, Start/Continue from the person page.
+3. **Look back.** The person page's Interviews tab (Questions view first, then
+   Years), the family Interviews page under More, compare at the same age.
+4. **Past interviews.** Type in a past interview (date or age, every question,
+   retired ones behind a toggle, questions not on the list), and edit answers
+   from the interview page.
+5. **Question editor.** Reword, reorder, sections, ages, retire and restore,
+   delete when unanswered, merge, suggested defaults, reset.
+
+Deliberately web-only for now: paste/CSV import (the web plan allows it),
+the book interview spread (iOS skips item kinds it does not know), printing.
+
 # Widget redesign plan
 
 Status: proposed; documentation only. The first widget implementation is working, but the presentation and content need a second pass.

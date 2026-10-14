@@ -19,6 +19,7 @@ nonisolated enum Copy {
         static let more = "More"
         static let add = "Add"
         static let account = "Account"
+        static let interviews = "Interviews"
     }
 
     /// The web's `moreSheet`: More's destinations, each with a line saying what it is for.
@@ -28,6 +29,7 @@ nonisolated enum Copy {
         static let sameAge = "Compare everyone at the same age"
         static let activities = "Seasons, meets and results"
         static let chat = "Family messages"
+        static let interviews = "Same questions, every year"
     }
 
     enum account {
@@ -358,6 +360,7 @@ nonisolated enum Copy {
             static let story = "Story"
             static let quotes = "Quotes"
             static let artwork = "Artwork"
+            static let interviews = "Interviews"
             static let photos = "Photos"
             static let growth = "Growth"
             static let activities = "Activities"
@@ -454,6 +457,230 @@ nonisolated enum Copy {
         static let measure = "Measure"
         static let empty = "Pick people with measurements to see them here."
         static let noData = "No measurements yet."
+    }
+
+    /// `copy.interview`. The paste importer's words are left out: importing stays on the web.
+    enum interview {
+        static let title = "Annual interview"
+        static let editAnswer = "Edit answer"
+        static let answerDateHint = "The date follows the interview. Change it from the interview page."
+
+        static func answerOf(_ title: String) -> String { "Part of \(title) →" }
+        static let previousAnswer = "← Previous answer"
+        static let nextAnswer = "Next answer →"
+
+        enum questions {
+            static let title = "Interview questions"
+            static let intro = "The questions you ask at each interview. Rewording one keeps its answers from earlier years lined up."
+            static let save = "Save changes"
+            static let saving = "Saving…"
+            static let saved = "All changes saved"
+            static let unsaved = "Unsaved changes"
+            static let addQuestion = "Add a question"
+            static let addQuestionPlaceholder = "What's your favorite…?"
+            static let addSection = "Add a section"
+            static let sectionPlaceholder = "Section name"
+            static func renameSection(_ name: String) -> String { "Rename section \(name)" }
+            static let questionText = "Question"
+            static let ages = "Ages"
+            static let minAge = "Youngest age"
+            static let maxAge = "Oldest age"
+            static let anyAge = "any age"
+            static func ageRange(min: Int, max: Int) -> String {
+                if min > 0 && max > 0 { return "ages \(min)–\(max)" }
+                if min > 0 { return "ages \(min)+" }
+                if max > 0 { return "up to age \(max)" }
+                return "any age"
+            }
+            static let moveUp = "Move up"
+            static let moveDown = "Move down"
+            static let moveTo = "Move to section"
+            static let retire = "Retire"
+            static let restore = "Restore"
+            static let delete = "Delete"
+            static let mergeInto = "Merge into…"
+            static let mergeHint = "Save your changes before merging."
+            static func confirmMerge(from: String, into: String) -> String {
+                "Move every answer to \"\(from)\" onto \"\(into)\" and retire \"\(from)\"? Answers keep the wording they were asked with."
+            }
+            static func retired(_ n: Int) -> String { "Retired questions (\(n))" }
+            static let retiredHint = "Retired questions aren't offered for new interviews. Their answers stay."
+            static func asked(_ n: Int) -> String { n == 0 ? "never asked" : n == 1 ? "asked once" : "asked \(n) times" }
+            static func suggested(_ n: Int) -> String { n == 1 ? "1 new suggested question" : "\(n) new suggested questions" }
+            static let add = "Add"
+            static let addAll = "Add all"
+            static let reset = "Reset to defaults"
+            static let confirmReset = "Restore every retired built-in question and add any that are missing? Your own questions stay."
+            static let placeholders = "Use {name} and {age} to fill in the child's name and age."
+            static let emptySection = "No questions in this section yet."
+            static let edit = "Edit"
+        }
+
+        enum setup {
+            static func title(_ name: String) -> String { "Interview \(name)" }
+            static func inProgress(_ name: String, answered: Int, total: Int) -> String {
+                "\(name) has an interview in progress (\(answered) of \(total) answered)."
+            }
+            static let `continue` = "Continue it"
+            static let date = "Date"
+            static func age(_ name: String, _ age: Int) -> String { "\(name) is \(age) on this day" }
+            static let showPrevious = "Show earlier answers while asking"
+            static func questions(_ n: Int) -> String { n == 1 ? "1 question" : "\(n) questions" }
+            static let editList = "Edit the question list"
+            static let all = "All"
+            static let none = "None"
+            static let outsideAges = "outside the usual ages"
+            static let justThisTime = "Just for this time"
+            static let addOneOff = "Add a question just for this time"
+            static let add = "Add"
+            static let remove = "Remove"
+            static let cancel = "Cancel"
+            static func start(_ n: Int) -> String { "Start · \(n) \(n == 1 ? "question" : "questions")" }
+            static let starting = "Starting…"
+        }
+
+        enum ask {
+            static func progress(_ i: Int, _ n: Int) -> String { "\(i) of \(n)" }
+            static let done = "Done"
+            static let allQuestions = "All questions"
+            static let answerPlaceholder = "Their answer"
+            static let wasSkipped = "Skipped"
+            static func atAge(_ age: Int) -> String { "Age \(age)" }
+            static let back = "Back"
+            static let skip = "Skip"
+            static let next = "Next"
+            static let retrying = "Not saved yet. Retrying…"
+            static let addFollowUp = "+ Add a follow-up question"
+            static let followUpText = "Follow-up question"
+            static let justOnce = "Just this once"
+            static let keepIt = "Keep it for next year"
+            static let addQuestion = "Add question"
+            static let cancel = "Cancel"
+            static let takePortrait = "Take a portrait"
+            static let retakePortrait = "Retake the portrait"
+            static let uploading = "Uploading…"
+            static let showPrevious = "Show earlier answers"
+            static let statusAnswered = "answered"
+            static let statusSkipped = "skipped"
+            static let statusPending = "not asked yet"
+            static func allDone(_ name: String) -> String { "That's everything for \(name)" }
+            static func answeredCount(_ n: Int, _ total: Int) -> String { "\(n) of \(total) questions answered." }
+            static func pendingIntro(_ n: Int) -> String {
+                n == 1 ? "1 question hasn't been asked yet:" : "\(n) questions haven't been asked yet:"
+            }
+            static let askNow = "Ask now"
+            static let leaveBlank = "Anything you don't ask stays blank."
+            static let finish = "Finish interview"
+            static let finishing = "Finishing…"
+            static let unsavedOnFinish = "Some answers haven't saved yet. Check your connection and try again."
+        }
+
+        enum view {
+            static func portraitOf(_ name: String) -> String { "Portrait of \(name)" }
+            static func age(_ age: Int) -> String { "age \(age)" }
+            static let inProgress = "in progress"
+            static let `continue` = "Continue the interview"
+            static let skipped = "skipped"
+            static let notAsked = "not asked"
+            static let delete = "Delete interview"
+            static let confirmDelete = "Delete this interview and all of its answers? This can't be undone."
+            static let deleteFailed = "The interview could not be deleted."
+            static let whatChanged = "What changed since last time"
+            static let editAnswers = "Edit answers"
+            static let doneEditing = "Done"
+            static let editDetails = "Edit details"
+            static let title = "Title"
+            static let titlePlaceholder = "7th birthday interview"
+            static let date = "Date"
+            static let notes = "Notes"
+            static let notesPlaceholder = "At the kitchen table, very silly mood"
+            static let portrait = "Portrait"
+            static let changePortrait = "Change portrait"
+            static let addPortrait = "Add a portrait"
+            static let removePortrait = "Remove portrait"
+            static let save = "Save"
+            static let saving = "Saving…"
+            static let cancel = "Cancel"
+            static let saveFailed = "That could not be saved. Please try again."
+            static let answerSaved = "Saved"
+            static let reopen = "Reopen to keep asking"
+        }
+
+        enum tab {
+            static func empty(_ name: String) -> String { "\(name) hasn't had an interview yet." }
+            static let startFirst = "Start the first interview"
+            static let start = "New interview"
+            static let typeIn = "Type in a past one"
+            static let `continue` = "Continue interview"
+            static let inProgress = "in progress"
+            static let years = "Years"
+            static let questions = "Questions"
+            static let question = "Question"
+            static let skipped = "skipped"
+            static let legendChanged = "New answer"
+            static let legendSame = "faded answers are the same as the year before"
+            static let filter = "Find a question or answer"
+            static let sortLabel = "Sort"
+            static let sortList = "List order"
+            static let sortConsistent = "Most consistent"
+            static let sortChanged = "Most changed"
+            static let noMatches = "Nothing matches."
+        }
+
+        enum family {
+            static let title = "Interviews"
+            static let intro = "Ask the same questions every year and watch the answers change."
+            static let editQuestions = "Edit questions"
+            static let typeIn = "Type in a past one"
+            static let start = "Start"
+            static func `continue`(_ answered: Int, _ total: Int) -> String { "Continue · \(answered) of \(total)" }
+            static let due = "Due soon"
+            static let view = "See answers"
+            static let never = "No interviews yet"
+            static func last(age: Int, date: String, count: Int) -> String {
+                "Last at \(age), \(date)\(count > 1 ? " · \(count) interviews" : "")"
+            }
+            static let others = "Everyone else"
+            static let empty = "Add family members to interview them."
+        }
+
+        enum past {
+            static func title(_ name: String) -> String { "Type in a past interview for \(name)" }
+            static let intro = "Fill in whatever was asked. Leave the rest blank."
+            static let when = "When was it?"
+            static let retired = "retired"
+            static func showRetired(_ n: Int) -> String { "Show retired questions (\(n))" }
+            static let notOnList = "Questions that aren't on your list"
+            static let question = "Question"
+            static let answer = "Answer"
+            static let addToList = "Add to my list"
+            static let addQuestion = "+ Add a question"
+            static let titleAndNotes = "Title and notes"
+            static func save(_ n: Int) -> String { n == 1 ? "Save 1 answer" : "Save \(n) answers" }
+            static let saving = "Saving…"
+            static let saveFailed = "The interview could not be saved."
+        }
+
+        enum card {
+            static let title = "Annual interview"
+            static func whose(_ name: String) -> String { "\(name)'s annual interview" }
+            static func age(_ age: Int) -> String { "age \(age)" }
+            static let inProgress = "in progress"
+            static func answers(_ n: Int) -> String { n == 1 ? "1 answer" : "\(n) answers" }
+            static func someAnswers(_ n: Int, _ total: Int) -> String { "\(n) of \(total) answers" }
+        }
+
+        enum compare {
+            static let title = "Compare at the same age"
+            static let intro = "One question, everyone's answers, lined up by how old they were."
+            static let question = "Question"
+            static let who = "Who to compare"
+            static func atAge(_ age: Int) -> String { "At \(age)" }
+            static let allSame = "Everyone said the same thing."
+            static let noAnswers = "Nobody has answered this one yet."
+            static let empty = "There are no interview answers to compare yet."
+            static let link = "Compare at the same age"
+        }
     }
 }
 

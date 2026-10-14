@@ -67,6 +67,8 @@ struct MilestoneDetailContent: View {
     @State private var selectedPhoto: AttachedPhotoSelection?
     @State private var showsRelatedMemories = false
 
+    private var isAnswer: Bool { milestone.interviewId > 0 }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -74,6 +76,14 @@ struct MilestoneDetailContent: View {
                     if let person = milestone.person {
                         Text(person.name)
                             .font(.headline)
+                    }
+
+                    // An interview answer reads under the question it answers.
+                    if isAnswer, !milestone.context.isEmpty {
+                        Text(milestone.context)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Text(milestone.displayText)
@@ -94,7 +104,18 @@ struct MilestoneDetailContent: View {
                     .foregroundStyle(.secondary)
                 }
 
-                if !milestone.context.isEmpty {
+                if isAnswer {
+                    NavigationLink {
+                        InterviewView(interviewId: milestone.interviewId)
+                    } label: {
+                        Text(Copy.interview.answerOf(Interviews.fallbackTitle(
+                            personName: milestone.person?.name ?? "",
+                            birthday: milestone.person?.birthday,
+                            date: milestone.date
+                        )))
+                        .font(.subheadline)
+                    }
+                } else if !milestone.context.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(Copy.person.contextLabel)
                             .font(.subheadline.weight(.semibold))
@@ -161,7 +182,10 @@ struct MilestoneDetailContent: View {
                     DisclosureGroup("Related family memories", isExpanded: $showsRelatedMemories) {
                         if showsRelatedMemories {
                             VStack(alignment: .leading, spacing: 20) {
-                                MilestoneMatchesSection(milestone: milestone)
+                                // An answer has no matches: the web asks for none, since its siblings' answers are the interview's own comparison.
+                                if !isAnswer {
+                                    MilestoneMatchesSection(milestone: milestone)
+                                }
                                 PersonSameAgeStrip(person: milestone.person, date: milestone.date)
                             }
                             .padding(.top, 12)

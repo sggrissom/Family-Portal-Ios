@@ -94,4 +94,9 @@ enum MilestoneCategory: String, Codable, CaseIterable {
     case quote
     case artwork
     case other
+    /// One answer of an annual interview. Created only by the interview procs, so no picker offers it — see `pickable`.
+    case interview
+
+    /// What the add and edit forms offer: every category but `interview`, which the server refuses to create or switch to from a moment form.
+    static var pickable: [MilestoneCategory] { allCases.filter { $0 != .interview } }
 }

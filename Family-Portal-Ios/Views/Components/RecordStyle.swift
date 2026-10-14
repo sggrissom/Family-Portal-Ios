@@ -14,6 +14,7 @@ extension MilestoneCategory {
         case .quote: "quote.bubble.fill"
         case .artwork: "paintpalette.fill"
         case .other: "note.text"
+        case .interview: "mic.fill"
         }
     }
 
@@ -27,6 +28,7 @@ extension MilestoneCategory {
         case .quote: .indigo
         case .artwork: .pink
         case .other: .gray
+        case .interview: .teal
         }
     }
 

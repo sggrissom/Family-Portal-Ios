@@ -32,6 +32,9 @@ struct DeepLinkTests {
         // A record's own page, which the widgets open.
         ("/view-photo/123", DeepLink.photo(remoteId: 123)),
         ("/milestone/45", DeepLink.milestone(remoteId: 45)),
+        // An interview's page, and its conduct screen.
+        ("/interview/12", DeepLink.interview(id: 12)),
+        ("/interview/12/ask", DeepLink.interview(id: 12, ask: true)),
     ])
     func knownPaths(path: String, expected: DeepLink) {
         #expect(DeepLink.parse(path: path) == expected)
@@ -68,6 +71,12 @@ struct DeepLinkTests {
         "/view-photo",
         "/view-photo/abc",
         "/milestone/45/edit",
+        // The interview pages the association leaves to the browser.
+        "/interview/new/7",
+        "/interview/past/7",
+        "/interview/import",
+        "/interview/compare",
+        "/interview/12/edit",
     ])
     func unknownPathsAreRefused(path: String) {
         #expect(DeepLink.parse(path: path) == nil)

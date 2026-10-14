@@ -51,6 +51,8 @@ enum AppRoute: Hashable {
     case milestone(UUID)
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
     case event(id: Int, name: String)
+    /// One annual interview by server id. Interviews live on the server only, so there is no local id to name.
+    case interview(id: Int)
 
     /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back. History, Chat, Activities and Books are More's own and are not borrowed.
     var isBorrowed: Bool {
@@ -214,6 +216,8 @@ private struct AppRouteDestination: View {
             CompetitionView(eventId: id, eventName: name)
         case .milestone(let id):
             MilestoneRouteView(milestoneId: id)
+        case .interview(let id):
+            InterviewView(interviewId: id)
         }
     }
 }
