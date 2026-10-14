@@ -66,6 +66,8 @@ enum AppRoute: Hashable {
     case interviews
     /// One question's answers by age, everyone side by side. 0 lets the server choose the question.
     case interviewCompare(questionId: Int)
+    /// Global search, from the magnifying glass on every tab root. A query starts it searching.
+    case search(query: String?)
 
     /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back. History, Chat, Activities and Books are More's own and are not borrowed.
     var isBorrowed: Bool {
@@ -89,11 +91,22 @@ final class AppNavigator {
     var historyFilters = HistoryFilters()
     var photoFilter = PhotoFilter()
 
+    /// Bumped to hand the Photos tab a search to run on its words, as "See all photos" does. The gallery runs each request once.
+    private(set) var photoSearchRequest = 0
+
     /// "Open in Photos →": the Photos tab, filtered to one person.
     func openPhotos(of personId: UUID) {
         var filter = PhotoFilter()
         filter.personLocalIds = [personId]
+        openPhotos(filter)
+    }
+
+    /// The Photos tab at its root, showing `filter`. With `search`, the gallery also runs a server search for the filter's words.
+    func openPhotos(_ filter: PhotoFilter, search: Bool = false) {
         photoFilter = filter
+        if search, !filter.trimmedSearch.isEmpty {
+            photoSearchRequest += 1
+        }
         popToRoot(.photos)
         select(.photos)
     }
@@ -243,6 +256,8 @@ private struct AppRouteDestination: View {
             FamilyInterviewsView()
         case .interviewCompare(let questionId):
             InterviewCompareView(questionId: questionId)
+        case .search(let query):
+            SearchView(initialQuery: query)
         }
     }
 }

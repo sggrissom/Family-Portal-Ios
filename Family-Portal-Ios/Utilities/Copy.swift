@@ -291,6 +291,51 @@ nonisolated enum Copy {
         }
     }
 
+    /// The web's `copy.search`: global search, from the magnifying glass on every tab.
+    enum search {
+        static let title = "Search"
+        static let label = "Search everything"
+        static let placeholder = "Search people, moments, photos…"
+        static func remove(_ label: String) -> String { "Remove \(label)" }
+        static let understood = "Searching for"
+
+        enum groups {
+            static let people = "People"
+            static let moments = "Moments"
+            static let photos = "Photos"
+            static let tags = "Tags"
+            static let places = "Places"
+            static let activities = "Activities"
+            static let books = "Books"
+        }
+
+        enum quick {
+            static let moments = "Moments"
+            static let photos = "Photos"
+            static let growth = "Growth"
+        }
+
+        static let seeAllPhotos = "See all photos"
+        static func showAllMoments(_ n: Int) -> String { "Show all \(n) moments" }
+        static let tagPhotos = "Photos with this tag"
+        static let family = "Family"
+        static let recent = "Recent searches"
+        static let clearRecent = "Clear"
+        static func nothing(_ query: String) -> String { "Nothing matched \u{201C}\(query)\u{201D}." }
+        static func tryWithout(_ label: String) -> String { "Try without \(label)" }
+        static let textOnly = "Matching words only. Searching by meaning is unavailable right now."
+        static let searching = "Searching…"
+        static let failed = "Search failed. Try again."
+        static func by(_ names: [String]) -> String { names.joined(separator: ", ") }
+
+        /// Chip labels for categories that read better plural (`CATEGORY_CHIPS`).
+        static let categoryChips: [String: String] = [
+            "quote": "Quotes",
+            "artwork": "Artwork",
+            "interview": "Interview answers",
+        ]
+    }
+
     /// The web's `suggestions.tsx` and the suggested-tag chips on `view-photo.tsx`.
     enum tagSuggestions {
         static let title = "Suggested Tags"

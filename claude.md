@@ -66,6 +66,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  FamilyMembershipView
 │   ├── Tags/          ManageTagsView (+ TagEditorView sheet)
 │   ├── Faces/         FaceReviewView (+ FaceGroupRow)
+│   ├── Search/        SearchView (global search, pushed from the magnifying glass
+│   │                  on every tab root), SearchModel (debounce, stale answers dropped)
 │   └── Components/    PersonAvatarView, PersonRowView, PersonChips,
 │                      WhenControl, FaceCropView, MeasurementRowView, MilestoneRowView,
 │                      PhotoThumbnailView, RemotePhotoView, SyncStatusView,
@@ -83,6 +85,7 @@ Family-Portal-Ios/Family-Portal-Ios/
     ├── InterviewQuestionList.swift   # port of frontend/lib/interviewQuestions.ts: the editor's draft
     ├── SearchQuery.swift             # port of backend/search_query.go; its test table is a copy of the Go one
     ├── SearchText.swift              # search folding, prefix-of-word matching, highlight ranges
+    ├── SearchResults.swift           # port of frontend/lib/search.ts: chips, moment folding, See all photos
     ├── RelationGraph.swift           # walks the stored edges
     ├── FamilyGroups.swift            # bands the roster by generation
     ├── FamilyAccess.swift            # per-family role → which add/edit/delete controls show (authCache.ts)
