@@ -24,6 +24,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case interview(id: Int, ask: Bool = false)
     /// `/interview/past/<personServerId>` — typing in a past interview.
     case interviewPast(personId: Int)
+    /// `/interview-questions`, the family's question list.
+    case interviewQuestions
     /// `/interviews`, the family's Interviews page.
     case interviews
     /// `/interview/compare?question=<id>` — one question's answers by age. Absent or unreadable is 0, the server's choice.
@@ -72,6 +74,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
             return Int(segments[1]).map { DeepLink.milestone(remoteId: $0) }
         case "interviews" where segments.count == 1:
             return .interviews
+        case "interview-questions" where segments.count == 1:
+            return .interviewQuestions
         case "interview" where segments.count == 2 && segments[1] == "compare":
             return .interviewCompare(questionId: queryValue("question", in: query).flatMap(Int.init) ?? 0)
         case "interview" where segments.count == 2:

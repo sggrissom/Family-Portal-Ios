@@ -72,6 +72,19 @@ final class InterviewService {
         )
     }
 
+    /// Not cached: the editor saves against the revision it read, so it must read the current one.
+    func questions(familyId: Int = 0) async throws -> InterviewQuestionsResponseDTO {
+        try await apiClient.callRPC(.getInterviewQuestions, payload: GetInterviewQuestionsRequestDTO(familyId: familyId))
+    }
+
+    func saveQuestions(_ request: SaveInterviewQuestionsRequestDTO) async throws -> InterviewQuestionsResponseDTO {
+        try await apiClient.callRPC(.saveInterviewQuestions, payload: request)
+    }
+
+    func mergeQuestions(_ request: MergeInterviewQuestionsRequestDTO) async throws -> InterviewQuestionsResponseDTO {
+        try await apiClient.callRPC(.mergeInterviewQuestions, payload: request)
+    }
+
     /// A past interview in one write: the interview, complete, and every answer, with any new questions.
     func saveHistorical(_ request: SaveHistoricalInterviewRequestDTO) async throws -> InterviewDTO {
         let response: InterviewResponseDTO = try await apiClient.callRPC(.saveHistoricalInterview, payload: request)

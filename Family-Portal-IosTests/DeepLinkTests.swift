@@ -38,6 +38,7 @@ struct DeepLinkTests {
         ("/interview/new/7", DeepLink.interviewSetup(personId: 7)),
         ("/interview/past/7", DeepLink.interviewPast(personId: 7)),
         ("/interviews", DeepLink.interviews),
+        ("/interview-questions", DeepLink.interviewQuestions),
         ("/interview/compare?question=31", DeepLink.interviewCompare(questionId: 31)),
         ("/interview/compare", DeepLink.interviewCompare(questionId: 0)),
     ])
