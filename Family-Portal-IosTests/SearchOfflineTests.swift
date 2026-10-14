@@ -42,7 +42,7 @@ struct SearchOfflineTests {
     // MARK: - People
 
     @Test("People match by name or relationship prefix, named ones first")
-    func people() {
+    func peopleMatching() {
         #expect(search("gran").people == [grandma.id])
         #expect(search("Gris").people == [ada.id, ben.id])
         #expect(search("ben").people == [ben.id])
@@ -109,7 +109,7 @@ struct SearchOfflineTests {
     // MARK: - Photos
 
     @Test("Photos match on title and description, with someone from every named group in them")
-    func photos() {
+    func photoMatching() {
         let both = SearchLocal.Photo(id: UUID(), date: Self.day("2024-07-04"), title: "Fireworks", peopleServerIds: [1, 2])
         let adaOnly = SearchLocal.Photo(id: UUID(), date: Self.day("2024-07-05"), title: "Lake", description: "Fireworks over the water", peopleServerIds: [1])
         let nobody = SearchLocal.Photo(id: UUID(), date: Self.day("2023-01-01"), title: "Snow")
