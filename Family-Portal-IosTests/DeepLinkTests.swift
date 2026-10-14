@@ -35,6 +35,7 @@ struct DeepLinkTests {
         // An interview's page, and its conduct screen.
         ("/interview/12", DeepLink.interview(id: 12)),
         ("/interview/12/ask", DeepLink.interview(id: 12, ask: true)),
+        ("/interview/new/7", DeepLink.interviewSetup(personId: 7)),
     ])
     func knownPaths(path: String, expected: DeepLink) {
         #expect(DeepLink.parse(path: path) == expected)
@@ -71,8 +72,8 @@ struct DeepLinkTests {
         "/view-photo",
         "/view-photo/abc",
         "/milestone/45/edit",
-        // The interview pages the association leaves to the browser.
-        "/interview/new/7",
+        // Interview pages the app has no screen for yet, and a setup link with no person id.
+        "/interview/new/ada",
         "/interview/past/7",
         "/interview/import",
         "/interview/compare",

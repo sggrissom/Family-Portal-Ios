@@ -22,6 +22,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case milestone(remoteId: Int)
     /// `/interview/<serverId>` — one annual interview, and `/interview/<serverId>/ask`, its conduct screen. Interviews are read from the server, so unlike a milestone there is nothing to wait for.
     case interview(id: Int, ask: Bool = false)
+    /// `/interview/new/<personServerId>` — setting up a new interview, which Home's "time for an interview" nudge opens on the web.
+    case interviewSetup(personId: Int)
 
     /// Parses a site-relative path. The fragment is ignored, and the query only where a destination reads one (`/profile`'s `tab`, `/same-age`'s `age`, `from` and `view`).
     static func parse(path rawPath: String) -> DeepLink? {
@@ -66,6 +68,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
             return Int(segments[1]).map { DeepLink.interview(id: $0) }
         case "interview" where segments.count == 3 && segments[2] == "ask":
             return Int(segments[1]).map { DeepLink.interview(id: $0, ask: true) }
+        case "interview" where segments.count == 3 && segments[1] == "new":
+            return Int(segments[2]).map { DeepLink.interviewSetup(personId: $0) }
         default:
             return nil
         }

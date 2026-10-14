@@ -150,7 +150,7 @@ struct HomeView: View {
         }
     }
 
-    /// Where a nudge leads: a measurement for the person, their page, or face review.
+    /// Where a nudge leads: a measurement for the person, their page, face review, or an interview to start or pick up.
     private func act(on nudge: DashboardNudgeDTO) {
         let person = people.first { $0.serverId == nudge.personId }
         switch nudge.kind {
@@ -158,6 +158,10 @@ struct HomeView: View {
             addFlow.open(.measurement(personId: person?.id))
         case "faces":
             navigator.push(.faces)
+        case "interview" where nudge.personId > 0:
+            navigator.push(.interviewSetup(personId: nudge.personId))
+        case "interview-continue" where nudge.interviewId > 0:
+            navigator.push(.interviewAsk(id: nudge.interviewId))
         default:
             if let person { navigator.push(.person(person.id)) }
         }

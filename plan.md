@@ -43,9 +43,11 @@ stay on the server.
    filtering, one-offs, "show earlier answers"), the one-question-at-a-time
    screen (autosave with a local draft and quiet retry, skip, jump list,
    follow-up questions, portrait from the camera, finish), the Home nudges
-   `interview` and `interview-continue`, Start/Continue from the person page.
-3. **Look back.** The person page's Interviews tab (Questions view first, then
-   Years), the family Interviews page under More, compare at the same age.
+   `interview` and `interview-continue`, and the person page's Interviews tab
+   with Start/Continue and each interview as a card.
+3. **Look back.** The Interviews tab's Questions view (first, since it suits
+   narrow screens) and Years view, the family Interviews page under More,
+   compare at the same age.
 4. **Past interviews.** Type in a past interview (date or age, every question,
    retired ones behind a toggle, questions not on the list), and edit answers
    from the interview page.

@@ -29,8 +29,8 @@ struct InterviewCardModel: Identifiable {
     init(answers: InterviewAnswers<MilestoneDTO>, personName: String?, birthday: Date?, interview: InterviewDTO?) {
         interviewId = answers.interviewId
         self.personName = personName
-        if let birthday, let first = answers.answers.first {
-            age = Interviews.ageYears(birthday: birthday, at: first.milestoneDate)
+        if let birthday, let date = interview?.date ?? answers.answers.first?.milestoneDate {
+            age = Interviews.ageYears(birthday: birthday, at: date)
         }
         self.interview = interview
         highlights = answers.answers.prefix(Self.highlightCount).map { (question: $0.context, answer: $0.descriptionText) }

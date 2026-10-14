@@ -61,13 +61,15 @@ nonisolated struct GetFamilyTimelineRequestDTO: Encodable, Sendable {
 // MARK: - GetDashboard
 
 nonisolated struct DashboardNudgeDTO: Decodable, Sendable, Identifiable, Equatable {
-    /// "measure", "birthday" or "faces". Kept as a string: a kind added server-side still renders its text.
+    /// "measure", "birthday", "faces", "interview" or "interview-continue". Kept as a string: a kind added server-side still renders its text.
     let kind: String
     /// Stable per occurrence (`birthday:4:2026`), which is what a dismissal remembers.
     let key: String
     let text: String
     @OrZero var personId: Int
     @OrZero var count: Int
+    /// Set on "interview-continue", the interview to pick up.
+    @OrZero var interviewId: Int
 
     var id: String { key }
 }

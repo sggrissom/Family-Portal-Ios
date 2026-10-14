@@ -75,6 +75,16 @@ struct InterviewView: View {
         return VStack(alignment: .leading, spacing: 24) {
             header(response)
 
+            if response.interview.isInProgress, authService.access.canContribute(response.interview.familyId) {
+                NavigationLink {
+                    InterviewAskView(interviewId: interviewId)
+                } label: {
+                    Label(Copy.interview.view.continue, systemImage: "mic.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
             if !response.interview.notes.isEmpty {
                 Text(response.interview.notes)
                     .font(.body)

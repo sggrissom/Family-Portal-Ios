@@ -10,7 +10,7 @@ enum MainTab: String, Hashable, CaseIterable {
 /// The person page's tabs. The raw value is the `?tab=` a link carries, so it matches the web's.
 /// `nonisolated` because `DeepLink`, which is, carries one.
 nonisolated enum PersonTab: String, Hashable, CaseIterable, Identifiable, Sendable {
-    case story, quotes, artwork, photos, growth, activities
+    case story, quotes, artwork, interviews, photos, growth, activities
 
     var id: String { rawValue }
 
@@ -19,6 +19,7 @@ nonisolated enum PersonTab: String, Hashable, CaseIterable, Identifiable, Sendab
         case .story: return Copy.person.tabs.story
         case .quotes: return Copy.person.tabs.quotes
         case .artwork: return Copy.person.tabs.artwork
+        case .interviews: return Copy.person.tabs.interviews
         case .photos: return Copy.person.tabs.photos
         case .growth: return Copy.person.tabs.growth
         case .activities: return Copy.person.tabs.activities
@@ -53,6 +54,10 @@ enum AppRoute: Hashable {
     case event(id: Int, name: String)
     /// One annual interview by server id. Interviews live on the server only, so there is no local id to name.
     case interview(id: Int)
+    /// Setting up a new interview for a person, by server id.
+    case interviewSetup(personId: Int)
+    /// Asking an interview, one question at a time.
+    case interviewAsk(id: Int)
 
     /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back. History, Chat, Activities and Books are More's own and are not borrowed.
     var isBorrowed: Bool {
@@ -218,6 +223,10 @@ private struct AppRouteDestination: View {
             MilestoneRouteView(milestoneId: id)
         case .interview(let id):
             InterviewView(interviewId: id)
+        case .interviewSetup(let personId):
+            InterviewSetupView(personId: personId)
+        case .interviewAsk(let id):
+            InterviewAskView(interviewId: id)
         }
     }
 }
