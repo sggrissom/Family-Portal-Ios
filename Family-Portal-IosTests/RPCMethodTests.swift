@@ -180,6 +180,11 @@ struct RPCMethodTests {
         #expect(RPCMethod.mergeInterviewQuestions.rawValue == "MergeInterviewQuestions")
     }
 
+    @Test("Search proc name matches the backend")
+    func searchProcName() {
+        #expect(RPCMethod.search.rawValue == "Search")
+    }
+
     @Test("Every proc name is distinct and non-empty")
     func procNamesAreDistinct() {
         let names = RPCMethod.allCases.map(\.rawValue)
