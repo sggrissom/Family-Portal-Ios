@@ -24,6 +24,15 @@ final class InterviewService {
         cache.read(.getPersonInterviews, payload: GetPersonInterviewsRequestDTO(personId: personId), key: ActivitySnapshotKey(.getPersonInterviews, personId), apiClient: apiClient)
     }
 
+    /// Keyed on nothing but the proc: the page is the whole family, and `today` only moves who is due.
+    func familyInterviews(today: String) -> ActivityRead<GetFamilyInterviewsResponseDTO> {
+        cache.read(.getFamilyInterviews, payload: GetFamilyInterviewsRequestDTO(today: today), key: ActivitySnapshotKey(.getFamilyInterviews), apiClient: apiClient)
+    }
+
+    func compare(questionId: Int) -> ActivityRead<CompareInterviewAnswersResponseDTO> {
+        cache.read(.compareInterviewAnswers, payload: CompareInterviewAnswersRequestDTO(questionId: questionId, personIds: []), key: ActivitySnapshotKey(.compareInterviewAnswers, questionId), apiClient: apiClient)
+    }
+
     // MARK: - Writes
 
     /// `ErrInterviewChanged`, word for word: someone else saved first.

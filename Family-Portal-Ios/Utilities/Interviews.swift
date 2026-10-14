@@ -200,3 +200,214 @@ extension Interviews {
         question.id > 0 ? "id:\(question.id)" : "key:\(question.defaultKey)"
     }
 }
+
+// MARK: - Over the years
+
+/// One answer cell of the Years grid — `GridCell`.
+struct InterviewGridCell {
+    enum Trend: Equatable { case none, first, same, changed }
+
+    var answer: MilestoneDTO?
+    var skipped = false
+    var asked = false
+    /// Against the last earlier answer to the same question: new, the same again, or changed.
+    var trend: Trend = .none
+}
+
+struct InterviewGridRow: Identifiable {
+    let question: InterviewQuestionDTO
+    let cells: [InterviewGridCell]
+
+    var id: Int { question.id }
+
+    /// The question as it was last asked (the newest answer's context), else the list's wording — `rowLabel`.
+    var label: String {
+        if let context = cells.reversed().compactMap({ $0.answer?.context }).first(where: { !$0.isEmpty }) {
+            return context
+        }
+        return question.text.replacingOccurrences(of: "{name}", with: "you").replacingOccurrences(of: "{age}", with: "your age")
+    }
+}
+
+struct InterviewGridSection: Identifiable {
+    let name: String
+    var rows: [InterviewGridRow]
+
+    var id: String { name }
+}
+
+/// One question's answers in age order, for the Questions view — `QuestionTimeline`.
+struct InterviewTimeline: Identifiable {
+    struct Point {
+        let interview: InterviewDTO
+        let answer: MilestoneDTO
+        let age: Int
+    }
+
+    let question: InterviewQuestionDTO
+    let points: [Point]
+    /// The longest run of the same answer.
+    let streak: Int
+    /// How many different answers.
+    let distinct: Int
+
+    var id: Int { question.id }
+
+    var label: String {
+        points.last.map { $0.answer.context.isEmpty ? question.text : $0.answer.context } ?? question.text
+    }
+}
+
+enum InterviewTimelineSort: String, CaseIterable, Identifiable {
+    case list, consistent, changed
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .list: Copy.interview.tab.sortList
+        case .consistent: Copy.interview.tab.sortConsistent
+        case .changed: Copy.interview.tab.sortChanged
+        }
+    }
+}
+
+/// Everyone's answers at one age, for comparing — `AgeGroup`.
+struct InterviewAgeGroup: Identifiable {
+    struct Entry {
+        let person: PersonDTO
+        let text: String
+        let date: Date
+        let milestoneId: Int
+    }
+
+    let age: Int
+    var answers: [Entry]
+
+    var id: Int { age }
+
+    /// Everyone said the same thing.
+    var allSame: Bool {
+        answers.count > 1 && Set(answers.map { Interviews.normalizeAnswer($0.text) }).count == 1
+    }
+}
+
+extension Interviews {
+    static let alsoAsked = "Also asked"
+
+    /// The Years grid: questions by section in list order with one-offs collected last under "Also asked", one column per interview, oldest first — `interviewGrid`. A question never answered or skipped is left out, so a retired one shows only in the years it was asked.
+    static func grid(_ bundle: GetPersonInterviewsResponseDTO) -> [InterviewGridSection] {
+        var byCell: [String: MilestoneDTO] = [:]
+        for answer in bundle.answers {
+            byCell["\(answer.interviewId):\(answer.questionId)"] = answer
+        }
+        let questions = bundle.questions.sorted { a, b in
+            if a.oneOff != b.oneOff { return !a.oneOff }
+            if a.position != b.position { return a.position < b.position }
+            return a.id < b.id
+        }
+        var sections: [InterviewGridSection] = []
+        for question in questions {
+            var last = ""
+            let cells = bundle.interviews.map { interview -> InterviewGridCell in
+                let answer = byCell["\(interview.id):\(question.id)"]
+                var cell = InterviewGridCell(
+                    answer: answer,
+                    skipped: answer == nil && interview.skippedIds.contains(question.id),
+                    asked: interview.questionIds.contains(question.id) || answer != nil
+                )
+                if let answer {
+                    let normalized = normalizeAnswer(answer.descriptionText)
+                    cell.trend = last.isEmpty ? .first : normalized == last ? .same : .changed
+                    last = normalized
+                }
+                return cell
+            }
+            guard cells.contains(where: { $0.answer != nil || $0.skipped }) else { continue }
+            let name = question.oneOff ? alsoAsked : question.section
+            let row = InterviewGridRow(question: question, cells: cells)
+            if let at = sections.firstIndex(where: { $0.name == name }) {
+                sections[at].rows.append(row)
+            } else {
+                sections.append(InterviewGridSection(name: name, rows: [row]))
+            }
+        }
+        if let at = sections.firstIndex(where: { $0.name == alsoAsked }) {
+            sections.append(sections.remove(at: at))
+        }
+        return sections
+    }
+
+    /// One timeline per question, in grid order — `questionTimelines`.
+    static func timelines(_ bundle: GetPersonInterviewsResponseDTO) -> [InterviewTimeline] {
+        grid(bundle).flatMap(\.rows).map { row in
+            let points = zip(bundle.interviews, row.cells).compactMap { interview, cell -> InterviewTimeline.Point? in
+                cell.answer.map {
+                    InterviewTimeline.Point(interview: interview, answer: $0, age: ageYears(birthday: bundle.person.birthday, at: interview.date))
+                }
+            }
+            var streak = 0
+            var run = 0
+            var previous: String?
+            var seen = Set<String>()
+            for point in points {
+                let normalized = normalizeAnswer(point.answer.descriptionText)
+                run = normalized == previous ? run + 1 : 1
+                previous = normalized
+                streak = max(streak, run)
+                seen.insert(normalized)
+            }
+            return InterviewTimeline(question: row.question, points: points, streak: streak, distinct: seen.count)
+        }
+    }
+
+    /// Questions answered more than once come first either way. "Most consistent" then puts the longest run of the same answer first; "Most changed", the most different answers for the times asked — `sortTimelines`. Ties keep list order.
+    static func sorted(_ timelines: [InterviewTimeline], by sort: InterviewTimelineSort) -> [InterviewTimeline] {
+        func multi(_ t: InterviewTimeline) -> Int { t.points.count > 1 ? 1 : 0 }
+        func ratio(_ t: InterviewTimeline) -> Double { t.points.isEmpty ? 0 : Double(t.distinct) / Double(t.points.count) }
+        let indexed = Array(timelines.enumerated())
+        let ordered: [(offset: Int, element: InterviewTimeline)]
+        switch sort {
+        case .list:
+            return timelines
+        case .consistent:
+            ordered = indexed.sorted { a, b in
+                (multi(b.element), b.element.streak, a.offset) < (multi(a.element), a.element.streak, b.offset)
+            }
+        case .changed:
+            ordered = indexed.sorted { a, b in
+                (multi(b.element), ratio(b.element), b.element.distinct, a.offset) < (multi(a.element), ratio(a.element), a.element.distinct, b.offset)
+            }
+        }
+        return ordered.map(\.element)
+    }
+
+    /// Questions whose wording or any answer contains the query — `filterTimelines`.
+    static func filtered(_ timelines: [InterviewTimeline], query: String) -> [InterviewTimeline] {
+        let wanted = normalizeAnswer(query)
+        guard !wanted.isEmpty else { return timelines }
+        return timelines.filter { timeline in
+            normalizeAnswer(timeline.question.text).contains(wanted)
+                || timeline.points.contains { normalizeAnswer($0.answer.descriptionText).contains(wanted) }
+        }
+    }
+
+    /// "Age 5 · 2024", or just the year without a birthday — `columnLabel`.
+    static func columnLabel(_ interview: InterviewDTO, birthday: Date?) -> String {
+        let year = interview.date.recordDay.year ?? 0
+        guard let birthday else { return String(year) }
+        return "Age \(ageYears(birthday: birthday, at: interview.date)) · \(year)"
+    }
+
+    /// Each person's answers lined up by age, youngest age first — `compareByAge`.
+    static func byAge(_ rows: [CompareRowDTO]) -> [InterviewAgeGroup] {
+        var groups: [Int: InterviewAgeGroup] = [:]
+        for row in rows {
+            for answer in row.answers {
+                let entry = InterviewAgeGroup.Entry(person: row.person, text: answer.text, date: answer.date, milestoneId: answer.milestoneId)
+                groups[answer.ageYears, default: InterviewAgeGroup(age: answer.ageYears, answers: [])].answers.append(entry)
+            }
+        }
+        return groups.values.sorted { $0.age < $1.age }
+    }
+}

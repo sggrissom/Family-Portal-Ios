@@ -169,3 +169,47 @@ nonisolated struct GetPersonInterviewsResponseDTO: Decodable, Sendable {
     @OrZero var answers: [MilestoneDTO]
     @OrZero var questions: [InterviewQuestionDTO]
 }
+
+nonisolated struct GetFamilyInterviewsRequestDTO: Encodable, Sendable {
+    /// The device's `YYYY-MM-DD`, which decides who is due around a birthday.
+    let today: String
+}
+
+/// One person on the family Interviews page: their last finished interview, how many, any in progress, and whether one is due.
+nonisolated struct FamilyInterviewRowDTO: Decodable, Sendable, Identifiable {
+    let person: PersonDTO
+    /// `id` 0 when there is none.
+    let last: InterviewDTO
+    @OrZero var count: Int
+    let inProgress: InterviewDTO
+    @OrZero var answered: Int
+    @OrZero var due: Bool
+    /// Under 18 with a birthday — who the page lists first.
+    @OrZero var child: Bool
+
+    var id: Int { person.id }
+}
+
+nonisolated struct GetFamilyInterviewsResponseDTO: Decodable, Sendable {
+    @OrZero var people: [FamilyInterviewRowDTO]
+}
+
+/// `questionId` 0 lets the server pick the first question anyone has answered; empty `personIds` is everyone.
+nonisolated struct CompareInterviewAnswersRequestDTO: Encodable, Sendable {
+    let questionId: Int
+    let personIds: [Int]
+}
+
+nonisolated struct CompareRowDTO: Decodable, Sendable, Identifiable {
+    let person: PersonDTO
+    @OrZero var answers: [PreviousAnswerDTO]
+
+    var id: Int { person.id }
+}
+
+nonisolated struct CompareInterviewAnswersResponseDTO: Decodable, Sendable {
+    let question: InterviewQuestionDTO
+    /// Every question someone visible has answered, for the picker.
+    @OrZero var questions: [InterviewQuestionDTO]
+    @OrZero var rows: [CompareRowDTO]
+}

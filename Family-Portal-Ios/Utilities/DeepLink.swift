@@ -22,6 +22,10 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case milestone(remoteId: Int)
     /// `/interview/<serverId>` — one annual interview, and `/interview/<serverId>/ask`, its conduct screen. Interviews are read from the server, so unlike a milestone there is nothing to wait for.
     case interview(id: Int, ask: Bool = false)
+    /// `/interviews`, the family's Interviews page.
+    case interviews
+    /// `/interview/compare?question=<id>` — one question's answers by age. Absent or unreadable is 0, the server's choice.
+    case interviewCompare(questionId: Int)
     /// `/interview/new/<personServerId>` — setting up a new interview, which Home's "time for an interview" nudge opens on the web.
     case interviewSetup(personId: Int)
 
@@ -64,6 +68,10 @@ nonisolated enum DeepLink: Equatable, Sendable {
             return Int(segments[1]).map { DeepLink.photo(remoteId: $0) }
         case "milestone" where segments.count == 2:
             return Int(segments[1]).map { DeepLink.milestone(remoteId: $0) }
+        case "interviews" where segments.count == 1:
+            return .interviews
+        case "interview" where segments.count == 2 && segments[1] == "compare":
+            return .interviewCompare(questionId: queryValue("question", in: query).flatMap(Int.init) ?? 0)
         case "interview" where segments.count == 2:
             return Int(segments[1]).map { DeepLink.interview(id: $0) }
         case "interview" where segments.count == 3 && segments[2] == "ask":

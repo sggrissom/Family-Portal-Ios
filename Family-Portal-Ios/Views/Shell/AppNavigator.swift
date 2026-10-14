@@ -58,6 +58,10 @@ enum AppRoute: Hashable {
     case interviewSetup(personId: Int)
     /// Asking an interview, one question at a time.
     case interviewAsk(id: Int)
+    /// The family's Interviews page, under More.
+    case interviews
+    /// One question's answers by age, everyone side by side. 0 lets the server choose the question.
+    case interviewCompare(questionId: Int)
 
     /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back. History, Chat, Activities and Books are More's own and are not borrowed.
     var isBorrowed: Bool {
@@ -227,6 +231,10 @@ private struct AppRouteDestination: View {
             InterviewSetupView(personId: personId)
         case .interviewAsk(let id):
             InterviewAskView(interviewId: id)
+        case .interviews:
+            FamilyInterviewsView()
+        case .interviewCompare(let questionId):
+            InterviewCompareView(questionId: questionId)
         }
     }
 }
