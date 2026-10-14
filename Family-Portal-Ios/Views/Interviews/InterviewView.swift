@@ -15,6 +15,7 @@ struct InterviewView: View {
 
     @State private var state = ActivityScreenState<GetInterviewResponseDTO>()
     @State private var isEditingDetails = false
+    @State private var isEditingAnswers = false
     @State private var isConfirmingDelete = false
     @State private var isDeleting = false
     @State private var openAnswer: Milestone?
@@ -37,6 +38,9 @@ struct InterviewView: View {
             if let response = state.value, authService.access.canContribute(response.interview.familyId) {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
+                        Button(Copy.interview.view.editAnswers, systemImage: "text.cursor") {
+                            isEditingAnswers = true
+                        }
                         Button(Copy.interview.view.editDetails, systemImage: "pencil") {
                             isEditingDetails = true
                         }
@@ -59,6 +63,15 @@ struct InterviewView: View {
             if let response = state.value {
                 InterviewDetailsForm(response: response) { updated in
                     await saved(updated, previous: response.interview)
+                }
+            }
+        }
+        .sheet(isPresented: $isEditingAnswers) {
+            if let response = state.value {
+                InterviewAnswersEditor(response: response) {
+                    await state.reload()
+                    // The answers are moments: pull, so the store has the new wording.
+                    await syncService.pullFamilyData()
                 }
             }
         }
@@ -293,5 +306,102 @@ private struct InterviewDetailsForm: View {
         } catch {
             self.error = InterviewService.isChangedConflict(error) ? InterviewService.changedMessage : Copy.interview.view.saveFailed
         }
+    }
+}
+
+/// Every question of the interview with its answer, editable — the web's "Edit answers". Only the answers that changed are sent, one `SaveInterviewAnswer` each; emptying one deletes it, as it does while asking.
+private struct InterviewAnswersEditor: View {
+    let response: GetInterviewResponseDTO
+    let onSaved: () async -> Void
+
+    @Environment(InterviewService.self) private var service
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var text: [Int: String]
+    @State private var isSaving = false
+    @State private var error: String?
+
+    private let original: [Int: String]
+
+    init(response: GetInterviewResponseDTO, onSaved: @escaping () async -> Void) {
+        self.response = response
+        self.onSaved = onSaved
+        let answers = Dictionary(response.answers.map { ($0.questionId, $0.descriptionText) }, uniquingKeysWith: { first, _ in first })
+        original = answers
+        _text = State(initialValue: answers)
+    }
+
+    private var changed: [Int] {
+        response.questions.map(\.id).filter { id in
+            (text[id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines) != (original[id] ?? "")
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if let error {
+                    Section {
+                        Text(error).foregroundStyle(.red)
+                    }
+                }
+                ForEach(Interviews.sections(response.questions), id: \.self) { section in
+                    Section(section) {
+                        ForEach(response.questions.filter { $0.section == section }) { question in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(question.text)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                TextField(Copy.interview.ask.answerPlaceholder, text: Binding(
+                                    get: { text[question.id] ?? "" },
+                                    set: { text[question.id] = $0 }
+                                ), axis: .vertical)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(Copy.interview.view.editAnswers)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(Copy.interview.view.cancel) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if isSaving {
+                        ProgressView()
+                    } else {
+                        Button(Copy.interview.view.save) {
+                            Task { await save() }
+                        }
+                        .disabled(changed.isEmpty)
+                    }
+                }
+            }
+            .interactiveDismissDisabled(isSaving)
+        }
+    }
+
+    private func save() async {
+        isSaving = true
+        error = nil
+        defer { isSaving = false }
+        do {
+            for questionId in changed {
+                _ = try await service.saveAnswer(SaveInterviewAnswerRequestDTO(
+                    interviewId: response.interview.id,
+                    questionId: questionId,
+                    answer: (text[questionId] ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
+                    skipped: false
+                ))
+            }
+        } catch {
+            // Answers saved before the failure stay saved; reload so the page shows them.
+            self.error = Copy.interview.view.saveFailed
+            await onSaved()
+            return
+        }
+        await onSaved()
+        dismiss()
     }
 }

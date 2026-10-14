@@ -72,6 +72,12 @@ final class InterviewService {
         )
     }
 
+    /// A past interview in one write: the interview, complete, and every answer, with any new questions.
+    func saveHistorical(_ request: SaveHistoricalInterviewRequestDTO) async throws -> InterviewDTO {
+        let response: InterviewResponseDTO = try await apiClient.callRPC(.saveHistoricalInterview, payload: request)
+        return response.interview
+    }
+
     func updateInterview(_ request: UpdateInterviewRequestDTO) async throws -> InterviewDTO {
         let response: InterviewResponseDTO = try await apiClient.callRPC(.updateInterview, payload: request)
         return response.interview

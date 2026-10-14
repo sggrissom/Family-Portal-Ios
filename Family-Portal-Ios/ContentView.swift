@@ -151,6 +151,9 @@ struct ContentView: View {
         case .interviewCompare(let questionId):
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.interviews, .interviewCompare(questionId: questionId)], on: .more)
+        case .interviewPast(let personId):
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([.interviewPast(personId: personId)], on: .home)
         case .interviewSetup(let personId):
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.interviewSetup(personId: personId)], on: .home)

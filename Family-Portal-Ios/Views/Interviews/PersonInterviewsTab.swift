@@ -39,6 +39,12 @@ struct PersonInterviewsTab: View {
         return VStack(alignment: .leading, spacing: 16) {
             if canContribute {
                 startButton(bundle, inProgress: inProgress)
+                NavigationLink {
+                    PastInterviewView(personId: personId)
+                } label: {
+                    Label(Copy.interview.tab.typeIn, systemImage: "square.and.pencil")
+                        .font(.subheadline)
+                }
             }
 
             if bundle.interviews.isEmpty {

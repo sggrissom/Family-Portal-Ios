@@ -411,3 +411,48 @@ extension Interviews {
         return groups.values.sorted { $0.age < $1.age }
     }
 }
+
+// MARK: - Past interviews
+
+/// What the past-interview form holds: an answer per listed question (by `Interviews.ref`), and questions that are not on the list. Blank means "not asked" and is never sent.
+struct PastInterviewDraft {
+    struct Extra: Identifiable {
+        let id = UUID()
+        var question = ""
+        var answer = ""
+        /// Add it to the family's list; otherwise it is kept for this interview only.
+        var keep = true
+
+        var isFilled: Bool {
+            !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    var answers: [String: String] = [:]
+    var extras: [Extra] = []
+
+    /// How many answers a save would send — the count on the Save button.
+    var filled: Int {
+        answers.values.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+            + extras.filter(\.isFilled).count
+    }
+
+    /// The answers to send, in list order, then the extras in the order they were added.
+    func importAnswers(listOrder questions: [InterviewQuestionDTO]) -> [ImportAnswerDTO] {
+        let listed = questions.compactMap { question -> ImportAnswerDTO? in
+            let ref = Interviews.ref(question)
+            let answer = (answers[ref] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return answer.isEmpty ? nil : ImportAnswerDTO(ref: ref, answer: answer, newText: "", keep: false)
+        }
+        let added = extras.filter(\.isFilled).map { extra in
+            ImportAnswerDTO(
+                ref: "",
+                answer: extra.answer.trimmingCharacters(in: .whitespacesAndNewlines),
+                newText: extra.question.trimmingCharacters(in: .whitespacesAndNewlines),
+                keep: extra.keep
+            )
+        }
+        return listed + added
+    }
+}
