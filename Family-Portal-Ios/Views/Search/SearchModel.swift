@@ -19,6 +19,8 @@ final class SearchModel {
     private(set) var failed = false
     /// Whether `response` answers exactly what is asked now — the words, the chips removed and the limit.
     private(set) var isCurrent = false
+    /// With no signal nothing is sent; the screen searches the phone instead.
+    var isOffline = false
 
     @ObservationIgnored private var sequence = 0
     @ObservationIgnored private var pending: Task<Void, Never>?
@@ -76,6 +78,12 @@ final class SearchModel {
         await run()
     }
 
+    /// The same question again, as when the signal comes back.
+    func retry() async {
+        invalidate()
+        await run()
+    }
+
     /// Whatever is in flight or waiting is now out of date.
     private func invalidate() {
         pending?.cancel()
@@ -88,11 +96,11 @@ final class SearchModel {
         sequence += 1
         let mine = sequence
         let text = trimmedQuery
-        guard !text.isEmpty else {
+        guard !text.isEmpty, !isOffline else {
             response = nil
             isLoading = false
             failed = false
-            isCurrent = true
+            isCurrent = text.isEmpty
             return
         }
         isLoading = true

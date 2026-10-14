@@ -9,9 +9,10 @@ struct SearchChip: Identifiable, Equatable {
 }
 
 /// A row of the Moments group: a moment, or an interview's answers folded into one card where its first answer ranked.
-enum SearchMomentItem {
-    case moment(MilestoneDTO)
-    case interview(InterviewAnswers<MilestoneDTO>)
+/// Generic so the server's `MilestoneDTO`s and the store's `Milestone`s fold the same way.
+enum SearchMomentItem<Item> {
+    case moment(Item)
+    case interview(InterviewAnswers<Item>)
 }
 
 /// Ports of the pure parts of frontend/lib/search.ts and the search page, with their cases in `SearchResultsTests`.
@@ -77,15 +78,20 @@ enum SearchResults {
     }
 
     /// The moments in ranked order, an interview's answers folded where its first answer ranked — `momentItems`.
-    static func momentItems(_ moments: [MilestoneDTO]) -> [SearchMomentItem] {
-        let groups = Interviews.fold(moments, interviewId: \.interviewId, order: \.id).groups
+    static func momentItems(_ moments: [MilestoneDTO]) -> [SearchMomentItem<MilestoneDTO>] {
+        momentItems(moments, interviewId: \.interviewId, order: \.id)
+    }
+
+    static func momentItems<Item>(_ moments: [Item], interviewId: (Item) -> Int, order: (Item) -> Int) -> [SearchMomentItem<Item>] {
+        let groups = Interviews.fold(moments, interviewId: interviewId, order: order).groups
         let byInterview = Dictionary(groups.map { ($0.interviewId, $0) }, uniquingKeysWith: { first, _ in first })
-        var items: [SearchMomentItem] = []
+        var items: [SearchMomentItem<Item>] = []
         var shown = Set<Int>()
         for moment in moments {
-            if moment.interviewId == 0 {
+            let id = interviewId(moment)
+            if id == 0 {
                 items.append(.moment(moment))
-            } else if shown.insert(moment.interviewId).inserted, let group = byInterview[moment.interviewId] {
+            } else if shown.insert(id).inserted, let group = byInterview[id] {
                 items.append(.interview(group))
             }
         }

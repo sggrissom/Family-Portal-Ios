@@ -8,6 +8,7 @@ struct SearchView: View {
 
     @Environment(AppNavigator.self) private var navigator
     @Environment(\.modelContext) private var modelContext
+    @Environment(NetworkMonitor.self) private var network
     @Query(sort: \Person.name) private var people: [Person]
     @Query private var familyTags: [FamilyTag]
 
@@ -21,6 +22,10 @@ struct SearchView: View {
     /// This device's copies of the answer's photos and moments, by server id. Fetched per answer rather than queried, so the screen doesn't redraw on every sync.
     @State private var localPhotos: [Int: Photo] = [:]
     @State private var localMoments: [Int: Milestone] = [:]
+
+    @State private var recent = RecentSearches.load()
+    /// The phone's own search, offline or when the server can't be reached.
+    @State private var offline: OfflineResults?
 
     var body: some View {
         ScrollView {
@@ -43,6 +48,19 @@ struct SearchView: View {
         }
         .onSubmit(of: .search) {
             Task { await model.search(text) }
+            remember()
+        }
+        .onChange(of: network.isConnected, initial: true) { _, connected in
+            model.isOffline = !connected
+            if connected, !model.trimmedQuery.isEmpty, !model.isCurrent {
+                Task { await model.retry() }
+            }
+        }
+        // Covered by a result, or left: a query that found something is worth offering again.
+        .onDisappear {
+            if hasResults {
+                remember()
+            }
         }
         .task {
             // Coming back from a result re-runs `.task`; the results are already here.
@@ -58,6 +76,9 @@ struct SearchView: View {
         .task(id: LocalKey(response: model.currentResponse)) {
             resolveLocal()
         }
+        .task(id: OfflineKey(query: model.trimmedQuery, ignore: model.ignore, limit: model.limit, active: searchesPhone)) {
+            offline = searchesPhone ? searchPhone() : nil
+        }
     }
 
     // MARK: - States
@@ -66,9 +87,8 @@ struct SearchView: View {
     private var content: some View {
         if model.trimmedQuery.isEmpty {
             emptyQuery
-        } else if model.failed {
-            Text(Copy.search.failed)
-                .foregroundStyle(.secondary)
+        } else if searchesPhone {
+            offlineContent
         } else if let response = model.currentResponse {
             VStack(alignment: .leading, spacing: 24) {
                 if response.isTextOnly {
@@ -101,6 +121,27 @@ struct SearchView: View {
                             }
                             .buttonStyle(.bordered)
                         }
+                    }
+                }
+            }
+            if !recent.isEmpty {
+                group(Copy.search.recent, action: AnyView(
+                    Button(Copy.search.clearRecent) {
+                        recent = []
+                        RecentSearches.clear()
+                    }
+                )) {
+                    ForEach(recent, id: \.self) { query in
+                        Button {
+                            searchNow(query)
+                        } label: {
+                            SearchRow {
+                                Image(systemName: "clock.arrow.circlepath")
+                            } title: {
+                                Text(query)
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -278,29 +319,34 @@ struct SearchView: View {
 
     private func personRow(_ person: PersonDTO) -> some View {
         let local = localPeople[person.id]
-        return VStack(alignment: .leading, spacing: 4) {
+        return personRow(local: local) {
+            if let local {
+                PersonRowView(person: local, avatarSize: 44)
+            } else {
+                PersonRowView(
+                    name: person.name,
+                    relationship: person.relationship,
+                    birthday: person.birthday,
+                    isPregnancy: person.isPregnancy,
+                    profilePhotoRemoteId: person.profilePhotoId,
+                    crop: ProfilePhotoCrop(x: person.profileCropX, y: person.profileCropY, scale: person.profileCropScale),
+                    avatarSize: 44
+                )
+            }
+        }
+    }
+
+    /// A person and the quick links to their moments, photos and growth. Only someone on this device can be opened.
+    private func personRow<Row: View>(local: Person?, @ViewBuilder row: () -> Row) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             Button {
                 if let local {
                     navigator.push(.person(local.id))
                 }
             } label: {
-                Group {
-                    if let local {
-                        PersonRowView(person: local, avatarSize: 44)
-                    } else {
-                        PersonRowView(
-                            name: person.name,
-                            relationship: person.relationship,
-                            birthday: person.birthday,
-                            isPregnancy: person.isPregnancy,
-                            profilePhotoRemoteId: person.profilePhotoId,
-                            crop: ProfilePhotoCrop(x: person.profileCropX, y: person.profileCropY, scale: person.profileCropScale),
-                            avatarSize: 44
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                row()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(local == nil)
@@ -335,7 +381,14 @@ struct SearchView: View {
         ForEach(Array(SearchResults.momentItems(response.moments).enumerated()), id: \.offset) { _, item in
             switch item {
             case .moment(let moment):
-                momentRow(moment, terms: terms)
+                momentRow(MomentLine(
+                    personName: localPeople[moment.personId]?.name.firstName,
+                    category: MilestoneCategory(rawValue: moment.category) ?? .other,
+                    text: moment.displayText,
+                    context: moment.context,
+                    date: moment.milestoneDate,
+                    localId: localMoments[moment.id]?.id
+                ), terms: terms)
             case .interview(let answers):
                 let personId = answers.answers.first?.personId ?? 0
                 let name = localPeople[personId]?.name ?? responsePeople[personId]?.name
@@ -350,21 +403,31 @@ struct SearchView: View {
         }
     }
 
-    private func momentRow(_ moment: MilestoneDTO, terms: [String]) -> some View {
-        let category = MilestoneCategory(rawValue: moment.category) ?? .other
-        let local = localMoments[moment.id]
-        let name = localPeople[moment.personId]?.name.firstName
+    /// What a moment row shows, from the server's answer or the store.
+    private struct MomentLine {
+        let personName: String?
+        let category: MilestoneCategory
+        let text: String
+        let context: String
+        let date: Date
+        /// The moment on this device, which is what opens. Nil until it syncs down.
+        let localId: UUID?
+    }
+
+    private func momentRow(_ moment: MomentLine, terms: [String]) -> some View {
+        let category = moment.category
+        let local = moment.localId
         var line = Text("")
-        if let name {
+        if let name = moment.personName {
             line = Text("\(name) ").bold()
         }
-        var entry = Text(highlighted(moment.displayText, terms: terms))
+        var entry = Text(highlighted(moment.text, terms: terms))
         if category == .quote {
             entry = entry.italic()
         }
         return Button {
             if let local {
-                navigator.push(.milestone(local.id))
+                navigator.push(.milestone(local))
             }
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -378,7 +441,7 @@ struct SearchView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                    Text(moment.milestoneDate.displayDay().formatted(date: .abbreviated, time: .omitted))
+                    Text(moment.date.displayDay().formatted(date: .abbreviated, time: .omitted))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -507,6 +570,170 @@ struct SearchView: View {
         var descriptor = FetchDescriptor<Milestone>(predicate: #Predicate { $0.remoteId == key })
         descriptor.fetchLimit = 1
         return try? modelContext.fetch(descriptor).first
+    }
+
+    // MARK: - Offline
+
+    /// Searching the phone instead of the server: no signal, or the server didn't answer.
+    private var searchesPhone: Bool {
+        model.isOffline || model.failed
+    }
+
+    private struct OfflineKey: Equatable {
+        let query: String
+        let ignore: Set<SearchIgnore>
+        let limit: Int
+        let active: Bool
+    }
+
+    /// The phone's matches, resolved to the records they name.
+    private struct OfflineResults {
+        var people: [Person] = []
+        var moments: [Milestone] = []
+        var momentCount = 0
+        var photos: [Photo] = []
+        var morePhotos = false
+        var text = ""
+
+        var isEmpty: Bool { people.isEmpty && moments.isEmpty && photos.isEmpty }
+    }
+
+    private func searchPhone() -> OfflineResults {
+        let parsed = SearchQuery.parse(model.trimmedQuery, people: queryPeople, tags: queryTags, ignore: model.ignore)
+        let milestones = (try? modelContext.fetch(FetchDescriptor<Milestone>())) ?? []
+        let photos = (try? modelContext.fetch(FetchDescriptor<Photo>())) ?? []
+        let tagNames = Dictionary(familyTags.compactMap { tag in tag.serverId.map { ($0, tag.name) } }, uniquingKeysWith: { first, _ in first })
+
+        let result = SearchLocal.search(
+            parsed,
+            people: people.map { person in
+                SearchLocal.Person(id: person.id, serverId: person.serverId, name: person.name, relationship: person.relationship, birthday: person.birthday)
+            },
+            moments: milestones.map { moment in
+                SearchLocal.Moment(
+                    id: moment.id,
+                    personServerId: moment.person?.serverId,
+                    date: moment.date,
+                    category: moment.category,
+                    text: moment.descriptionText,
+                    context: moment.context,
+                    tagNames: moment.tagRemoteIds.compactMap { tagNames[$0] }
+                )
+            },
+            photos: photos.map { photo in
+                SearchLocal.Photo(
+                    id: photo.id,
+                    date: photo.photoDate,
+                    title: photo.title,
+                    description: photo.descriptionText,
+                    peopleServerIds: photo.taggedPeople.compactMap(\.serverId)
+                )
+            },
+            limit: model.limit > 0 ? model.limit : SearchLocal.momentLimit
+        )
+
+        let peopleById = Dictionary(people.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let momentsById = Dictionary(milestones.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let photosById = Dictionary(photos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return OfflineResults(
+            people: result.people.compactMap { peopleById[$0] },
+            moments: result.moments.compactMap { momentsById[$0] },
+            momentCount: result.momentCount,
+            photos: result.photos.compactMap { photosById[$0] },
+            morePhotos: result.morePhotos,
+            text: parsed.text
+        )
+    }
+
+    @ViewBuilder
+    private var offlineContent: some View {
+        Text(model.isOffline ? Copy.search.offline : Copy.search.failedLocal)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        if let offline {
+            if offline.isEmpty {
+                nothingMatched
+            } else {
+                offlineGroups(offline)
+            }
+        } else {
+            Text(Copy.search.searching)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func offlineGroups(_ results: OfflineResults) -> some View {
+        let terms = SearchText.terms(results.text)
+        let g = Copy.search.groups.self
+
+        if !results.people.isEmpty {
+            group(g.people) {
+                ForEach(results.people) { person in
+                    personRow(local: person) {
+                        PersonRowView(person: person, avatarSize: 44)
+                    }
+                }
+            }
+        }
+
+        if !results.moments.isEmpty {
+            group(g.moments, action: results.momentCount > results.moments.count ? AnyView(
+                Button(Copy.search.showAllMoments(results.momentCount)) {
+                    Task { await model.showAllMoments() }
+                }
+            ) : nil) {
+                let items = SearchResults.momentItems(results.moments, interviewId: \.interviewId, order: { $0.serverId ?? .max })
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    switch item {
+                    case .moment(let moment):
+                        momentRow(MomentLine(
+                            personName: moment.person?.name.firstName,
+                            category: moment.category,
+                            text: moment.displayText,
+                            context: moment.context,
+                            date: moment.date,
+                            localId: moment.id
+                        ), terms: terms)
+                    case .interview(let answers):
+                        InterviewCardView(model: InterviewCardModel(answers: answers, showsPerson: true))
+                    }
+                }
+            }
+        }
+
+        if !results.photos.isEmpty {
+            group(g.photos) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 4) {
+                        ForEach(results.photos) { photo in
+                            NavigationLink(value: PhotoRoute(id: photo.id)) {
+                                PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
+                            }
+                            .frame(width: 96, height: 96)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Recent
+
+    /// Whether what is showing found anything, from the server or the phone.
+    private var hasResults: Bool {
+        if searchesPhone {
+            return offline.map { !$0.isEmpty } ?? false
+        }
+        return model.currentResponse.map { !$0.isEmpty } ?? false
+    }
+
+    private func remember() {
+        let updated = RecentSearches.adding(model.trimmedQuery, to: recent)
+        guard updated != recent else { return }
+        recent = updated
+        RecentSearches.save(updated)
     }
 
     // MARK: - Highlighting

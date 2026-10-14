@@ -326,6 +326,9 @@ nonisolated enum Copy {
         static let textOnly = "Matching words only. Searching by meaning is unavailable right now."
         static let searching = "Searching…"
         static let failed = "Search failed. Try again."
+        static let offline = "Offline: searching what's on this phone"
+        /// Above the phone's own results when the server couldn't be reached.
+        static let failedLocal = "Search failed, so this is what's on this phone."
         static func by(_ names: [String]) -> String { names.joined(separator: ", ") }
 
         /// Chip labels for categories that read better plural (`CATEGORY_CHIPS`).

@@ -86,6 +86,8 @@ Family-Portal-Ios/Family-Portal-Ios/
     ├── SearchQuery.swift             # port of backend/search_query.go; its test table is a copy of the Go one
     ├── SearchText.swift              # search folding, prefix-of-word matching, highlight ranges
     ├── SearchResults.swift           # port of frontend/lib/search.ts: chips, moment folding, See all photos
+    ├── SearchLocal.swift             # offline search over the mirror, with the server's filters
+    ├── RecentSearches.swift          # last 8 searches in UserDefaults, erased with the account
     ├── RelationGraph.swift           # walks the stored edges
     ├── FamilyGroups.swift            # bands the roster by generation
     ├── FamilyAccess.swift            # per-family role → which add/edit/delete controls show (authCache.ts)
