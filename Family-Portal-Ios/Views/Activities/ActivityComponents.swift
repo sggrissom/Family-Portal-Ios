@@ -13,8 +13,13 @@ struct ActivityScreen<Value: Sendable, Content: View>: View {
         Group {
             if let value = state.value {
                 ScrollView {
-                    content(value)
-                        .padding(.vertical, 8)
+                    VStack(alignment: .leading, spacing: 8) {
+                        if state.isShowingCached, !state.isLoading {
+                            ActivityStaleNote(fetchedAt: state.fetchedAt)
+                        }
+                        content(value)
+                    }
+                    .padding(.vertical, 8)
                 }
                 .refreshable { await state.reload() }
             } else if let error = state.error {
@@ -22,11 +27,6 @@ struct ActivityScreen<Value: Sendable, Content: View>: View {
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if state.isShowingCached, !state.isLoading, state.value != nil {
-                ActivityStaleNote(fetchedAt: state.fetchedAt)
             }
         }
         .task { await state.load(read()) }
@@ -56,20 +56,22 @@ struct ActivityStaleNote: View {
     let fetchedAt: Date?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: "clock.arrow.circlepath")
+                .accessibilityHidden(true)
             if let fetchedAt, fetchedAt > .distantPast {
-                Text("Showing what we last saw, \(fetchedAt.formatted(.relative(presentation: .named))).")
+                Text("Saved data · \(fetchedAt.formatted(.relative(presentation: .named)))")
             } else {
-                Text("Showing what we last saw.")
+                Text("Showing saved data")
             }
         }
-        .font(.footnote)
+        .font(.caption)
         .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
         .padding(.vertical, 6)
-        .background(.thinMaterial)
     }
 }
 
