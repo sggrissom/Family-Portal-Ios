@@ -26,6 +26,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── FaceReviewService.swift, FaceReviewDTOs.swift # face review: online-only, never queued
 │   ├── BookService.swift, BookDTOs.swift           # books: reads cached like activities, writes online-only
 │   ├── InterviewService.swift, InterviewDTOs.swift # annual interview: reads cached like books, writes online-only
+│   ├── SearchDTOs.swift                            # global search: online read, never cached or queued
 │   ├── WidgetSnapshotBuilder.swift, WidgetPublisher.swift  # the widgets' snapshot in the App Group
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
@@ -80,6 +81,8 @@ Family-Portal-Ios/Family-Portal-Ios/
     │   AgeChart, FamilyStrip          # ports of the web's frontend/lib grouping, with its fixtures
     ├── Interviews.swift              # port of frontend/lib/interviews.ts: folding, titles, what changed
     ├── InterviewQuestionList.swift   # port of frontend/lib/interviewQuestions.ts: the editor's draft
+    ├── SearchQuery.swift             # port of backend/search_query.go; its test table is a copy of the Go one
+    ├── SearchText.swift              # search folding, prefix-of-word matching, highlight ranges
     ├── RelationGraph.swift           # walks the stored edges
     ├── FamilyGroups.swift            # bands the roster by generation
     ├── FamilyAccess.swift            # per-family role → which add/edit/delete controls show (authCache.ts)

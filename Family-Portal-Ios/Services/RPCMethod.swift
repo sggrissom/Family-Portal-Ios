@@ -189,4 +189,9 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case getInterviewQuestions = "GetInterviewQuestions"
     case saveInterviewQuestions = "SaveInterviewQuestions"
     case mergeInterviewQuestions = "MergeInterviewQuestions"
+
+    // MARK: - Global search (backend/search.go)
+    // An online read, never cached or queued. Offline, the search screen searches the SwiftData mirror instead.
+
+    case search = "Search"
 }
