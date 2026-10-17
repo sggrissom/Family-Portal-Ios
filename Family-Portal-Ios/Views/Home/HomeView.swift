@@ -33,6 +33,10 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+                if dashboard.isShowingCached, !dashboard.isLoading, dashboard.value != nil {
+                    ActivityStaleNote(fetchedAt: dashboard.fetchedAt)
+                }
+
                 familyStrip
 
                 if let current {
@@ -46,11 +50,6 @@ struct HomeView: View {
             .padding(.vertical)
         }
         .navigationTitle(Copy.nav.home)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if dashboard.isShowingCached, !dashboard.isLoading, dashboard.value != nil {
-                ActivityStaleNote(fetchedAt: dashboard.fetchedAt)
-            }
-        }
         .refreshable { await dashboard.reload() }
         .task {
             await dashboard.load(activityService.dashboard(today: today))
