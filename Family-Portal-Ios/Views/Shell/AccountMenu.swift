@@ -71,7 +71,21 @@ struct AccountMenuButton: View {
     }
 }
 
-/// A tab's root: its own navigation stack, every app route registered once, and the account button in the corner.
+/// Search, beside the account button as the web puts 🔍 beside the account initial. Pushed onto the current tab, so Back from a result finds the results.
+struct SearchButton: View {
+    @Environment(AppNavigator.self) private var navigator
+
+    var body: some View {
+        Button {
+            navigator.push(.search(query: nil))
+        } label: {
+            Image(systemName: "magnifyingglass")
+        }
+        .accessibilityLabel(Copy.search.label)
+    }
+}
+
+/// A tab's root: its own navigation stack, every app route registered once, and search and the account button in the corner.
 struct TabRoot<Content: View>: View {
     let tab: MainTab
     @ViewBuilder let content: () -> Content
@@ -84,6 +98,9 @@ struct TabRoot<Content: View>: View {
             content()
                 .appDestinations()
                 .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        SearchButton()
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         AccountMenuButton()
                     }
