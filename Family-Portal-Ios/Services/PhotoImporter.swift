@@ -1,3 +1,5 @@
+import AVFoundation
+import CoreTransferable
 import Foundation
 import ImageIO
 import OSLog
@@ -5,8 +7,9 @@ import Photos
 import PhotosUI
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// Reads picked images into the store and hands them to the sync queue.
+/// Reads picked images into the store and hands them to the sync queue. A picked video is uploaded there and then instead (`VideoUploadService`) and lands in the store once the server has it.
 ///
 /// One instance, held by `AddFlow`, so every **+** imports the same way and one
 /// progress bar covers every batch. Dependencies arrive on the call rather than at
@@ -42,6 +45,12 @@ final class PhotoImporter {
         /// False when neither the library nor the file supplied a capture date and "now" stood in for it — which the form says, rather than silently dating the photo today.
         var hasCaptureDate = true
         var failed = false
+        /// A video, uploaded at once rather than queued, so its row shows how far it has got.
+        var isVideo = false
+        /// 0…1 while a video's bytes are going up.
+        var uploadFraction: Double?
+        /// Why it couldn't be added, when there is something more useful to say than "Failed" — a video too long, too large, or refused.
+        var failureMessage: String?
         var isReading: Bool { photoId == nil && !failed }
     }
 
@@ -59,6 +68,8 @@ final class PhotoImporter {
     }
 
     private(set) var entries: [UUID: ImportEntry] = [:]
+    /// Whether the account's family takes video, and its limits. Set by `AddFlow` when the add sheet opens; nil offline.
+    var videoSupport: GetVideoSupportResponseDTO?
     private var pendingChoices: [UUID: BatchChoices] = [:]
     private var applyContext: (context: ModelContext, syncService: SyncService?)?
 
@@ -77,7 +88,7 @@ final class PhotoImporter {
         next.total += items.count
         progress = next
 
-        let batch = items.map { ImportEntry(id: UUID(), item: $0) }
+        let batch = items.map { ImportEntry(id: UUID(), item: $0, isVideo: Self.isVideo($0)) }
         for entry in batch {
             entries[entry.id] = entry
         }
@@ -103,6 +114,8 @@ final class PhotoImporter {
     func retry(_ entryId: UUID, into context: ModelContext, syncService: SyncService?) {
         guard entries[entryId]?.failed == true else { return }
         entries[entryId]?.failed = false
+        entries[entryId]?.failureMessage = nil
+        entries[entryId]?.uploadFraction = nil
         Task {
             await read(entryId, into: context, syncService: syncService, countsTowardProgress: false)
         }
@@ -129,7 +142,12 @@ final class PhotoImporter {
     ) async {
         guard let entry = entries[entryId] else { return }
         do {
-            let imported = try await importOne(entry.item, into: context, syncService: syncService)
+            let imported: (photo: Photo, hasCaptureDate: Bool)
+            if entry.isVideo {
+                imported = try await importVideo(entryId, item: entry.item, into: context)
+            } else {
+                imported = try await importOne(entry.item, into: context, syncService: syncService)
+            }
             entries[entryId]?.photoId = imported.photo.id
             entries[entryId]?.hasCaptureDate = imported.hasCaptureDate
             if countsTowardProgress { progress?.completed += 1 }
@@ -141,6 +159,9 @@ final class PhotoImporter {
         } catch {
             AppLog.ui.error("Photo import failed: \(String(describing: error), privacy: .public)")
             entries[entryId]?.failed = true
+            if entry.isVideo {
+                entries[entryId]?.failureMessage = error.localizedDescription
+            }
             if countsTowardProgress {
                 progress?.failed += 1
                 if progress?.firstFailure == nil {
@@ -210,6 +231,66 @@ final class PhotoImporter {
         return (photo, captureDate != nil)
     }
 
+    /// Checks, uploads and stores one video. Online only: the batch form's people, caption and tags then queue against a photo that already has its server id, exactly as they would for an uploaded photo.
+    private func importVideo(_ entryId: UUID, item: PhotosPickerItem, into context: ModelContext) async throws -> (photo: Photo, hasCaptureDate: Bool) {
+        guard let support = videoSupport else { throw VideoImportFailure.unsupported }
+        guard let picked = try await item.loadTransferable(type: PickedVideo.self) else {
+            throw VideoImportFailure.unreadable
+        }
+        defer { picked.remove() }
+
+        let filename = picked.url.lastPathComponent
+        let size = (try? picked.url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        if let problem = VideoFiles.problem(filename: filename, size: size, support: support) {
+            throw VideoImportFailure.refused(problem)
+        }
+        let seconds = try? await AVURLAsset(url: picked.url).load(.duration).seconds
+        if let problem = VideoFiles.durationProblem(filename: filename, seconds: seconds, maxSeconds: support.maxDurationSeconds) {
+            throw VideoImportFailure.refused(problem)
+        }
+        guard let contentType = VideoFiles.contentType(forFilename: filename) else {
+            throw VideoImportFailure.unreadable
+        }
+
+        // The server dates the video from its own metadata; this day is only for a file that carries none.
+        let captureDate = Self.libraryDate(for: item)
+        let fallbackDate = (captureDate ?? Date()).localWallClock().recordDayKey
+
+        // A short trip out of the app shouldn't cost the upload.
+        let background = UIApplication.shared.beginBackgroundTask(withName: "Video upload")
+        defer { UIApplication.shared.endBackgroundTask(background) }
+
+        let image: ImageDTO
+        do {
+            image = try await VideoUploadService().upload(
+                fileURL: picked.url,
+                filename: filename,
+                contentType: contentType,
+                size: size,
+                fallbackDate: fallbackDate
+            ) { fraction in
+                Task { @MainActor in self.entries[entryId]?.uploadFraction = fraction }
+            }
+        } catch APIError.network {
+            throw VideoImportFailure.needsConnection
+        }
+
+        // A pull that landed while this was uploading may already hold the row.
+        let remoteId = String(image.id)
+        let photo = (try? context.fetch(FetchDescriptor<Photo>(predicate: #Predicate<Photo> { $0.remoteId == remoteId })).first)
+            ?? Photo(title: "", descriptionText: "", photoDate: image.photoDate)
+        applyPhotoDTO(image, to: photo)
+        if photo.modelContext == nil {
+            context.insert(photo)
+        }
+        try context.save()
+        return (photo, captureDate != nil || image.photoDate.recordDayKey != fallbackDate)
+    }
+
+    private static func isVideo(_ item: PhotosPickerItem) -> Bool {
+        item.supportedContentTypes.contains { $0.conforms(to: .movie) }
+    }
+
     /// Reports **once** for the whole run. A dozen alerts stacked behind each other is what per-photo reporting looks like for an iCloud batch.
     private func finish(reportingTo errorPresenter: ErrorPresenter?) {
         guard let settled = progress else { return }
@@ -224,6 +305,23 @@ final class PhotoImporter {
                 message: "\(settled.failed) of \(settled.total) photos couldn't be added. Photos stored in iCloud need to finish downloading in Photos first.",
                 title: "Some Photos Weren't Added"
             )
+        }
+    }
+
+    enum VideoImportFailure: LocalizedError {
+        case unreadable
+        case unsupported
+        case needsConnection
+        /// The checks' own sentence: too long, too large, not MP4 or MOV, or video turned off.
+        case refused(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .unreadable: return Copy.video.unreadable
+            case .unsupported: return Copy.video.unsupported
+            case .needsConnection: return Copy.video.needsConnection
+            case .refused(let reason): return reason
+            }
         }
     }
 
@@ -278,4 +376,25 @@ final class PhotoImporter {
         formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
         return formatter
     }()
+}
+
+/// A picked video as a file of its own in a scratch folder: the system's copy lasts only as long as the import callback, and an upload needs it for minutes.
+nonisolated struct PickedVideo: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(importedContentType: .movie) { received in
+            let folder = FileManager.default.temporaryDirectory
+                .appendingPathComponent("video-uploads", isDirectory: true)
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let copy = folder.appendingPathComponent(received.file.lastPathComponent)
+            try FileManager.default.copyItem(at: received.file, to: copy)
+            return PickedVideo(url: copy)
+        }
+    }
+
+    func remove() {
+        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+    }
 }

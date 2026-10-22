@@ -9,7 +9,7 @@ struct PhotoBatch: Identifiable {
     let preselectedPersonIds: Set<UUID>
 }
 
-/// Upload first, then the optional details: **Who's in these?**, a caption and tags for the whole batch, and each photo's own date and status.
+/// Upload first, then the optional details: **Who's in these?**, a caption and tags for the whole batch, and each photo's own date and status. A video's row counts its upload up in percent, then says it is processing.
 /// The photos are already read and queued when this opens. **Done** applies the choices and closes; it never cancels or discards an upload, which is why the sheet cannot be swiped away — there is nothing to cancel.
 struct PhotoBatchFormView: View {
     let batch: PhotoBatch
@@ -132,15 +132,31 @@ struct PhotoBatchFormView: View {
     @ViewBuilder
     private func status(_ entry: PhotoImporter.ImportEntry, photo: Photo?) -> some View {
         if entry.failed {
-            HStack(spacing: 8) {
-                Label(Copy.photos.failed, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                Button("Retry") {
-                    importer.retry(entry.id, into: modelContext, syncService: syncService)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Label(Copy.photos.failed, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    Button("Retry") {
+                        importer.retry(entry.id, into: modelContext, syncService: syncService)
+                    }
+                    .buttonStyle(.borderless)
                 }
-                .buttonStyle(.borderless)
+                if let message = entry.failureMessage {
+                    Text(message)
+                        .foregroundStyle(.secondary)
+                }
             }
             .font(.caption)
+        } else if let photo, photo.isVideo, photo.status == 1 {
+            // Uploaded; the server is preparing it for playback.
+            Label(Copy.photos.videoProcessing, systemImage: "clock")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if entry.isVideo, photo == nil, let fraction = entry.uploadFraction {
+            Label("\(Copy.photos.uploading) \(Int(fraction * 100))%", systemImage: "arrow.up.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
         } else if photo?.remoteId != nil {
             Label(Copy.photos.uploaded, systemImage: "checkmark.circle.fill")
                 .font(.caption)

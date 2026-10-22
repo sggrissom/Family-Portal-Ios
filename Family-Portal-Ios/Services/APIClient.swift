@@ -669,6 +669,20 @@ nonisolated enum OriginalPhotoFile {
     }
 }
 
+/// Reports an upload's progress as the body goes out.
+private nonisolated final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let report: @Sendable (Double) -> Void
+
+    init(_ report: @escaping @Sendable (Double) -> Void) {
+        self.report = report
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        report(Double(totalBytesSent) / Double(totalBytesExpectedToSend))
+    }
+}
+
 /// Reports a download's progress from the task the async API creates.
 private nonisolated final class DownloadProgressDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private let report: @Sendable (Double) -> Void
@@ -722,6 +736,31 @@ extension APIClient {
 
     func mediaURL(_ link: String) -> URL? {
         Self.mediaURL(link, baseURL: baseURL)
+    }
+
+    /// Sends a file to a URL the server minted for it (`BeginVideoUpload`'s instructions): exactly that method and those headers, the raw file as the body, and **no** token or cookies — a storage bucket refuses credentials it didn't ask for. Streamed from disk, never read into memory.
+    func uploadMedia(fileURL: URL, instructions: UploadInstructionsDTO, progress: (@Sendable (Double) -> Void)? = nil) async throws {
+        guard let url = mediaURL(instructions.url) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = instructions.method
+        request.httpShouldHandleCookies = false
+        // The session's 20-second idle limit is for small requests; a slow uplink can sit longer than that between acknowledgements.
+        request.timeoutInterval = 120
+        for (name, value) in instructions.headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.upload(for: request, fromFile: fileURL, delegate: progress.map(UploadProgressDelegate.init))
+        } catch {
+            throw APIError.network(error)
+        }
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.server(statusCode: http.statusCode, message: String(data: data, encoding: .utf8))
+        }
     }
 
     /// Asks a media link for its first byte, without credentials, and reports the status — or `nil` when nothing answered. How the player tells a refused link from a file it can't decode.

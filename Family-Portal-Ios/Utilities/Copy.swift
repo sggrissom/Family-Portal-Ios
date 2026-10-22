@@ -48,6 +48,7 @@ nonisolated enum Copy {
         static let title = "Add"
         static let whoFor = "Who is this for?"
         static let photos = "Photos"
+        static let photosAndVideos = "Photos or videos"
         static let measurement = "Measurement"
         static let milestone = "Moment"
         static let close = "Close"
@@ -123,6 +124,7 @@ nonisolated enum Copy {
         static let finishing = "Saving…"
         static let uploading = "Uploading"
         static let uploaded = "Uploaded"
+        static let videoProcessing = "Processing"
         static let failed = "Failed"
         static let dropHint = "or drop them here"
     }
@@ -276,6 +278,9 @@ nonisolated enum Copy {
         static let offlineTitle = "You're offline"
         static let offlineBody = "Videos play from the server. This one will play once you're back online."
         static let tryAgain = "Try again"
+        static let unreadable = "That video couldn't be read. If it's stored in iCloud, open it in Photos first and try again."
+        static let needsConnection = "Videos upload only while you're online, and the connection dropped. Try again once you're connected."
+        static let unsupported = "Videos can't be added here right now."
     }
 
     /// Similar-photo groups and place filters on `family-photos.tsx`.

@@ -1,3 +1,4 @@
+import OSLog
 import Photos
 import PhotosUI
 import SwiftData
@@ -40,6 +41,9 @@ final class AddFlow {
     var isPickingPhotos = false
     let importer = PhotoImporter()
 
+    /// Whether the picker offers videos: only when the server says video is on for the account's family.
+    var acceptsVideo: Bool { importer.videoSupport?.enabled == true }
+
     /// Pushes the chosen event onto the current tab once the sheet is gone. Set by the shell, which owns navigation.
     var openEvent: ((OpenEventDTO) -> Void)?
 
@@ -79,6 +83,20 @@ final class AddFlow {
         } else if let pendingEvent {
             openEvent?(pendingEvent)
             self.pendingEvent = nil
+        }
+    }
+
+    /// Asked each time the sheet opens, and only online: video is an admin's switch per family, so a remembered answer could be wrong either way, and a video can't upload offline anyway.
+    func refreshVideoSupport(isConnected: Bool, apiClient: APIClient = .shared) async {
+        guard isConnected else {
+            importer.videoSupport = nil
+            return
+        }
+        do {
+            importer.videoSupport = try await apiClient.callRPC(.getVideoSupport, payload: GetVideoSupportRequestDTO())
+        } catch {
+            AppLog.ui.error("Couldn't ask for video support: \(String(describing: error), privacy: .public)")
+            importer.videoSupport = nil
         }
     }
 
@@ -133,7 +151,7 @@ private struct AddFlowPresentation: ViewModifier {
                 maxSelectionCount: nil,
                 // `.ordered` numbers the picks and delivers them in the order the user made them, not library order.
                 selectionBehavior: .ordered,
-                matching: .images,
+                matching: flow.acceptsVideo ? .any(of: [.images, .videos]) : .images,
                 photoLibrary: .shared()
             )
             .onChange(of: pickedItems) { _, newItems in
@@ -153,6 +171,7 @@ struct AddSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ActivityService.self) private var activityService
     @Environment(AuthService.self) private var authService
+    @Environment(NetworkMonitor.self) private var network
 
     @State private var personId: UUID?
     @State private var openEvents = ActivityScreenState<ListOpenEventsResponseDTO>()
@@ -178,7 +197,7 @@ struct AddSheetView: View {
                     Button {
                         flow.choosePhotos()
                     } label: {
-                        Label(Copy.addSheet.photos, systemImage: "photo.on.rectangle")
+                        Label(flow.acceptsVideo ? Copy.addSheet.photosAndVideos : Copy.addSheet.photos, systemImage: "photo.on.rectangle")
                     }
                     Button {
                         remember()
@@ -225,6 +244,9 @@ struct AddSheetView: View {
             .onAppear(perform: seed)
             .task {
                 await openEvents.load(activityService.openEvents(today: WhenEntry.localDateString(Date())))
+            }
+            .task {
+                await flow.refreshVideoSupport(isConnected: network.isConnected)
             }
         }
         .presentationDetents([.medium, .large])
