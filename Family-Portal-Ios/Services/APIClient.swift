@@ -726,6 +726,16 @@ extension APIClient {
         Self.mediaURL(link, baseURL: baseURL)
     }
 
+    /// Asks a media link for its first byte, without credentials, and reports the status — or `nil` when nothing answered. How the player tells a refused link from a file it can't decode.
+    func probeMedia(_ link: String) async -> Int? {
+        guard let url = mediaURL(link) else { return nil }
+        var request = URLRequest(url: url)
+        request.httpShouldHandleCookies = false
+        request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+        guard let (_, response) = try? await session.data(for: request) else { return nil }
+        return (response as? HTTPURLResponse)?.statusCode
+    }
+
     /// Moves a finished download into a scratch folder of its own under its proper name, or throws for a refused one.
     private func keepDownload(_ fileURL: URL, response: HTTPURLResponse, suggested: String?, photoId: Int) throws -> DownloadedOriginal {
         guard (200...299).contains(response.statusCode) else {

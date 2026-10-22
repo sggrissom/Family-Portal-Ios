@@ -108,6 +108,64 @@ struct VideoTests {
         #expect(VideoDuration.format(milliseconds: -50) == "0:00")
     }
 
+    // MARK: - Playback failures (the web's videoPlayback.test.ts table)
+
+    private static let now = Date(timeIntervalSince1970: 1_000)
+    private static let later = now.addingTimeInterval(3_600)
+
+    private func classify(network: Bool, _ probe: Int?, at now: Date = VideoTests.now) -> PlaybackProblem {
+        VideoPlayback.classify(isNetworkError: network, probeStatus: probe, now: now, expiresAt: Self.later)
+    }
+
+    @Test("A link at or near its expiry is renewed without probing")
+    func nearExpiry() {
+        #expect(classify(network: false, nil, at: Self.later) == .expired)
+        #expect(classify(network: true, nil, at: Self.later.addingTimeInterval(-30)) == .expired)
+    }
+
+    @Test("A link the server refuses is renewed")
+    func refused() {
+        #expect(classify(network: false, 403) == .expired)
+        #expect(classify(network: false, 400) == .expired)
+        #expect(classify(network: false, 401) == .expired)
+    }
+
+    @Test("A reachable file the device won't decode is unsupported")
+    func undecodable() {
+        #expect(classify(network: false, 206) == .unsupported)
+        #expect(classify(network: false, 200) == .unsupported)
+    }
+
+    @Test("An unreachable file is a connection problem")
+    func unreachable() {
+        #expect(classify(network: true, nil) == .network)
+        #expect(classify(network: false, 502) == .network)
+        #expect(classify(network: true, 206) == .network)
+    }
+
+    @Test("A URL-loading error beneath AVFoundation's counts as the network")
+    func networkErrors() {
+        let url = NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)
+        let wrapped = NSError(domain: "AVFoundationErrorDomain", code: -11800, userInfo: [NSUnderlyingErrorKey: url])
+        let decode = NSError(domain: "AVFoundationErrorDomain", code: -11828)
+        #expect(VideoPlayback.isNetworkError(wrapped))
+        #expect(!VideoPlayback.isNetworkError(decode))
+        #expect(!VideoPlayback.isNetworkError(nil))
+    }
+
+    @Test("A probe goes out with a range and without credentials")
+    func probe() async {
+        let server = FakeHTTPServer()
+        server.route("api/media/object/p", respond: .init(status: 206, headers: [:], body: Data([0])))
+        let client = server.apiClient()
+        await client.setAccessToken("jwt")
+
+        #expect(await client.probeMedia("/api/media/object/p?sig=1") == 206)
+        let request = server.requests(for: "api/media/object/p").first
+        #expect(request?.headers["Range"] == "bytes=0-0")
+        #expect(request?.headers["Authorization"] == nil)
+    }
+
     // MARK: - Media links
 
     @Test("A relative link is on the API origin and keeps its signature")

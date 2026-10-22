@@ -67,7 +67,9 @@ private struct PhotoDetailContent: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                if let imageData = photo.imageData, let uiImage = UIImage(data: imageData) {
+                if photo.isVideo, let remoteId = photo.serverId {
+                    VideoPlayerSection(photo: photo, remoteId: remoteId)
+                } else if let imageData = photo.imageData, let uiImage = UIImage(data: imageData) {
                     ZoomableView {
                         Image(uiImage: uiImage)
                             .resizable()
@@ -79,11 +81,6 @@ private struct PhotoDetailContent: View {
                     ZoomableView {
                         RemotePhotoView(remoteId: remoteInt, size: .xlarge, contentMode: .fit)
                             .scaledToFit()
-                    }
-                    .overlay(alignment: .topLeading) {
-                        if let duration = photo.videoBadgeDuration {
-                            VideoBadge(durationMs: duration)
-                        }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .padding(.horizontal)
