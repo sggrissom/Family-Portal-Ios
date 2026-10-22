@@ -26,7 +26,8 @@ struct MilestonePhotoPickerView: View {
                                 PhotoThumbnailView(
                                     imageData: photo.imageData,
                                     title: photo.title,
-                                    remoteId: photo.remoteId
+                                    remoteId: photo.remoteId,
+                                    videoDurationMs: photo.videoBadgeDuration
                                 )
                                 .overlay {
                                     if selection.contains(photo.id) {
@@ -107,7 +108,8 @@ struct MilestonePhotosSection: View {
                             PhotoThumbnailView(
                                 imageData: photo.imageData,
                                 title: photo.title,
-                                remoteId: photo.remoteId
+                                remoteId: photo.remoteId,
+                                videoDurationMs: photo.videoBadgeDuration
                             )
                             .frame(width: 64, height: 64)
                         }

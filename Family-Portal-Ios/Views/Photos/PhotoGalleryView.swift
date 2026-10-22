@@ -198,7 +198,7 @@ struct PhotoGalleryView: View {
 
     private func galleryCell(_ cell: GalleryCell<Photo>) -> some View {
         NavigationLink(value: PhotoRoute(id: cell.item.id)) {
-            PhotoThumbnailView(imageData: cell.item.imageData, title: cell.item.title, remoteId: cell.item.remoteId)
+            PhotoThumbnailView(imageData: cell.item.imageData, title: cell.item.title, remoteId: cell.item.remoteId, videoDurationMs: cell.item.videoBadgeDuration)
         }
         // Its own link over the photo's, so the badge opens the group and the rest of the cell opens the photo.
         .overlay(alignment: .topTrailing) {

@@ -708,7 +708,7 @@ struct SearchView: View {
                     LazyHStack(spacing: 4) {
                         ForEach(results.photos) { photo in
                             NavigationLink(value: PhotoRoute(id: photo.id)) {
-                                PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
+                                PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId, videoDurationMs: photo.videoBadgeDuration)
                             }
                             .frame(width: 96, height: 96)
                             .clipShape(RoundedRectangle(cornerRadius: 6))

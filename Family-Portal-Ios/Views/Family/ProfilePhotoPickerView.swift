@@ -11,9 +11,9 @@ struct ProfilePhotoPickerView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 8)]
 
-    /// SwiftData does not order relationships; newest-first matches the preview grid that leads here.
+    /// SwiftData does not order relationships; newest-first matches the preview grid that leads here. Videos are left out: `SetProfilePhoto` refuses one.
     private var photos: [Photo] {
-        person.photos.sorted { $0.photoDate > $1.photoDate }
+        person.photos.filter { !$0.isVideo }.sorted { $0.photoDate > $1.photoDate }
     }
 
     var body: some View {

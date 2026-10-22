@@ -328,9 +328,10 @@ struct WidgetSnapshotBuilder {
 
     // MARK: - Helpers
 
-    /// A photo can be shown once it is on the server or still holds its own bytes.
+    /// A photo can be shown once it is on the server or still holds its own bytes. A video is shown by its poster, but only once it is ready: until then its poster is the server's processing placeholder.
     private static func canShow(_ photo: Photo) -> Bool {
-        photo.remoteId != nil || photo.imageData != nil
+        if photo.isVideo && photo.status != 0 { return false }
+        return photo.remoteId != nil || photo.imageData != nil
     }
 
     /// Newest first by capture time, then by server id — the order of the server's photo index.

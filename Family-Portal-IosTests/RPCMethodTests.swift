@@ -185,6 +185,15 @@ struct RPCMethodTests {
         #expect(RPCMethod.search.rawValue == "Search")
     }
 
+    @Test("Video proc names match the backend")
+    func videoProcNames() {
+        #expect(RPCMethod.getVideoSupport.rawValue == "GetVideoSupport")
+        #expect(RPCMethod.beginVideoUpload.rawValue == "BeginVideoUpload")
+        #expect(RPCMethod.completeVideoUpload.rawValue == "CompleteVideoUpload")
+        #expect(RPCMethod.cancelVideoUpload.rawValue == "CancelVideoUpload")
+        #expect(RPCMethod.getVideoPlayback.rawValue == "GetVideoPlayback")
+    }
+
     @Test("Every proc name is distinct and non-empty")
     func procNamesAreDistinct() {
         let names = RPCMethod.allCases.map(\.rawValue)

@@ -661,6 +661,9 @@ nonisolated enum OriginalPhotoFile {
         case "image/gif": return "gif"
         case "image/webp": return "webp"
         case "image/tiff": return "tiff"
+        case "video/mp4": return "mp4"
+        case "video/quicktime": return "mov"
+        case "video/x-m4v": return "m4v"
         default: return nil
         }
     }
@@ -698,6 +701,31 @@ extension APIClient {
             _ = try await refreshAccessToken()
             (fileURL, response) = try await downloadFile(url, progress: progress)
         }
+        return try keepDownload(fileURL, response: response, suggested: response.suggestedFilename, photoId: photoId)
+    }
+
+    /// A media link the server minted, such as `GetVideoPlayback`'s `downloadUrl`: fetched with **no** token and no cookies, since the link carries its own authority and a storage bucket refuses anything more. `suggested` names the file when the response doesn't.
+    func downloadMedia(link: String, suggested: String, photoId: Int, progress: (@Sendable (Double) -> Void)? = nil) async throws -> DownloadedOriginal {
+        guard let url = mediaURL(link) else { throw APIError.invalidURL }
+        let (fileURL, response) = try await downloadFile(url, authorized: false, progress: progress)
+        return try keepDownload(fileURL, response: response, suggested: response.suggestedFilename ?? suggested, photoId: photoId)
+    }
+
+    /// A link from the media procs as a URL: one starting with `/` is on the API origin, anything else is already absolute. Resolved against the origin rather than appended, so the signature in its query survives.
+    nonisolated static func mediaURL(_ link: String, baseURL: URL) -> URL? {
+        guard !link.isEmpty else { return nil }
+        if link.hasPrefix("/") {
+            return URL(string: link, relativeTo: baseURL)?.absoluteURL
+        }
+        return URL(string: link)
+    }
+
+    func mediaURL(_ link: String) -> URL? {
+        Self.mediaURL(link, baseURL: baseURL)
+    }
+
+    /// Moves a finished download into a scratch folder of its own under its proper name, or throws for a refused one.
+    private func keepDownload(_ fileURL: URL, response: HTTPURLResponse, suggested: String?, photoId: Int) throws -> DownloadedOriginal {
         guard (200...299).contains(response.statusCode) else {
             try? FileManager.default.removeItem(at: fileURL)
             if response.statusCode == 401 { throw APIError.unauthorized }
@@ -709,7 +737,7 @@ extension APIClient {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let name = OriginalPhotoFile.filename(suggested: response.suggestedFilename, mimeType: response.mimeType, photoId: photoId)
+            let name = OriginalPhotoFile.filename(suggested: suggested, mimeType: response.mimeType, photoId: photoId)
             let destination = directory.appendingPathComponent(name)
             try FileManager.default.moveItem(at: fileURL, to: destination)
             return DownloadedOriginal(fileURL: destination, directory: directory, mimeType: response.mimeType)
@@ -720,10 +748,15 @@ extension APIClient {
         }
     }
 
-    private func downloadFile(_ url: URL, progress: (@Sendable (Double) -> Void)?) async throws -> (URL, HTTPURLResponse) {
+    /// `authorized: false` sends nothing of the session's: no token, and no cookies from the shared jar the app keeps its own in.
+    private func downloadFile(_ url: URL, authorized: Bool = true, progress: (@Sendable (Double) -> Void)?) async throws -> (URL, HTTPURLResponse) {
         var request = URLRequest(url: url)
-        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
-        addAuthHeaders(to: &request, requiresAuth: true)
+        if authorized {
+            request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+            addAuthHeaders(to: &request, requiresAuth: true)
+        } else {
+            request.httpShouldHandleCookies = false
+        }
         let fileURL: URL
         let response: URLResponse
         do {
@@ -735,7 +768,9 @@ extension APIClient {
             try? FileManager.default.removeItem(at: fileURL)
             throw APIError.invalidResponse
         }
-        captureTokens(from: http)
+        if authorized {
+            captureTokens(from: http)
+        }
         return (fileURL, http)
     }
 }

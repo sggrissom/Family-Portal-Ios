@@ -97,7 +97,7 @@ struct PhotoBatchFormView: View {
     private func row(_ entry: PhotoImporter.ImportEntry) -> some View {
         let photo = photo(for: entry)
         HStack(spacing: 12) {
-            PhotoThumbnailView(imageData: photo?.imageData, title: photo?.title ?? "", remoteId: photo?.remoteId)
+            PhotoThumbnailView(imageData: photo?.imageData, title: photo?.title ?? "", remoteId: photo?.remoteId, videoDurationMs: photo?.videoBadgeDuration)
                 .frame(width: 56, height: 56)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
 

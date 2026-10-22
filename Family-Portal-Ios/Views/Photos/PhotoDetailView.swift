@@ -23,7 +23,7 @@ struct PhotoDetailView: View {
         if let photo {
             PhotoDetailContent(photo: photo, openedFrom: openedFrom, showDeleteConfirmation: $showDeleteConfirmation)
                 .navigationBarTitleDisplayMode(.inline)
-                .confirmationDialog("Delete Photo", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                .confirmationDialog(photo.isVideo ? Copy.video.deleteTitle : "Delete Photo", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
                     Button("Delete", role: .destructive) {
                         Task {
                             do {
@@ -36,7 +36,7 @@ struct PhotoDetailView: View {
                         }
                     }
                 } message: {
-                    Text("This photo will be permanently deleted.")
+                    Text(photo.isVideo ? Copy.video.deleteMessage : "This photo will be permanently deleted.")
                 }
         } else {
             ContentUnavailableView("Photo Not Found", systemImage: "photo.slash")
@@ -79,6 +79,11 @@ private struct PhotoDetailContent: View {
                     ZoomableView {
                         RemotePhotoView(remoteId: remoteInt, size: .xlarge, contentMode: .fit)
                             .scaledToFit()
+                    }
+                    .overlay(alignment: .topLeading) {
+                        if let duration = photo.videoBadgeDuration {
+                            VideoBadge(durationMs: duration)
+                        }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .padding(.horizontal)
@@ -213,7 +218,7 @@ private struct PhotoDetailContent: View {
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
                     } label: {
-                        Label("Delete Photo", systemImage: "trash")
+                        Label(photo.isVideo ? Copy.video.delete : "Delete Photo", systemImage: "trash")
                     }
                     .padding(.top, 8)
                 }
@@ -283,7 +288,9 @@ private struct PhotoDetailContent: View {
         photo.taggedPeople.sorted { $0.name < $1.name }
     }
 
+    /// None for a video, which the server refuses as a profile photo.
     private var profileCandidates: [Person] {
+        guard !photo.isVideo else { return [] }
         let access = authService.access
         return taggedPeople.filter { access.canContribute(to: $0) }
     }

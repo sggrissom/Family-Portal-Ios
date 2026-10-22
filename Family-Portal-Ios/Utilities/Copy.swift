@@ -251,6 +251,20 @@ nonisolated enum Copy {
         static let saveFailed = "Couldn't Save Photo"
     }
 
+    /// Video wording shared with the web's `VideoPlayer`, `VideoBadge` and `videoFiles.ts`.
+    enum video {
+        static let badge = "Video"
+        static func badgeLabel(_ duration: String) -> String { "Video, \(duration)" }
+        static let deleteTitle = "Delete Video"
+        static let deleteMessage = "This video will be permanently deleted."
+        static let delete = "Delete Video"
+        static let notUploaded = "The original can be shared once this video has uploaded."
+        static let noOriginal = "The original of this video isn't kept, so there is nothing to download."
+        static let offline = "You're offline. The original video downloads from the server."
+        static let shareFailed = "Couldn't Share Video"
+        static let saveFailed = "Couldn't Save Video"
+    }
+
     /// Similar-photo groups and place filters on `family-photos.tsx`.
     enum photoBrowse {
         static let similarHeading = "Similar photos"

@@ -17,6 +17,12 @@ nonisolated enum RelationKind: Int, Codable, CaseIterable, Sendable {
     case partner = 2
 }
 
+/// Whether an uploaded image is a photo or a video, mirroring `MediaKind` in backend/media.go whose iota order these raw values pin. A video is a second kind of the same record rather than a record of its own, so it is tagged, dated and listed exactly like a photo.
+nonisolated enum MediaKind: Int, Codable, CaseIterable, Sendable {
+    case photo = 0
+    case video = 1
+}
+
 /// One wording offered when stating a relationship, mirroring `RELATION_OPTIONS` in frontend/lib/routeHelpers.ts so both clients offer the same words. A gendered word also fills in the new person's gender: "daughter" has already said it.
 struct RelationOption: Identifiable, Hashable {
     let label: String

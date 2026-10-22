@@ -4,6 +4,8 @@ struct PhotoThumbnailView: View {
     let imageData: Data?
     let title: String
     var remoteId: String? = nil
+    /// Set for a video, to its length in milliseconds (0 when unknown): the poster gets a play badge. `Photo.videoBadgeDuration` supplies it.
+    var videoDurationMs: Int? = nil
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -11,12 +13,12 @@ struct PhotoThumbnailView: View {
                 LocalThumbnailImage(data: imageData)
                     .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     .clipped()
-                    .accessibilityLabel(title.isEmpty ? "Photo" : title)
+                    .accessibilityLabel(title.isEmpty ? (videoDurationMs == nil ? "Photo" : Copy.video.badge) : title)
             } else if let remoteId, let remoteInt = Int(remoteId) {
                 RemotePhotoView(remoteId: remoteInt, size: .thumb)
                     .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     .clipped()
-                    .accessibilityLabel(title.isEmpty ? "Photo" : title)
+                    .accessibilityLabel(title.isEmpty ? (videoDurationMs == nil ? "Photo" : Copy.video.badge) : title)
             } else {
                 Rectangle()
                     .fill(Color.gray.opacity(0.2))
@@ -38,6 +40,11 @@ struct PhotoThumbnailView: View {
                     .background(.ultraThinMaterial)
                     // Drawn over the image, which is already labelled with the same words.
                     .accessibilityHidden(true)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if let videoDurationMs {
+                VideoBadge(durationMs: videoDurationMs)
             }
         }
         .aspectRatio(1, contentMode: .fit)

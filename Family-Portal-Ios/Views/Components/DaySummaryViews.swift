@@ -138,7 +138,7 @@ struct MosaicThumbnails: View {
         HStack(spacing: 4) {
             ForEach(photoIds, id: \.self) { id in
                 if let photo = photos.first(where: { $0.id == id }) {
-                    PhotoThumbnailView(imageData: photo.imageData, title: "", remoteId: photo.remoteId)
+                    PhotoThumbnailView(imageData: photo.imageData, title: "", remoteId: photo.remoteId, videoDurationMs: photo.videoBadgeDuration)
                         .frame(width: 72, height: 72)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
@@ -188,7 +188,7 @@ struct PhotoSetView: View {
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(photos) { photo in
                     NavigationLink(value: PhotoRoute(id: photo.id)) {
-                        PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
+                        PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId, videoDurationMs: photo.videoBadgeDuration)
                     }
                 }
             }

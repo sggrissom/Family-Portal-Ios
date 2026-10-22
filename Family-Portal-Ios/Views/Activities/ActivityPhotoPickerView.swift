@@ -112,7 +112,8 @@ struct ActivityPhotoPickerView: View {
                 PhotoThumbnailView(
                     imageData: photo.imageData,
                     title: photo.title,
-                    remoteId: photo.remoteId
+                    remoteId: photo.remoteId,
+                    videoDurationMs: photo.videoBadgeDuration
                 )
             } else {
                 RemotePhotoView(remoteId: choice.remoteId, size: .thumb)
