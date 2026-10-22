@@ -708,7 +708,9 @@ extension APIClient {
     func downloadMedia(link: String, suggested: String, photoId: Int, progress: (@Sendable (Double) -> Void)? = nil) async throws -> DownloadedOriginal {
         guard let url = mediaURL(link) else { throw APIError.invalidURL }
         let (fileURL, response) = try await downloadFile(url, authorized: false, progress: progress)
-        return try keepDownload(fileURL, response: response, suggested: response.suggestedFilename ?? suggested, photoId: photoId)
+        // `suggestedFilename` is never nil: without a Content-Disposition it is made from the URL, which for a bucket link is the object's key.
+        let named = response.value(forHTTPHeaderField: "Content-Disposition") != nil ? response.suggestedFilename : nil
+        return try keepDownload(fileURL, response: response, suggested: named ?? suggested, photoId: photoId)
     }
 
     /// A link from the media procs as a URL: one starting with `/` is on the API origin, anything else is already absolute. Resolved against the origin rather than appended, so the signature in its query survives.
