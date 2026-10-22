@@ -263,6 +263,19 @@ nonisolated enum Copy {
         static let offline = "You're offline. The original video downloads from the server."
         static let shareFailed = "Couldn't Share Video"
         static let saveFailed = "Couldn't Save Video"
+        static let processingTitle = "Still processing"
+        static let processingBody = "This video is being prepared for playback. A long video can take a few minutes; this page will update when it's ready."
+        static let failedTitle = "This video can't be played"
+        static let failedFallback = "It couldn't be prepared for playback."
+        static let unsupportedTitle = "This video can't be played here"
+        static let unsupportedBody = "It was recorded in a format this device doesn't support. Share or save the original from the menu above to watch it another way."
+        static let stoppedTitle = "Playback stopped"
+        static let stoppedBody = "The connection to the video was lost."
+        static let unavailableTitle = "Couldn't load this video"
+        static let unavailableBody = "Check your connection and try again."
+        static let offlineTitle = "You're offline"
+        static let offlineBody = "Videos play from the server. This one will play once you're back online."
+        static let tryAgain = "Try again"
     }
 
     /// Similar-photo groups and place filters on `family-photos.tsx`.

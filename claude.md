@@ -426,6 +426,7 @@ network answers.
 
 - A video is a `Photo` with `mediaKind == .video`, pulled through the same `ListFamilyPhotos`/`GetFamilyTimeline`. Everywhere it is listed it shows its poster (the ordinary variants) with `VideoBadge`, which `PhotoThumbnailView` draws when given `videoDurationMs` (`Photo.videoBadgeDuration`). Server-id-only cells get no badge until the mirror catches up
 - Kept out of the profile-photo picker and **Use as Profile Photo** (`SetProfilePhoto` refuses one). Widgets skip a video until its `status` is 0, since a processing poster is the server's SVG placeholder. Same age, Growing up, books and face review are fed by server procs that already filter videos
+- The photo page shows `VideoPlayerSection` for a video: `VideoPlayerModel` asks `GetVideoPlayback` on appear (polling every 5 s while `status` is 1), then plays the link in `AVPlayerViewController` over an `AVURLAsset` with `AVURLAssetHTTPCookiesKey: []`. A player failure probes the link (`APIClient.probeMedia`, one byte, no credentials) and `VideoPlayback.classify` — the web's `classifyPlaybackError` and its test table — decides: renew and resume at the same position (up to 3 times), "can't be played here", or Playback stopped + Try again. Links are never stored. Item status is watched through `publisher(for: \.status).values` on the main actor, not a KVO closure
 
 ### Adding records
 
