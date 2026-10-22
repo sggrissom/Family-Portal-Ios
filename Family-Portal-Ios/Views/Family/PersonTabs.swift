@@ -441,7 +441,7 @@ struct PersonPhotosTab: View {
                 LazyVGrid(columns: columns, spacing: 4) {
                     ForEach(photos) { photo in
                         NavigationLink(value: PhotoRoute(id: photo.id, openedFrom: person.id)) {
-                            PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId)
+                            PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId, videoDurationMs: photo.videoBadgeDuration)
                         }
                     }
                 }

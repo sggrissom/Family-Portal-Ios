@@ -278,13 +278,20 @@ nonisolated struct ImageDTO: Codable, Sendable {
     let descriptionText: String
     let photoDate: Date
     let createdAt: Date
+    /// 0 ready, 1 processing, 2 failed. A video spends real time at 1, and one the server rejected sits at 2 with `processingError` saying why.
     let status: Int
     @OrZero var tagIds: [Int]
+    /// 0 a photo, 1 a video (backend/media.go `MediaKind`). Absent from servers older than video, which only had photos.
+    @OrZero var mediaKind: Int
+    @OrZero var durationMs: Int
+    /// A sentence the server wrote for showing as is, set on a video it could not accept.
+    @OrZero var processingError: String
 
     enum CodingKeys: String, CodingKey {
         case id, familyId, ownerUserId, originalFilename, mimeType, fileSize, width, height, filePath, title
         case descriptionText = "description"
         case photoDate, createdAt, status, tagIds
+        case mediaKind, durationMs, processingError
     }
 }
 

@@ -27,6 +27,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── BookService.swift, BookDTOs.swift           # books: reads cached like activities, writes online-only
 │   ├── InterviewService.swift, InterviewDTOs.swift # annual interview: reads cached like books, writes online-only
 │   ├── SearchDTOs.swift                            # global search: online read, never cached or queued
+│   ├── VideoDTOs.swift                             # video support, upload and playback: online only, never queued
 │   ├── WidgetSnapshotBuilder.swift, WidgetPublisher.swift  # the widgets' snapshot in the App Group
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
@@ -75,7 +76,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │                      FamilyRosterSections, CoAnchorPicker, AgeChartView,
 │                      DaySummaryViews, DetailSheetComponents, RecordStyle,
 │                      InterviewCardView (an interview's answers as one card),
-│                      CameraCaptureView (the system camera, for one photo)
+│                      CameraCaptureView (the system camera, for one photo),
+│                      VideoBadge (play mark + length on a video's poster)
 └── Utilities/
     ├── Constants.swift, AgeCalculator.swift, PreviewData.swift
     ├── Copy.swift                    # every user-facing string the web has words for (copy.ts)
@@ -84,6 +86,7 @@ Family-Portal-Ios/Family-Portal-Ios/
     ├── Interviews.swift              # port of frontend/lib/interviews.ts: folding, titles, what changed
     ├── InterviewQuestionList.swift   # port of frontend/lib/interviewQuestions.ts: the editor's draft
     ├── SearchQuery.swift             # port of backend/search_query.go; its test table is a copy of the Go one
+    ├── VideoDuration.swift           # port of formatDuration in frontend/lib/videoFiles.ts
     ├── SearchText.swift              # search folding, prefix-of-word matching, highlight ranges
     ├── SearchResults.swift           # port of frontend/lib/search.ts: chips, moment folding, See all photos
     ├── SearchLocal.swift             # offline search over the mirror, with the server's filters
@@ -117,7 +120,7 @@ All models are `@Model` classes with `remoteId: String?` for backend sync.
 | PersonRelation | fromId: Int, toId: Int, kind: RelationKind | — (holds *server* person ids, not a relationship) |
 | GrowthData | measurementType, value: Double, unit: MeasurementUnit, date | person: Person? |
 | Milestone | descriptionText, category: MilestoneCategory, context (a quote's context, an interview answer's question), date, interviewId, questionId | person: Person? |
-| Photo | imageData: Data? (externalStorage), title, descriptionText, photoDate, tagRemoteIds: [Int] | taggedPeople: [Person] |
+| Photo | imageData: Data? (externalStorage), title, descriptionText, photoDate, tagRemoteIds: [Int], mediaKindRaw (`MediaKind`), durationMs, status, processingError | taggedPeople: [Person] |
 | User | name, email, familyId: UUID? | — |
 | FamilyTag | name, colorHex, familyId | — (records hold tag ids, not a relationship) |
 
@@ -417,6 +420,12 @@ network answers.
 
 - The photo page's toolbar offers **Share Original** and **Save to Photos** for an uploaded photo — the web's "Download original". `APIClient.downloadOriginal` fetches `api/photo/{id}/original?download=1` (bytes as uploaded, never a resized variant) with the token and one refresh-and-retry on 401, straight to disk, into a folder of its own named after `Content-Disposition` (`OriginalPhotoFile.filename`). The folder is removed when the share sheet closes or the save finishes
 - Online only; a cancelled download is silent; failures go through `ErrorPresenter` and the page stays. Save asks for **add-only** Photos access (`NSPhotoLibraryAddUsageDescription`) at the moment the user chooses it; `PhotoLibrarySaver` is `nonisolated` because PhotoKit runs the change block off the main actor. A photo not uploaded yet says so instead of offering either action
+- A video's original is not at `api/photo/{id}/original` (404). The menu asks `GetVideoPlayback` for a fresh `downloadUrl` every time and fetches it with `APIClient.downloadMedia` — **no token and no cookies** (`httpShouldHandleCookies = false`), since a minted link carries its own authority and a bucket refuses more. `APIClient.mediaURL` resolves a `/`-relative link against the origin rather than appending it, so the signed query survives. Saved as a `.video` asset
+
+### Video (`video-plan.md`)
+
+- A video is a `Photo` with `mediaKind == .video`, pulled through the same `ListFamilyPhotos`/`GetFamilyTimeline`. Everywhere it is listed it shows its poster (the ordinary variants) with `VideoBadge`, which `PhotoThumbnailView` draws when given `videoDurationMs` (`Photo.videoBadgeDuration`). Server-id-only cells get no badge until the mirror catches up
+- Kept out of the profile-photo picker and **Use as Profile Photo** (`SetProfilePhoto` refuses one). Widgets skip a video until its `status` is 0, since a processing poster is the server's SVG placeholder. Same age, Growing up, books and face review are fed by server procs that already filter videos
 
 ### Adding records
 

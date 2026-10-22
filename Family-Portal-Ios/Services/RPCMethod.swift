@@ -194,4 +194,13 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     // An online read, never cached or queued. Offline, the search screen searches the SwiftData mirror instead.
 
     case search = "Search"
+
+    // MARK: - Video (backend/video_uploads.go, backend/video_playback.go)
+    // Online only and never queued: an upload reserves quota and is handed a URL that expires, and a playback link is minted per viewing.
+
+    case getVideoSupport = "GetVideoSupport"
+    case beginVideoUpload = "BeginVideoUpload"
+    case completeVideoUpload = "CompleteVideoUpload"
+    case cancelVideoUpload = "CancelVideoUpload"
+    case getVideoPlayback = "GetVideoPlayback"
 }

@@ -10,7 +10,7 @@ struct ServerPhotoCell: View {
     var body: some View {
         if let local {
             NavigationLink(value: PhotoRoute(id: local.id)) {
-                PhotoThumbnailView(imageData: local.imageData, title: local.title, remoteId: local.remoteId)
+                PhotoThumbnailView(imageData: local.imageData, title: local.title, remoteId: local.remoteId, videoDurationMs: local.videoBadgeDuration)
             }
         } else {
             NavigationLink(value: AppRoute.remotePhoto(id: remoteId)) {

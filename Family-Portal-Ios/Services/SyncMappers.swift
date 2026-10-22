@@ -144,6 +144,10 @@ func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
     photo.descriptionText = dto.descriptionText
     photo.photoDate = dto.photoDate
     photo.tagRemoteIds = dto.tagIds
+    photo.mediaKindRaw = dto.mediaKind
+    photo.durationMs = dto.durationMs
+    photo.status = dto.status
+    photo.processingError = dto.processingError
 }
 
 func applyTagDTO(_ dto: TagDTO, to tag: FamilyTag) {

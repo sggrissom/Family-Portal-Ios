@@ -13,34 +13,42 @@ nonisolated enum PhotoLibrarySaver {
         }
     }
 
-    static func save(_ fileURL: URL) async throws {
+    static func save(_ fileURL: URL, isVideo: Bool = false) async throws {
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized || status == .limited else { throw Failure.denied }
         try await PHPhotoLibrary.shared().performChanges {
-            PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: fileURL, options: nil)
+            PHAssetCreationRequest.forAsset().addResource(with: isVideo ? .video : .photo, fileURL: fileURL, options: nil)
         }
     }
 }
 
-/// **Share original** and **Save to Photos** for an uploaded photo: the web's "Download original". Both download the bytes as uploaded — never the resized image on screen — to a scratch file that is removed once the share sheet closes or the save finishes. Online only.
+/// **Share original** and **Save to Photos** for an uploaded photo or video: the web's "Download original". Both download the bytes as uploaded — never the resized image or the playback copy — to a scratch file that is removed once the share sheet closes or the save finishes. Online only.
+/// A photo's original is `api/photo/{id}/original`; a video's is the `downloadUrl` that `GetVideoPlayback` mints, fetched without the app's credentials.
 @MainActor
 @Observable
 final class OriginalPhotoActions {
     enum Action {
         case share, save
 
-        var failureTitle: String {
+        func failureTitle(isVideo: Bool) -> String {
             switch self {
-            case .share: return Copy.originalPhoto.shareFailed
-            case .save: return Copy.originalPhoto.saveFailed
+            case .share: return isVideo ? Copy.video.shareFailed : Copy.originalPhoto.shareFailed
+            case .save: return isVideo ? Copy.video.saveFailed : Copy.originalPhoto.saveFailed
             }
         }
     }
 
     enum Failure: LocalizedError {
-        case offline
+        case offline(isVideo: Bool)
+        /// A video whose original the server no longer keeps — one it rejected.
+        case noOriginal
 
-        var errorDescription: String? { Copy.originalPhoto.offline }
+        var errorDescription: String? {
+            switch self {
+            case .offline(let isVideo): return isVideo ? Copy.video.offline : Copy.originalPhoto.offline
+            case .noOriginal: return Copy.video.noOriginal
+            }
+        }
     }
 
     /// What is downloading, if anything. One at a time.
@@ -59,10 +67,10 @@ final class OriginalPhotoActions {
         self.apiClient = apiClient
     }
 
-    func start(_ action: Action, photoId: Int, isConnected: Bool, onError: @escaping (Error, String) -> Void) {
+    func start(_ action: Action, photoId: Int, isVideo: Bool = false, isConnected: Bool, onError: @escaping (Error, String) -> Void) {
         guard working == nil else { return }
         guard isConnected else {
-            onError(Failure.offline, action.failureTitle)
+            onError(Failure.offline(isVideo: isVideo), action.failureTitle(isVideo: isVideo))
             return
         }
         working = action
@@ -73,8 +81,14 @@ final class OriginalPhotoActions {
                 task = nil
             }
             do {
-                let original = try await apiClient.downloadOriginal(photoId: photoId) { fraction in
+                let report: @Sendable (Double) -> Void = { fraction in
                     Task { @MainActor in self.progress = fraction }
+                }
+                let original: DownloadedOriginal
+                if isVideo {
+                    original = try await downloadVideoOriginal(photoId: photoId, progress: report)
+                } else {
+                    original = try await apiClient.downloadOriginal(photoId: photoId, progress: report)
                 }
                 // Cancelled just as the bytes landed: nothing to show them to.
                 guard !Task.isCancelled else {
@@ -86,14 +100,27 @@ final class OriginalPhotoActions {
                     sharing = original
                 case .save:
                     defer { original.remove() }
-                    try await PhotoLibrarySaver.save(original.fileURL)
+                    try await PhotoLibrarySaver.save(original.fileURL, isVideo: isVideo)
                     saveCount += 1
                 }
             } catch {
                 guard !Task.isCancelled, !Self.isCancellation(error) else { return }
-                onError(error, action.failureTitle)
+                onError(error, action.failureTitle(isVideo: isVideo))
             }
         }
+    }
+
+    /// Asks for a fresh link every time rather than holding one: links expire, and a stored one is exactly what the contract says never to keep.
+    private func downloadVideoOriginal(photoId: Int, progress: @escaping @Sendable (Double) -> Void) async throws -> DownloadedOriginal {
+        let playback: GetVideoPlaybackResponseDTO = try await apiClient.callRPC(.getVideoPlayback, payload: GetVideoPlaybackRequestDTO(id: photoId))
+        guard !playback.downloadUrl.isEmpty else { throw Failure.noOriginal }
+        try Task.checkCancellation()
+        return try await apiClient.downloadMedia(
+            link: playback.downloadUrl,
+            suggested: playback.originalFilename,
+            photoId: photoId,
+            progress: progress
+        )
     }
 
     func cancel() {
@@ -154,7 +181,7 @@ struct OriginalPhotoMenu: View {
                         }
                     } else {
                         // Still on this device only: there is no original on the server to fetch yet.
-                        Text(Copy.originalPhoto.notUploaded)
+                        Text(photo.isVideo ? Copy.video.notUploaded : Copy.originalPhoto.notUploaded)
                     }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
@@ -178,7 +205,7 @@ struct OriginalPhotoMenu: View {
     }
 
     private func run(_ action: OriginalPhotoActions.Action, _ remoteId: Int) {
-        actions.start(action, photoId: remoteId, isConnected: network.isConnected) { error, title in
+        actions.start(action, photoId: remoteId, isVideo: photo.isVideo, isConnected: network.isConnected) { error, title in
             errorPresenter.report(error, title: title)
         }
     }
