@@ -57,7 +57,7 @@ struct SimilarPhotosView: View {
     }
 }
 
-/// A photo opened by server id. Once the mirror holds it, this is the ordinary photo page; until then, the photo itself and a line saying why there is nothing else.
+/// A photo or video opened by server id. Once the mirror holds it, this is the ordinary photo page; until then, the photo itself (or the player, for a video) and a line saying why there is nothing else.
 struct RemotePhotoDetailView: View {
     let remoteId: Int
 
@@ -75,11 +75,13 @@ struct RemotePhotoDetailView: View {
         } else {
             ScrollView {
                 VStack(spacing: 16) {
-                    ZoomableView {
-                        RemotePhotoView(remoteId: remoteId, size: .xlarge, contentMode: .fit)
-                            .scaledToFit()
+                    RemoteMediaView(remoteId: remoteId, local: nil) {
+                        ZoomableView {
+                            RemotePhotoView(remoteId: remoteId, size: .xlarge, contentMode: .fit)
+                                .scaledToFit()
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
                     Label(Copy.photoBrowse.notSyncedNote, systemImage: "icloud")
                         .font(.footnote)
                         .foregroundStyle(.secondary)

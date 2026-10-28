@@ -214,12 +214,13 @@ final class VideoPlayerModel {
 
 /// The player, or the poster with a line saying why there is no player: still processing, refused, offline, or not playable here. Shown on a video's page in place of the photo.
 struct VideoPlayerSection: View {
-    let photo: Photo
+    /// The mirror's record, nil for a video opened by server id before the mirror holds it.
+    let photo: Photo?
 
     @Environment(NetworkMonitor.self) private var network
     @State private var model: VideoPlayerModel
 
-    init(photo: Photo, remoteId: Int) {
+    init(photo: Photo?, remoteId: Int) {
         self.photo = photo
         _model = State(initialValue: VideoPlayerModel(photoId: remoteId))
     }
@@ -242,7 +243,7 @@ struct VideoPlayerSection: View {
         }
         .onChange(of: model.playback?.status) { _, status in
             // The mirror would catch up on its next pull; the badge and widgets needn't wait for it.
-            if let status, status != photo.status { photo.status = status }
+            if let status, let photo, status != photo.status { photo.status = status }
         }
         .onDisappear { model.stop() }
     }

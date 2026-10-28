@@ -245,7 +245,7 @@ enum ActivityResultText {
 
 // MARK: - Photos
 
-/// The photos attached to a performance or a competition, rendered straight from *server* ids with no local `Photo` record required.
+/// The photos and videos attached to a performance or a competition, rendered straight from *server* ids with no local `Photo` record required. Each opens its page, where a video plays. Keep it out of a `NavigationLink`'s label, which would swallow the taps.
 struct ActivityPhotoStrip: View {
     let photoIds: [Int]
 
@@ -254,9 +254,14 @@ struct ActivityPhotoStrip: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(photoIds, id: \.self) { photoId in
-                        RemotePhotoView(remoteId: photoId, size: .thumb)
-                            .frame(width: 88, height: 88)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        NavigationLink(value: AppRoute.remotePhoto(id: photoId)) {
+                            RemotePhotoView(remoteId: photoId, size: .thumb)
+                                .frame(width: 88, height: 88)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .videoBadge(remoteId: photoId)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open attached photo \((photoIds.firstIndex(of: photoId) ?? 0) + 1) of \(photoIds.count)")
                     }
                 }
             }
@@ -276,6 +281,8 @@ struct AppearanceDetailRow: View {
     let people: ActivityPeople
     let title: AppearanceRowTitle
     var showsChevron: Bool = false
+    /// Off where the row is a `NavigationLink`'s label: the caller draws the strip beside the link instead, so its photos can be opened.
+    var showsPhotos: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -315,7 +322,9 @@ struct AppearanceDetailRow: View {
                     .foregroundStyle(.secondary)
             }
 
-            ActivityPhotoStrip(photoIds: detail.photoIds)
+            if showsPhotos {
+                ActivityPhotoStrip(photoIds: detail.photoIds)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 4)

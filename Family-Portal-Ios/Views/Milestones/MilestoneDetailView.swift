@@ -144,6 +144,7 @@ struct MilestoneDetailContent: View {
                                             .frame(width: 160, height: 160)
                                             .background(Color(.secondarySystemBackground))
                                             .clipShape(RoundedRectangle(cornerRadius: 12))
+                                            .videoBadge(remoteId: photoId)
                                             .overlay(alignment: .bottomTrailing) {
                                                 Image(systemName: "arrow.up.left.and.arrow.down.right")
                                                     .font(.caption.weight(.semibold))
@@ -206,7 +207,7 @@ private struct AttachedPhotoSelection: Identifiable {
     let id: Int
 }
 
-/// Reads attached IDs directly, including photos that haven't been mirrored into the local store.
+/// Reads attached IDs directly, including photos that haven't been mirrored into the local store. A video plays in place of its poster.
 private struct MilestonePhotoViewer: View {
     let photoIds: [Int]
     @Environment(\.dismiss) private var dismiss
@@ -221,13 +222,20 @@ private struct MilestonePhotoViewer: View {
         NavigationStack {
             GeometryReader { geometry in
                 if photoIds.indices.contains(index) {
-                    ZoomableView {
-                        RemotePhotoView(remoteId: photoIds[index], size: .xlarge, contentMode: .fit)
-                            .frame(width: geometry.size.width, height: geometry.size.height)
+                    let photoId = photoIds[index]
+                    MirroredPhoto(remoteId: photoId) { local in
+                        RemoteMediaView(remoteId: photoId, local: local) {
+                            ZoomableView {
+                                RemotePhotoView(remoteId: photoId, size: .xlarge, contentMode: .fit)
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                            }
+                        }
                     }
-                    .id(photoIds[index])
+                    .id(photoId)
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
+                    // The player's notes are secondary text, which needs the dark palette to read on black.
+                    .environment(\.colorScheme, .dark)
                 } else {
                     ContentUnavailableView("Photo unavailable", systemImage: "photo")
                 }
@@ -250,9 +258,16 @@ private struct MilestonePhotoViewer: View {
                         .accessibilityLabel("Previous photo")
                     }
                     Spacer()
-                    Text("Pinch to zoom")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    if photoIds.indices.contains(index) {
+                        MirroredPhoto(remoteId: photoIds[index]) { local in
+                            // A video has the player's own controls instead.
+                            if local?.isVideo != true {
+                                Text("Pinch to zoom")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                     Spacer()
                     if photoIds.count > 1 {
                         Button { index += 1 } label: {

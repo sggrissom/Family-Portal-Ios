@@ -81,11 +81,14 @@ struct RoutineView: View {
                                     detail: detail,
                                     people: people,
                                     title: .event,
-                                    showsChevron: true
+                                    showsChevron: true,
+                                    showsPhotos: false
                                 )
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+
+                            ActivityPhotoStrip(photoIds: detail.photoIds)
 
                             if detail.id != response.appearances.last?.id {
                                 Divider()
