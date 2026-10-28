@@ -1,6 +1,6 @@
 import Foundation
 
-// Video (backend/video_uploads.go, backend/video_playback.go; the contract is docs/mobile-api.md § Video upload and Video playback). A video is an `ImageDTO` with `mediaKind` 1; these are only the procs that move its bytes. Every optional field reads as empty when missing.
+// Video (backend/video_uploads.go, backend/video_playback.go, backend/video_transcripts.go; the contract is docs/mobile-api.md § Video upload and Video playback). A video is an `ImageDTO` with `mediaKind` 1; these are only the procs that move its bytes. Every optional field reads as empty when missing.
 
 /// The server's refusals that change what the client does next, worded exactly as backend/video_uploads.go words them.
 nonisolated enum VideoUploadRefusal {
@@ -81,4 +81,49 @@ nonisolated struct GetVideoPlaybackResponseDTO: Decodable, Sendable, Equatable {
     @OrZero var originalFilename: String
     var expiresAt: Date? = nil
     @OrZero var processingError: String
+}
+
+nonisolated struct GetVideoTranscriptRequestDTO: Encodable, Sendable {
+    let id: Int
+}
+
+/// What was said in a video, line by line, from the server's speech worker or as a family member fixed it.
+nonisolated struct GetVideoTranscriptResponseDTO: Decodable, Sendable, Equatable {
+    /// backend/video_transcripts.go `TranscriptStatus`. Only `done` carries lines.
+    enum Status {
+        static let done = 0
+        static let noSpeech = 1
+        static let failed = 2
+        static let removed = 3
+    }
+
+    /// Whether this server transcribes at all.
+    @OrZero var available: Bool
+    @OrZero var status: Int
+    /// Not transcribed yet, and it will be.
+    @OrZero var pending: Bool
+    /// From the speech worker rather than fixed by hand, so it may hold mistakes.
+    @OrZero var automatic: Bool
+    @OrZero var language: String
+    @OrZero var segments: [TranscriptSegmentDTO]
+}
+
+nonisolated struct TranscriptSegmentDTO: Decodable, Sendable, Equatable {
+    let startMs: Int
+    let endMs: Int
+    let text: String
+    /// 0–1 for an automatic line; meaningless once edited.
+    @OrZero var confidence: Double
+}
+
+/// The transcript's pure parts, ported from frontend/components/VideoTranscript.tsx.
+nonisolated enum VideoTranscript {
+    /// Below this an automatic line is shown as unsure (`LOW_CONFIDENCE`).
+    static let lowConfidence = 0.5
+
+    /// The line playing at `seconds`, or nil between lines (`currentSegment`).
+    static func currentSegment(_ segments: [TranscriptSegmentDTO], seconds: Double) -> Int? {
+        let ms = seconds * 1000
+        return segments.firstIndex { ms >= Double($0.startMs) && ms < Double($0.endMs) }
+    }
 }
