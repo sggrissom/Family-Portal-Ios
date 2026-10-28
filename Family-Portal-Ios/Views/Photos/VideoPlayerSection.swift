@@ -29,12 +29,15 @@ final class VideoPlayerModel {
     private(set) var player: AVPlayer?
     /// Width over height once the file has said, for sizing the player; a portrait clip should not sit in a letterboxed 16:9 box.
     private(set) var aspectRatio: CGFloat?
+    /// Asked once the video is ready; nil until then, or when the server couldn't say.
+    private(set) var transcript: GetVideoTranscriptResponseDTO?
+    /// Where playback is, in seconds: for resuming after a renewal, and for the transcript's current line.
+    private(set) var position: Double = 0
 
     let photoId: Int
     private let apiClient: APIClient
 
     private var renewals = 0
-    private var position: Double = 0
     private var wasPlaying = false
     private var resume: (seconds: Double, playing: Bool)?
     private var handlingFailure = false
@@ -64,7 +67,10 @@ final class VideoPlayerModel {
                 return
             }
             await apply(fresh)
-            guard phase == .processing else { return }
+            guard phase == .processing else {
+                if phase == .ready { await loadTranscript() }
+                return
+            }
             try? await Task.sleep(for: Self.processingPollInterval)
         }
     }
@@ -77,6 +83,24 @@ final class VideoPlayerModel {
 
     func stop() {
         player?.pause()
+    }
+
+    /// From a transcript line: there, and playing.
+    func seek(to seconds: Double) {
+        guard let player else { return }
+        position = seconds
+        player.seek(to: CMTime(seconds: seconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        player.play()
+    }
+
+    /// Like the links, asked on each visit and never stored. A failure only means no transcript.
+    private func loadTranscript() async {
+        guard transcript == nil else { return }
+        do {
+            transcript = try await apiClient.callRPC(.getVideoTranscript, payload: GetVideoTranscriptRequestDTO(id: photoId))
+        } catch {
+            AppLog.ui.error("Couldn't load the transcript of video \(self.photoId): \(String(describing: error), privacy: .public)")
+        }
     }
 
     private func fetch() async -> GetVideoPlaybackResponseDTO? {
@@ -129,7 +153,7 @@ final class VideoPlayerModel {
             player.replaceCurrentItem(with: item)
         } else {
             let player = AVPlayer(playerItem: item)
-            timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) { [weak self] time in
+            timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self] time in
                 let seconds = time.seconds
                 MainActor.assumeIsolated {
                     guard let self, let player = self.player, player.currentItem?.status == .readyToPlay else { return }
@@ -236,6 +260,11 @@ struct VideoPlayerSection: View {
                 poster
             }
             note
+            if let transcript = model.transcript, model.player != nil {
+                VideoTranscriptView(transcript: transcript, position: model.position) { seconds in
+                    model.seek(to: seconds)
+                }
+            }
         }
         .padding(.horizontal)
         .task(id: network.isConnected) {
@@ -328,5 +357,67 @@ private struct VideoPlayerController: UIViewControllerRepresentable {
         if controller.player !== player {
             controller.player = player
         }
+    }
+}
+
+/// What was said, under the player: tap a line to play from it, and the line playing is marked. Folded away until opened, as on the web; fixing lines stays on the web.
+private struct VideoTranscriptView: View {
+    let transcript: GetVideoTranscriptResponseDTO
+    let position: Double
+    let onSeek: (Double) -> Void
+
+    var body: some View {
+        if transcript.status == GetVideoTranscriptResponseDTO.Status.done, !transcript.segments.isEmpty {
+            DisclosureGroup {
+                lines
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Copy.video.transcript)
+                        .font(.subheadline.weight(.semibold))
+                    if transcript.automatic {
+                        Text(Copy.video.transcriptAutomatic)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } else if transcript.pending {
+            Text(Copy.video.transcriptPending)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var lines: some View {
+        let active = VideoTranscript.currentSegment(transcript.segments, seconds: position)
+        return LazyVStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(transcript.segments.enumerated()), id: \.offset) { index, segment in
+                let time = VideoDuration.format(milliseconds: segment.startMs)
+                let unsure = transcript.automatic && segment.confidence < VideoTranscript.lowConfidence
+                Button {
+                    onSeek(Double(segment.startMs) / 1000)
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(time)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.tint)
+                        Text(segment.text)
+                            .font(.subheadline)
+                            .italic(unsure)
+                            .foregroundStyle(unsure ? Color.secondary : Color.primary)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .background(index == active ? Color.accentColor.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(Copy.video.transcriptLine(time))
+            }
+        }
+        .padding(.top, 8)
     }
 }

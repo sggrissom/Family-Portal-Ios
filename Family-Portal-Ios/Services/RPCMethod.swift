@@ -195,7 +195,7 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
 
     case search = "Search"
 
-    // MARK: - Video (backend/video_uploads.go, backend/video_playback.go)
+    // MARK: - Video (backend/video_uploads.go, backend/video_playback.go, backend/video_transcripts.go)
     // Online only and never queued: an upload reserves quota and is handed a URL that expires, and a playback link is minted per viewing.
 
     case getVideoSupport = "GetVideoSupport"
@@ -203,4 +203,6 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case completeVideoUpload = "CompleteVideoUpload"
     case cancelVideoUpload = "CancelVideoUpload"
     case getVideoPlayback = "GetVideoPlayback"
+    /// Read only: fixing or removing a transcript stays on the web.
+    case getVideoTranscript = "GetVideoTranscript"
 }

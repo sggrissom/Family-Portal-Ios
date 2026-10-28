@@ -281,6 +281,10 @@ nonisolated enum Copy {
         static let unreadable = "That video couldn't be read. If it's stored in iCloud, open it in Photos first and try again."
         static let needsConnection = "Videos upload only while you're online, and the connection dropped. Try again once you're connected."
         static let unsupported = "Videos can't be added here right now."
+        static let transcript = "Transcript"
+        static let transcriptAutomatic = "Automatic — may contain mistakes"
+        static let transcriptPending = "A transcript will appear here once the video has been listened to."
+        static func transcriptLine(_ time: String) -> String { "Play from \(time)" }
     }
 
     /// Similar-photo groups and place filters on `family-photos.tsx`.

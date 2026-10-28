@@ -192,6 +192,7 @@ struct RPCMethodTests {
         #expect(RPCMethod.completeVideoUpload.rawValue == "CompleteVideoUpload")
         #expect(RPCMethod.cancelVideoUpload.rawValue == "CancelVideoUpload")
         #expect(RPCMethod.getVideoPlayback.rawValue == "GetVideoPlayback")
+        #expect(RPCMethod.getVideoTranscript.rawValue == "GetVideoTranscript")
     }
 
     @Test("Every proc name is distinct and non-empty")

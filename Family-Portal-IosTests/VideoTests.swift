@@ -209,4 +209,37 @@ struct VideoTests {
         #expect(OriginalPhotoFile.filename(suggested: "", mimeType: "video/quicktime", photoId: 42) == "photo-42.mov")
         #expect(OriginalPhotoFile.filename(suggested: nil, mimeType: "video/mp4", photoId: 42) == "photo-42.mp4")
     }
+    // MARK: - Transcript
+
+    @Test("A transcript decodes its lines, and one not made yet decodes as pending")
+    func transcriptDecoding() throws {
+        let done = """
+        {"available": true, "status": 0, "pending": false, "automatic": true, "language": "en",
+         "segments": [{"startMs": 0, "endMs": 2400, "text": "Look at you go!", "confidence": 0.91}],
+         "canEdit": true, "captionUrl": "/api/photo/42/captions"}
+        """
+        let dto = try APIClient.decode(GetVideoTranscriptResponseDTO.self, from: Data(done.utf8))
+        #expect(dto.status == GetVideoTranscriptResponseDTO.Status.done)
+        #expect(dto.automatic)
+        #expect(dto.segments == [TranscriptSegmentDTO(startMs: 0, endMs: 2400, text: "Look at you go!", confidence: 0.91)])
+
+        let waiting = #"{"available": true, "status": 1, "pending": true, "segments": []}"#
+        let pending = try APIClient.decode(GetVideoTranscriptResponseDTO.self, from: Data(waiting.utf8))
+        #expect(pending.pending)
+        #expect(pending.segments.isEmpty)
+    }
+
+    @Test("The current line is the one playing, and none between lines")
+    func currentSegment() {
+        let segments = [
+            TranscriptSegmentDTO(startMs: 0, endMs: 2000, text: "a", confidence: 1),
+            TranscriptSegmentDTO(startMs: 2000, endMs: 4000, text: "b", confidence: 1),
+            TranscriptSegmentDTO(startMs: 6000, endMs: 8000, text: "c", confidence: 1),
+        ]
+        #expect(VideoTranscript.currentSegment(segments, seconds: 0) == 0)
+        #expect(VideoTranscript.currentSegment(segments, seconds: 2) == 1)
+        #expect(VideoTranscript.currentSegment(segments, seconds: 5) == nil)
+        #expect(VideoTranscript.currentSegment(segments, seconds: 7.5) == 2)
+        #expect(VideoTranscript.currentSegment(segments, seconds: 8) == nil)
+    }
 }
