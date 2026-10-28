@@ -171,11 +171,20 @@ struct CompetitionView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(response.appearances) { detail in
-                            appearanceRow(detail, people: people)
+                        // An entry's rounds stay together, under how its run went.
+                        let runs = Matchups.group(response.appearances) { $0.entry.id }
+                        ForEach(runs, id: \.first?.id) { run in
+                            let summary = run.count > 1 ? Matchups.runSummary(run.map { Matchup($0.appearance) }) : ""
+                            if !summary.isEmpty {
+                                Text(summary)
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            ForEach(run) { detail in
+                                appearanceRow(detail, people: people)
 
-                            if detail.id != response.appearances.last?.id {
-                                Divider()
+                                if detail.id != response.appearances.last?.id {
+                                    Divider()
+                                }
                             }
                         }
                     }

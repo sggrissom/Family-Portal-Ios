@@ -113,7 +113,8 @@ final class ActivityService {
         eventId: Int,
         entryId: Int,
         occurredAt: Date?,
-        notes: String
+        notes: String,
+        matchup: Matchup? = nil
     ) async throws -> AppearanceViewDTO {
         let response: AppearanceResponseDTO = try await apiClient.callRPC(
             .createAppearance,
@@ -121,24 +122,27 @@ final class ActivityService {
                 eventId: eventId,
                 entryId: entryId,
                 occurredAt: ServerDateFormat.requestString(occurredAt),
-                notes: ActivityFieldLimit.notes.clamp(notes)
+                notes: ActivityFieldLimit.notes.clamp(notes),
+                matchup: matchup.flatMap { $0.isRecorded ? $0.input : nil }
             )
         )
         return response.appearance
     }
 
-    /// Only the date and the notes. `occurredAt: nil` **clears** the date rather than leaving it alone, so pass what the caller is showing.
+    /// The date, the notes and, when given, the whole matchup. `occurredAt: nil` **clears** the date rather than leaving it alone, so pass what the caller is showing; `matchup: nil` leaves the stored one alone, and an empty one clears it.
     func updateAppearance(
         id: Int,
         occurredAt: Date?,
-        notes: String
+        notes: String,
+        matchup: Matchup? = nil
     ) async throws -> AppearanceViewDTO {
         let response: AppearanceResponseDTO = try await apiClient.callRPC(
             .updateAppearance,
             payload: UpdateAppearanceRequestDTO(
                 id: id,
                 occurredAt: ServerDateFormat.requestString(occurredAt),
-                notes: ActivityFieldLimit.notes.clamp(notes)
+                notes: ActivityFieldLimit.notes.clamp(notes),
+                matchup: matchup?.input
             )
         )
         return response.appearance

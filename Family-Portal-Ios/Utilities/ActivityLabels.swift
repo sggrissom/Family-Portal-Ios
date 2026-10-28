@@ -21,9 +21,10 @@ nonisolated struct ActivityLabels: Equatable, Sendable {
         roster: "Dancers"
     )
 
+    /// The event is the weekend tournament and the appearance is one game in it, so they can't share a word.
     static let sport = ActivityLabels(
-        event: "Game",
-        eventPlural: "Games",
+        event: "Event",
+        eventPlural: "Events",
         entry: "Team",
         entryPlural: "Teams",
         appearance: "Game",

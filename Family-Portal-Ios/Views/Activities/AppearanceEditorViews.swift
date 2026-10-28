@@ -16,6 +16,7 @@ struct AddAppearanceView: View {
     @State private var entryId: Int?
     @State private var occurredAt = ActivityDateField()
     @State private var notes = ""
+    @State private var matchup = MatchupDraft()
     @State private var saveError: String?
     @State private var isSaving = false
 
@@ -50,6 +51,7 @@ struct AddAppearanceView: View {
                 }
 
                 AppearanceDateSection(field: $occurredAt, labels: labels)
+                AppearanceMatchupSection(draft: $matchup, labels: labels)
                 AppearanceNotesSection(notes: $notes)
             }
             .navigationTitle("Add \(labels.appearance)")
@@ -60,7 +62,7 @@ struct AddAppearanceView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
-                        .disabled(entryId == nil || isSaving)
+                        .disabled(entryId == nil || isSaving || matchup.error != nil)
                 }
             }
         }
@@ -86,7 +88,8 @@ struct AddAppearanceView: View {
                     eventId: eventId,
                     entryId: entryId,
                     occurredAt: occurredAt.date,
-                    notes: notes
+                    notes: notes,
+                    matchup: matchup.matchup
                 )
                 await onSaved()
                 dismiss()
@@ -113,6 +116,7 @@ struct EditAppearanceView: View {
 
     @State private var occurredAt: ActivityDateField
     @State private var notes: String
+    @State private var matchup: MatchupDraft
     @State private var saveError: String?
     @State private var isSaving = false
     @State private var isConfirmingDelete = false
@@ -129,6 +133,7 @@ struct EditAppearanceView: View {
         self.onSaved = onSaved
         _occurredAt = State(initialValue: ActivityDateField(appearance.occurredAt))
         _notes = State(initialValue: appearance.notes)
+        _matchup = State(initialValue: MatchupDraft(Matchup(appearance)))
     }
 
     var body: some View {
@@ -149,6 +154,7 @@ struct EditAppearanceView: View {
                 }
 
                 AppearanceDateSection(field: $occurredAt, labels: labels)
+                AppearanceMatchupSection(draft: $matchup, labels: labels)
                 AppearanceNotesSection(notes: $notes)
 
                 Section {
@@ -168,7 +174,7 @@ struct EditAppearanceView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
-                        .disabled(isSaving)
+                        .disabled(isSaving || matchup.error != nil)
                 }
             }
             .confirmationDialog(
@@ -190,11 +196,12 @@ struct EditAppearanceView: View {
 
         Task {
             do {
-                // The date is always sent, never omitted: an absent key means "set it to unknown" rather than "leave it alone".
+                // The date is always sent, never omitted: an absent key means "set it to unknown" rather than "leave it alone". The matchup is always sent too, so emptying its fields clears it.
                 _ = try await service.updateAppearance(
                     id: appearance.id,
                     occurredAt: occurredAt.date,
-                    notes: notes
+                    notes: notes,
+                    matchup: matchup.matchup
                 )
                 await onSaved()
                 dismiss()
@@ -267,6 +274,95 @@ struct AppearanceDateSection: View {
                 Text("Left off, this \(labels.appearance.lowercased()) sorts by the \(labels.event.lowercased())'s own dates — which is usually what you want mid-weekend.")
             }
         }
+    }
+}
+
+/// Round, opponent, outcome and an optional score, for a battle bracket or a tournament game. Open from the start for a sport or a matchup already recorded; otherwise behind a button, since most performances have no opponent. Two scores fill in the outcome they imply until one is picked by hand.
+struct AppearanceMatchupSection: View {
+    @Binding var draft: MatchupDraft
+    let labels: ActivityLabels
+
+    @State private var isOpen: Bool
+    @State private var outcomeChosen: Bool
+
+    init(draft: Binding<MatchupDraft>, labels: ActivityLabels) {
+        _draft = draft
+        self.labels = labels
+        _isOpen = State(initialValue: labels == .sport || draft.wrappedValue.matchup.isRecorded)
+        _outcomeChosen = State(initialValue: !draft.wrappedValue.outcome.isEmpty)
+    }
+
+    private var outcome: Binding<String> {
+        Binding {
+            draft.outcome
+        } set: { value in
+            draft.outcome = value
+            outcomeChosen = !value.isEmpty
+        }
+    }
+
+    var body: some View {
+        if isOpen {
+            Section {
+                HStack {
+                    TextField("Round", text: $draft.round)
+                    Menu {
+                        ForEach(Matchups.commonRounds, id: \.self) { round in
+                            Button(round) { draft.round = round }
+                        }
+                    } label: {
+                        Image(systemName: "list.bullet")
+                    }
+                    .accessibilityLabel("Common rounds")
+                }
+                TextField("Against", text: $draft.opponent)
+                Picker("Outcome", selection: outcome) {
+                    ForEach(MatchupOutcome.all, id: \.self) { option in
+                        Text(MatchupOutcome.optionLabel(option)).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                HStack {
+                    Text("Score")
+                    Spacer()
+                    TextField("Us", text: $draft.scoreFor)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 64)
+                        .accessibilityLabel("Our score")
+                    Text("–")
+                    TextField("Them", text: $draft.scoreAgainst)
+                        .keyboardType(.numberPad)
+                        .frame(maxWidth: 64)
+                        .accessibilityLabel("Their score")
+                }
+            } header: {
+                Text("Head-to-head")
+            } footer: {
+                if let error = draft.error {
+                    Text(error).foregroundStyle(.red)
+                } else {
+                    Text("Leave the score empty when none was kept.")
+                }
+            }
+            .onChange(of: draft.scoreFor) { fillOutcome() }
+            .onChange(of: draft.scoreAgainst) { fillOutcome() }
+        } else {
+            Section {
+                Button {
+                    isOpen = true
+                } label: {
+                    Label("Head-to-head", systemImage: "plus")
+                }
+            } footer: {
+                Text("For a bracket or a game: the round, who it was against, and whether the \(labels.entry.lowercased()) won.")
+            }
+        }
+    }
+
+    private func fillOutcome() {
+        guard !outcomeChosen else { return }
+        draft.outcome = draft.outcomeFromScore
     }
 }
 

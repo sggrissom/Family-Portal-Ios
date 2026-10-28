@@ -531,6 +531,12 @@ The web's `/same-age` (`same-age.tsx`, `SameAgePortraits`, `sameAgeNavigation.ts
 - Contribute is enough to add or edit; deleting a photo or a tag and rotating an
   invite code take admin. Add forms pass `contributableOnly: true` to `PersonChips`
 
+### Activity matchups (`Services/Matchups.swift`)
+
+- An appearance can carry a head-to-head round (`round`, `opponent`, `outcome`, optional `scoreFor`/`scoreAgainst`), flat on `AppearanceDTO`. `Matchups` is a port of `frontend/lib/matchups.ts` with its test table (`MatchupTests`): the matchup line, W–L(–D) records, and an entry's run summary. Change both together
+- `CreateAppearance`/`UpdateAppearance` take an all-or-nothing `matchup`: absent on update leaves the stored one alone, an empty one clears it. The editor (`AppearanceMatchupSection`) always sends its whole matchup on update. A score is 0–9999, and `nil` means none was kept, never 0
+- A sport's event is an "Event" and its appearance a "Game" (`ActivityLabels.sport`), as on the web
+
 ### Books (`BookService`, `BookAssembler`, `Views/Books/`)
 
 The web's `/books`, `/book/<id>`, `/new-book` and `/edit-book/<id>`. Reached from More and a person's toolbar; "Start a book" and the reader's Edit appear only when the server says `canEdit`.

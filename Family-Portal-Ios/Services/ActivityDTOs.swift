@@ -58,6 +58,12 @@ nonisolated struct AppearanceDTO: Decodable, Sendable, Identifiable {
     let occurredAt: Date
     let notes: String
     let createdAt: Date
+    /// The head-to-head fields (`Matchup`), flat on the record. Absent from servers older than matchups; the scores are omitted when no score was kept.
+    @OrZero var round: String
+    @OrZero var opponent: String
+    @OrZero var outcome: String
+    var scoreFor: Int? = nil
+    var scoreAgainst: Int? = nil
 }
 
 nonisolated struct ActivityResultDTO: Decodable, Sendable, Identifiable {
@@ -221,12 +227,25 @@ nonisolated struct CreateAppearanceRequestDTO: Encodable, Sendable {
     let entryId: Int
     let occurredAt: String?
     let notes: String
+    var matchup: MatchupInputDTO? = nil
 }
 
 nonisolated struct UpdateAppearanceRequestDTO: Encodable, Sendable {
     let id: Int
     let occurredAt: String?
     let notes: String
+    /// All-or-nothing: absent leaves the stored matchup alone, an empty one clears it.
+    var matchup: MatchupInputDTO? = nil
+}
+
+nonisolated struct MatchupInputDTO: Encodable, Sendable, Equatable {
+    let round: String
+    let opponent: String
+    /// `""`, `"win"`, `"loss"` or `"draw"`; anything else is refused.
+    let outcome: String
+    /// 0–9999, omitted when no score was kept.
+    let scoreFor: Int?
+    let scoreAgainst: Int?
 }
 
 nonisolated struct AppearanceIdRequestDTO: Encodable, Sendable {
