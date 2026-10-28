@@ -188,45 +188,50 @@ struct CompetitionView: View {
     }
 
     private func appearanceRow(_ detail: AppearanceDetailDTO, people: ActivityPeople) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            NavigationLink {
-                RoutineView(entryId: detail.entry.id, entryName: detail.entry.name)
-            } label: {
-                AppearanceDetailRow(
-                    detail: detail,
-                    people: people,
-                    title: .entry,
-                    showsChevron: true
-                )
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if editable {
-                Menu {
-                    Button {
-                        sheet = .results(detail)
-                    } label: {
-                        Label(detail.results.isEmpty ? "Add Results" : "Edit Results", systemImage: "list.number")
-                    }
-                    Button {
-                        sheet = .photos(detail)
-                    } label: {
-                        Label("Photos", systemImage: "photo.on.rectangle")
-                    }
-                    Button {
-                        sheet = .edit(detail)
-                    } label: {
-                        Label("Edit \(labels.appearance)", systemImage: "pencil")
-                    }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                NavigationLink {
+                    RoutineView(entryId: detail.entry.id, entryName: detail.entry.name)
                 } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 2)
+                    AppearanceDetailRow(
+                        detail: detail,
+                        people: people,
+                        title: .entry,
+                        showsChevron: true,
+                        showsPhotos: false
+                    )
+                    .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Actions for \(detail.entry.name)")
+                .buttonStyle(.plain)
+
+                if editable {
+                    Menu {
+                        Button {
+                            sheet = .results(detail)
+                        } label: {
+                            Label(detail.results.isEmpty ? "Add Results" : "Edit Results", systemImage: "list.number")
+                        }
+                        Button {
+                            sheet = .photos(detail)
+                        } label: {
+                            Label("Photos", systemImage: "photo.on.rectangle")
+                        }
+                        Button {
+                            sheet = .edit(detail)
+                        } label: {
+                            Label("Edit \(labels.appearance)", systemImage: "pencil")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 2)
+                    }
+                    .accessibilityLabel("Actions for \(detail.entry.name)")
+                }
             }
+
+            ActivityPhotoStrip(photoIds: detail.photoIds)
         }
     }
 
