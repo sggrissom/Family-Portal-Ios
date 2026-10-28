@@ -306,10 +306,18 @@ struct AppearanceDetailRow: View {
                 }
             }
 
+            let matchup = Matchup(detail.appearance)
+            if matchup.isRecorded {
+                Text(matchup.parts.joined(separator: " · "))
+                    .font(.subheadline.weight(.medium))
+            }
+
             if detail.results.isEmpty {
-                Text("No results recorded")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if !matchup.isRecorded {
+                    Text("No results recorded")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 ForEach(detail.results) { result in
                     ActivityResultRow(result: result, people: people)

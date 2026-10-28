@@ -122,6 +122,13 @@ struct RoutineView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                let tally = Matchups.tally(response.appearances.map { Matchup($0.appearance) })
+                let record = Matchups.recordText(tally)
+                if !record.isEmpty {
+                    Label("Record \(record) (\(Matchups.recordLabel(tally)))", systemImage: "trophy")
+                        .font(.subheadline)
+                }
+
                 if !response.entry.entry.notes.isEmpty {
                     Text(response.entry.entry.notes)
                         .font(.subheadline)

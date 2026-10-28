@@ -22,7 +22,7 @@ struct ActivityLabelsTests {
     func sportLabels() {
         let labels = ActivityLabels.forKind(ActivityKind.sport)
 
-        #expect(labels.event == "Game")
+        #expect(labels.event == "Event")
         #expect(labels.entry == "Team")
         #expect(labels.appearance == "Game")
         #expect(labels.roster == "Players")

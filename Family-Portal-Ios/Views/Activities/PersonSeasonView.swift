@@ -128,6 +128,14 @@ struct PersonSeasonView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+
+                        let tally = Matchups.tally(appearances.map { Matchup($0.appearance) })
+                        let record = Matchups.recordText(tally)
+                        if !record.isEmpty {
+                            Text("Record \(record) (\(Matchups.recordLabel(tally)))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right")
