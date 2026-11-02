@@ -25,7 +25,22 @@ struct PhotoBatchFormView: View {
     @State private var caption = ""
     @State private var tagRemoteIds: [Int] = []
     @State private var dates: [UUID: Date] = [:]
+    /// Per-photo approximate dates, once the server takes them; a photo here is left out of `dates`.
+    @State private var recordWhens: [UUID: RecordWhenEntry] = [:]
     @State private var editingDateFor: UUID?
+    @Query(sort: \Person.name) private var people: [Person]
+
+    private var approximate: Bool { RecordTimeSettings.shared.approximateDates }
+
+    /// Who a photo can be dated by the age of: the people chosen for the batch.
+    private var anchors: [Person] {
+        people.filter { personIds.contains($0.id) && $0.serverId != nil }
+    }
+
+    private func anchorBirthday(_ entry: RecordWhenEntry) -> Date? {
+        guard let person = people.first(where: { $0.serverId == entry.anchorPersonId }), !person.isPregnancy else { return nil }
+        return person.birthday
+    }
 
     init(batch: PhotoBatch, importer: PhotoImporter) {
         self.batch = batch
@@ -81,6 +96,9 @@ struct PhotoBatchFormView: View {
             )) { edit in
                 dateEditor(for: edit.id)
             }
+            .task {
+                await RecordTimeSettings.shared.refresh()
+            }
         }
     }
 
@@ -113,7 +131,9 @@ struct PhotoBatchFormView: View {
     private func dateLine(_ entry: PhotoImporter.ImportEntry, photo: Photo?) -> some View {
         if let photo {
             HStack(spacing: 4) {
-                if let changed = dates[entry.id] {
+                if let chosen = recordWhens[entry.id] {
+                    Text("\(Copy.photos.taken) \(chosen.recordTime(isMoment: false, birthday: anchorBirthday(chosen)).label)")
+                } else if let changed = dates[entry.id] {
                     Text("\(Copy.photos.taken) \(changed.formatted(date: .abbreviated, time: .omitted))")
                 } else if entry.hasCaptureDate {
                     Text("\(Copy.photos.taken) \(photo.photoDate.displayDay().formatted(date: .abbreviated, time: .omitted))")
@@ -168,7 +188,47 @@ struct PhotoBatchFormView: View {
         }
     }
 
+    @ViewBuilder
     private func dateEditor(for entryId: UUID) -> some View {
+        if approximate {
+            approximateDateEditor(for: entryId)
+        } else {
+            dayEditor(for: entryId)
+        }
+    }
+
+    private func approximateDateEditor(for entryId: UUID) -> some View {
+        let start = recordWhens[entryId] ?? RecordWhenEntry(
+            recordTime: nil,
+            date: importer.entries[entryId].flatMap { photo(for: $0)?.photoDate } ?? Date()
+        )
+        let binding = Binding(get: { recordWhens[entryId] ?? start }, set: { recordWhens[entryId] = $0 })
+        return NavigationStack {
+            Form {
+                Section {
+                    RecordWhenControl(entry: binding, isMoment: false, birthday: anchorBirthday(binding.wrappedValue), anchors: anchors)
+                }
+                if let problem = binding.wrappedValue.problem(isMoment: false, birthday: anchorBirthday(binding.wrappedValue)) {
+                    Section { Text(problem).foregroundStyle(.red).font(.subheadline) }
+                }
+            }
+            .navigationTitle(Copy.when.date)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(Copy.photos.done) {
+                        if binding.wrappedValue.problem(isMoment: false, birthday: anchorBirthday(binding.wrappedValue)) != nil {
+                            recordWhens[entryId] = nil
+                        }
+                        editingDateFor = nil
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func dayEditor(for entryId: UUID) -> some View {
         let current = dates[entryId]
             ?? importer.entries[entryId].flatMap { photo(for: $0)?.photoDate.displayDay() }
             ?? Date()
@@ -198,6 +258,10 @@ struct PhotoBatchFormView: View {
         choices.caption = caption
         choices.tagRemoteIds = tagRemoteIds
         choices.dates = dates
+        for (entryId, entry) in recordWhens {
+            choices.recordTimes[entryId] = entry.recordTime(isMoment: false, birthday: anchorBirthday(entry))
+            choices.dates[entryId] = nil
+        }
         importer.apply(choices, to: batch.entryIds, context: modelContext, syncService: syncService)
         dismiss()
     }

@@ -148,6 +148,8 @@ nonisolated struct CreateMilestonePayload: Codable, Sendable {
     var tagRemoteIds: [Int]? = nil
     /// Optional so an operation queued by an older build still decodes, as no context.
     var context: String? = nil
+    /// Set when the form chose the date as an approximate date, an age or unknown; it then replaces `milestoneDate` on the server. `nil` from older builds and from the day-only control.
+    var recordTime: RecordTime? = nil
 }
 
 /// The caption and date are read from the photo when the upload runs, so an edit made while it waited goes up with it. Operations queued by older builds also carry `title`, `description` and `photoDate`, which decoding ignores.
@@ -180,6 +182,8 @@ nonisolated struct UpdateMilestonePayload: Codable, Sendable {
     var tagRemoteIds: [Int]? = nil
     /// Optional so an operation queued by an older build still decodes, as no context.
     var context: String? = nil
+    /// See `CreateMilestonePayload.recordTime`.
+    var recordTime: RecordTime? = nil
 }
 
 nonisolated struct UpdatePhotoPayload: Codable, Sendable {
@@ -188,6 +192,8 @@ nonisolated struct UpdatePhotoPayload: Codable, Sendable {
     let photoDate: String
     /// Sends `inputType: "keep"` so the server leaves the photo's date alone — what the photo batch form sends for a caption when nobody changed the date. Optional so an operation queued by an older build still decodes, as `false`.
     var keepDate: Bool? = nil
+    /// See `CreateMilestonePayload.recordTime`. Sent with `inputType: "keep"`, which it overrides.
+    var recordTime: RecordTime? = nil
 }
 
 /// The record's complete tag set, for both `updatePhotoTags` and `updateMilestoneTags`. These are *remote* ids: iOS creates no tags, so there is nothing to resolve at execution.

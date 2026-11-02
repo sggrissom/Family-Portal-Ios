@@ -61,9 +61,11 @@ final class PhotoImporter {
         var tagRemoteIds: [Int] = []
         /// Per-photo dates the user changed, keyed by entry.
         var dates: [UUID: Date] = [:]
+        /// Per-photo approximate dates, keyed by entry. A photo is in this or `dates`, not both.
+        var recordTimes: [UUID: RecordTime] = [:]
 
         var isEmpty: Bool {
-            personIds.isEmpty && caption.trimmingCharacters(in: .whitespaces).isEmpty && tagRemoteIds.isEmpty && dates.isEmpty
+            personIds.isEmpty && caption.trimmingCharacters(in: .whitespaces).isEmpty && tagRemoteIds.isEmpty && dates.isEmpty && recordTimes.isEmpty
         }
     }
 
@@ -177,7 +179,7 @@ final class PhotoImporter {
         else { return }
 
         do {
-            try await Self.queueDetails(choices, changedDate: choices.dates[entryId], for: photo, context: context, syncService: syncService)
+            try await Self.queueDetails(choices, changedDate: choices.dates[entryId], recordTime: choices.recordTimes[entryId], for: photo, context: context, syncService: syncService)
         } catch {
             AppLog.ui.error("Couldn't queue photo details: \(String(describing: error), privacy: .public)")
         }
@@ -187,6 +189,7 @@ final class PhotoImporter {
     static func queueDetails(
         _ choices: BatchChoices,
         changedDate: Date?,
+        recordTime: RecordTime? = nil,
         for photo: Photo,
         context: ModelContext,
         syncService: SyncService?
@@ -203,12 +206,16 @@ final class PhotoImporter {
             try await syncService?.updatePhotoTags(photo, tagRemoteIds: choices.tagRemoteIds)
         }
         let caption = choices.caption.trimmingCharacters(in: .whitespaces)
-        if !caption.isEmpty || changedDate != nil {
+        if !caption.isEmpty || changedDate != nil || recordTime != nil {
             if !caption.isEmpty { photo.title = caption }
             if let changedDate { photo.photoDate = changedDate.localRecordDay() }
+            if let recordTime {
+                photo.recordTime = recordTime
+                photo.photoDate = recordTime.isExactDay ? (DaySummaries.date(of: recordTime.from) ?? photo.photoDate) : RecordWhenEntry.sortDate(recordTime)
+            }
             try context.save()
-            // "keep" unless the date was changed: the upload already sent the resolved date.
-            try await syncService?.updatePhoto(photo, keepingDate: changedDate == nil)
+            // "keep" unless the date was changed: the upload already sent the resolved date. An approximate date goes as `recordTime`, which overrides "keep".
+            try await syncService?.updatePhoto(photo, keepingDate: changedDate == nil, recordTime: recordTime)
         }
     }
 

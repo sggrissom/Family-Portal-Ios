@@ -656,6 +656,8 @@ nonisolated struct AddMilestoneRequestDTO: Encodable, Sendable {
     let photoIds: [Int]?
     /// Tags to attach in the same transaction, so a milestone never lands without them. `nil` omits the key.
     let tagIds: [Int]?
+    /// Replaces `milestoneDate` when set. `nil` omits the key, which an older server ignores anyway.
+    var recordTime: RecordTime? = nil
 }
 
 nonisolated struct UpdateMilestoneRequestDTO: Encodable, Sendable {
@@ -670,6 +672,7 @@ nonisolated struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let photoIds: [Int]?
     /// The complete tag set, with the same `nil`-vs-`[]` rule as `photoIds`. An editor that did not show the tag picker sends `nil`.
     let tagIds: [Int]?
+    var recordTime: RecordTime? = nil
 }
 
 nonisolated struct UpdatePhotoRequestDTO: Encodable, Sendable {
@@ -678,6 +681,7 @@ nonisolated struct UpdatePhotoRequestDTO: Encodable, Sendable {
     let description: String
     let inputType: String
     let photoDate: String?
+    var recordTime: RecordTime? = nil
 }
 
 nonisolated struct AddPeopleToPhotoRequestDTO: Encodable, Sendable {
