@@ -103,6 +103,7 @@ nonisolated enum Copy {
         static let saving = "Saving…"
         static let cancel = "Cancel"
         static let pickPerson = "Pick who this is about"
+        static let approximateDateHint = "This moment's date is approximate. Change it on the web."
         static let needsText = "Say what happened"
         static let suggested = "suggested"
         static let photosAroundThen = "Photos from around then. Attach any?"

@@ -171,6 +171,8 @@ nonisolated struct BookMilestoneDTO: Decodable, Sendable {
     @OrZero var milestoneDate: String
     @OrZero var createdAt: String
     @OrZero var photoIds: [Int]
+    /// See `MilestoneDTO.recordTime`.
+    var recordTime: RecordTime?
 
     init(id: Int, personId: Int, description: String, category: String = "development", context: String = "", milestoneDate: String, createdAt: String? = nil, photoIds: [Int] = []) {
         self.id = id
@@ -195,6 +197,7 @@ nonisolated struct BookImageDTO: Decodable, Sendable {
     @OrZero var createdAt: String
     /// 0 is ready; anything else is still processing or failed, and the reader leaves it out.
     @OrZero var status: Int
+    var recordTime: RecordTime?
 
     init(id: Int, originalFilename: String = "photo.jpg", width: Int = 800, height: Int = 600, title: String = "", description: String = "", photoDate: String, createdAt: String? = nil, status: Int = 0) {
         self.id = id

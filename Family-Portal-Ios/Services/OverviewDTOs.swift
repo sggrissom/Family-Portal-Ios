@@ -158,12 +158,14 @@ nonisolated struct SameAgeRowDTO: Decodable, Sendable, Identifiable {
     @OrZero var portraits: [PortraitPhotoDTO]
     /// The interviews any of `milestones` answer — see `DashboardYearDTO.interviews`.
     @OrZero var interviews: [InterviewDTO]
+    /// Moments with an approximate date or an age that overlap this age, narrowest first. Shown with their own label, never placed at the age. Empty from a server that predates approximate dates.
+    @OrZero var contextMilestones: [MilestoneDTO]
 
     var id: Int { person.id }
 
     /// Nothing at this age — the web's `!hasSameAgeRecords`.
     var isEmpty: Bool {
-        height == nil && weight == nil && milestones.isEmpty && photoIds.isEmpty && portraits.isEmpty
+        height == nil && weight == nil && milestones.isEmpty && contextMilestones.isEmpty && photoIds.isEmpty && portraits.isEmpty
     }
 }
 

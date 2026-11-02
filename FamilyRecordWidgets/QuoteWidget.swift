@@ -68,7 +68,7 @@ struct QuoteView: View {
 
     @ViewBuilder
     private func content(_ quote: WidgetItem) -> some View {
-        let who = [WidgetCopy.names(moment.names(for: quote)), String(quote.date.prefix(4))]
+        let who = [WidgetCopy.names(moment.names(for: quote)), quote.dateLabel ?? String(quote.date.prefix(4))]
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
         if family == .accessoryRectangular {

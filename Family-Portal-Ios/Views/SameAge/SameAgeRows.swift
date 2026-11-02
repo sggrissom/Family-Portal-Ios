@@ -95,6 +95,9 @@ struct SameAgeRows: View {
                         ForEach(folded.loose, id: \.id) { milestone in
                             milestoneLine(milestone, row: row)
                         }
+                        ForEach(row.contextMilestones, id: \.id) { milestone in
+                            contextLine(milestone)
+                        }
                         ForEach(folded.groups) { answers in
                             InterviewCardView(model: InterviewCardModel(
                                 answers: answers,
@@ -147,6 +150,19 @@ struct SameAgeRows: View {
             Text(milestone.displayText)
                 .lineLimit(2)
             Text(Copy.milestoneDetail.atAge(SameAgeText.actualAge(row, at: milestone.milestoneDate)))
+                .foregroundStyle(.secondary)
+        }
+        .font(.subheadline)
+    }
+
+    private func contextLine(_ milestone: MilestoneDTO) -> some View {
+        let category = MilestoneCategory(rawValue: milestone.category) ?? .other
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: category.icon)
+                .foregroundStyle(category.color)
+            Text(milestone.displayText)
+                .lineLimit(2)
+            Text(milestone.recordTime?.label ?? "")
                 .foregroundStyle(.secondary)
         }
         .font(.subheadline)

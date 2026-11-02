@@ -92,8 +92,17 @@ struct EditMilestoneView: View {
 
                     MilestoneTextSections(category: category, descriptionText: $descriptionText, context: $context, isFocused: $isTextFocused)
 
-                    Section {
-                        DatePicker("Date", selection: $date, displayedComponents: .date)
+                    if milestone.hasExactDate {
+                        Section {
+                            DatePicker("Date", selection: $date, displayedComponents: .date)
+                        }
+                    } else {
+                        // A picker would flatten "at age 4" to one day; the server refuses that from a legacy date edit.
+                        Section {
+                            LabeledContent("Date", value: milestone.recordTime?.label ?? "")
+                        } footer: {
+                            Text(Copy.milestone.approximateDateHint)
+                        }
                     }
                 }
 
@@ -158,7 +167,7 @@ struct EditMilestoneView: View {
         guard !isReadingPhotos else { return }
         milestone.category = category
         milestone.setEntry(descriptionText, context: context)
-        if !isAnswer {
+        if !isAnswer && milestone.hasExactDate {
             milestone.date = date.localRecordDay()
         }
 

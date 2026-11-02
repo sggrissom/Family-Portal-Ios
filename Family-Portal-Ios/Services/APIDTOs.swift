@@ -254,6 +254,8 @@ nonisolated struct MilestoneDTO: Codable, Sendable {
     /// Set only on an interview answer (`omitempty`), so every other moment reads 0.
     @OrZero var interviewId: Int
     @OrZero var questionId: Int
+    /// What the family said about when it happened. Absent from servers older than approximate dates, where `milestoneDate` is an exact day; otherwise `milestoneDate` is only a sort key unless this is an exact day.
+    var recordTime: RecordTime?
 
     enum CodingKeys: String, CodingKey {
         case id, personId, familyId, category, context, milestoneDate, createdAt
@@ -261,6 +263,7 @@ nonisolated struct MilestoneDTO: Codable, Sendable {
         case photoIds
         case tagIds
         case interviewId, questionId
+        case recordTime
     }
 }
 
@@ -286,12 +289,15 @@ nonisolated struct ImageDTO: Codable, Sendable {
     @OrZero var durationMs: Int
     /// A sentence the server wrote for showing as is, set on a video it could not accept.
     @OrZero var processingError: String
+    /// See `MilestoneDTO.recordTime`.
+    var recordTime: RecordTime?
 
     enum CodingKeys: String, CodingKey {
         case id, familyId, ownerUserId, originalFilename, mimeType, fileSize, width, height, filePath, title
         case descriptionText = "description"
         case photoDate, createdAt, status, tagIds
         case mediaKind, durationMs, processingError
+        case recordTime
     }
 }
 

@@ -155,6 +155,7 @@ struct WidgetSnapshotBuilder {
                 kind: .photo,
                 date: photo.photoDate.recordDayKey,
                 yearsAgo: yearsAgo,
+                dateLabel: photo.hasExactDate ? nil : photo.recordTime?.label,
                 title: photo.title,
                 personIds: photo.taggedPeople.compactMap(Self.serverId),
                 imageFile: nil,
@@ -173,6 +174,7 @@ struct WidgetSnapshotBuilder {
                 kind: Self.kind(of: milestone.category),
                 date: milestone.date.recordDayKey,
                 yearsAgo: yearsAgo,
+                dateLabel: milestone.hasExactDate ? nil : milestone.recordTime?.label,
                 title: milestone.displayText,
                 personIds: milestone.person.flatMap(Self.serverId).map { [$0] } ?? [],
                 imageFile: nil,
@@ -184,6 +186,9 @@ struct WidgetSnapshotBuilder {
 
         var onThisDay: [String: [WidgetItem]] = [:]
         var dayKeys: [String] = []
+        // Only an exact day has an anniversary; a period or an estimate never comes back as "On this day".
+        let exactPhotos = photos.filter(\.hasExactDate)
+        let exactMilestones = milestones.filter(\.hasExactDate)
         let today = calendar.startOfDay(for: now)
         for offset in 0..<horizonDays {
             guard let date = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
@@ -192,10 +197,10 @@ struct WidgetSnapshotBuilder {
 
             let years = OnThisDay.years(
                 on: key,
-                photos: photos,
+                photos: exactPhotos,
                 photoDay: { $0.photoDate.recordDayKey },
                 newerPhoto: Self.isNewer,
-                milestones: milestones,
+                milestones: exactMilestones,
                 milestoneDay: { $0.date.recordDayKey }
             )
             let items = years.flatMap { year in

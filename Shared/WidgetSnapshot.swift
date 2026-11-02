@@ -82,6 +82,8 @@ nonisolated struct WidgetItem: Codable, Equatable, Hashable, Sendable, Identifia
     var date: String
     /// Set on on-this-day items: how many years before the day it is shown on.
     var yearsAgo: Int?
+    /// How to say when it happened when `date` is only where it sorts: "At age 4", "Around 1970". `nil` for an exact day, and in snapshots written before approximate dates.
+    var dateLabel: String? = nil
     /// The milestone or quote as it reads ("First steps", “Bye bye moon”), or the photo's title, which may be empty.
     var title: String
     var personIds: [Int]

@@ -16,7 +16,7 @@ struct DaySummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(DaySummaries.dayLabel(day.day, today: today))
+            Text(day.period.isEmpty ? DaySummaries.dayLabel(day.day, today: today) : day.period)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
@@ -110,7 +110,7 @@ struct DaySummaryView: View {
         let names = group.personIds.compactMap { people[$0]?.name.firstName }
         let caption = ([Copy.home.photoCount(group.count)] + (names.isEmpty ? [] : [names.joined(separator: ", ")]))
             .joined(separator: " · ")
-        return NavigationLink(value: AppRoute.photoSet(ids: group.allIds, title: DaySummaries.dayLabel(day.day, today: today))) {
+        return NavigationLink(value: AppRoute.photoSet(ids: group.allIds, title: day.period.isEmpty ? DaySummaries.dayLabel(day.day, today: today) : day.period)) {
             VStack(alignment: .leading, spacing: 4) {
                 MosaicThumbnails(photoIds: group.mosaicIds)
                 Text(caption)

@@ -84,11 +84,20 @@ struct PhotoFilter: Equatable {
             }
         }
 
-        if let from = range.from, photo.photoDate.displayDay() < from {
-            return false
-        }
-        if let to = range.to, photo.photoDate.displayDay() > to {
-            return false
+        if !photo.hasExactDate {
+            if range.from != nil || range.to != nil {
+                // An approximate date matches a window it overlaps; an unknown one matches no window.
+                let start = range.from.map { $0.localRecordDay().recordDayKey } ?? "0001-01-01"
+                let end = range.to.flatMap { Civil.parse($0.localRecordDay().recordDayKey)?.start.addingDay().key } ?? "9999-12-31"
+                guard let rt = photo.recordTime, rt.resolved, rt.start < end, rt.end > start else { return false }
+            }
+        } else {
+            if let from = range.from, photo.photoDate.displayDay() < from {
+                return false
+            }
+            if let to = range.to, photo.photoDate.displayDay() > to {
+                return false
+            }
         }
 
         if !search.isEmpty {
