@@ -254,7 +254,11 @@ struct ActivityPhotoStrip: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(photoIds, id: \.self) { photoId in
-                        NavigationLink(value: AppRoute.remotePhoto(id: photoId)) {
+                        // Activity screens use view destinations. Keep this push in that
+                        // same chain: a value link can replace the intermediate screens.
+                        NavigationLink {
+                            RemotePhotoDetailView(remoteId: photoId)
+                        } label: {
                             RemotePhotoView(remoteId: photoId, size: .thumb)
                                 .frame(width: 88, height: 88)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
