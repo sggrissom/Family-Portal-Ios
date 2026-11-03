@@ -440,7 +440,9 @@ struct PersonPhotosTab: View {
             } else {
                 LazyVGrid(columns: columns, spacing: 4) {
                     ForEach(photos) { photo in
-                        NavigationLink(value: PhotoRoute(id: photo.id, openedFrom: person.id)) {
+                        NavigationLink {
+                            PhotoDetailView(photoId: photo.id, openedFrom: person.id)
+                        } label: {
                             PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId, videoDurationMs: photo.videoBadgeDuration)
                         }
                     }
@@ -520,14 +522,18 @@ extension PersonPhotosTab {
         .accessibilityLabel(label)
 
         if let photo = RemotePhotoResolution.resolve([portrait.photoId], in: person.photos).first {
-            NavigationLink(value: PhotoRoute(id: photo.id, openedFrom: person.id)) {
+            NavigationLink {
+                PhotoDetailView(photoId: photo.id, openedFrom: person.id)
+            } label: {
                 content
             }
             .buttonStyle(.plain)
         } else {
             // Insights can arrive before the local photo mirror or its person
             // relationship. Keep the portrait usable through the server route.
-            NavigationLink(value: AppRoute.remotePhoto(id: portrait.photoId)) {
+            NavigationLink {
+                RemotePhotoDetailView(remoteId: portrait.photoId)
+            } label: {
                 content
             }
             .buttonStyle(.plain)

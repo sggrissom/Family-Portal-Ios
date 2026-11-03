@@ -110,7 +110,10 @@ struct DaySummaryView: View {
         let names = group.personIds.compactMap { people[$0]?.name.firstName }
         let caption = ([Copy.home.photoCount(group.count)] + (names.isEmpty ? [] : [names.joined(separator: ", ")]))
             .joined(separator: " · ")
-        return NavigationLink(value: AppRoute.photoSet(ids: group.allIds, title: day.period.isEmpty ? DaySummaries.dayLabel(day.day, today: today) : day.period)) {
+        // Story also appears on person pages pushed from sheets and Same Age.
+        return NavigationLink {
+            PhotoSetView(ids: group.allIds, title: day.period.isEmpty ? DaySummaries.dayLabel(day.day, today: today) : day.period)
+        } label: {
             VStack(alignment: .leading, spacing: 4) {
                 MosaicThumbnails(photoIds: group.mosaicIds)
                 Text(caption)
@@ -187,7 +190,9 @@ struct PhotoSetView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(photos) { photo in
-                    NavigationLink(value: PhotoRoute(id: photo.id)) {
+                    NavigationLink {
+                        PhotoDetailView(photoId: photo.id)
+                    } label: {
                         PhotoThumbnailView(imageData: photo.imageData, title: photo.title, remoteId: photo.remoteId, videoDurationMs: photo.videoBadgeDuration)
                     }
                 }
