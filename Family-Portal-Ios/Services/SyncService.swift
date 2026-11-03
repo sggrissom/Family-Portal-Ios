@@ -531,7 +531,8 @@ final class SyncService {
             context: payload.context ?? "",
             milestoneDate: payload.milestoneDate,
             photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds),
-            tagIds: payload.tagRemoteIds
+            tagIds: payload.tagRemoteIds,
+            recordTime: payload.recordTime
         )
         let response: AddMilestoneResponseDTO = try await apiClient.callRPC(.addMilestone, payload: request)
         dropPulledCopies(of: milestone, serverId: response.milestone.id)
@@ -618,7 +619,8 @@ final class SyncService {
             context: payload.context ?? "",
             milestoneDate: payload.milestoneDate,
             photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds),
-            tagIds: payload.tagRemoteIds
+            tagIds: payload.tagRemoteIds,
+            recordTime: payload.recordTime
         )
         let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC(.updateMilestone, payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -630,13 +632,14 @@ final class SyncService {
 
         let (photo, id) = try synced(findPhoto(byLocalId: operation.localId), "Photo must be uploaded before updating")
 
-        let keepsDate = payload.keepDate == true
+        let keepsDate = payload.keepDate == true || payload.recordTime != nil
         let request = UpdatePhotoRequestDTO(
             id: id,
             title: payload.title,
             description: payload.description,
             inputType: keepsDate ? "keep" : "date",
-            photoDate: keepsDate ? nil : payload.photoDate
+            photoDate: keepsDate ? nil : payload.photoDate,
+            recordTime: payload.recordTime
         )
         let response: UpdatePhotoResponseDTO = try await apiClient.callRPC(.updatePhoto, payload: request)
         applyPhotoDTO(response.image, to: photo)
@@ -846,7 +849,8 @@ final class SyncService {
     // MARK: - Push: Milestones
 
     /// `photos` is the milestone's complete attachment set, or `nil` to say nothing about attachments. `tagRemoteIds` travels in the same call, so the milestone never exists on the server without its tags.
-    func addMilestone(_ milestone: Milestone, for person: Person, photos: [Photo]? = nil, tagRemoteIds: [Int]? = nil) async throws {
+    /// `recordTime` is what an approximate-date form chose; `nil` sends the milestone's day.
+    func addMilestone(_ milestone: Milestone, for person: Person, photos: [Photo]? = nil, tagRemoteIds: [Int]? = nil, recordTime: RecordTime? = nil) async throws {
         let payload = CreateMilestonePayload(
             personLocalId: person.id.uuidString,
             description: milestone.descriptionText,
@@ -854,7 +858,8 @@ final class SyncService {
             milestoneDate: dateToAPIString(milestone.date),
             photoLocalIds: photos?.map { $0.id.uuidString },
             tagRemoteIds: tagRemoteIds,
-            context: milestone.context
+            context: milestone.context,
+            recordTime: recordTime
         )
 
         try applyPhotosOptimistically(photos, to: milestone)
@@ -869,14 +874,15 @@ final class SyncService {
     }
 
     /// `tagRemoteIds` is `nil` from any editor that did not show the tag picker: `[]` would clear the tags.
-    func updateMilestone(_ milestone: Milestone, photos: [Photo]? = nil, tagRemoteIds: [Int]? = nil) async throws {
+    func updateMilestone(_ milestone: Milestone, photos: [Photo]? = nil, tagRemoteIds: [Int]? = nil, recordTime: RecordTime? = nil) async throws {
         let payload = UpdateMilestonePayload(
             description: milestone.descriptionText,
             category: milestone.category.rawValue,
             milestoneDate: dateToAPIString(milestone.date),
             photoLocalIds: photos?.map { $0.id.uuidString },
             tagRemoteIds: tagRemoteIds,
-            context: milestone.context
+            context: milestone.context,
+            recordTime: recordTime
         )
 
         try applyPhotosOptimistically(photos, to: milestone)
@@ -914,10 +920,14 @@ final class SyncService {
 
     /// `keepingDate` sends `inputType: "keep"`: the server keeps whatever date the photo has, which after an upload is the one it read from the file itself. Anything without a date control must keep it — a dated update sends only the day, and would wipe the capture time.
     /// The update replaces any queued one whole, so a date change still waiting to be sent turns this into a dated update rather than being lost to a later caption edit.
-    func updatePhoto(_ photo: Photo, keepingDate: Bool) async throws {
+    /// `recordTime` is an approximate date the form chose. A caption edit made while one is still queued carries it along.
+    func updatePhoto(_ photo: Photo, keepingDate: Bool, recordTime: RecordTime? = nil) async throws {
+        var recordTime = recordTime
         let keepsDate: Bool
         if keepingDate {
-            keepsDate = !(await hasQueuedDateChange(for: photo))
+            let queued = await queuedDateChange(for: photo)
+            keepsDate = queued == nil
+            recordTime = recordTime ?? queued?.recordTime
         } else {
             keepsDate = false
         }
@@ -926,7 +936,8 @@ final class SyncService {
             title: photo.title,
             description: photo.descriptionText,
             photoDate: dateToAPIString(photo.photoDate),
-            keepDate: keepsDate
+            keepDate: keepsDate,
+            recordTime: recordTime
         )
 
         try await enqueueOperation(
@@ -937,14 +948,15 @@ final class SyncService {
         )
     }
 
-    private func hasQueuedDateChange(for photo: Photo) async -> Bool {
-        await syncQueue.allOperations().contains { operation in
+    private func queuedDateChange(for photo: Photo) async -> UpdatePhotoPayload? {
+        for operation in await syncQueue.allOperations() {
             guard operation.type == .updatePhoto, operation.localId == photo.id.uuidString,
                   let payload = try? JSONDecoder().decode(UpdatePhotoPayload.self, from: operation.payload) else {
-                return false
+                continue
             }
-            return payload.keepDate != true
+            if payload.keepDate != true || payload.recordTime != nil { return payload }
         }
+        return nil
     }
 
     func uploadPhoto(_ photo: Photo) async throws {

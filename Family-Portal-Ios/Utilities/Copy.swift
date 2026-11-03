@@ -82,6 +82,27 @@ nonisolated enum Copy {
         static let pickPerson = "Pick who was measured"
     }
 
+    /// The approximate-date choices — `copy.recordWhen` on the web.
+    enum recordWhen {
+        static let month = "A month…"
+        static let year = "A year…"
+        static let range = "Between…"
+        static let unknown = "Not sure"
+        static let rangeFrom = "From"
+        static let rangeTo = "To"
+        static let ageFrom = "From age"
+        static let ageTo = "Up to age"
+        static let withMonths = "And months"
+        static let ageRange = "A range of ages"
+        static let whoseAge = "Whose age?"
+        static let choosePerson = "Choose…"
+        static let meaning = "What does this date mean?"
+        static let happened = "Happened sometime then"
+        static let describes = "Describes that time"
+        static let estimate = "This is a guess"
+        static let bestGuess = "Best guess"
+    }
+
     enum milestone {
         static let title = "Moment"
         static let who = "Who is this about?"

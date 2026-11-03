@@ -14,6 +14,9 @@ struct EditMilestoneView: View {
     @State private var category: MilestoneCategory
     @State private var context: String
     @State private var date: Date
+    /// The date once the server takes approximate dates; compared with `initialRecordWhen` so an untouched date isn't resent.
+    @State private var recordWhen: RecordWhenEntry
+    private let initialRecordWhen: RecordWhenEntry
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var didSeedSelection = false
     @State private var isReadingPhotos = false
@@ -31,6 +34,15 @@ struct EditMilestoneView: View {
         _category = State(initialValue: milestone.category)
         _context = State(initialValue: milestone.context)
         _date = State(initialValue: milestone.date.displayDay())
+        let entry = RecordWhenEntry(recordTime: milestone.recordTime, date: milestone.date)
+        _recordWhen = State(initialValue: entry)
+        initialRecordWhen = entry
+    }
+
+    private var approximate: Bool { RecordTimeSettings.shared.approximateDates }
+
+    private var birthday: Date? {
+        milestone.person?.isPregnancy == true ? nil : milestone.person?.birthday
     }
 
     /// An interview answer, edited without its category or date.
@@ -92,7 +104,11 @@ struct EditMilestoneView: View {
 
                     MilestoneTextSections(category: category, descriptionText: $descriptionText, context: $context, isFocused: $isTextFocused)
 
-                    if milestone.hasExactDate {
+                    if approximate {
+                        Section {
+                            RecordWhenControl(entry: $recordWhen, isMoment: true, birthday: birthday)
+                        }
+                    } else if milestone.hasExactDate {
                         Section {
                             DatePicker("Date", selection: $date, displayedComponents: .date)
                         }
@@ -122,6 +138,9 @@ struct EditMilestoneView: View {
             }
             .task(id: lookupKey) {
                 await lookUpSuggestions()
+            }
+            .task {
+                await RecordTimeSettings.shared.refresh()
             }
             .navigationTitle(isAnswer ? Copy.interview.editAnswer : "Edit Moment")
             .navigationBarTitleDisplayMode(.inline)
@@ -165,11 +184,25 @@ struct EditMilestoneView: View {
 
     private func save() {
         guard !isReadingPhotos else { return }
+        var recordTime: RecordTime?
+        if approximate && !isAnswer && recordWhen != initialRecordWhen {
+            var entry = recordWhen
+            entry.anchorPersonId = milestone.person?.serverId ?? 0
+            if let problem = entry.problem(isMoment: true, birthday: birthday) {
+                errorPresenter.report(message: problem, title: "Couldn't Save Moment")
+                return
+            }
+            recordTime = entry.recordTime(isMoment: true, birthday: birthday)
+        }
         milestone.category = category
         milestone.setEntry(descriptionText, context: context)
-        if !isAnswer && milestone.hasExactDate {
+        if let recordTime {
+            milestone.recordTime = recordTime
+            milestone.date = recordTime.isExactDay ? (DaySummaries.date(of: recordTime.from) ?? milestone.date) : RecordWhenEntry.sortDate(recordTime)
+        } else if !isAnswer && !approximate && milestone.hasExactDate {
             milestone.date = date.localRecordDay()
         }
+        let sentRecordTime = recordTime
 
         // `photoIds` is the complete set the milestone should end up with, so an empty selection detaches everything — safe only once the seed has run, since before that an empty selection means "not loaded yet".
         let chosen = didSeedSelection ? photoChoices.filter { selectedPhotoIds.contains($0.id) } : nil
@@ -186,7 +219,7 @@ struct EditMilestoneView: View {
                     photos = (chosen ?? attached)
                         + (try await MilestonePhotoUploads.queue(picked, artist: artist, context: modelContext, syncService: syncService))
                 }
-                try await syncService.updateMilestone(milestone, photos: photos)
+                try await syncService.updateMilestone(milestone, photos: photos, recordTime: sentRecordTime)
             } catch {
                 errorPresenter.report(error, title: "Couldn't Save Moment")
             }
