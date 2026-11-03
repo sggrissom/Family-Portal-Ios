@@ -50,13 +50,11 @@ struct SameAgeRows: View {
     var hideEmpty = false
 
     @Query private var people: [Person]
-    @Query private var photos: [Photo]
 
     var body: some View {
         // Names are told apart across everyone, before the empty rows go: two Alexes stay distinguishable when only one has records at this age.
-        // Indexed once per draw: every row resolves its person and photos against these.
+        // Indexed once per draw: every row resolves its person against this.
         let peopleById = people.byServerId()
-        let photosById = photos.byServerId()
         let labels = FamilyGroups.chipLabels(rows.compactMap { peopleById[$0.person.id] })
         VStack(alignment: .leading, spacing: 14) {
             ForEach(hideEmpty ? rows.filter { !$0.isEmpty } : rows) { row in
@@ -86,7 +84,7 @@ struct SameAgeRows: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 6) {
                                     ForEach(row.photoIds.prefix(photoLimit), id: \.self) { photoId in
-                                        photoThumb(photoId, local: photosById[photoId])
+                                        photoThumb(photoId)
                                     }
                                 }
                             }
@@ -125,21 +123,16 @@ struct SameAgeRows: View {
         }
     }
 
-    @ViewBuilder
-    private func photoThumb(_ remoteId: Int, local photo: Photo?) -> some View {
-        let thumb = RemotePhotoView(remoteId: remoteId, size: .thumb)
-            .frame(width: 72, height: 72)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-        if let photo {
-            NavigationLink {
-                PhotoDetailView(photoId: photo.id)
-            } label: {
-                thumb
-            }
-            .accessibilityLabel("View photo")
-        } else {
-            thumb
+    private func photoThumb(_ remoteId: Int) -> some View {
+        // The server can return a photo before it reaches the local mirror.
+        NavigationLink {
+            RemotePhotoDetailView(remoteId: remoteId)
+        } label: {
+            RemotePhotoView(remoteId: remoteId, size: .thumb)
+                .frame(width: 72, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
         }
+        .accessibilityLabel("View photo")
     }
 
     private func milestoneLine(_ milestone: MilestoneDTO, row: SameAgeRowDTO) -> some View {

@@ -59,7 +59,9 @@ struct PersonDetailView: View {
             .toolbar {
                 // The web's 📖 Books on a profile: the family's shelf, since a book is often about several people.
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink(value: AppRoute.books) {
+                    NavigationLink {
+                        BooksView()
+                    } label: {
                         Image(systemName: "book.closed")
                     }
                     .accessibilityLabel(Copy.account.books)

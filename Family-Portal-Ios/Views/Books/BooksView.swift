@@ -4,10 +4,16 @@ import SwiftUI
 /// A viewer who may change books also gets "Start a book", one choice per preset.
 struct BooksView: View {
     @Environment(BookService.self) private var service
-    @Environment(AppNavigator.self) private var navigator
 
     @State private var state = ActivityScreenState<ListBooksResponseDTO>()
     @State private var starting: BookPlans.Preset?
+    @State private var pendingBook: BookDestination?
+    @State private var openedBook: BookDestination?
+
+    private struct BookDestination: Hashable {
+        let id: Int
+        let title: String
+    }
 
     private let columns = [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 18, alignment: .top)]
 
@@ -30,7 +36,9 @@ struct BooksView: View {
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 26) {
                         ForEach(response.books) { book in
-                            NavigationLink(value: AppRoute.book(id: book.id, title: book.title)) {
+                            NavigationLink {
+                                BookReaderView(bookId: book.id, title: book.title)
+                            } label: {
                                 BookShelfItem(book: book)
                             }
                             .buttonStyle(.plain)
@@ -57,11 +65,21 @@ struct BooksView: View {
             .padding(.horizontal)
         }
         .navigationTitle(Copy.account.books)
-        .sheet(item: $starting) { preset in
+        .sheet(item: $starting, onDismiss: {
+            // Wait for the creation sheet to close, then push on this shelf's
+            // stack, including when the shelf was opened inside a sheet.
+            if let pendingBook {
+                openedBook = pendingBook
+                self.pendingBook = nil
+            }
+        }) { preset in
             NewBookView(preset: preset) { book in
                 Task { await state.reload() }
-                navigator.push(.book(id: book.id, title: book.title))
+                pendingBook = BookDestination(id: book.id, title: book.title)
             }
+        }
+        .navigationDestination(item: $openedBook) { book in
+            BookReaderView(bookId: book.id, title: book.title)
         }
     }
 }

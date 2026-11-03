@@ -115,7 +115,6 @@ private struct SameAgePortraitViewer: View {
     @Binding var pick: Int
 
     @Environment(\.dismiss) private var dismiss
-    @Query private var photos: [Photo]
 
     var body: some View {
         let portrait = row.portraits[pick]
@@ -150,10 +149,8 @@ private struct SameAgePortraitViewer: View {
                         }
                         .buttonStyle(.bordered)
                     }
-                    if let photo = photos.first(where: { $0.serverId == portrait.photoId }) {
-                        NavigationLink(Copy.sameAge.openPhotoPage) {
-                            PhotoDetailView(photoId: photo.id)
-                        }
+                    NavigationLink(Copy.sameAge.openPhotoPage) {
+                        RemotePhotoDetailView(remoteId: portrait.photoId)
                     }
                 }
             }

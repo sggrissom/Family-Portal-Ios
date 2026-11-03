@@ -23,7 +23,10 @@ struct FamilyRosterSections: View {
             // A single band is the whole household, so naming it after a generation would say less than nothing — a family that has stated no relationships at all would read "Not linked yet" across every row.
             Section(groups.count > 1 ? group.title : "Family") {
                 ForEach(group.people, id: \.id) { person in
-                    NavigationLink(value: AppRoute.person(person.id, manages: manages)) {
+                    // Also reached through Settings' view-based management screens.
+                    NavigationLink {
+                        PersonDetailView(personId: person.id, allowsManagementActions: manages)
+                    } label: {
                         PersonRowView(person: person)
                     }
                     .contextMenu {
