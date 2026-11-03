@@ -25,6 +25,8 @@ enum SearchLocal {
         let text: String
         var context = ""
         var tagNames: [String] = []
+        /// Set when `date` is only where it sorts; filters then match by overlap, as the server does.
+        var recordTime: RecordTime? = nil
     }
 
     struct Photo {
@@ -33,6 +35,7 @@ enum SearchLocal {
         let title: String
         var description = ""
         var peopleServerIds: [Int] = []
+        var recordTime: RecordTime? = nil
     }
 
     struct Result: Equatable {
@@ -63,8 +66,12 @@ enum SearchLocal {
                 birthdays[id] = birthday
             }
         }
-        func ageMatches(_ personId: Int, at date: Date) -> Bool {
+        func ageMatches(_ personId: Int, at date: Date, _ recordTime: RecordTime? = nil) -> Bool {
             guard let from = parsed.ageFromMonth, let to = parsed.ageToMonth else { return true }
+            if let recordTime, !recordTime.isExactDay {
+                guard let span = ageSpan(recordTime, personId: personId, birthday: birthdays[personId]) else { return false }
+                return span.lowerBound < to && span.upperBound > from
+            }
             guard let birthday = birthdays[personId] else { return false }
             return (from..<to).contains(ageInMonths(birthday: birthday, at: date))
         }
@@ -94,12 +101,12 @@ enum SearchLocal {
                 guard let id = moment.personServerId, parsed.personIds.contains(id) else { return false }
             }
             if parsed.ageFromMonth != nil {
-                guard let id = moment.personServerId, ageMatches(id, at: moment.date) else { return false }
+                guard let id = moment.personServerId, ageMatches(id, at: moment.date, moment.recordTime) else { return false }
             }
             if let category = parsed.category, moment.category != category {
                 return false
             }
-            return dateMatches(parsed, moment.date)
+            return dateMatches(parsed, moment.date, moment.recordTime)
         }
         var ranked: [Moment]
         if terms.isEmpty {
@@ -125,11 +132,11 @@ enum SearchLocal {
             groups = [parsed.personIds]
         }
         let matchingPhotos = photos.filter { photo in
-            guard dateMatches(parsed, photo.date) else { return false }
+            guard dateMatches(parsed, photo.date, photo.recordTime) else { return false }
             guard groups.allSatisfy({ group in group.contains { photo.peopleServerIds.contains($0) } }) else { return false }
             if parsed.ageFromMonth != nil {
                 let subjects = parsed.personIds.isEmpty ? photo.peopleServerIds : photo.peopleServerIds.filter { parsed.personIds.contains($0) }
-                guard subjects.contains(where: { ageMatches($0, at: photo.date) }) else { return false }
+                guard subjects.contains(where: { ageMatches($0, at: photo.date, photo.recordTime) }) else { return false }
             }
             return terms.isEmpty || SearchText.matches(terms, words: SearchText.words(photo.title, photo.description))
         }
@@ -155,6 +162,41 @@ enum SearchLocal {
             months -= 1
         }
         return months
+    }
+
+    /// The half-open span of someone's age, in months, that an approximate record covers — `AgeMonthsFor` in backend/record_time.go. An age anchored to the person answers without a birthday.
+    static func ageSpan(_ rt: RecordTime, personId: Int, birthday: Date?) -> Range<Int>? {
+        if rt.basis == "age", rt.anchorPersonId == personId, personId != 0 {
+            switch rt.precision {
+            case "month":
+                let months = rt.ageYears * 12 + rt.ageMonths
+                return months..<(months + 1)
+            case "range": return (rt.ageYears * 12)..<((rt.ageToYears + 1) * 12)
+            default: return (rt.ageYears * 12)..<((rt.ageYears + 1) * 12)
+            }
+        }
+        guard rt.resolved, let birthday,
+              let start = DaySummaries.date(of: rt.start),
+              let end = DaySummaries.date(of: rt.end),
+              let last = utc.date(byAdding: .day, value: -1, to: end) else { return nil }
+        let from = ageInMonths(birthday: birthday, at: start)
+        return from..<max(from + 1, ageInMonths(birthday: birthday, at: last) + 1)
+    }
+
+    /// A year or month overlaps the record's range. A month with no year matches only a record known to fall inside one such month.
+    private static func dateMatches(_ parsed: ParsedSearch, _ date: Date, _ rt: RecordTime?) -> Bool {
+        guard let rt, !rt.isExactDay else { return dateMatches(parsed, date) }
+        if parsed.year == 0, parsed.month == 0 { return true }
+        guard rt.resolved, let start = Civil.parse(rt.start)?.start,
+              let endDay = DaySummaries.date(of: rt.end),
+              let lastDate = utc.date(byAdding: .day, value: -1, to: endDay) else { return false }
+        if parsed.year == 0 {
+            let last = utc.dateComponents([.year, .month], from: lastDate)
+            return start.year == last.year && start.month == last.month && start.month == parsed.month
+        }
+        let from = Civil(year: parsed.year, month: parsed.month == 0 ? 1 : parsed.month, day: 1)
+        let to = from.adding(months: parsed.month == 0 ? 12 : 1)
+        return rt.start < to.key && rt.end > from.key
     }
 
     private static func dateMatches(_ parsed: ParsedSearch, _ date: Date) -> Bool {

@@ -55,7 +55,7 @@ struct BookImage: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(photo.caption.isEmpty ? "Photo from \(BookDay.shortDay(photo.day))" : photo.caption)
+            .accessibilityLabel(photo.caption.isEmpty ? "Photo from \(photo.dateLabel ?? BookDay.shortDay(photo.day))" : photo.caption)
             .accessibilityAddTraits(.isImage)
     }
 }
@@ -64,9 +64,11 @@ struct BookImage: View {
 struct BookWhen: View {
     let day: String
     let detail: String
+    var label: String? = nil
 
     var body: some View {
-        Text(detail.isEmpty ? BookDay.shortDay(day) : "\(BookDay.shortDay(day)) · \(detail)")
+        let when = label ?? BookDay.shortDay(day)
+        Text(detail.isEmpty ? when : "\(when) · \(detail)")
             .font(BookType.when)
             .foregroundStyle(BookPalette.inkSoft)
     }
@@ -94,11 +96,11 @@ struct BookFigure: View {
                 HStack(alignment: .firstTextBaseline) {
                     caption
                     Spacer(minLength: 12)
-                    BookWhen(day: photo.day, detail: photo.detail)
+                    BookWhen(day: photo.day, detail: photo.detail, label: photo.dateLabel)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     caption
-                    BookWhen(day: photo.day, detail: photo.detail)
+                    BookWhen(day: photo.day, detail: photo.detail, label: photo.dateLabel)
                 }
             }
         }
@@ -259,7 +261,7 @@ private struct MomentView: View {
                     .font(BookType.serif(.body))
                     .foregroundStyle(BookPalette.inkSoft)
             }
-            BookWhen(day: moment.day, detail: moment.detail)
+            BookWhen(day: moment.day, detail: moment.detail, label: moment.dateLabel)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -279,7 +281,7 @@ private struct QuoteView: View {
                     .foregroundStyle(BookPalette.inkSoft)
                     .frame(maxWidth: 460)
             }
-            BookWhen(day: moment.day, detail: moment.detail)
+            BookWhen(day: moment.day, detail: moment.detail, label: moment.dateLabel)
         }
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
@@ -311,7 +313,7 @@ private struct ArtworkView: View {
                         .font(BookType.serif(.body))
                         .foregroundStyle(BookPalette.inkSoft)
                 }
-                BookWhen(day: moment.day, detail: moment.detail)
+                BookWhen(day: moment.day, detail: moment.detail, label: moment.dateLabel)
             }
             .multilineTextAlignment(.center)
         }
@@ -331,14 +333,14 @@ private struct NotesView: View {
             ForEach(Array(moments.enumerated()), id: \.offset) { _, moment in
                 if sizeClass == .regular {
                     HStack(alignment: .firstTextBaseline, spacing: 16) {
-                        BookWhen(day: moment.day, detail: moment.detail)
+                        BookWhen(day: moment.day, detail: moment.detail, label: moment.dateLabel)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 150, alignment: .trailing)
                         text(moment)
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 2) {
-                        BookWhen(day: moment.day, detail: moment.detail)
+                        BookWhen(day: moment.day, detail: moment.detail, label: moment.dateLabel)
                         text(moment)
                     }
                 }

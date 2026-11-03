@@ -33,8 +33,13 @@ struct DayEvent: Identifiable {
 
 /// Everything recorded on one calendar day, grouped for display — a port of `DaySummary` in frontend/lib/daySummary.ts.
 struct DaySummary: Identifiable {
-    /// `YYYY-MM-DD`, the day each record names (`Date.recordDayKey`).
+    /// `YYYY-MM-DD`, the day each record names (`Date.recordDayKey`). For a period, the day it starts, so it sorts among the days; empty for the undated group.
     let day: String
+    /// Set instead of a day heading for records whose date is approximate or an age: "At age 4", "Sometime in October 2022", "Date unknown".
+    var period = ""
+    /// The period's first and last day, inclusive; empty when undated.
+    var periodFrom = ""
+    var periodTo = ""
     var birthdays: [DayBirthday] = []
     var milestones: [Milestone] = []
     /// Interview answers, one group per interview, so 40 answers are one card.
@@ -43,7 +48,7 @@ struct DaySummary: Identifiable {
     var checkups: [DayCheckup] = []
     var photos: DayPhotoGroup?
 
-    var id: String { day }
+    var id: String { period.isEmpty ? day : "\(day)|\(periodTo)|\(period)" }
 }
 
 /// What `summarize` groups. Appearances are the server's (`GetFamilyTimeline` with `includeActivities`); everything else is from the store.
@@ -81,6 +86,15 @@ enum DaySummaries {
             change(&summary)
             days[day] = summary
         }
+        var periods: [String: DaySummary] = [:]
+        /// A record with an exact day goes under that day; anything else under its period.
+        func place(exact: Bool, _ recordTime: RecordTime?, day: String, _ change: (inout DaySummary) -> Void) {
+            guard !exact, let recordTime else { return edit(day, change) }
+            let shell = Self.period(of: recordTime)
+            var summary = periods[shell.id] ?? shell
+            change(&summary)
+            periods[shell.id] = summary
+        }
 
         if let range {
             for (day, birthdays) in birthdaysBetween(people, from: range.from, to: range.to) {
@@ -92,7 +106,9 @@ enum DaySummaries {
         let (interviews, loose) = Interviews.fold(records.milestones)
         for milestone in loose {
             attachedPhotoIds.formUnion(milestone.photoRemoteIds)
-            edit(milestone.date.recordDayKey) { $0.milestones.append(milestone) }
+            place(exact: milestone.hasExactDate, milestone.recordTime, day: milestone.date.recordDayKey) {
+                $0.milestones.append(milestone)
+            }
         }
         for interview in interviews {
             guard let first = interview.answers.first else { continue }
@@ -144,7 +160,7 @@ enum DaySummaries {
             }
             .sorted { $0.photoDate != $1.photoDate ? $0.photoDate > $1.photoDate : $0.id.uuidString > $1.id.uuidString }
         for photo in newestPhotos {
-            edit(photo.photoDate.recordDayKey) { summary in
+            place(exact: photo.hasExactDate, photo.recordTime, day: photo.photoDate.recordDayKey) { summary in
                 var group = summary.photos ?? DayPhotoGroup()
                 group.count += 1
                 group.allIds.append(photo.id)
@@ -156,7 +172,19 @@ enum DaySummaries {
             }
         }
 
-        return days.values.sorted { $0.day > $1.day }
+        return (Array(days.values) + Array(periods.values)).sorted {
+            $0.day != $1.day ? $0.day > $1.day : $0.period < $1.period
+        }
+    }
+
+    /// The empty group a non-exact record belongs to — `periodOf` in daySummary.ts.
+    static func period(of recordTime: RecordTime) -> DaySummary {
+        guard recordTime.resolved, let end = Civil.parse(recordTime.end)?.start else {
+            return DaySummary(day: "", period: "Date unknown")
+        }
+        let last = DaySummaries.date(of: end.key)
+            .flatMap { utc.date(byAdding: .day, value: -1, to: $0) }?.recordDayKey ?? recordTime.end
+        return DaySummary(day: recordTime.start, period: recordTime.groupLabel, periodFrom: recordTime.start, periodTo: last)
     }
 
     /// Each day in the range someone turns a year older. Pregnancies and the day of birth itself are skipped.
@@ -227,9 +255,14 @@ enum DaySummaries {
     }
 
     /// Consecutive days under their month, in the order given — `groupByMonth`.
+    /// A period longer than a month is a group of its own with no month heading, so it doesn't read as having happened in the month it starts.
     static func groupByMonth(_ days: [DaySummary]) -> [MonthGroup] {
         var groups: [MonthGroup] = []
         for day in days {
+            if !day.period.isEmpty, day.periodFrom.prefix(7) != day.periodTo.prefix(7) {
+                groups.append(MonthGroup(month: "\(day.day.prefix(7))|\(day.period)", label: "", days: [day]))
+                continue
+            }
             let month = String(day.day.prefix(7))
             if groups.last?.month == month {
                 groups[groups.count - 1].days.append(day)

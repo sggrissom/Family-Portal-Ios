@@ -1,0 +1,397 @@
+{
+  "valid": [
+    {
+      "name": "exact day",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "day",
+        "from": "2022-10-31"
+      },
+      "expect": {
+        "start": "2022-10-31",
+        "end": "2022-11-01",
+        "label": "Oct 31, 2022",
+        "exactDay": true
+      }
+    },
+    {
+      "name": "sometime in a month",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "month",
+        "from": "2022-10"
+      },
+      "expect": {
+        "start": "2022-10-01",
+        "end": "2022-11-01",
+        "label": "October 2022",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "photo from a year",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "year",
+        "from": "1970"
+      },
+      "expect": { "start": "1970-01-01", "end": "1971-01-01", "label": "1970", "exactDay": false }
+    },
+    {
+      "name": "year estimate with bounds",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "range",
+        "estimated": true,
+        "from": "1968",
+        "to": "1972",
+        "around": "1970"
+      },
+      "expect": {
+        "start": "1968-01-01",
+        "end": "1973-01-01",
+        "label": "Around 1970 (1968–1972)",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "estimated single day stays an estimate",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "day",
+        "estimated": true,
+        "from": "1985-07-04"
+      },
+      "expect": {
+        "start": "1985-07-04",
+        "end": "1985-07-05",
+        "label": "Around Jul 4, 1985",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "inclusive day range",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "range",
+        "from": "2023-06-10",
+        "to": "2023-06-17"
+      },
+      "expect": {
+        "start": "2023-06-10",
+        "end": "2023-06-18",
+        "label": "Jun 10, 2023 – Jun 17, 2023",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "month range",
+      "record": {
+        "meaning": "period",
+        "basis": "calendar",
+        "precision": "range",
+        "from": "2019-03",
+        "to": "2019-06"
+      },
+      "expect": {
+        "start": "2019-03-01",
+        "end": "2019-07-01",
+        "label": "March 2019 – June 2019",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "happened sometime at age 4",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "age",
+        "precision": "year",
+        "anchorPersonId": 1,
+        "ageYears": 4
+      },
+      "birthday": "2020-06-15",
+      "expect": {
+        "start": "2024-06-15",
+        "end": "2025-06-15",
+        "label": "Sometime at age 4",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "describes age 4",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "year",
+        "anchorPersonId": 1,
+        "ageYears": 4
+      },
+      "birthday": "2020-06-15",
+      "expect": {
+        "start": "2024-06-15",
+        "end": "2025-06-15",
+        "label": "At age 4",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "age with months",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "month",
+        "anchorPersonId": 1,
+        "ageYears": 4,
+        "ageMonths": 3
+      },
+      "birthday": "2020-06-15",
+      "expect": {
+        "start": "2024-09-15",
+        "end": "2024-10-15",
+        "label": "At age 4 years, 3 months",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "explicit zero months is month precision",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "month",
+        "anchorPersonId": 1,
+        "ageYears": 1,
+        "ageMonths": 0
+      },
+      "birthday": "2020-06-15",
+      "expect": {
+        "start": "2021-06-15",
+        "end": "2021-07-15",
+        "label": "At age 1 year, 0 months",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "estimated age range",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "age",
+        "precision": "range",
+        "estimated": true,
+        "anchorPersonId": 1,
+        "ageYears": 6,
+        "ageToYears": 9,
+        "around": "8"
+      },
+      "birthday": "1962-03-01",
+      "expect": {
+        "start": "1968-03-01",
+        "end": "1972-03-01",
+        "label": "Around age 8 (ages 6–9)",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "age range as a period",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "range",
+        "anchorPersonId": 1,
+        "ageYears": 6,
+        "ageToYears": 9
+      },
+      "birthday": "1962-03-01",
+      "expect": {
+        "start": "1968-03-01",
+        "end": "1972-03-01",
+        "label": "At ages 6–9",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "Jan 31 birthday clamps month steps",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "month",
+        "anchorPersonId": 1,
+        "ageYears": 0,
+        "ageMonths": 1
+      },
+      "birthday": "2021-01-31",
+      "expect": {
+        "start": "2021-02-28",
+        "end": "2021-03-31",
+        "label": "At age 0 years, 1 month",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "Feb 29 birthday in a non-leap year",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "year",
+        "anchorPersonId": 1,
+        "ageYears": 1
+      },
+      "birthday": "2020-02-29",
+      "expect": {
+        "start": "2021-02-28",
+        "end": "2022-02-28",
+        "label": "At age 1",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "Feb 29 birthday in a leap year",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "year",
+        "anchorPersonId": 1,
+        "ageYears": 4
+      },
+      "birthday": "2020-02-29",
+      "expect": {
+        "start": "2024-02-29",
+        "end": "2025-02-28",
+        "label": "At age 4",
+        "exactDay": false
+      }
+    },
+    {
+      "name": "age without a known birthday stays unresolved",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "year",
+        "anchorPersonId": 1,
+        "ageYears": 4
+      },
+      "expect": { "start": "", "end": "", "label": "At age 4", "exactDay": false }
+    },
+    {
+      "name": "unknown date",
+      "record": { "meaning": "occurrence", "basis": "unknown", "precision": "unknown" },
+      "expect": { "start": "", "end": "", "label": "Date unknown", "exactDay": false }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "reversed range",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "range",
+        "from": "1972",
+        "to": "1968"
+      }
+    },
+    {
+      "name": "impossible day",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "day",
+        "from": "2023-02-29"
+      }
+    },
+    {
+      "name": "precision mismatch",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "day",
+        "from": "2023-02"
+      }
+    },
+    {
+      "name": "negative age",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "year",
+        "anchorPersonId": 1,
+        "ageYears": -1
+      }
+    },
+    {
+      "name": "months out of range",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "month",
+        "anchorPersonId": 1,
+        "ageYears": 1,
+        "ageMonths": 12
+      }
+    },
+    {
+      "name": "age without an anchor",
+      "record": { "meaning": "period", "basis": "age", "precision": "year", "ageYears": 4 }
+    },
+    {
+      "name": "reversed age range",
+      "record": {
+        "meaning": "period",
+        "basis": "age",
+        "precision": "range",
+        "anchorPersonId": 1,
+        "ageYears": 9,
+        "ageToYears": 6
+      }
+    },
+    {
+      "name": "missing meaning",
+      "record": { "basis": "calendar", "precision": "year", "from": "1970" }
+    },
+    {
+      "name": "estimated unknown",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "unknown",
+        "precision": "unknown",
+        "estimated": true
+      }
+    },
+    {
+      "name": "around without an estimate",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "range",
+        "from": "1968",
+        "to": "1972",
+        "around": "1970"
+      }
+    },
+    {
+      "name": "mixed calendar and age",
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "year",
+        "from": "1970",
+        "anchorPersonId": 1,
+        "ageYears": 4
+      }
+    },
+    {
+      "name": "unsupported version",
+      "version": 2,
+      "record": {
+        "meaning": "occurrence",
+        "basis": "calendar",
+        "precision": "year",
+        "from": "1970"
+      }
+    }
+  ]
+}

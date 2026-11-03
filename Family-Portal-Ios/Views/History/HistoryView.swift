@@ -63,13 +63,17 @@ struct HistoryView: View {
                                         .padding(.horizontal)
                                 }
                             } header: {
-                                Text(month.label)
-                                    .font(.headline)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 6)
-                                    .background(.bar)
-                                    .id(month.month)
+                                if month.label.isEmpty {
+                                    Color.clear.frame(height: 0).id(month.month)
+                                } else {
+                                    Text(month.label)
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal)
+                                        .padding(.vertical, 6)
+                                        .background(.bar)
+                                        .id(month.month)
+                                }
                             }
                         }
                     }

@@ -134,6 +134,8 @@ nonisolated struct BookPhoto: Hashable, Sendable {
     let caption: String
     /// How old the subject was, or in a book about several people who is in it.
     let detail: String
+    /// Shown instead of the day when the photo's date is approximate: "Around 1970".
+    var dateLabel: String? = nil
 
     var isTall: Bool { height > width }
 }
@@ -145,6 +147,7 @@ nonisolated struct BookMoment: Hashable, Sendable {
     let day: String
     let detail: String
     let first: Bool
+    var dateLabel: String? = nil
 }
 
 nonisolated struct GrowthPoint: Hashable, Sendable {
@@ -324,6 +327,7 @@ struct BookAssembler {
 
     func photoDetail(_ image: BookImageDTO) -> String {
         let day = BookDay.dayOf(image.photoDate)
+        if !isMulti, let rt = image.recordTime, !rt.isExactDay { return "" }
         if isMulti {
             let names = (sources.photoPeople[image.id] ?? []).compactMap { person[$0]?.name }.filter { !$0.isEmpty }
             return names.count > 1 ? Self.joinNames(names) : ""
@@ -340,20 +344,23 @@ struct BookAssembler {
             height: image.height,
             day: BookDay.dayOf(image.photoDate),
             caption: caption.isEmpty ? Self.originalCaption(image) : caption,
-            detail: photoDetail(image)
+            detail: photoDetail(image),
+            dateLabel: image.recordTime.flatMap { $0.isExactDay ? nil : $0.label }
         )
     }
 
     private func toMoment(_ m: BookMilestoneDTO) -> BookMoment {
         let day = BookDay.dayOf(m.milestoneDate)
         let born = person[m.personId].map { BookDay.dayOf($0.birthday) } ?? ""
+        let exact = m.recordTime?.isExactDay ?? true
         return BookMoment(
             id: m.id,
             text: m.description.trimmingCharacters(in: .whitespacesAndNewlines),
             context: m.context.trimmingCharacters(in: .whitespacesAndNewlines),
             day: day,
-            detail: BookDay.isRealDay(born) && day >= born ? BookDay.photoAge(born, day) : "",
-            first: m.category == "first"
+            detail: exact && BookDay.isRealDay(born) && day >= born ? BookDay.photoAge(born, day) : "",
+            first: m.category == "first",
+            dateLabel: exact ? nil : m.recordTime?.label
         )
     }
 

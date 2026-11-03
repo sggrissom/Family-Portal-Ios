@@ -135,6 +135,7 @@ func applyMilestoneDTO(_ dto: MilestoneDTO, to milestone: Milestone) {
     milestone.tagRemoteIds = dto.tagIds
     milestone.interviewId = dto.interviewId
     milestone.questionId = dto.questionId
+    milestone.recordTime = dto.recordTime
 }
 
 func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
@@ -148,6 +149,7 @@ func applyPhotoDTO(_ dto: ImageDTO, to photo: Photo) {
     photo.durationMs = dto.durationMs
     photo.status = dto.status
     photo.processingError = dto.processingError
+    photo.recordTime = dto.recordTime
 }
 
 func applyTagDTO(_ dto: TagDTO, to tag: FamilyTag) {

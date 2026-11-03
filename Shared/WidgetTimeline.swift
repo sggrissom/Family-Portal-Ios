@@ -38,6 +38,7 @@ nonisolated struct WidgetMoment: Equatable, Sendable {
 
     /// How an item is dated here: the anniversary itself, a day near it, or a memory with no claim to the day.
     func dating(_ item: WidgetItem) -> WidgetDating {
+        if let label = item.dateLabel { return .period(label) }
         guard source == .onThisDay, let years = item.yearsAgo else { return .memory(item.date) }
         return WidgetDay.isAnniversary(of: item.date, on: day) ? .anniversary(yearsAgo: years) : .nearby(item.date)
     }
@@ -61,13 +62,15 @@ nonisolated enum WidgetDating: Equatable, Sendable {
     case nearby(String)
     /// A memory from the pool, dated by its own day.
     case memory(String)
+    /// A memory whose date is approximate or an age, said the way the family said it.
+    case period(String)
 
     /// The small context line: "On this day", "Around this day", "A memory".
     var label: String {
         switch self {
         case .anniversary: WidgetCopy.onThisDay
         case .nearby: WidgetCopy.aroundThisDay
-        case .memory: WidgetCopy.memory
+        case .memory, .period: WidgetCopy.memory
         }
     }
 
@@ -76,6 +79,7 @@ nonisolated enum WidgetDating: Equatable, Sendable {
         switch self {
         case .anniversary(let years): WidgetCopy.yearsAgo(years)
         case .nearby(let day), .memory(let day): WidgetCopy.date(day)
+        case .period(let label): label
         }
     }
 
@@ -85,6 +89,7 @@ nonisolated enum WidgetDating: Equatable, Sendable {
         case .anniversary(let years): WidgetCopy.yearsAgo(years)
         case .nearby(let day): WidgetCopy.date(day)
         case .memory(let day): "\(WidgetCopy.memory) · \(day.prefix(4))"
+        case .period(let label): label
         }
     }
 }

@@ -387,6 +387,7 @@ struct SearchView: View {
                     text: moment.displayText,
                     context: moment.context,
                     date: moment.milestoneDate,
+                    dateLabel: moment.recordTime.flatMap { $0.isExactDay ? nil : $0.label },
                     localId: localMoments[moment.id]?.id
                 ), terms: terms)
             case .interview(let answers):
@@ -410,6 +411,8 @@ struct SearchView: View {
         let text: String
         let context: String
         let date: Date
+        /// "At age 4", "Around 1970" — set when `date` is only where the moment sorts.
+        let dateLabel: String?
         /// The moment on this device, which is what opens. Nil until it syncs down.
         let localId: UUID?
     }
@@ -441,7 +444,7 @@ struct SearchView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                    Text(moment.date.displayDay().formatted(date: .abbreviated, time: .omitted))
+                    Text(moment.dateLabel ?? moment.date.displayDay().formatted(date: .abbreviated, time: .omitted))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -617,7 +620,8 @@ struct SearchView: View {
                     category: moment.category,
                     text: moment.descriptionText,
                     context: moment.context,
-                    tagNames: moment.tagRemoteIds.compactMap { tagNames[$0] }
+                    tagNames: moment.tagRemoteIds.compactMap { tagNames[$0] },
+                    recordTime: moment.hasExactDate ? nil : moment.recordTime
                 )
             },
             photos: photos.map { photo in
@@ -626,7 +630,8 @@ struct SearchView: View {
                     date: photo.photoDate,
                     title: photo.title,
                     description: photo.descriptionText,
-                    peopleServerIds: photo.taggedPeople.compactMap(\.serverId)
+                    peopleServerIds: photo.taggedPeople.compactMap(\.serverId),
+                    recordTime: photo.hasExactDate ? nil : photo.recordTime
                 )
             },
             limit: model.limit > 0 ? model.limit : SearchLocal.momentLimit
@@ -693,6 +698,7 @@ struct SearchView: View {
                             text: moment.displayText,
                             context: moment.context,
                             date: moment.date,
+                            dateLabel: moment.hasExactDate ? nil : moment.recordTime?.label,
                             localId: moment.id
                         ), terms: terms)
                     case .interview(let answers):

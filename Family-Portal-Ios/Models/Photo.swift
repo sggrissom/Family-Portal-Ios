@@ -26,6 +26,9 @@ final class Photo {
     var status: Int = 0
     /// Why the server refused a video, worded for showing as is.
     var processingError: String = ""
+    /// See `Milestone.hasExactDate` and `Milestone.recordTimeData`.
+    var hasExactDate: Bool = true
+    var recordTimeData: Data? = nil
 
     @Relationship(inverse: \Person.photos)
     var taggedPeople: [Person]
@@ -47,4 +50,17 @@ final class Photo {
     }
 
     var isVideo: Bool { mediaKind == .video }
+
+    /// See `Milestone.dateText`.
+    func dateText(_ style: Date.FormatStyle.DateStyle) -> String {
+        hasExactDate ? photoDate.displayDay().formatted(date: style, time: .omitted) : (recordTime?.label ?? "")
+    }
+
+    var recordTime: RecordTime? {
+        get { recordTimeData.flatMap { try? JSONDecoder().decode(RecordTime.self, from: $0) } }
+        set {
+            recordTimeData = newValue.flatMap { try? JSONEncoder().encode($0) }
+            hasExactDate = newValue?.isExactDay ?? true
+        }
+    }
 }
