@@ -12,6 +12,8 @@ final class ChatMessage {
     var createdAt: Date
     var isSending: Bool
     var sendFailed: Bool
+    /// Whose family's chat it belongs to. 0 on a message stored before chats were per family, which was always the account's own.
+    var familyId: Int = 0
 
     init(
         clientMessageId: String,
@@ -44,6 +46,7 @@ final class ChatMessage {
             sendFailed: false
         )
         message.remoteId = String(dto.id)
+        message.familyId = dto.familyId
         return message
     }
 }

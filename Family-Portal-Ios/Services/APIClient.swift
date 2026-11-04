@@ -603,14 +603,14 @@ actor APIClient {
 // MARK: - Chat API
 
 extension APIClient {
-    func sendMessage(content: String, clientMessageId: String) async throws -> ChatMessageDTO {
-        let request = SendMessageRequestDTO(content: content, clientMessageId: clientMessageId)
+    func sendMessage(content: String, clientMessageId: String, familyId: Int = 0) async throws -> ChatMessageDTO {
+        let request = SendMessageRequestDTO(content: content, clientMessageId: clientMessageId, familyId: familyId)
         let response: SendMessageResponseDTO = try await callRPC(.sendMessage, payload: request)
         return response.message
     }
 
-    func getChatMessages(limit: Int, offset: Int) async throws -> [ChatMessageDTO] {
-        let request = GetChatMessagesRequestDTO(limit: limit, offset: offset)
+    func getChatMessages(limit: Int, offset: Int, familyId: Int = 0) async throws -> [ChatMessageDTO] {
+        let request = GetChatMessagesRequestDTO(limit: limit, offset: offset, familyId: familyId)
         let response: GetChatMessagesResponseDTO = try await callRPC(.getChatMessages, payload: request)
         return response.messages
     }

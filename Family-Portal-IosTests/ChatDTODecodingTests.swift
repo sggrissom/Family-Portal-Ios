@@ -99,7 +99,7 @@ struct ChatDTODecodingTests {
     @Test("SendMessage encodes the key the server reads")
     func sendMessageRequestKeys() throws {
         let data = try JSONEncoder().encode(
-            SendMessageRequestDTO(content: "hi", clientMessageId: "abc")
+            SendMessageRequestDTO(content: "hi", clientMessageId: "abc", familyId: 9)
         )
         let object = try #require(
             try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -108,6 +108,7 @@ struct ChatDTODecodingTests {
         // backend/chat.go SendMessageRequest.ClientMessageId is `clientMessageId`.
         #expect(object["clientMessageId"] as? String == "abc")
         #expect(object["client_message_id"] == nil)
+        #expect(object["familyId"] as? Int == 9)
     }
 
     @Test("DeleteMessage encodes `id`, not `message_id`")

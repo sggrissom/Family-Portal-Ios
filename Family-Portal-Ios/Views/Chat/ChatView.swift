@@ -65,11 +65,43 @@ struct ChatView: View {
                 text: $messageText,
                 isFocused: $isInputFocused,
                 onTyping: { chatService.userIsTyping() },
-                onSend: { sendMessage(chatService: chatService) }
+                onSend: { sendMessage(chatService: chatService) },
+                placeholder: "Message \(familyName(chatService.familyId))…",
+                // A view-only member reads the chat but can't post, as on the web.
+                canPost: authService.access.canContribute(chatService.familyId == 0 ? nil : chatService.familyId)
             )
         }
-        .navigationTitle("Chat")
+        .navigationTitle(authService.families.count > 1 ? familyName(chatService.familyId) : "Chat")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Each family has its own chat; someone in several picks which.
+            if authService.families.count > 1 {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        ForEach(authService.families) { family in
+                            Button {
+                                messageText = ""
+                                Task { await chatService.switchFamily(to: family.id) }
+                            } label: {
+                                if family.id == chatService.familyId {
+                                    Label(familyName(family.id), systemImage: "checkmark")
+                                } else {
+                                    Text(familyName(family.id))
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "person.3")
+                    }
+                    .accessibilityLabel("Which family")
+                }
+            }
+        }
+        .task {
+            if authService.families.isEmpty {
+                _ = await authService.loadFamilyInfo()
+            }
+        }
         .task {
             await chatService.onAppear()
         }
@@ -79,6 +111,11 @@ struct ChatView: View {
                 await chatService.onDisappear()
             }
         }
+    }
+
+    private func familyName(_ familyId: Int) -> String {
+        let name = authService.families.first { $0.id == familyId }?.name ?? ""
+        return name.isEmpty ? "Family" : name
     }
 
     private struct MessagesListView: View {

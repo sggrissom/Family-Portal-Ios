@@ -93,6 +93,33 @@ struct ChatHistoryTests {
 
     // MARK: - The newest page first
 
+    @Test("A chat opens on the account's own family: it asks for that room and shows only its stored messages")
+    func opensOnTheOwnFamily() async throws {
+        let server = FakeHTTPServer()
+        ChatHistory.route(server, total: 0)
+        let context = try TestStore.makeContext()
+        for (index, familyId) in [7, 9, 0].enumerated() {
+            let message = ChatMessage(clientMessageId: "c\(index)", userId: 2, userName: "Bo", content: "family-\(familyId)")
+            message.familyId = familyId
+            context.insert(message)
+        }
+        try context.save()
+
+        let service = await ChatService(
+            modelContext: context,
+            apiClient: server.apiClient(),
+            currentUserId: 1,
+            currentUserName: "Ada",
+            primaryFamilyId: 7
+        )
+        await service.loadMessages()
+
+        // A message stored before chats were per family belongs to the account's own.
+        #expect(Set(Self.contents(service)) == ["family-7", "family-0"])
+        let body = try #require(JSONSerialization.jsonObject(with: try #require(Self.historyRequests(server).first).body) as? [String: Any])
+        #expect(body["familyId"] as? Int == 7)
+    }
+
     @Test("The first load asks for the newest page")
     func firstLoadRequestsNewestPage() async throws {
         let server = FakeHTTPServer()

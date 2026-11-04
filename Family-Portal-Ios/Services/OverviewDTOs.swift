@@ -127,6 +127,14 @@ nonisolated struct GetDashboardResponseDTO: Decodable, Sendable {
     @OrZero var seasons: [DashboardSeasonDTO]
     @OrZero var onThisDay: [DashboardYearDTO]
     let recent: DashboardRecentDTO
+    /// The names of the families `people` belong to, so a strip spanning several can say whose is whose.
+    @OrZero var families: [FamilyLabelDTO]
+}
+
+/// backend/person.go `FamilyLabel`.
+nonisolated struct FamilyLabelDTO: Decodable, Sendable, Equatable {
+    let id: Int
+    @OrZero var name: String
 }
 
 // MARK: - ListOpenEvents

@@ -70,8 +70,15 @@ struct AddPersonView: View {
 
         NavigationStack {
             Form {
-                Section("Name") {
+                Section {
                     TextField("Full Name", text: $name)
+                } header: {
+                    Text("Name")
+                } footer: {
+                    // Someone in several families can't tell otherwise where a new person lands: always the account's own.
+                    if authService.families.count > 1, let family = authService.families.first(where: { $0.id == authService.currentUser?.familyId }) {
+                        Text("Adds to \(family.name.isEmpty ? "your family" : family.name).")
+                    }
                 }
 
                 if !people.isEmpty {

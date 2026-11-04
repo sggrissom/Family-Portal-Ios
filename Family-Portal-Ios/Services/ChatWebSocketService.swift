@@ -54,6 +54,8 @@ actor ChatWebSocketService {
     private var lastMessageTime: Date = Date()
     private var reconnectAttempt = 0
     private var isManuallyDisconnected = false
+    /// The family whose room this socket joins; 0 for the account's own. Kept for reconnects.
+    private var familyId = 0
 
     private weak var delegate: ChatWebSocketDelegate?
 
@@ -103,11 +105,12 @@ actor ChatWebSocketService {
         self.delegate = delegate
     }
 
-    func connect() async {
+    func connect(familyId: Int = 0) async {
         guard connectionState == .disconnected || connectionState == .failed else {
             return
         }
 
+        self.familyId = familyId
         isManuallyDisconnected = false
         reconnectAttempt = 0
         await performConnect()
@@ -147,6 +150,7 @@ actor ChatWebSocketService {
 
         components.scheme = components.scheme == "https" ? "wss" : "ws"
         components.path = "/ws/chat"
+        components.queryItems = familyId > 0 ? [URLQueryItem(name: "family", value: String(familyId))] : nil
 
         guard let wsURL = components.url else {
             connectionState = .failed
