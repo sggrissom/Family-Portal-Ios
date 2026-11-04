@@ -155,6 +155,20 @@ struct ActivityWriteTests {
         #expect(known.date == nil)
     }
 
+    @Test("An activity's end before its start is caught; an unknown end never is")
+    func activityDatesOutOfOrder() {
+        var start = ActivityDateField()
+        start.isSet = true
+        start.day = Self.day(year: 2026, month: 3, day: 14)
+        var end = ActivityDateField()
+        #expect(!ActivityDateField.endsBeforeStart(start, end))
+        end.isSet = true
+        end.day = Self.day(year: 2026, month: 3, day: 13)
+        #expect(ActivityDateField.endsBeforeStart(start, end))
+        end.day = Self.day(year: 2026, month: 3, day: 14)
+        #expect(!ActivityDateField.endsBeforeStart(start, end))
+    }
+
     @Test("A new dance program offers the common adjudications; a family's own replace them")
     func quickLabels() {
         #expect(ActivityResults.quickLabels(kind: "dance", used: ["Diamond", "Elite"]) == ["Diamond", "Elite"])

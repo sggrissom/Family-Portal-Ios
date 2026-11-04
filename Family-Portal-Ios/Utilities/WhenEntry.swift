@@ -48,6 +48,14 @@ struct WhenEntry: Equatable, Sendable {
         }
     }
 
+    /// `problem`, plus an age that lands after today — `whenProblem` with a birthday. The server refuses that too.
+    func problem(birthday: Date?, now: Date = Date()) -> String? {
+        if let problem = self.problem { return problem }
+        guard mode == .age, let resolved = resolvedDate(birthday: birthday, now: now),
+              resolved > now.localRecordDay() else { return nil }
+        return Copy.when.ageInFuture
+    }
+
     /// The label on the menu: the mode's own name for Today and Yesterday, the chosen date or age once there is one.
     var menuLabel: String {
         switch mode {

@@ -26,6 +26,12 @@ struct ActivityDateField: Equatable {
 
     /// What the write sends. `nil` clears the date, which is what the toggle being off means.
     var date: Date? { isSet ? day.localRecordDay() : nil }
+
+    /// Both days known, and the end before the start.
+    static func endsBeforeStart(_ start: ActivityDateField, _ end: ActivityDateField) -> Bool {
+        guard let first = start.date, let last = end.date else { return false }
+        return last < first
+    }
 }
 
 struct AppearanceDateSection: View {

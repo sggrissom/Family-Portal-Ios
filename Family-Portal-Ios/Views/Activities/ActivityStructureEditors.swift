@@ -27,7 +27,7 @@ struct ActivityDateRangeSection: View {
     let endLabel: String
 
     var body: some View {
-        Section("Dates") {
+        Section {
             Toggle(startLabel, isOn: $start.isSet)
             if start.isSet {
                 DatePicker(startLabel, selection: $start.day, displayedComponents: .date)
@@ -38,6 +38,14 @@ struct ActivityDateRangeSection: View {
             if end.isSet {
                 DatePicker(endLabel, selection: $end.day, displayedComponents: .date)
                     .labelsHidden()
+            }
+        } header: {
+            Text("Dates")
+        } footer: {
+            // The server refuses it; saying so here keeps Save from failing.
+            if ActivityDateField.endsBeforeStart(start, end) {
+                Text("The end date is before the start date")
+                    .foregroundStyle(.red)
             }
         }
     }
@@ -221,7 +229,7 @@ struct SeasonEditorView: View {
     }
 
     private var isValid: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !ActivityDateField.endsBeforeStart(start, end)
     }
 
     var body: some View {
@@ -347,7 +355,7 @@ struct CompetitionEditorView: View {
     }
 
     private var isValid: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !ActivityDateField.endsBeforeStart(start, end)
     }
 
     var body: some View {

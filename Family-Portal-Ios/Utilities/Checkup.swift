@@ -80,49 +80,54 @@ enum Checkup {
 
     // MARK: - Validation
 
-    /// The records to save, or the first reason there are none. Mirrors `checkupMeasurements`, error wording included.
+    /// The records to save, or why there are none: the height's and the weight's problems together. Mirrors `checkupValues`, error wording included.
     static func measurements(_ entry: CheckupEntry) -> (measurements: [CheckupMeasurement], error: String?) {
-        var measurements: [CheckupMeasurement] = []
-
-        if entry.heightUnit == .feetInches {
-            if !blank(entry.feet, entry.inches) {
-                let feet = number(entry.feet)
-                let inches = number(entry.inches)
-                let total = feet * 12 + inches
-                guard feet >= 0, inches >= 0, total > 0 else {
-                    return ([], "Enter a height in feet and inches")
-                }
-                measurements.append(CheckupMeasurement(type: .height, value: total, unit: .inches))
-            }
-        } else if !blank(entry.height) {
-            let value = number(entry.height)
-            guard value > 0 else { return ([], "Enter a height above zero") }
-            measurements.append(CheckupMeasurement(type: .height, value: value, unit: entry.heightUnit.savedUnit))
+        let height = heightValue(entry)
+        let weight = weightValue(entry)
+        let errors = [height.error, weight.error].compactMap { $0 }
+        if !errors.isEmpty {
+            return ([], errors.joined(separator: ". "))
         }
-
-        if entry.weightUnit == .poundsOunces {
-            if !blank(entry.pounds, entry.ounces) {
-                let pounds = number(entry.pounds)
-                let ounces = number(entry.ounces)
-                guard pounds >= 0, ounces >= 0, ounces < MeasurementConversion.ouncesPerPound, pounds + ounces > 0 else {
-                    return ([], "Enter a weight in pounds and ounces under 16")
-                }
-                measurements.append(CheckupMeasurement(
-                    type: .weight,
-                    value: MeasurementConversion.pounds(pounds, ounces: ounces),
-                    unit: .pounds
-                ))
-            }
-        } else if !blank(entry.weight) {
-            let value = number(entry.weight)
-            guard value > 0 else { return ([], "Enter a weight above zero") }
-            measurements.append(CheckupMeasurement(type: .weight, value: value, unit: entry.weightUnit.savedUnit))
-        }
-
+        let measurements = [height.value, weight.value].compactMap { $0 }
         if measurements.isEmpty {
             return ([], "Enter a height, a weight, or both")
         }
         return (measurements, nil)
+    }
+
+    private static func heightValue(_ entry: CheckupEntry) -> (value: CheckupMeasurement?, error: String?) {
+        if entry.heightUnit == .feetInches {
+            if blank(entry.feet, entry.inches) { return (nil, nil) }
+            let feet = number(entry.feet)
+            let inches = number(entry.inches)
+            let total = feet * 12 + inches
+            guard feet >= 0, inches >= 0, total > 0 else {
+                return (nil, "Enter a height in feet and inches")
+            }
+            return (CheckupMeasurement(type: .height, value: total, unit: .inches), nil)
+        }
+        if blank(entry.height) { return (nil, nil) }
+        let value = number(entry.height)
+        if value.isNaN { return (nil, "Height should be a number, like 42.5") }
+        guard value > 0, value.isFinite else { return (nil, "Enter a height above zero") }
+        return (CheckupMeasurement(type: .height, value: value, unit: entry.heightUnit.savedUnit), nil)
+    }
+
+    private static func weightValue(_ entry: CheckupEntry) -> (value: CheckupMeasurement?, error: String?) {
+        if entry.weightUnit == .poundsOunces {
+            if blank(entry.pounds, entry.ounces) { return (nil, nil) }
+            let pounds = number(entry.pounds)
+            let ounces = number(entry.ounces)
+            guard pounds >= 0, ounces >= 0, ounces < MeasurementConversion.ouncesPerPound, pounds + ounces > 0 else {
+                return (nil, "Enter a weight in pounds and ounces under 16")
+            }
+            return (CheckupMeasurement(type: .weight, value: MeasurementConversion.pounds(pounds, ounces: ounces), unit: .pounds), nil)
+        }
+        if blank(entry.weight) { return (nil, nil) }
+        let value = number(entry.weight)
+        if value.isNaN { return (nil, "Weight should be a number, like 38.2") }
+        guard value > 0, value.isFinite else { return (nil, "Enter a weight above zero") }
+        return (CheckupMeasurement(type: .weight, value: value, unit: entry.weightUnit.savedUnit), nil)
     }
 
     private static func blank(_ values: String...) -> Bool {
@@ -191,6 +196,63 @@ enum Checkup {
         let months = Int((Double(days) / 30.4375).rounded(.down))
         if months < 24 { return "\(months) months ago" }
         return "\(months / 12) years ago"
+    }
+
+    // MARK: - Plausibility
+
+    /// A warning for numbers that look like a typo or the wrong unit — far outside the range for the age, or a big jump from a measurement in the last year — or empty. The form shows it once, and saving again keeps the numbers. A port of `plausibilityWarning`.
+    static func plausibilityWarning(
+        _ measurements: [CheckupMeasurement],
+        ageMonths: Double?,
+        gender: Gender,
+        growth: [GrowthData],
+        now: Date
+    ) -> String {
+        let warnings = measurements.compactMap { measurement in
+            plausibilityWarning(measurement, ageMonths: ageMonths, gender: gender, last: latest(of: growth, type: measurement.type), now: now)
+        }
+        guard !warnings.isEmpty else { return "" }
+        return "\(warnings.joined(separator: " ")) Check the number and the unit, then save again to keep it."
+    }
+
+    private static func plausibilityWarning(
+        _ measurement: CheckupMeasurement,
+        ageMonths: Double?,
+        gender: Gender,
+        last: GrowthData?,
+        now: Date
+    ) -> String? {
+        let metric = metricValue(measurement.value, unit: measurement.unit)
+        let shown = MeasurementConversion.formatLikeWeb(measurement.value, unit: measurement.unit, ageMonths: ageMonths)
+        let isHeight = measurement.type == .height
+        if let ageMonths, let row = GrowthPercentiles.percentileRow(ageMonths: ageMonths, gender: gender, type: measurement.type) {
+            let (low, high) = isHeight ? (0.8, 1.2) : (0.5, 1.8)
+            if metric < row.p3 * low || metric > row.p97 * high {
+                return "\(shown) is unusual for someone \(GrowthPercentiles.formatAge(months: ageMonths)) old."
+            }
+        }
+        if let last {
+            let monthsSince = now.timeIntervalSince(last.date) / (30.4375 * 86_400)
+            if monthsSince <= 12 {
+                let ratio = metric / metricValue(last.value, unit: last.unit)
+                let baby = ageMonths.map { $0 < 24 } ?? false
+                let (low, high) = isHeight ? (0.95, baby ? 1.6 : 1.25) : (baby ? (0.6, 2.5) : (0.7, 1.45))
+                if ratio < low || ratio > high {
+                    let before = MeasurementConversion.formatLikeWeb(last.value, unit: last.unit)
+                    return "\(shown) is a big change from \(before) \(timeAgo(last.date, now: now))."
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Centimetres or kilograms, the units the percentile tables are in.
+    private static func metricValue(_ value: Double, unit: MeasurementUnit) -> Double {
+        switch unit {
+        case .inches: return value * 2.54
+        case .pounds: return value * 0.453592
+        default: return value
+        }
     }
 
     /// "last: 3 ft 1.75 in, 4 months ago", or empty with nothing to show.

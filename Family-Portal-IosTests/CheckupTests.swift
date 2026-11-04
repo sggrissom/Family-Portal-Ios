@@ -55,8 +55,12 @@ struct CheckupTests {
 
     @Test("Values that are not measurements are refused")
     func rejectsNonsense() {
-        #expect(Checkup.measurements(CheckupEntry(height: "abc")).error == "Enter a height above zero")
+        #expect(Checkup.measurements(CheckupEntry(height: "abc")).error == "Height should be a number, like 42.5")
+        // Both halves' problems at once, as the web reports them.
+        #expect(Checkup.measurements(CheckupEntry(height: "abc", weight: "0")).error == "Height should be a number, like 42.5. Enter a weight above zero")
         #expect(Checkup.measurements(CheckupEntry(weight: "0")).error == "Enter a weight above zero")
+        #expect(Checkup.measurements(CheckupEntry(weight: "12abc")).error == "Weight should be a number, like 38.2")
+        #expect(Checkup.measurements(CheckupEntry(height: "-3")).error == "Enter a height above zero")
         var entry = CheckupEntry()
         entry.weightUnit = .poundsOunces
         entry.pounds = "7"
@@ -133,5 +137,52 @@ struct CheckupTests {
         #expect(Checkup.timeAgo(iso.date(from: "2026-09-20T08:00:00Z")!, now: now) == "7 days ago")
         #expect(Checkup.timeAgo(iso.date(from: "2026-08-20T08:00:00Z")!, now: now) == "5 weeks ago")
         #expect(Checkup.timeAgo(iso.date(from: "2023-09-20T08:00:00Z")!, now: now) == "3 years ago")
+    }
+
+    // MARK: - Plausibility (frontend/lib/checkup.test.ts)
+
+    private static let june = ISO8601DateFormatter().date(from: "2026-06-01T12:00:00Z")!
+
+    @Test("A weight far outside the range for the age is questioned")
+    func warnsOutsideRange() {
+        let warning = Checkup.plausibilityWarning(
+            [CheckupMeasurement(type: .weight, value: 610, unit: .pounds)],
+            ageMonths: 9 * 12, gender: .female, growth: [], now: Self.june
+        )
+        #expect(warning.contains("610 lbs is unusual"))
+        #expect(warning.hasSuffix("Check the number and the unit, then save again to keep it."))
+    }
+
+    @Test("An ordinary measurement passes")
+    func acceptsOrdinary() {
+        let warning = Checkup.plausibilityWarning(
+            [CheckupMeasurement(type: .height, value: 133, unit: .centimeters), CheckupMeasurement(type: .weight, value: 62, unit: .pounds)],
+            ageMonths: 9 * 12, gender: .female,
+            growth: [Self.growth(.weight, 60, .pounds, "2026-03-01T00:00:00Z")],
+            now: Self.june
+        )
+        #expect(warning == "")
+    }
+
+    @Test("A big jump from a recent measurement is questioned, even for an adult")
+    func warnsBigJump() {
+        let warning = Checkup.plausibilityWarning(
+            [CheckupMeasurement(type: .weight, value: 180, unit: .kilograms)],
+            ageMonths: 40 * 12, gender: .male,
+            growth: [Self.growth(.weight, 180, .pounds, "2026-05-01T00:00:00Z")],
+            now: Self.june
+        )
+        #expect(warning.contains("big change from 180 lbs"))
+    }
+
+    @Test("An old measurement and an unknown age are no grounds")
+    func ignoresOldAndUnknown() {
+        let warning = Checkup.plausibilityWarning(
+            [CheckupMeasurement(type: .weight, value: 180, unit: .kilograms)],
+            ageMonths: nil, gender: .male,
+            growth: [Self.growth(.weight, 180, .pounds, "2024-01-01T00:00:00Z")],
+            now: Self.june
+        )
+        #expect(warning == "")
     }
 }

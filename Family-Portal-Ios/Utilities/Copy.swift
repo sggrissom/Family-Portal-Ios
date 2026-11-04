@@ -55,6 +55,7 @@ nonisolated enum Copy {
     }
 
     enum when {
+        static let ageInFuture = "That age hasn't happened yet"
         static let label = "When"
         static let today = "Today"
         static let yesterday = "Yesterday"
@@ -461,6 +462,7 @@ nonisolated enum Copy {
     }
 
     enum person {
+        static let futureBirthday = "That birthday is in the future. For an expected baby, turn on \"Baby isn't born yet\"."
         enum tabs {
             static let story = "Story"
             static let quotes = "Quotes"

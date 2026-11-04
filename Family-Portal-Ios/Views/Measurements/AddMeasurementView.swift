@@ -21,6 +21,8 @@ struct AddMeasurementView: View {
     @State private var when = WhenEntry()
     @State private var entry = CheckupEntry()
     @State private var error: String?
+    /// The plausibility warning already shown; saving again with the same numbers keeps them.
+    @State private var acceptedWarning = ""
     @State private var isSaving = false
     @State private var result: CheckupResult?
     @State private var formSessionId = UUID()
@@ -204,7 +206,7 @@ struct AddMeasurementView: View {
             error = Copy.measurement.pickPerson
             return
         }
-        if let problem = when.problem {
+        if let problem = when.problem(birthday: person.birthday) {
             error = problem
             return
         }
@@ -215,6 +217,19 @@ struct AddMeasurementView: View {
         }
         guard let date = when.resolvedDate(birthday: person.birthday) else {
             error = "Enter an age in years"
+            return
+        }
+        // Far outside the range for the age, or a big jump: probably a typo or the wrong unit. Said once; a second Save keeps it.
+        let warning = Checkup.plausibilityWarning(
+            checked.measurements,
+            ageMonths: person.isPregnancy ? nil : person.birthday.map { Double(AgeSteps.monthsOld(birthday: $0, at: date)) },
+            gender: person.gender,
+            growth: person.growthData,
+            now: Date()
+        )
+        if !warning.isEmpty && warning != acceptedWarning {
+            error = warning
+            acceptedWarning = warning
             return
         }
 
@@ -252,6 +267,7 @@ struct AddMeasurementView: View {
         selectedPersonId = nil
         unitsFor = nil
         error = nil
+        acceptedWarning = ""
         formSessionId = UUID()
         result = nil
     }
