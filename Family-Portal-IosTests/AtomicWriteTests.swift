@@ -154,6 +154,8 @@ struct AtomicWriteTests {
             "milestone": Fixture.milestone(id: 40, personId: 12, tagIds: [3, 5])
         ]))
 
+        // Read now: the server's answer replaces the milestone's date.
+        let day = dateToAPIString(milestone.date)
         try await harness.service.addMilestone(milestone, for: person, tagRemoteIds: [3, 5])
         #expect(milestone.tagRemoteIds == [3, 5])
 
@@ -164,7 +166,7 @@ struct AtomicWriteTests {
         #expect(body["tagIds"] as? [Int] == [3, 5])
         #expect(harness.server.requests(for: "rpc/UpdateMilestoneTags").isEmpty)
         // The server takes the date only as a recordTime; a milestone with none goes as its exact day.
-        #expect((body["recordTime"] as? [String: Any])?["from"] as? String == dateToAPIString(milestone.date))
+        #expect((body["recordTime"] as? [String: Any])?["from"] as? String == day)
         #expect(body["milestoneDate"] == nil)
         #expect(body["inputType"] == nil)
     }
