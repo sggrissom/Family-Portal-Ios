@@ -116,7 +116,8 @@ struct ChatHistoryTests {
 
         // A message stored before chats were per family belongs to the account's own.
         #expect(Set(Self.contents(service)) == ["family-7", "family-0"])
-        let body = try #require(JSONSerialization.jsonObject(with: try #require(Self.historyRequests(server).first).body) as? [String: Any])
+        let request = try #require(Self.historyRequests(server).first)
+        let body = try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
         #expect(body["familyId"] as? Int == 7)
     }
 
