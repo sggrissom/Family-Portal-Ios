@@ -649,15 +649,12 @@ nonisolated struct AddMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     /// Kept only for quotes; the server clears it for any other category.
     let context: String
-    /// Always "date": the device's local day, never the server's UTC "today".
-    let inputType = "date"
-    let milestoneDate: String?   // "yyyy-MM-dd"
     /// Photos to attach. `nil` omits the key entirely.
     let photoIds: [Int]?
     /// Tags to attach in the same transaction, so a milestone never lands without them. `nil` omits the key.
     let tagIds: [Int]?
-    /// Replaces `milestoneDate` when set. `nil` omits the key, which an older server ignores anyway.
-    var recordTime: RecordTime? = nil
+    /// Required: the server refuses a moment without one.
+    let recordTime: RecordTime
 }
 
 nonisolated struct UpdateMilestoneRequestDTO: Encodable, Sendable {
@@ -666,22 +663,20 @@ nonisolated struct UpdateMilestoneRequestDTO: Encodable, Sendable {
     let category: String
     /// Sent every time: an update without it clears the context.
     let context: String
-    let inputType = "date"
-    let milestoneDate: String?
     /// The complete attachment set, not a delta. `nil` vs `[]` is the distinction that matters: absent leaves attachments alone, empty detaches them all.
     let photoIds: [Int]?
     /// The complete tag set, with the same `nil`-vs-`[]` rule as `photoIds`. An editor that did not show the tag picker sends `nil`.
     let tagIds: [Int]?
-    var recordTime: RecordTime? = nil
+    /// Sent with every update; the server ignores it only for an interview answer, whose date is the interview's.
+    let recordTime: RecordTime
 }
 
 nonisolated struct UpdatePhotoRequestDTO: Encodable, Sendable {
     let id: Int
     let title: String
     let description: String
-    let inputType: String
-    let photoDate: String?
-    var recordTime: RecordTime? = nil
+    /// `nil` omits the key, which leaves the photo's date as it is.
+    let recordTime: RecordTime?
 }
 
 nonisolated struct AddPeopleToPhotoRequestDTO: Encodable, Sendable {

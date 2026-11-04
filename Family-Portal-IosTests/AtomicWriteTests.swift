@@ -163,6 +163,10 @@ struct AtomicWriteTests {
         let body = try Self.body(of: try #require(harness.server.requests(for: "rpc/AddMilestone").first))
         #expect(body["tagIds"] as? [Int] == [3, 5])
         #expect(harness.server.requests(for: "rpc/UpdateMilestoneTags").isEmpty)
+        // The server takes the date only as a recordTime; a milestone with none goes as its exact day.
+        #expect((body["recordTime"] as? [String: Any])?["from"] as? String == dateToAPIString(milestone.date))
+        #expect(body["milestoneDate"] == nil)
+        #expect(body["inputType"] == nil)
     }
 
     @Test("An edit that did not show the tag picker leaves the tags alone")
@@ -186,6 +190,38 @@ struct AtomicWriteTests {
         let body = try Self.body(of: try #require(harness.server.requests(for: "rpc/UpdateMilestone").first))
         #expect(body["tagIds"] == nil)
         #expect(milestone.tagRemoteIds == [3])
+        #expect(body["recordTime"] != nil)
+    }
+
+    @Test("An update resends an approximate milestone's own date rather than flattening it to a day")
+    func milestoneUpdateKeepsApproximateDate() async throws {
+        let harness = try TestSync.harness(connected: false)
+        let person = try Self.person(in: harness)
+        let milestone = Milestone(descriptionText: "Loved trains", category: .development, date: Date())
+        milestone.person = person
+        milestone.remoteId = "40"
+        var approximate = RecordTime()
+        approximate.basis = "age"
+        approximate.precision = "year"
+        approximate.meaning = "period"
+        approximate.ageYears = 4
+        approximate.anchorPersonId = 12
+        milestone.recordTime = approximate
+        harness.context.insert(milestone)
+        try harness.context.save()
+        harness.server.route("rpc/UpdateMilestone", respond: .json([
+            "milestone": Fixture.milestone(id: 40, personId: 12)
+        ]))
+
+        try await harness.service.updateMilestone(milestone)
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        let body = try Self.body(of: try #require(harness.server.requests(for: "rpc/UpdateMilestone").first))
+        let sent = try #require(body["recordTime"] as? [String: Any])
+        #expect(sent["basis"] as? String == "age")
+        #expect(sent["ageYears"] as? Int == 4)
+        #expect(sent["meaning"] as? String == "period")
     }
 
     @Test("A milestone payload queued by an older build decodes with no tags")

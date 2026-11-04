@@ -197,8 +197,7 @@ struct SyncDTODecodingTests {
                 id: 4,
                 title: "Beach day",
                 description: "First time in the ocean",
-                inputType: "date",
-                photoDate: "2025-07-19"
+                recordTime: .exact(day: "2025-07-19")
             )
         )
         let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -206,7 +205,15 @@ struct SyncDTODecodingTests {
         #expect(object["id"] as? Int == 4)
         #expect(object["title"] as? String == "Beach day")
         #expect(object["description"] as? String == "First time in the ocean")
-        #expect(object["inputType"] as? String == "date")
-        #expect(object["photoDate"] as? String == "2025-07-19")
+        #expect((object["recordTime"] as? [String: Any])?["from"] as? String == "2025-07-19")
+        #expect(object["inputType"] == nil)
+        #expect(object["photoDate"] == nil)
+    }
+
+    @Test("UpdatePhoto without a date leaves the key out, so the server keeps the photo's own")
+    func updatePhotoKeepingDate() throws {
+        let data = try JSONEncoder().encode(UpdatePhotoRequestDTO(id: 4, title: "", description: "", recordTime: nil))
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(object.keys.contains("recordTime") == false)
     }
 }
