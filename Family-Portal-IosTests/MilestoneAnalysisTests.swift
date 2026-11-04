@@ -92,8 +92,11 @@ struct MilestoneAnalysisTests {
 
         #expect(ids == [9, 3, 7])
         let body = try Self.body(of: try #require(server.requests(for: "rpc/SuggestMilestonePhotos").first))
-        #expect(body["inputType"] as? String == "date")
-        #expect(body["milestoneDate"] as? String == dateToAPIString(today))
+        let recordTime = try #require(body["recordTime"] as? [String: Any])
+        #expect(recordTime["from"] as? String == dateToAPIString(today))
+        #expect(recordTime["precision"] as? String == "day")
+        #expect(recordTime["estimated"] as? Bool == false)
+        #expect(body["milestoneDate"] == nil)
         #expect(body["excludeIds"] as? [Int] == [])
     }
 

@@ -19,8 +19,8 @@ nonisolated struct SuggestMilestoneCategoryResponseDTO: Decodable, Sendable {
 nonisolated struct SuggestMilestonePhotosRequestDTO: Encodable, Sendable {
     let personId: Int
     let description: String
-    let inputType = "date"
-    let milestoneDate: String    // "yyyy-MM-dd"
+    /// Only an exact day gets suggestions.
+    let recordTime: RecordTime
     let excludeIds: [Int]
 }
 

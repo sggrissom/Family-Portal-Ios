@@ -24,8 +24,6 @@ struct AddMilestoneView: View {
     @State private var context = ""
     @State private var isReadingPhotos = false
     @State private var newPhotos: [PickedMilestonePhoto] = []
-    @State private var when = WhenEntry()
-    /// Used instead of `when` once the server takes approximate dates.
     @State private var recordWhen = RecordWhenEntry()
     @State private var selectedPhotoIds: Set<UUID> = []
     @State private var tagRemoteIds: [Int] = []
@@ -45,8 +43,6 @@ struct AddMilestoneView: View {
         people.first { $0.id == selectedPersonId }
     }
 
-    private var approximate: Bool { RecordTimeSettings.shared.approximateDates }
-
     /// The anchor's birthday, which a due date is not.
     private var birthday: Date? {
         person?.isPregnancy == true ? nil : person?.birthday
@@ -54,9 +50,6 @@ struct AddMilestoneView: View {
 
     /// The one day the moment names, for photo suggestions; `nil` for anything broader.
     private var suggestionDay: Date? {
-        guard approximate else {
-            return when.problem == nil ? when.resolvedDate(birthday: person?.birthday) : nil
-        }
         let rt = recordWhen.recordTime(isMoment: true)
         return rt.isExactDay ? DaySummaries.date(of: rt.from) : nil
     }
@@ -122,13 +115,8 @@ struct AddMilestoneView: View {
                 }
 
                 Section {
-                    if approximate {
-                        RecordWhenControl(entry: $recordWhen, isMoment: true, birthday: birthday)
-                            .id(person?.id)
-                    } else {
-                        WhenControl(entry: $when, birthday: person?.birthday)
-                            .id(person?.id)
-                    }
+                    RecordWhenControl(entry: $recordWhen, isMoment: true, birthday: birthday)
+                        .id(person?.id)
                 }
 
                 MilestonePhotoSections(category: category, newPhotos: $newPhotos, isReadingPhotos: $isReadingPhotos, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds)
@@ -181,9 +169,6 @@ struct AddMilestoneView: View {
             .task(id: lookupKey) {
                 await lookUpSuggestions()
             }
-            .task {
-                await RecordTimeSettings.shared.refresh()
-            }
             .onAppear {
                 if selectedPersonId == nil {
                     selectedPersonId = QuickAddDefaults.person(
@@ -234,30 +219,14 @@ struct AddMilestoneView: View {
             error = Copy.milestone.needsText
             return
         }
-        let recordTime: RecordTime?
-        let date: Date
-        if approximate {
-            var entry = recordWhen
-            entry.anchorPersonId = person.serverId ?? 0
-            if let problem = entry.problem(isMoment: true, birthday: birthday) {
-                error = problem
-                return
-            }
-            let rt = entry.recordTime(isMoment: true, birthday: birthday)
-            recordTime = rt
-            date = rt.isExactDay ? (DaySummaries.date(of: rt.from) ?? Date()) : RecordWhenEntry.sortDate(rt)
-        } else {
-            if let problem = when.problem {
-                error = problem
-                return
-            }
-            guard let resolved = when.resolvedDate(birthday: person.birthday) else {
-                error = "Enter an age in years"
-                return
-            }
-            recordTime = nil
-            date = resolved
+        var entry = recordWhen
+        entry.anchorPersonId = person.serverId ?? 0
+        if let problem = entry.problem(isMoment: true, birthday: birthday) {
+            error = problem
+            return
         }
+        let recordTime = entry.recordTime(isMoment: true, birthday: birthday)
+        let date = recordTime.isExactDay ? (DaySummaries.date(of: recordTime.from) ?? Date()) : RecordWhenEntry.sortDate(recordTime)
 
         error = nil
         isSaving = true

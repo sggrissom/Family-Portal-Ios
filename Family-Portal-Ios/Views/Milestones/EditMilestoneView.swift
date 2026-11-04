@@ -13,8 +13,7 @@ struct EditMilestoneView: View {
     @State private var descriptionText: String
     @State private var category: MilestoneCategory
     @State private var context: String
-    @State private var date: Date
-    /// The date once the server takes approximate dates; compared with `initialRecordWhen` so an untouched date isn't resent.
+    /// Compared with `initialRecordWhen`, so an untouched date resends the milestone's own assertion rather than one rebuilt from the form.
     @State private var recordWhen: RecordWhenEntry
     private let initialRecordWhen: RecordWhenEntry
     @State private var selectedPhotoIds: Set<UUID> = []
@@ -33,13 +32,10 @@ struct EditMilestoneView: View {
         _descriptionText = State(initialValue: milestone.descriptionText)
         _category = State(initialValue: milestone.category)
         _context = State(initialValue: milestone.context)
-        _date = State(initialValue: milestone.date.displayDay())
         let entry = RecordWhenEntry(recordTime: milestone.recordTime, date: milestone.date)
         _recordWhen = State(initialValue: entry)
         initialRecordWhen = entry
     }
-
-    private var approximate: Bool { RecordTimeSettings.shared.approximateDates }
 
     private var birthday: Date? {
         milestone.person?.isPregnancy == true ? nil : milestone.person?.birthday
@@ -69,11 +65,17 @@ struct EditMilestoneView: View {
         MilestonePhotoSuggestions.offered(suggestedPhotoRemoteIds, choices: photoChoices, alreadyAttached: originallyAttached)
     }
 
+    /// The one day the moment names, for photo suggestions; `nil` for anything broader.
+    private var suggestionDay: Date? {
+        let rt = recordWhen.recordTime(isMoment: true)
+        return rt.isExactDay ? DaySummaries.date(of: rt.from) : nil
+    }
+
     private var lookupKey: String {
         MilestoneSuggestionLookup.key(
             personRemoteId: milestone.person?.remoteId,
             text: descriptionText.trimmingCharacters(in: .whitespacesAndNewlines),
-            day: date.localRecordDay(),
+            day: suggestionDay,
             isConnected: network.isConnected
         )
     }
@@ -104,21 +106,8 @@ struct EditMilestoneView: View {
 
                     MilestoneTextSections(category: category, descriptionText: $descriptionText, context: $context, isFocused: $isTextFocused)
 
-                    if approximate {
-                        Section {
-                            RecordWhenControl(entry: $recordWhen, isMoment: true, birthday: birthday)
-                        }
-                    } else if milestone.hasExactDate {
-                        Section {
-                            DatePicker("Date", selection: $date, displayedComponents: .date)
-                        }
-                    } else {
-                        // A picker would flatten "at age 4" to one day; the server refuses that from a legacy date edit.
-                        Section {
-                            LabeledContent("Date", value: milestone.recordTime?.label ?? "")
-                        } footer: {
-                            Text(Copy.milestone.approximateDateHint)
-                        }
+                    Section {
+                        RecordWhenControl(entry: $recordWhen, isMoment: true, birthday: birthday)
                     }
                 }
 
@@ -138,9 +127,6 @@ struct EditMilestoneView: View {
             }
             .task(id: lookupKey) {
                 await lookUpSuggestions()
-            }
-            .task {
-                await RecordTimeSettings.shared.refresh()
             }
             .navigationTitle(isAnswer ? Copy.interview.editAnswer : "Edit Moment")
             .navigationBarTitleDisplayMode(.inline)
@@ -167,14 +153,15 @@ struct EditMilestoneView: View {
         let text = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard network.isConnected,
               let personId = milestone.person?.serverId,
-              text.count >= 3 else {
+              text.count >= 3,
+              let day = suggestionDay else {
             suggestedPhotoRemoteIds = []
             return
         }
         let ids = await AnalysisService.shared.suggestMilestonePhotos(
             personId: personId,
             description: text,
-            date: date.localRecordDay(),
+            date: day,
             excludeIds: Array(originallyAttached)
         )
         if !Task.isCancelled {
@@ -184,23 +171,26 @@ struct EditMilestoneView: View {
 
     private func save() {
         guard !isReadingPhotos else { return }
+        // The server takes the date with every update except an interview answer's, whose date belongs to the interview.
         var recordTime: RecordTime?
-        if approximate && !isAnswer && recordWhen != initialRecordWhen {
-            var entry = recordWhen
-            entry.anchorPersonId = milestone.person?.serverId ?? 0
-            if let problem = entry.problem(isMoment: true, birthday: birthday) {
-                errorPresenter.report(message: problem, title: "Couldn't Save Moment")
-                return
+        if !isAnswer {
+            if recordWhen == initialRecordWhen, let stored = milestone.recordTime {
+                recordTime = stored
+            } else {
+                var entry = recordWhen
+                entry.anchorPersonId = milestone.person?.serverId ?? 0
+                if let problem = entry.problem(isMoment: true, birthday: birthday) {
+                    errorPresenter.report(message: problem, title: "Couldn't Save Moment")
+                    return
+                }
+                recordTime = entry.recordTime(isMoment: true, birthday: birthday)
             }
-            recordTime = entry.recordTime(isMoment: true, birthday: birthday)
         }
         milestone.category = category
         milestone.setEntry(descriptionText, context: context)
         if let recordTime {
             milestone.recordTime = recordTime
             milestone.date = recordTime.isExactDay ? (DaySummaries.date(of: recordTime.from) ?? milestone.date) : RecordWhenEntry.sortDate(recordTime)
-        } else if !isAnswer && !approximate && milestone.hasExactDate {
-            milestone.date = date.localRecordDay()
         }
         let sentRecordTime = recordTime
 

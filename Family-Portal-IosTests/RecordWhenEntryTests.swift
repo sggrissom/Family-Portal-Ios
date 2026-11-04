@@ -99,9 +99,4 @@ struct RecordWhenEntryTests {
         #expect(preview?.bounds.hasPrefix("Based on birthday: ") == true)
         #expect(Self.entry { $0.mode = .today }.preview(isMoment: true, birthday: nil, now: Self.now) == nil)
     }
-
-    @Test("The settings proc's wire name")
-    func procName() {
-        #expect(RPCMethod.getRecordTimeSettings.rawValue == "GetRecordTimeSettings")
-    }
 }

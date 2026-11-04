@@ -141,10 +141,6 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case setAppearancePhotos = "SetAppearancePhotos"
     case setEventPhotos = "SetEventPhotos"
 
-    // MARK: - Approximate dates (backend/record_time_entry.go)
-
-    case getRecordTimeSettings = "GetRecordTimeSettings"
-
     // MARK: - Overviews (backend/dashboard.go, backend/same_age.go)
     // Read-only aggregates. Cached like the activity reads, never queued.
 

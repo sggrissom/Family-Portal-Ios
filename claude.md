@@ -447,11 +447,16 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   remembered one. Photos from the global **+** start with nobody tagged
 - `PersonChips` orders people with `FamilyGroups.chipOrder` (children first, then
   older generations, unlinked, then linked households — `Person.familyRemoteId`)
-- `WhenControl` ("Today ▾": Today, Yesterday, Pick a date…, By age…) is keyed with
-  `.id(person?.id)`: an age resolves against the birthday it was handed.
-  `WhenEntry.resolvedDate` turns an age into a date on the device, and every write
-  sends the **local** calendar day as `inputType: "date"` — never `"today"`,
-  which is the server's UTC day
+- `WhenControl` ("Today ▾": Today, Yesterday, Pick a date…, By age…) dates
+  measurements and past interviews, and is keyed with `.id(person?.id)`: an age
+  resolves against the birthday it was handed. `WhenEntry.resolvedDate` turns an
+  age into a date on the device, and every write sends the **local** calendar day
+  as `inputType: "date"` — never `"today"`, which is the server's UTC day
+- Moments and photos are dated with `RecordWhenControl` and sent only as a
+  `recordTime`: the server ignores `inputType`, `milestoneDate`, and
+  `UpdatePhoto`'s `photoDate`. An upload's `photoDate` is only the fallback for
+  a file with no EXIF date. An exact day goes as `RecordTime.exact(day:)`; `AddMilestone` and every
+  `UpdateMilestone` require one (an untouched edit resends the milestone's own)
 - **Days are record dates** (`Utilities/ServerDate.swift`): birthdays,
   measurement, milestone and activity dates are stored as midnight UTC of the day
   they name, and photo dates as the capture wall clock labelled UTC. Read them
@@ -483,7 +488,7 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   and Tags for the whole batch and each photo's date and status.
   `PhotoImporter` reports when a file had no capture date ("No date in photo:
   using today"). Done queues `AddPeopleToPhoto`, `UpdatePhotoTags` and
-  `UpdatePhoto` (`inputType: "keep"` unless the date changed) behind each
+  `UpdatePhoto` (no `recordTime` unless the date changed) behind each
   upload, including for photos still being read; it never cancels an upload
 - `updatePhoto(_:keepingDate:)` takes the choice explicitly. Anything without a date control — the photo page's title and description — passes `true`: a dated update sends only the day and wiped the capture time. A queued update is replaced whole, so `keepingDate: true` turns into a dated update while a date change for the same photo is still waiting to be sent
 - Milestone and measurement are **disabled** on an empty roster rather than
@@ -698,8 +703,10 @@ AddGrowthData: { personId: Int, measurementType: "height"|"weight", value: Doubl
 AddCheckup: { personId: Int, inputType: "date", measurementDate: "YYYY-MM-DD", height: {value, unit}?, weight: {value, unit}? }  // → { growthData: [only those sent, height first] }
 UpdateGrowthData: { id: Int, measurementType: "height"|"weight", value: Double, unit: String, inputType: String, measurementDate: String? }
 DeleteGrowthData: { id: Int }
-AddMilestone: { personId: Int, description: String, category: String, context: String, inputType: String, milestoneDate: "YYYY-MM-DD"?, photoIds: [Int]?, tagIds: [Int]? }
-UpdateMilestone: { id: Int, description: String, category: String, context: String, inputType: String, milestoneDate: String?, photoIds: [Int]?, tagIds: [Int]? }  // absent tagIds leaves tags alone
+AddMilestone: { personId: Int, description: String, category: String, context: String, recordTime: RecordTime, photoIds: [Int]?, tagIds: [Int]? }
+UpdateMilestone: { id: Int, description: String, category: String, context: String, recordTime: RecordTime, photoIds: [Int]?, tagIds: [Int]? }  // absent tagIds leaves tags alone; recordTime ignored for interview answers
+UpdatePhoto: { id: Int, title: String, description: String, recordTime: RecordTime? }  // absent recordTime keeps the date
+SuggestMilestonePhotos: { personId: Int, description: String, recordTime: RecordTime, excludeIds: [Int] }  // empty unless an exact day
 DeleteMilestone: { id: Int }
 DeletePhoto: { id: Int }
 AddPeopleToPhoto: { photoId: Int, personIds: [Int] }

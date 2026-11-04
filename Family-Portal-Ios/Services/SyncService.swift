@@ -529,10 +529,9 @@ final class SyncService {
             description: payload.description,
             category: payload.category,
             context: payload.context ?? "",
-            milestoneDate: payload.milestoneDate,
             photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds),
             tagIds: payload.tagRemoteIds,
-            recordTime: payload.recordTime
+            recordTime: payload.recordTime ?? .exact(day: payload.milestoneDate)
         )
         let response: AddMilestoneResponseDTO = try await apiClient.callRPC(.addMilestone, payload: request)
         dropPulledCopies(of: milestone, serverId: response.milestone.id)
@@ -617,10 +616,9 @@ final class SyncService {
             description: payload.description,
             category: payload.category,
             context: payload.context ?? "",
-            milestoneDate: payload.milestoneDate,
             photoIds: try resolvePhotoRemoteIds(payload.photoLocalIds),
             tagIds: payload.tagRemoteIds,
-            recordTime: payload.recordTime
+            recordTime: payload.recordTime ?? .exact(day: payload.milestoneDate)
         )
         let response: UpdateMilestoneResponseDTO = try await apiClient.callRPC(.updateMilestone, payload: request)
         applyMilestoneDTO(response.milestone, to: milestone)
@@ -632,14 +630,11 @@ final class SyncService {
 
         let (photo, id) = try synced(findPhoto(byLocalId: operation.localId), "Photo must be uploaded before updating")
 
-        let keepsDate = payload.keepDate == true || payload.recordTime != nil
         let request = UpdatePhotoRequestDTO(
             id: id,
             title: payload.title,
             description: payload.description,
-            inputType: keepsDate ? "keep" : "date",
-            photoDate: keepsDate ? nil : payload.photoDate,
-            recordTime: payload.recordTime
+            recordTime: payload.recordTime ?? (payload.keepDate == true ? nil : .exact(day: payload.photoDate))
         )
         let response: UpdatePhotoResponseDTO = try await apiClient.callRPC(.updatePhoto, payload: request)
         applyPhotoDTO(response.image, to: photo)
@@ -849,7 +844,7 @@ final class SyncService {
     // MARK: - Push: Milestones
 
     /// `photos` is the milestone's complete attachment set, or `nil` to say nothing about attachments. `tagRemoteIds` travels in the same call, so the milestone never exists on the server without its tags.
-    /// `recordTime` is what an approximate-date form chose; `nil` sends the milestone's day.
+    /// `recordTime` is what the form chose; `nil` sends the milestone's own, or its day when it has none.
     func addMilestone(_ milestone: Milestone, for person: Person, photos: [Photo]? = nil, tagRemoteIds: [Int]? = nil, recordTime: RecordTime? = nil) async throws {
         let payload = CreateMilestonePayload(
             personLocalId: person.id.uuidString,
@@ -859,7 +854,7 @@ final class SyncService {
             photoLocalIds: photos?.map { $0.id.uuidString },
             tagRemoteIds: tagRemoteIds,
             context: milestone.context,
-            recordTime: recordTime
+            recordTime: recordTime ?? milestone.recordTime
         )
 
         try applyPhotosOptimistically(photos, to: milestone)
@@ -882,7 +877,7 @@ final class SyncService {
             photoLocalIds: photos?.map { $0.id.uuidString },
             tagRemoteIds: tagRemoteIds,
             context: milestone.context,
-            recordTime: recordTime
+            recordTime: recordTime ?? milestone.recordTime
         )
 
         try applyPhotosOptimistically(photos, to: milestone)
@@ -918,7 +913,7 @@ final class SyncService {
         try await deleteRecord(photo, localId: photo.id, serverId: photo.serverId, as: .deletePhoto)
     }
 
-    /// `keepingDate` sends `inputType: "keep"`: the server keeps whatever date the photo has, which after an upload is the one it read from the file itself. Anything without a date control must keep it — a dated update sends only the day, and would wipe the capture time.
+    /// `keepingDate` sends no `recordTime`: the server keeps whatever date the photo has, which after an upload is the one it read from the file itself. Anything without a date control must keep it — a dated update sends only the day, and would wipe the capture time.
     /// The update replaces any queued one whole, so a date change still waiting to be sent turns this into a dated update rather than being lost to a later caption edit.
     /// `recordTime` is an approximate date the form chose. A caption edit made while one is still queued carries it along.
     func updatePhoto(_ photo: Photo, keepingDate: Bool, recordTime: RecordTime? = nil) async throws {

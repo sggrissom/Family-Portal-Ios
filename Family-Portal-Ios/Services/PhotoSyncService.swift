@@ -49,8 +49,7 @@ actor PhotoSyncService {
 
         Self.appendTextField(to: &body, name: "title", value: title, boundary: boundary)
         Self.appendTextField(to: &body, name: "description", value: description, boundary: boundary)
-        Self.appendTextField(to: &body, name: "inputType", value: "date", boundary: boundary)
-
+        // Only where the file carries no capture date: the server reads EXIF first.
         Self.appendTextField(to: &body, name: "photoDate", value: photoDate.recordDayKey, boundary: boundary)
 
         if let personIdsJSON = try? JSONSerialization.data(withJSONObject: personIds),

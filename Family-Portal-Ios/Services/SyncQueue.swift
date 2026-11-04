@@ -148,7 +148,7 @@ nonisolated struct CreateMilestonePayload: Codable, Sendable {
     var tagRemoteIds: [Int]? = nil
     /// Optional so an operation queued by an older build still decodes, as no context.
     var context: String? = nil
-    /// Set when the form chose the date as an approximate date, an age or unknown; it then replaces `milestoneDate` on the server. `nil` from older builds and from the day-only control.
+    /// The date the server stores. `nil` only from an older build, which then sends `milestoneDate` as an exact day.
     var recordTime: RecordTime? = nil
 }
 
@@ -190,9 +190,9 @@ nonisolated struct UpdatePhotoPayload: Codable, Sendable {
     let title: String
     let description: String
     let photoDate: String
-    /// Sends `inputType: "keep"` so the server leaves the photo's date alone — what the photo batch form sends for a caption when nobody changed the date. Optional so an operation queued by an older build still decodes, as `false`.
+    /// Sends no `recordTime`, so the server leaves the photo's date alone — what the photo batch form sends for a caption when nobody changed the date. Optional so an operation queued by an older build still decodes, as `false`.
     var keepDate: Bool? = nil
-    /// See `CreateMilestonePayload.recordTime`. Sent with `inputType: "keep"`, which it overrides.
+    /// See `CreateMilestonePayload.recordTime`. Overrides `keepDate`.
     var recordTime: RecordTime? = nil
 }
 
