@@ -57,11 +57,11 @@ final class ActivityService {
         )
     }
 
-    func seasons(activityId: Int) -> ActivityRead<ListSeasonsResponseDTO> {
+    func activitiesHome(familyId: Int = 0) -> ActivityRead<GetActivitiesHomeResponseDTO> {
         read(
-            .listSeasons,
-            payload: ListSeasonsRequestDTO(activityId: activityId),
-            key: ActivitySnapshotKey(.listSeasons, activityId)
+            .getActivitiesHome,
+            payload: ListActivitiesRequestDTO(familyId: familyId),
+            key: ActivitySnapshotKey(.getActivitiesHome, familyId)
         )
     }
 

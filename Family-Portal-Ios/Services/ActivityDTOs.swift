@@ -141,10 +141,6 @@ nonisolated struct ListActivitiesRequestDTO: Encodable, Sendable {
     let familyId: Int
 }
 
-nonisolated struct ListSeasonsRequestDTO: Encodable, Sendable {
-    let activityId: Int
-}
-
 nonisolated struct GetSeasonOverviewRequestDTO: Encodable, Sendable {
     let seasonId: Int
 }
@@ -173,9 +169,26 @@ nonisolated struct ListActivitiesResponseDTO: Decodable, Sendable {
     @OrZero var activities: [ActivityDTO]
 }
 
-nonisolated struct ListSeasonsResponseDTO: Decodable, Sendable {
-    @OrZero var activityId: Int
-    @OrZero var seasons: [SeasonDTO]
+nonisolated struct HomeEventDTO: Decodable, Sendable, Identifiable {
+    let event: ActivityEventDTO
+    /// How many performances are recorded there.
+    @OrZero var appearances: Int
+
+    var id: Int { event.id }
+}
+
+nonisolated struct HomeSeasonDTO: Decodable, Sendable, Identifiable {
+    let season: SeasonDTO
+    @OrZero var events: [HomeEventDTO]
+    @OrZero var entries: [EntryViewDTO]
+
+    var id: Int { season.id }
+}
+
+nonisolated struct GetActivitiesHomeResponseDTO: Decodable, Sendable {
+    @OrZero var familyId: Int
+    @OrZero var activities: [ActivityDTO]
+    @OrZero var seasons: [HomeSeasonDTO]
 }
 
 nonisolated struct GetSeasonOverviewResponseDTO: Decodable, Sendable {

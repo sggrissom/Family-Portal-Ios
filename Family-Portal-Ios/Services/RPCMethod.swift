@@ -137,6 +137,8 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case getEntryHistory = "GetEntryHistory"
     case getPersonSeason = "GetPersonSeason"
     case listActivityVocabulary = "ListActivityVocabulary"
+    /// The activities page in one call: the family's programs and every season with its events (and how many performances each has) and entries.
+    case getActivitiesHome = "GetActivitiesHome"
 
     // MARK: - Activities: photos (backend/activity_photos.go)
 
