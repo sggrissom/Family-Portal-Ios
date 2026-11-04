@@ -143,46 +143,45 @@ struct MatchupTests {
         return try #require(try JSONSerialization.jsonObject(with: request.body) as? [String: Any])
     }
 
-    @Test("Creating sends a recorded matchup, leaving an absent score out")
+    private static func save(_ service: ActivityService, id: Int, matchup: Matchup) async throws {
+        _ = try await service.saveAppearance(
+            id: id, eventId: 5, entryId: 11, occurredAt: nil, notes: "",
+            matchup: matchup, results: [], photoIds: []
+        )
+    }
+
+    @Test("Saving sends a recorded matchup, leaving an absent score out")
     func createSendsMatchup() async throws {
         let server = FakeHTTPServer()
-        server.route("rpc/CreateAppearance", respond: .json(Fixture.appearanceResponse(Fixture.appearance(id: 21))))
+        server.route("rpc/SaveAppearance", respond: .json(Fixture.appearanceResponse(Fixture.appearance(id: 21))))
 
-        _ = try await Self.service(server).createAppearance(
-            eventId: 5, entryId: 11, occurredAt: nil, notes: "",
-            matchup: Self.m(round: " Final ", outcome: "win", scoreFor: 3)
-        )
+        try await Self.save(Self.service(server), id: 0, matchup: Self.m(round: " Final ", outcome: "win", scoreFor: 3))
 
-        let matchup = try #require(try Self.body(server, "rpc/CreateAppearance")["matchup"] as? [String: Any])
+        let matchup = try #require(try Self.body(server, "rpc/SaveAppearance")["matchup"] as? [String: Any])
         #expect(matchup["round"] as? String == "Final")
         #expect(matchup["outcome"] as? String == "win")
         #expect(matchup["scoreFor"] as? Int == 3)
         #expect(matchup["scoreAgainst"] == nil)
     }
 
-    @Test("Creating without a matchup sends none")
+    @Test("A new performance without a matchup sends none")
     func createWithoutMatchup() async throws {
         let server = FakeHTTPServer()
-        server.route("rpc/CreateAppearance", respond: .json(Fixture.appearanceResponse(Fixture.appearance(id: 21))))
+        server.route("rpc/SaveAppearance", respond: .json(Fixture.appearanceResponse(Fixture.appearance(id: 21))))
 
-        _ = try await Self.service(server).createAppearance(eventId: 5, entryId: 11, occurredAt: nil, notes: "", matchup: Self.m())
+        try await Self.save(Self.service(server), id: 0, matchup: Self.m())
 
-        #expect(try Self.body(server, "rpc/CreateAppearance")["matchup"] == nil)
+        #expect(try Self.body(server, "rpc/SaveAppearance")["matchup"] == nil)
     }
 
-    @Test("An update sends an emptied matchup, which clears it, and leaves it alone when not given")
+    @Test("An update sends an emptied matchup, which clears it")
     func updateMatchup() async throws {
         let server = FakeHTTPServer()
-        server.route("rpc/UpdateAppearance", respond: .json(Fixture.appearanceResponse(Fixture.appearance(id: 21))))
-        let service = Self.service(server)
+        server.route("rpc/SaveAppearance", respond: .json(Fixture.appearanceResponse(Fixture.appearance(id: 21))))
 
-        _ = try await service.updateAppearance(id: 21, occurredAt: nil, notes: "", matchup: Self.m())
-        let cleared = try #require(try Self.body(server, "rpc/UpdateAppearance")["matchup"] as? [String: Any])
+        try await Self.save(Self.service(server), id: 21, matchup: Self.m())
+
+        let cleared = try #require(try Self.body(server, "rpc/SaveAppearance")["matchup"] as? [String: Any])
         #expect(cleared["outcome"] as? String == "")
-
-        _ = try await service.updateAppearance(id: 21, occurredAt: nil, notes: "")
-        let second = try #require(server.requests(for: "rpc/UpdateAppearance").last)
-        let body = try #require(try JSONSerialization.jsonObject(with: second.body) as? [String: Any])
-        #expect(body["matchup"] == nil)
     }
 }

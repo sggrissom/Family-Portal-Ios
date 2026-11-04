@@ -222,22 +222,6 @@ nonisolated struct ListActivityVocabularyResponseDTO: Decodable, Sendable {
 // MARK: - Write requests
 // Dates are `YYYY-MM-DD` strings and **nil clears**, so an editor must always send the value it is showing.
 
-nonisolated struct CreateAppearanceRequestDTO: Encodable, Sendable {
-    let eventId: Int
-    let entryId: Int
-    let occurredAt: String?
-    let notes: String
-    var matchup: MatchupInputDTO? = nil
-}
-
-nonisolated struct UpdateAppearanceRequestDTO: Encodable, Sendable {
-    let id: Int
-    let occurredAt: String?
-    let notes: String
-    /// All-or-nothing: absent leaves the stored matchup alone, an empty one clears it.
-    var matchup: MatchupInputDTO? = nil
-}
-
 nonisolated struct MatchupInputDTO: Encodable, Sendable, Equatable {
     let round: String
     let opponent: String
@@ -263,15 +247,17 @@ nonisolated struct ResultInputDTO: Encodable, Sendable {
     let notes: String
 }
 
-/// Replaces the whole set, so a save must carry every row the appearance should end up with.
-nonisolated struct SetAppearanceResultsRequestDTO: Encodable, Sendable {
-    let appearanceId: Int
+/// `SaveAppearance`: creates the appearance when `id` is 0 (from `eventId` and `entryId`, which an update ignores), then replaces its whole results sheet and its whole photo set.
+nonisolated struct SaveAppearanceRequestDTO: Encodable, Sendable {
+    let id: Int
+    let eventId: Int
+    let entryId: Int
+    /// `nil` stores no date.
+    let occurredAt: String?
+    let notes: String
+    /// Absent leaves the stored matchup alone, an empty one clears it.
+    let matchup: MatchupInputDTO?
     let results: [ResultInputDTO]
-}
-
-/// Whole-set write over *remote* photo ids; a photo still uploading cannot be attached.
-nonisolated struct SetAppearancePhotosRequestDTO: Encodable, Sendable {
-    let appearanceId: Int
     let photoIds: [Int]
 }
 
