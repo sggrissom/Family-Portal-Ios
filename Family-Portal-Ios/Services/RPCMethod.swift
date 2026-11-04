@@ -8,6 +8,8 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
 
     case createAccount = "CreateAccount"
     case requestPasswordReset = "RequestPasswordReset"
+    /// Public: the adults without an account in the family an invite code names (backend/invite_claims.go), so sign-up can link to one instead of adding a duplicate.
+    case getInviteClaims = "GetInviteClaims"
     case getFamilyInfo = "GetFamilyInfo"
     case joinFamily = "JoinFamily"
 

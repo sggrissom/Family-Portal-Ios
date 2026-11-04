@@ -9,6 +9,7 @@ struct RPCMethodTests {
     func accountProcNames() {
         #expect(RPCMethod.createAccount.rawValue == "CreateAccount")
         #expect(RPCMethod.requestPasswordReset.rawValue == "RequestPasswordReset")
+        #expect(RPCMethod.getInviteClaims.rawValue == "GetInviteClaims")
         #expect(RPCMethod.getFamilyInfo.rawValue == "GetFamilyInfo")
         #expect(RPCMethod.joinFamily.rawValue == "JoinFamily")
     }

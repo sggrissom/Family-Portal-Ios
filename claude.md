@@ -454,6 +454,12 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
 - History and Story show birthdays only through 18 (`DaySummaries.childhoodBirthdays`),
   and a Story's start at its first record (`BirthdayWindow.fromFirstRecord`). Gender
   `.other` reads "Not specified" and is Add Person's default
+- Adding a partner offers them as the other parent of the anchor's children, all
+  ticked (`RelationGraph.partnerChildren`); `AddPerson` takes `childIds` and links
+  them in the same write, queued as local ids and dropped if unresolvable like
+  co-anchors. Sign-up with an invite code asks `GetInviteClaims` (public) for the
+  family's adults without an account, and `claimPersonId` links the new account to
+  one instead of adding a duplicate person
 - `WhenControl` ("Today ▾": Today, Yesterday, Pick a date…, By age…) dates
   measurements and past interviews, and is keyed with `.id(person?.id)`: an age
   resolves against the birthday it was handed. `WhenEntry.resolvedDate` turns an

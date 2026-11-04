@@ -12,6 +12,9 @@ struct CreateAccountView: View {
     @State private var addSelfToFamily = false
     @State private var birthdate = Date()
     @State private var gender: Gender = .other
+    /// Adults the invited family already has without an account; picking one signs up as them.
+    @State private var claims: [InviteClaimDTO] = []
+    @State private var claimPersonId = 0
     @State private var errorMessage: String?
     @State private var isSubmitting = false
 
@@ -48,6 +51,23 @@ struct CreateAccountView: View {
                 Text("Leave this blank to start a new family. Enter an invite code to join one that already exists.")
             }
 
+            if !claims.isEmpty {
+                Section {
+                    Picker("Are you already in this family?", selection: $claimPersonId) {
+                        ForEach(claims) { claim in
+                            Text(claim.name).tag(claim.personId)
+                        }
+                        Text("No, add me as someone new").tag(0)
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } header: {
+                    Text("Are you already in this family?")
+                } footer: {
+                    Text("If someone added you before inviting you, pick yourself so your account joins that profile instead of making a second one.")
+                }
+            }
+
             Section {
                 SocialSignInButtons(familyCode: trimmedFamilyCode)
             }
@@ -77,25 +97,27 @@ struct CreateAccountView: View {
                     .textContentType(.newPassword)
             }
 
-            Section {
-                Toggle("Add myself as a family member", isOn: $addSelfToFamily.animation())
+            if claimPersonId == 0 {
+                Section {
+                    Toggle("Add myself as a family member", isOn: $addSelfToFamily.animation())
 
-                if addSelfToFamily {
-                    DatePicker(
-                        "Birthday",
-                        selection: $birthdate,
-                        in: ...Date(),
-                        displayedComponents: .date
-                    )
+                    if addSelfToFamily {
+                        DatePicker(
+                            "Birthday",
+                            selection: $birthdate,
+                            in: ...Date(),
+                            displayedComponents: .date
+                        )
 
-                    Picker("Gender", selection: $gender) {
-                        ForEach(Gender.allCases, id: \.self) { option in
-                            Text(option.label).tag(option)
+                        Picker("Gender", selection: $gender) {
+                            ForEach(Gender.allCases, id: \.self) { option in
+                                Text(option.label).tag(option)
+                            }
                         }
                     }
+                } footer: {
+                    Text("You can always add more family members later.")
                 }
-            } footer: {
-                Text("You can always add more family members later.")
             }
 
             if let errorMessage {
@@ -125,6 +147,16 @@ struct CreateAccountView: View {
             }
         }
         .onAppear { authService.clearError() }
+        // Looked up once the code stops changing; a newer code cancels the older lookup.
+        .task(id: trimmedFamilyCode) {
+            claimPersonId = 0
+            claims = []
+            guard !trimmedFamilyCode.isEmpty else { return }
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            let found = await authService.inviteClaims(code: trimmedFamilyCode)
+            if !Task.isCancelled { claims = found }
+        }
         .navigationTitle("Create Account")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -146,9 +178,10 @@ struct CreateAccountView: View {
             password: password,
             confirmPassword: confirmPassword,
             familyCode: trimmedFamilyCode,
-            initialPerson: addSelfToFamily
+            initialPerson: addSelfToFamily && claimPersonId == 0
                 ? InitialPerson(name: trimmedName, gender: gender, birthdate: birthdate)
-                : nil
+                : nil,
+            claimPersonId: claimPersonId
         )
     }
 }

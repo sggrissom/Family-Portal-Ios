@@ -134,4 +134,11 @@ struct RelationGraphTests {
             Self.edges, stated: .child, personId: 0, anchorId: 0
         ).isEmpty)
     }
+
+    @Test("A new partner is offered the anchor's children; anything else is offered none")
+    func partnerChildren() {
+        #expect(RelationGraph.partnerChildren(Self.edges, stated: .partner, anchorId: Id.steven) == [Id.mia, Id.ben])
+        #expect(RelationGraph.partnerChildren(Self.edges, stated: .sibling, anchorId: Id.steven).isEmpty)
+        #expect(RelationGraph.partnerChildren(Self.edges, stated: nil, anchorId: Id.steven).isEmpty)
+    }
 }

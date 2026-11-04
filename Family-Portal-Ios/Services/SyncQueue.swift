@@ -97,6 +97,8 @@ nonisolated struct CreatePersonPayload: Codable, Sendable {
     let anchorLocalId: String?
     /// More anchors the same statement applies to, also as local ids. Unlike the primary anchor these are *dropped* when they cannot be resolved: they were a suggestion the user accepted, not the relationship they set out to state, and holding the whole create back for one of them would be worse than saving without it.
     @OrZero var additionalAnchorLocalIds: [String] = []
+    /// For a new partner: the anchor's children they are a parent of too, as local ids, dropped when unresolvable for the same reason as `additionalAnchorLocalIds`.
+    @OrZero var childLocalIds: [String] = []
 }
 
 nonisolated struct UpdatePersonPayload: Codable, Sendable {
