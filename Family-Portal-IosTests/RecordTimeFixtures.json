@@ -228,7 +228,7 @@
       "expect": {
         "start": "2021-02-28",
         "end": "2021-03-31",
-        "label": "At age 0 years, 1 month",
+        "label": "At age 1 month",
         "exactDay": false
       }
     },
