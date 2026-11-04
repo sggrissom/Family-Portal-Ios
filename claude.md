@@ -442,12 +442,18 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   "Result — {event}" rows from `ListOpenEvents` (which open the event's page on the
   current tab). The sheet closes before its form opens; forms are sheets over the
   origin, so Done returns there
-- **Explicit context, never silent inheritance.** A person is preselected only from
-  the screen underneath or `QuickAddDefaults`' remembered person, always as a
-  visible chip that a tap clears. The chosen person is written back as the
-  remembered one. Photos from the global **+** start with nobody tagged
+- **Explicit context, never silent inheritance.** The **+** sheet preselects only
+  the person whose page is underneath; the measurement and moment forms fall back
+  to `QuickAddDefaults`' remembered person themselves. Either way it is a visible
+  chip that a tap clears, and the chosen person is written back as the remembered
+  one. Photos from the global **+** start with nobody tagged. The sheet, Add moment
+  and Add photos offer an expected baby (`includeUnborn`), first; Add measurement
+  doesn't
 - `PersonChips` orders people with `FamilyGroups.chipOrder` (children first, then
   older generations, unlinked, then linked households — `Person.familyRemoteId`)
+- History and Story show birthdays only through 18 (`DaySummaries.childhoodBirthdays`),
+  and a Story's start at its first record (`BirthdayWindow.fromFirstRecord`). Gender
+  `.other` reads "Not specified" and is Add Person's default
 - `WhenControl` ("Today ▾": Today, Yesterday, Pick a date…, By age…) dates
   measurements and past interviews, and is keyed with `.id(person?.id)`: an age
   resolves against the birthday it was handed. `WhenEntry.resolvedDate` turns an

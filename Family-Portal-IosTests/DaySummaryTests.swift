@@ -107,9 +107,27 @@ struct DaySummaryTests {
 
     @Test("Birthdays in the range appear, even on quiet days")
     func birthdays() {
-        let days = DaySummaries.summarize(DayRecords(), people: [clara, jake], range: ("2026-09-14", "2026-09-27"))
+        let days = DaySummaries.summarize(DayRecords(), people: [clara, jake], range: .init(from: "2026-09-14", to: "2026-09-27"))
         #expect(days.map(\.day) == ["2026-09-26"])
         #expect(days[0].birthdays == [DayBirthday(personId: jake.id, age: 7)])
+    }
+
+    @Test("Birthdays past the age limit are left out")
+    func childhoodBirthdays() {
+        let kid = Self.person("Kid", born: "2010-03-01T00:00:00Z")
+        let adult = Self.person("Adult", born: "1960-03-01T00:00:00Z")
+        let days = DaySummaries.summarize(DayRecords(), people: [kid, adult], range: .init(from: "2026-02-01", to: "2026-03-31", maxAge: 18))
+        #expect(days.map(\.birthdays) == [[DayBirthday(personId: kid.id, age: 16)]])
+    }
+
+    @Test("A Story's birthdays start at its first record")
+    func birthdaysFromFirstRecord() {
+        let kid = Self.person("Kid", born: "2010-03-01T00:00:00Z")
+        let window = DaySummaries.BirthdayWindow(from: "2010-03-01", to: "2026-03-31", fromFirstRecord: true)
+        let photo = Self.photo("2024-06-01T00:00:00Z", [kid])
+        let days = DaySummaries.summarize(DayRecords(photos: [photo]), people: [kid], range: window)
+        #expect(days.flatMap { $0.birthdays.map(\.age) } == [16, 15])
+        #expect(DaySummaries.summarize(DayRecords(), people: [kid], range: window).isEmpty)
     }
 
     @Test("Pregnancies and the day of birth are not birthdays")

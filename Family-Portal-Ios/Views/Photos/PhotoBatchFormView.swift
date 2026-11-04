@@ -58,7 +58,7 @@ struct PhotoBatchFormView: View {
         NavigationStack {
             Form {
                 Section("\(Copy.photos.whoIsIn)\(scope)") {
-                    PersonChips(selection: $personIds, contributableOnly: true)
+                    PersonChips(selection: $personIds, contributableOnly: true, includeUnborn: true)
                 }
 
                 Section("\(Copy.photos.caption)\(scope)") {

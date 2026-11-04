@@ -46,6 +46,17 @@ struct ChipOrderTests {
         #expect(order.map(\.name) == ["Ann", "Ben", "Dad", "Mom", "Gran", "Loner", "Cousin"])
     }
 
+    @Test("An expected baby comes first when asked for")
+    func unbornFirst() {
+        let dad = Self.person(1, "Dad", "1984-01-01")
+        let ann = Self.person(3, "Ann", "2014-01-01")
+        let due = Self.person(7, "Due", "2027-01-01", isPregnancy: true)
+
+        let order = FamilyGroups.chipOrder(people: [dad, ann, due], relations: [Self.parent(1, 3)], ownFamilyId: 1, includeUnborn: true)
+
+        #expect(order.map(\.name) == ["Due", "Ann", "Dad"])
+    }
+
     @Test("Somebody added offline has no household yet and counts as ours")
     func offlinePersonIsOurs() {
         let cousin = Self.person(6, "Cousin", "2011-01-01", familyId: 2)

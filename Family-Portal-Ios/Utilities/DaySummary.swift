@@ -73,12 +73,23 @@ enum DaySummaries {
 
     static let mosaicSize = 4
 
+    /// History and Story show birthdays only through childhood, so an adult's Story isn't forty "turned N" rows — `CHILDHOOD_BIRTHDAYS`.
+    static let childhoodBirthdays = 18
+
+    /// Which birthdays a summary adds: those between `from` and `to`, up to `maxAge`, starting no earlier than the first record when `fromFirstRecord`.
+    struct BirthdayWindow: Equatable {
+        var from: String
+        var to: String
+        var maxAge = Int.max
+        var fromFirstRecord = false
+    }
+
     /// Every day's summary, newest first. With a `range`, birthdays inside it are added, even on otherwise quiet days.
     /// Photos attached to a milestone or an event in `records` are left out of the mosaics: the card already shows them.
     static func summarize(
         _ records: DayRecords,
         people: [Person],
-        range: (from: String, to: String)? = nil
+        range: BirthdayWindow? = nil
     ) -> [DaySummary] {
         var days: [String: DaySummary] = [:]
         func edit(_ day: String, _ change: (inout DaySummary) -> Void) {
@@ -94,12 +105,6 @@ enum DaySummaries {
             var summary = periods[shell.id] ?? shell
             change(&summary)
             periods[shell.id] = summary
-        }
-
-        if let range {
-            for (day, birthdays) in birthdaysBetween(people, from: range.from, to: range.to) {
-                edit(day) { $0.birthdays = birthdays }
-            }
         }
 
         var attachedPhotoIds = Set<Int>()
@@ -172,6 +177,12 @@ enum DaySummaries {
             }
         }
 
+        if let range, let start = range.fromFirstRecord ? days.keys.min() : range.from {
+            for (day, birthdays) in birthdaysBetween(people, from: max(start, range.from), to: range.to, maxAge: range.maxAge) {
+                edit(day) { $0.birthdays = birthdays }
+            }
+        }
+
         return (Array(days.values) + Array(periods.values)).sorted {
             $0.day != $1.day ? $0.day > $1.day : $0.period < $1.period
         }
@@ -187,11 +198,12 @@ enum DaySummaries {
         return DaySummary(day: recordTime.start, period: recordTime.groupLabel, periodFrom: recordTime.start, periodTo: last)
     }
 
-    /// Each day in the range someone turns a year older. Pregnancies and the day of birth itself are skipped.
+    /// Each day in the range someone turns a year older, up to `maxAge`. Pregnancies and the day of birth itself are skipped.
     static func birthdaysBetween(
         _ people: [Person],
         from: String,
-        to: String
+        to: String,
+        maxAge: Int = .max
     ) -> [String: [DayBirthday]] {
         let born: [(Person, DateComponents)] = people.compactMap { person in
             guard !person.isPregnancy, let birthday = person.birthday else { return nil }
@@ -205,7 +217,7 @@ enum DaySummaries {
             guard parts.count == 3 else { continue }
             for (person, birth) in born {
                 let age = parts[0] - (birth.year ?? 0)
-                guard age > 0, birth.month == parts[1], birth.day == parts[2] else { continue }
+                guard age > 0, age <= maxAge, birth.month == parts[1], birth.day == parts[2] else { continue }
                 byDay[day, default: []].append(DayBirthday(personId: person.id, age: age))
             }
         }

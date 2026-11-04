@@ -39,7 +39,7 @@ struct EditPersonView: View {
                 Section("Gender") {
                     Picker("Gender", selection: $gender) {
                         ForEach(Gender.allCases, id: \.self) { genderOption in
-                            Text(genderOption.rawValue.capitalized)
+                            Text(genderOption.label)
                         }
                     }
                     .pickerStyle(.segmented)

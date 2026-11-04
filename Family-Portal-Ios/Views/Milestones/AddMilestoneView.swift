@@ -88,7 +88,7 @@ struct AddMilestoneView: View {
         NavigationStack {
             Form {
                 Section(Copy.milestone.who) {
-                    PersonChips(selection: $selectedPersonId, contributableOnly: true)
+                    PersonChips(selection: $selectedPersonId, contributableOnly: true, includeUnborn: true)
                 }
 
                 MilestoneTextSections(category: category, descriptionText: $descriptionText, context: $context, isFocused: $isTextFocused)
