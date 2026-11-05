@@ -14,6 +14,8 @@ final class ChatService: ChatWebSocketDelegate {
     var hasMoreHistory = true
     var error: String?
     private(set) var unreadCount = 0
+    /// Whose chat is open: each family has its own room. Starts on the account's own.
+    private(set) var familyId: Int
 
     // MARK: - Dependencies
     private let modelContext: ModelContext
@@ -21,6 +23,7 @@ final class ChatService: ChatWebSocketDelegate {
     private let webSocketService: ChatWebSocketService
     private let currentUserId: Int
     private let currentUserName: String
+    private let primaryFamilyId: Int
 
     // MARK: - Private State
     private var sentClientMessageIds: Set<String> = []
@@ -40,12 +43,15 @@ final class ChatService: ChatWebSocketDelegate {
         modelContext: ModelContext,
         apiClient: APIClient,
         currentUserId: Int,
-        currentUserName: String
+        currentUserName: String,
+        primaryFamilyId: Int = 0
     ) async {
         self.modelContext = modelContext
         self.apiClient = apiClient
         self.currentUserId = currentUserId
         self.currentUserName = currentUserName
+        self.primaryFamilyId = primaryFamilyId
+        self.familyId = primaryFamilyId
 
         let baseURL = await apiClient.getBaseURL()
         // The socket authenticates with the auth cookie, which only `APIClient` keeps fresh. Every connect — reconnects included — asks first, and a handshake the server refused forces a refresh, since the cookie may have expired inside the proactive margin.
@@ -78,7 +84,28 @@ final class ChatService: ChatWebSocketDelegate {
     // MARK: - Connection
 
     func connect() async {
-        await webSocketService.connect()
+        await webSocketService.connect(familyId: familyId)
+    }
+
+    /// Opens another family's chat: a new room on the socket, its own stored messages, and history paged from the start.
+    func switchFamily(to newFamilyId: Int) async {
+        guard newFamilyId != familyId else { return }
+        await webSocketService.disconnect()
+        familyId = newFamilyId
+        historyOffset = 0
+        hasMoreHistory = true
+        typingUsers = [:]
+        onlineUsers = []
+        error = nil
+        loadLocalMessages()
+        await connect()
+        await loadMessages()
+    }
+
+    /// A message stored before chats were per family has no family, and was always the account's own.
+    private func belongs(_ message: ChatMessage) -> Bool {
+        guard familyId != 0 else { return true }
+        return message.familyId == familyId || (message.familyId == 0 && familyId == primaryFamilyId)
     }
 
     func disconnect() async {
@@ -137,7 +164,7 @@ final class ChatService: ChatWebSocketDelegate {
     /// Fetches one page and merges it. Returns nil when the request failed, which is the one case that must not move `historyOffset`.
     private func fetchPage(offset: Int) async -> PageResult? {
         do {
-            let dtos = try await apiClient.getChatMessages(limit: Self.pageSize, offset: offset)
+            let dtos = try await apiClient.getChatMessages(limit: Self.pageSize, offset: offset, familyId: familyId)
             let added = merge(dtos)
             try modelContext.save()
             return PageResult(received: dtos.count, added: added)
@@ -184,6 +211,7 @@ final class ChatService: ChatWebSocketDelegate {
             isSending: true,
             sendFailed: false
         )
+        message.familyId = familyId
 
         sentClientMessageIds.insert(clientMessageId)
         modelContext.insert(message)
@@ -207,7 +235,8 @@ final class ChatService: ChatWebSocketDelegate {
         do {
             let responseDTO = try await apiClient.sendMessage(
                 content: message.content,
-                clientMessageId: message.clientMessageId
+                clientMessageId: message.clientMessageId,
+                familyId: message.familyId == 0 ? familyId : message.familyId
             )
 
             message.serverId = responseDTO.id
@@ -373,7 +402,8 @@ final class ChatService: ChatWebSocketDelegate {
             sortBy: [SortDescriptor(\.createdAt, order: .forward)]
         )
 
-        if let localMessages = try? modelContext.fetch(descriptor) {
+        if let stored = try? modelContext.fetch(descriptor) {
+            let localMessages = stored.filter { belongs($0) }
             messages = localMessages
 
             // An empty id is "unknown", not a match: inserting it would make every server message lacking one look like a duplicate of our own.

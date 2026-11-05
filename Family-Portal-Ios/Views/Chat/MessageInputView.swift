@@ -5,10 +5,13 @@ struct MessageInputView: View {
     var isFocused: FocusState<Bool>.Binding
     let onTyping: () -> Void
     let onSend: () -> Void
+    /// "Message Grissoms…"; a read-only member gets a field that says why it's off.
+    var placeholder = "Message"
+    var canPost = true
 
     var body: some View {
         HStack(spacing: 12) {
-            TextField("Message", text: $text, axis: .vertical)
+            TextField(canPost ? placeholder : "You can read this chat but not post", text: $text, axis: .vertical)
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -16,6 +19,7 @@ struct MessageInputView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 20))
                 .lineLimit(1...5)
                 .focused(isFocused)
+                .disabled(!canPost)
                 .onChange(of: text) { _, _ in
                     onTyping()
                 }
@@ -39,7 +43,7 @@ struct MessageInputView: View {
     }
 
     private var canSend: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        canPost && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 

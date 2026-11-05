@@ -18,6 +18,8 @@ nonisolated struct ChatMessageDTO: Codable, Sendable {
 nonisolated struct SendMessageRequestDTO: Encodable, Sendable {
     let content: String
     let clientMessageId: String
+    /// 0 for the account's own family.
+    let familyId: Int
 }
 
 nonisolated struct SendMessageResponseDTO: Codable, Sendable {
@@ -28,6 +30,8 @@ nonisolated struct GetChatMessagesRequestDTO: Encodable, Sendable {
     let limit: Int
     /// Counted back from the *newest* message, so offset 0 is the live end and each further page is older. A page still arrives oldest-first within itself.
     let offset: Int
+    /// 0 for the account's own family.
+    let familyId: Int
 }
 
 nonisolated struct GetChatMessagesResponseDTO: Codable, Sendable {

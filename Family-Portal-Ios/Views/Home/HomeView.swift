@@ -65,9 +65,21 @@ struct HomeView: View {
             ownFamilyId: authService.currentUser?.familyId
         )
         let names = FamilyGroups.chipLabels(ordered)
+        let ownFamilyId = authService.currentUser?.familyId
+        let familyOf = { (person: Person) in person.familyRemoteId ?? ownFamilyId ?? 0 }
+        // Only a strip spanning several families labels them, at the first person of each.
+        let labelsFamilies = Set(ordered.map(familyOf)).count > 1
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 14) {
-                ForEach(ordered) { person in
+                ForEach(Array(ordered.enumerated()), id: \.element.id) { index, person in
+                    if labelsFamilies && (index == 0 || familyOf(ordered[index - 1]) != familyOf(person)) {
+                        Text(familyName(familyOf(person)))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: 72, alignment: .leading)
+                            .padding(.top, 20)
+                            .accessibilityAddTraits(.isHeader)
+                    }
                     NavigationLink(value: AppRoute.person(person.id)) {
                         stripPerson(person, name: names[person.id] ?? person.name)
                     }
@@ -93,6 +105,13 @@ struct HomeView: View {
             }
             .padding(.horizontal)
         }
+    }
+
+    private func familyName(_ familyId: Int) -> String {
+        let name = dashboard.value?.families.first { $0.id == familyId }?.name
+            ?? authService.families.first { $0.id == familyId }?.name
+            ?? ""
+        return name.isEmpty ? "Family" : name
     }
 
     private func stripPerson(_ person: Person, name: String) -> some View {

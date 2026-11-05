@@ -460,6 +460,12 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   co-anchors. Sign-up with an invite code asks `GetInviteClaims` (public) for the
   family's adults without an account, and `claimPersonId` links the new account to
   one instead of adding a duplicate person
+- Chat is per family: `ChatService.familyId` starts on the account's own, and
+  `switchFamily` (the family menu in Chat, shown to someone in several) rejoins the
+  socket with `?family=` and pages that room's history. `ChatMessage.familyId` is 0
+  on messages stored before this, read as the account's own. A view-only member reads
+  but can't post. The Home strip labels each family (`GetDashboard`'s `families`)
+  when it spans more than one
 - `WhenControl` ("Today ▾": Today, Yesterday, Pick a date…, By age…) dates
   measurements and past interviews, and is keyed with `.id(person?.id)`: an age
   resolves against the birthday it was handed. `WhenEntry.resolvedDate` turns an
