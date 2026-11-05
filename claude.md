@@ -456,7 +456,10 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   `recordTime`: the server ignores `inputType`, `milestoneDate`, and
   `UpdatePhoto`'s `photoDate`. An upload's `photoDate` is only the fallback for
   a file with no EXIF date. An exact day goes as `RecordTime.exact(day:)`; `AddMilestone` and every
-  `UpdateMilestone` require one (an untouched edit resends the milestone's own)
+  `UpdateMilestone` require one (an untouched edit resends the milestone's own).
+  `RecordWhenEntry.controls` says which rows a mode shows, and what's hidden is
+  neither checked nor sent; change modes with `setMode`, which drops a best guess
+  and the choices the new mode hides (the web's `recordWhenControls`)
 - **Days are record dates** (`Utilities/ServerDate.swift`): birthdays,
   measurement, milestone and activity dates are stored as midnight UTC of the day
   they name, and photo dates as the capture wall clock labelled UTC. Read them

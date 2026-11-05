@@ -94,7 +94,8 @@ struct RecordWhenControl: View {
             }
         }
 
-        if isMoment && !entry.mode.isDay && entry.mode != .unknown {
+        let controls = entry.controls
+        if isMoment && controls.meaning {
             Picker(Copy.recordWhen.meaning, selection: $entry.meaning) {
                 Text(Copy.recordWhen.happened).tag("occurrence")
                 Text(Copy.recordWhen.describes).tag("period")
@@ -102,9 +103,9 @@ struct RecordWhenControl: View {
             .pickerStyle(.inline)
         }
 
-        if entry.mode != .unknown && entry.mode != .today && entry.mode != .yesterday {
+        if controls.estimate {
             Toggle(Copy.recordWhen.estimate, isOn: $entry.estimated)
-            if entry.estimated && (entry.mode == .range || entry.ageToYears != nil) {
+            if entry.estimated && controls.bestGuess {
                 TextField(Copy.recordWhen.bestGuess, text: $entry.around, prompt: Text(entry.mode == .age ? "8" : "1970"))
                     .keyboardType(.numbersAndPunctuation)
             }
@@ -130,7 +131,7 @@ struct RecordWhenControl: View {
     }
 
     private func choose(_ mode: RecordWhenMode) {
-        entry.mode = mode
+        entry.setMode(mode)
         if mode == .date, entry.date == nil {
             entry.date = Calendar.current.startOfDay(for: Date())
         }

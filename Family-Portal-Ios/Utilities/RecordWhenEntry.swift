@@ -96,12 +96,45 @@ struct RecordWhenEntry: Equatable, Sendable {
         }
     }
 
+    /// Which of the shared rows the current mode shows — `recordWhenControls`. What's hidden is neither checked nor sent, so a choice left behind by another mode can't leak into this one.
+    struct Controls: Equatable, Sendable {
+        /// Happened then / describes that time.
+        var meaning: Bool
+        var estimate: Bool
+        /// The best guess, inside an estimated range of dates or ages.
+        var bestGuess: Bool
+    }
+
+    var controls: Controls {
+        let editable = mode != .today && mode != .yesterday && mode != .unknown
+        return Controls(
+            meaning: editable,
+            estimate: editable,
+            bestGuess: mode == .range || (mode == .age && ageToYears != nil)
+        )
+    }
+
+    /// Switches mode the way `setRecordWhenMode` does: a best guess never carries over, since a central age and a central date aren't interchangeable, and choices the new mode hides are cleared.
+    mutating func setMode(_ newMode: RecordWhenMode) {
+        guard mode != newMode else { return }
+        mode = newMode
+        around = ""
+        if !controls.meaning { meaning = "" }
+        if !controls.estimate { estimated = false }
+    }
+
+    /// Anything beyond one exact day — `isApproximateMode`.
+    var isApproximate: Bool {
+        !mode.isDay || (controls.estimate && estimated) || (controls.meaning && meaning == "period")
+    }
+
     /// The assertion to store and send. Its range is filled for the device's own sorting; the server recomputes it.
     func recordTime(now: Date = Date(), isMoment: Bool, birthday: Date? = nil, calendar: Calendar = .current) -> RecordTime {
         var rt = RecordTime()
-        rt.meaning = isMoment && meaning == "period" ? "period" : "occurrence"
-        rt.estimated = estimated && mode != .unknown
-        rt.around = rt.estimated ? around.trimmingCharacters(in: .whitespaces) : ""
+        let controls = controls
+        rt.meaning = isMoment && controls.meaning && meaning == "period" ? "period" : "occurrence"
+        rt.estimated = controls.estimate && estimated
+        rt.around = rt.estimated && controls.bestGuess ? around.trimmingCharacters(in: .whitespaces) : ""
         switch mode {
         case .today:
             rt.from = WhenEntry.localDateString(now, calendar: calendar)
@@ -166,13 +199,12 @@ struct RecordWhenEntry: Equatable, Sendable {
         case .today, .yesterday, .unknown:
             break
         }
-        if estimated, !around.trimmingCharacters(in: .whitespaces).isEmpty {
-            let guess = around.trimmingCharacters(in: .whitespaces)
-            let ok = mode == .age ? Int(guess).map { $0 >= 0 } ?? false : Civil.parse(guess) != nil
+        let rt = recordTime(now: now, isMoment: isMoment, birthday: birthday)
+        if !rt.around.isEmpty {
+            let ok = mode == .age ? Int(rt.around).map { $0 >= 0 } ?? false : Civil.parse(rt.around) != nil
             if !ok { return mode == .age ? "The best guess should be an age in years" : "Check the best guess" }
         }
         guard mode != .unknown else { return nil }
-        let rt = recordTime(now: now, isMoment: isMoment, birthday: birthday)
         if rt.resolved, rt.start > WhenEntry.localDateString(now) {
             return mode == .age ? "That age hasn't happened yet" : "That date hasn't happened yet"
         }
@@ -181,7 +213,7 @@ struct RecordWhenEntry: Equatable, Sendable {
 
     /// "At age 4 · Based on birthday: Jun 15, 2024 – Jun 14, 2025", for under the control.
     func preview(isMoment: Bool, birthday: Date?, now: Date = Date()) -> (label: String, bounds: String)? {
-        guard !mode.isDay || estimated else { return nil }
+        guard isApproximate else { return nil }
         var check = self
         check.meaning = "occurrence"
         check.anchorPersonId = max(anchorPersonId, 1)

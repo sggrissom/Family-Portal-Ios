@@ -99,4 +99,63 @@ struct RecordWhenEntryTests {
         #expect(preview?.bounds.hasPrefix("Based on birthday: ") == true)
         #expect(Self.entry { $0.mode = .today }.preview(isMoment: true, birthday: nil, now: Self.now) == nil)
     }
+
+    // MARK: - Mode transitions (frontend/lib/recordWhen.test.ts, "date mode transitions")
+
+    @Test("Today, Yesterday and Not sure ignore hidden period and estimate choices", arguments: [RecordWhenMode.today, .yesterday, .unknown])
+    func hiddenChoicesIgnored(mode: RecordWhenMode) {
+        let entry = Self.entry { $0.mode = mode; $0.meaning = "period"; $0.estimated = true; $0.around = "invalid" }
+        let rt = entry.recordTime(now: Self.now, isMoment: true)
+        #expect(rt.meaning == "occurrence")
+        #expect(rt.estimated == false)
+        #expect(rt.around == "")
+        #expect(entry.problem(isMoment: true, birthday: nil, now: Self.now) == nil)
+    }
+
+    @Test("Switching an estimated age period to a shortcut clears what the shortcut hides", arguments: [RecordWhenMode.today, .yesterday, .unknown])
+    func switchClearsChoices(mode: RecordWhenMode) {
+        var entry = Self.entry { $0.mode = .age; $0.ageYears = 6; $0.ageToYears = 9; $0.meaning = "period"; $0.estimated = true; $0.around = "8" }
+        entry.setMode(mode)
+        #expect(entry.meaning == "")
+        #expect(entry.estimated == false)
+        #expect(entry.around == "")
+        let rt = entry.recordTime(now: Self.now, isMoment: true)
+        #expect(rt.basis == (mode == .unknown ? "unknown" : "calendar"))
+        if mode != .unknown {
+            #expect(rt.isExactDay)
+            #expect(entry.isApproximate == false)
+        }
+    }
+
+    @Test("A central age never carries into a calendar range, or back")
+    func bestGuessDoesNotCarry() {
+        var entry = Self.entry { $0.mode = .age; $0.ageYears = 6; $0.ageToYears = 9; $0.meaning = "period"; $0.estimated = true; $0.around = "8" }
+        entry.setMode(.range)
+        entry.rangeFrom = "1968"
+        entry.rangeTo = "1972"
+        #expect(entry.around == "")
+        #expect(entry.problem(isMoment: true, birthday: nil, now: Self.now) == nil)
+        #expect(entry.recordTime(now: Self.now, isMoment: true).label == "Around 1968–1972")
+        entry.around = "1970"
+        #expect(entry.recordTime(now: Self.now, isMoment: true).around == "1970")
+        entry.setMode(.age)
+        #expect(entry.around == "")
+    }
+
+    @Test("An age range narrowed to one age drops its best guess")
+    func singleAgeDropsGuess() {
+        var entry = Self.entry { $0.mode = .age; $0.ageYears = 4; $0.ageToYears = 6; $0.estimated = true; $0.around = "5" }
+        entry.ageToYears = nil
+        #expect(entry.controls.bestGuess == false)
+        let rt = entry.recordTime(now: Self.now, isMoment: true)
+        #expect(rt.around == "")
+        #expect(rt.label == "Around age 4")
+    }
+
+    @Test("A period on a calendar day is approximate, so it gets no photo suggestions")
+    func periodOnADay() {
+        let entry = Self.entry { $0.mode = .date; $0.date = Self.born; $0.meaning = "period" }
+        #expect(entry.isApproximate)
+        #expect(entry.recordTime(now: Self.now, isMoment: true).isExactDay == false)
+    }
 }
