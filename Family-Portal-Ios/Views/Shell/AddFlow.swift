@@ -167,7 +167,6 @@ struct AddSheetView: View {
     let flow: AddFlow
 
     @Query private var people: [Person]
-    @Query private var relations: [PersonRelation]
     @Environment(\.dismiss) private var dismiss
     @Environment(ActivityService.self) private var activityService
     @Environment(AuthService.self) private var authService
@@ -189,7 +188,7 @@ struct AddSheetView: View {
             List {
                 if !writablePeople.isEmpty {
                     Section(Copy.addSheet.whoFor) {
-                        PersonChips(selection: $personId, contributableOnly: true)
+                        PersonChips(selection: $personId, contributableOnly: true, includeUnborn: true)
                     }
                 }
 
@@ -201,7 +200,8 @@ struct AddSheetView: View {
                     }
                     Button {
                         remember()
-                        flow.choose(.measurement(personId: personId))
+                        // An expected baby has nothing to measure yet; the form falls back to its own default.
+                        flow.choose(.measurement(personId: writablePeople.first { $0.id == personId && !$0.isPregnancy }?.id))
                     } label: {
                         Label(Copy.addSheet.measurement, systemImage: MeasurementType.height.icon)
                     }
@@ -252,15 +252,11 @@ struct AddSheetView: View {
         .presentationDetents([.medium, .large])
     }
 
-    /// The screen underneath first, then the remembered person — as a chip the user can see and clear.
+    /// Only the person whose page is underneath, as a chip the user can see and clear: whoever was last used is left to the measurement and moment forms, so a photo batch doesn't arrive tagged with them.
     private func seed() {
         guard !didSeed else { return }
         didSeed = true
-        personId = flow.contextPersonId ?? QuickAddDefaults.person(
-            in: writablePeople,
-            remembered: defaults.rememberedPersonId,
-            relations: relations.map(\.edge)
-        )?.id
+        personId = writablePeople.first { $0.id == flow.contextPersonId }?.id
     }
 
     /// Written back as the remembered person, the way the web writes `last-person-id`.

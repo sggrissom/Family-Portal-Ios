@@ -15,7 +15,8 @@ struct AddPersonView: View {
     @State private var relation: RelationOption?
     @State private var anchorId: UUID?
     @State private var coAnchorIds: [Int] = []
-    @State private var gender: Gender = .male
+    /// Not specified until someone says, as on the web; a gendered relationship word ("daughter") fills it in.
+    @State private var gender: Gender = .other
     @State private var birthday = Date()
     @State private var isPregnancy = false
     @State private var isSaving = false
@@ -91,7 +92,7 @@ struct AddPersonView: View {
                 Section("Gender") {
                     Picker("Gender", selection: $gender) {
                         ForEach(Gender.allCases, id: \.self) { genderOption in
-                            Text(genderOption.rawValue.capitalized)
+                            Text(genderOption.label)
                         }
                     }
                     .pickerStyle(.segmented)

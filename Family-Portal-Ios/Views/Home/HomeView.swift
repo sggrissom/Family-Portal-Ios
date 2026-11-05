@@ -288,7 +288,7 @@ struct HomeView: View {
             growth: growth.filter { $0.date.recordDayKey >= from },
             milestones: milestones.filter { $0.date.recordDayKey >= from }
         )
-        let days = DaySummaries.summarize(records, people: people, range: (from: from, to: today))
+        let days = DaySummaries.summarize(records, people: people, range: .init(from: from, to: today))
         return section(Copy.home.recent, trailing: {
             NavigationLink(value: AppRoute.history) {
                 Text(Copy.home.seeAll).font(.subheadline)

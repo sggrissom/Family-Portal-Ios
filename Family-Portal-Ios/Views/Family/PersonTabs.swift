@@ -90,9 +90,10 @@ struct PersonStoryTab: View {
         }
     }
 
-    private var birthdayRange: (from: String, to: String)? {
+    /// Childhood birthdays from the person's first record on, so a Story doesn't open on a run of empty years.
+    private var birthdayRange: DaySummaries.BirthdayWindow? {
         guard let birthday = person.birthday, !person.isPregnancy else { return nil }
-        return (birthday.recordDayKey, today)
+        return .init(from: birthday.recordDayKey, to: today, maxAge: DaySummaries.childhoodBirthdays, fromFirstRecord: true)
     }
 
     private func chapters(_ days: [DaySummary]) -> [StoryChapter] {

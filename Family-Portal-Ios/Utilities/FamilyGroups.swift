@@ -147,11 +147,13 @@ enum FamilyGroups {
 
     /// The order people appear in a chip row — `chipOrder` in familyGroups.ts. The youngest generation first (the children are who a family logs), then each generation above, then the unlinked; due dates are left out, since nothing is recorded *for* a pregnancy. Linked households follow the caller's own.
     /// `ownFamilyId` nil (not known yet) keeps everybody in one run rather than guessing whose household is whose.
-    static func chipOrder(people: [Person], relations: [RelationEdge], ownFamilyId: Int?) -> [Person] {
+    /// `includeUnborn` puts an expected baby first, for the forms a scan or a pregnancy moment is logged from.
+    static func chipOrder(people: [Person], relations: [RelationEdge], ownFamilyId: Int?, includeUnborn: Bool = false) -> [Person] {
         let groups = group(people: people, relations: relations)
         let generations = groups.filter { $0.key != "unlinked" }.reversed()
         let unlinked = groups.filter { $0.key == "unlinked" }
-        let ordered = (Array(generations) + unlinked).flatMap(\.people).filter { !$0.isPregnancy }
+        let ordered = (includeUnborn ? people.filter(\.isPregnancy) : [])
+            + (Array(generations) + unlinked).flatMap(\.people).filter { !$0.isPregnancy }
         guard let ownFamilyId else { return ordered }
         let isOurs: (Person) -> Bool = { ($0.familyRemoteId ?? ownFamilyId) == ownFamilyId }
         return ordered.filter(isOurs) + ordered.filter { !isOurs($0) }

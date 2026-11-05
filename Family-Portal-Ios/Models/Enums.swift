@@ -51,6 +51,15 @@ enum Gender: String, Codable, CaseIterable {
     case male
     case female
     case other
+
+    /// `other` is how the server stores "not saying", and the web words it that way everywhere.
+    var label: String {
+        switch self {
+        case .male: return "Male"
+        case .female: return "Female"
+        case .other: return "Not specified"
+        }
+    }
 }
 
 enum MeasurementType: String, Codable, CaseIterable {

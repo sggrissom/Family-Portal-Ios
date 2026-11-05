@@ -90,7 +90,7 @@ struct CreateAccountView: View {
 
                     Picker("Gender", selection: $gender) {
                         ForEach(Gender.allCases, id: \.self) { option in
-                            Text(option.rawValue.capitalized).tag(option)
+                            Text(option.label).tag(option)
                         }
                     }
                 }

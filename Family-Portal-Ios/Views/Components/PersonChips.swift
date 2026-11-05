@@ -16,32 +16,36 @@ struct PersonChips: View {
     private let only: Set<UUID>?
     /// An add form's row: only people in a family the account can add to, so a view-only member's family is never a choice that can only fail.
     private let contributableOnly: Bool
+    /// Offers an expected baby too — Add moment, Add photos and the + sheet, not Add measurement.
+    private let includeUnborn: Bool
 
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
     @Environment(AuthService.self) private var authService
 
-    init(selection: Binding<UUID?>, excluding: Set<UUID> = [], only: Set<UUID>? = nil, contributableOnly: Bool = false) {
+    init(selection: Binding<UUID?>, excluding: Set<UUID> = [], only: Set<UUID>? = nil, contributableOnly: Bool = false, includeUnborn: Bool = false) {
         self.selection = .single(selection)
         self.excluding = excluding
         self.only = only
         self.contributableOnly = contributableOnly
+        self.includeUnborn = includeUnborn
     }
 
-    init(selection: Binding<Set<UUID>>, excluding: Set<UUID> = [], only: Set<UUID>? = nil, contributableOnly: Bool = false) {
+    init(selection: Binding<Set<UUID>>, excluding: Set<UUID> = [], only: Set<UUID>? = nil, contributableOnly: Bool = false, includeUnborn: Bool = false) {
         self.selection = .multiple(selection)
         self.excluding = excluding
         self.only = only
         self.contributableOnly = contributableOnly
+        self.includeUnborn = includeUnborn
     }
 
-    static func ordered(_ people: [Person], relations: [PersonRelation], ownFamilyId: Int?) -> [Person] {
-        FamilyGroups.chipOrder(people: people, relations: relations.map(\.edge), ownFamilyId: ownFamilyId)
+    static func ordered(_ people: [Person], relations: [PersonRelation], ownFamilyId: Int?, includeUnborn: Bool = false) -> [Person] {
+        FamilyGroups.chipOrder(people: people, relations: relations.map(\.edge), ownFamilyId: ownFamilyId, includeUnborn: includeUnborn)
     }
 
     var body: some View {
         let access = authService.access
-        let ordered = Self.ordered(people, relations: relations, ownFamilyId: authService.currentUser?.familyId)
+        let ordered = Self.ordered(people, relations: relations, ownFamilyId: authService.currentUser?.familyId, includeUnborn: includeUnborn)
             .filter { !excluding.contains($0.id) && (only?.contains($0.id) ?? true) }
             .filter { !contributableOnly || access.canContribute(to: $0) }
         let labels = FamilyGroups.chipLabels(ordered)

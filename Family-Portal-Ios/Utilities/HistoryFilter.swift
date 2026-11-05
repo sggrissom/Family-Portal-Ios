@@ -36,7 +36,7 @@ struct HistoryFilters: Equatable {
 struct HistoryContent {
     var records: DayRecords
     var birthdayPeople: [Person]
-    var range: (from: String, to: String)?
+    var range: DaySummaries.BirthdayWindow?
 }
 
 /// Picks the records History shows — a port of `historyView` in frontend/lib/history.ts, over the store rather than a `GetFamilyTimeline` response.
@@ -107,7 +107,7 @@ enum History {
         return HistoryContent(
             records: records,
             birthdayPeople: showBirthdays ? people.filter { wantPerson($0) } : [],
-            range: showBirthdays ? (from: "\(firstYear!)-01-01", to: today) : nil
+            range: showBirthdays ? .init(from: "\(firstYear!)-01-01", to: today, maxAge: DaySummaries.childhoodBirthdays) : nil
         )
     }
 
