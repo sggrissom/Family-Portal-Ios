@@ -259,6 +259,10 @@ struct WidgetSnapshotBuilder {
             .compactMap { person in Self.serverId(person).map { WidgetPerson(id: $0, name: person.name.firstName) } }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
 
+        let tags = ((try? context.fetch(FetchDescriptor<FamilyTag>())) ?? [])
+            .compactMap { tag in tag.serverId.map { WidgetTag(id: $0, name: tag.name) } }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+
         let quotes = worded.filter { $0.category == .quote }.prefix(quoteLimit).map { item($0, yearsAgo: nil) }
 
         let snapshot = WidgetSnapshot(
@@ -270,7 +274,8 @@ struct WidgetSnapshotBuilder {
             horizon: dayKeys.last ?? WidgetDay.key(now, calendar: calendar),
             pool: pool,
             quotes: quotes,
-            family: family(people, days: dayKeys)
+            family: family(people, days: dayKeys),
+            tags: tags
         )
         return Plan(snapshot: snapshot, imageRequests: requests)
     }

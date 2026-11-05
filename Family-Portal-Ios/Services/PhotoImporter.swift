@@ -37,10 +37,17 @@ final class PhotoImporter {
     /// Nil when nothing is importing. Hosts show a progress bar while it isn't.
     private(set) var progress: ImportProgress?
 
+    /// Where an entry's bytes come from: the photo picker, or a file the share extension left in the App Group's inbox.
+    enum Source {
+        case picked(PhotosPickerItem)
+        /// The file stays where it is until the drain that handed it over has heard how the import went.
+        case file(URL, captureDate: Date?)
+    }
+
     /// One picked item as the photo batch form shows it: the photo it became, whether a capture date was available, or that it could not be read.
     struct ImportEntry: Identifiable {
         let id: UUID
-        let item: PhotosPickerItem
+        let source: Source
         var photoId: UUID?
         /// False when neither the library nor the file supplied a capture date and "now" stood in for it — which the form says, rather than silently dating the photo today.
         var hasCaptureDate = true
@@ -74,6 +81,8 @@ final class PhotoImporter {
     var videoSupport: GetVideoSupportResponseDTO?
     private var pendingChoices: [UUID: BatchChoices] = [:]
     private var applyContext: (context: ModelContext, syncService: SyncService?)?
+    /// Each failed entry's error, kept only until `importShared` has asked for it.
+    private var lastErrors: [UUID: Error] = [:]
 
     /// Adds `items` to whatever run is in flight, starting one if there isn't, and returns the entries the batch form lists. A second pick made mid-import extends the same bar rather than opening a competing one.
     /// Nobody is tagged here: who is in a batch is the form's question, asked after the photos are already on their way up.
@@ -90,7 +99,7 @@ final class PhotoImporter {
         next.total += items.count
         progress = next
 
-        let batch = items.map { ImportEntry(id: UUID(), item: $0, isVideo: Self.isVideo($0)) }
+        let batch = items.map { ImportEntry(id: UUID(), source: .picked($0), isVideo: Self.isVideo($0)) }
         for entry in batch {
             entries[entry.id] = entry
         }
@@ -110,6 +119,72 @@ final class PhotoImporter {
             }
         }
         return batch.map(\.id)
+    }
+
+    /// One file the share extension handed over.
+    struct SharedFile {
+        let url: URL
+        let isVideo: Bool
+        let captureDate: Date?
+    }
+
+    /// Imports files from the share inbox with the share sheet's choices already made, and returns once each has been read — or uploaded, for a video — or has failed. The caller keeps the files until then, and learns which failures are worth trying again.
+    /// Joins whatever run is in flight, so one progress bar covers an in-app pick and a share alike.
+    func importShared(
+        _ files: [SharedFile],
+        choices: BatchChoices,
+        into context: ModelContext,
+        syncService: SyncService?,
+        errorPresenter: ErrorPresenter?
+    ) async -> [SharedFileOutcome] {
+        guard !files.isEmpty else { return [] }
+
+        var next = progress ?? ImportProgress()
+        next.total += files.count
+        progress = next
+
+        let batch = files.map {
+            ImportEntry(id: UUID(), source: .file($0.url, captureDate: $0.captureDate), isVideo: $0.isVideo)
+        }
+        for entry in batch {
+            entries[entry.id] = entry
+            if !choices.isEmpty {
+                pendingChoices[entry.id] = choices
+            }
+        }
+        if !choices.isEmpty {
+            applyContext = (context: context, syncService: syncService)
+        }
+
+        var outcomes: [SharedFileOutcome] = []
+        for entry in batch {
+            await read(entry.id, into: context, syncService: syncService)
+            outcomes.append(Self.outcome(of: entry.id, in: entries, lastError: lastErrors.removeValue(forKey: entry.id)))
+            // Settled, and the form never shows these: nothing reads the entry again.
+            entries[entry.id] = nil
+            pendingChoices[entry.id] = nil
+            if progress?.isFinished == true {
+                finish(reportingTo: errorPresenter)
+            }
+        }
+        return outcomes
+    }
+
+    /// How one shared file's import ended, as the inbox needs to know it: whether its file can go.
+    enum SharedFileOutcome: Equatable {
+        case imported
+        /// Couldn't be read or was refused; trying again would fail the same way.
+        case failed
+        /// Needed a connection, or video support that wasn't known yet. The file stays for the next drain.
+        case retryLater
+    }
+
+    private static func outcome(of entryId: UUID, in entries: [UUID: ImportEntry], lastError: Error?) -> SharedFileOutcome {
+        guard entries[entryId]?.failed == true else { return .imported }
+        switch lastError as? VideoImportFailure {
+        case .needsConnection, .unsupported: return .retryLater
+        default: return .failed
+        }
     }
 
     /// Reads one entry again after a failure. Counted on its own, outside the run's progress.
@@ -145,10 +220,19 @@ final class PhotoImporter {
         guard let entry = entries[entryId] else { return }
         do {
             let imported: (photo: Photo, hasCaptureDate: Bool)
-            if entry.isVideo {
-                imported = try await importVideo(entryId, item: entry.item, into: context)
-            } else {
-                imported = try await importOne(entry.item, into: context, syncService: syncService)
+            switch (entry.source, entry.isVideo) {
+            case (.picked(let item), true):
+                guard let picked = try await item.loadTransferable(type: PickedVideo.self) else {
+                    throw VideoImportFailure.unreadable
+                }
+                defer { picked.remove() }
+                imported = try await importVideo(entryId, fileURL: picked.url, captureDate: Self.libraryDate(for: item), into: context)
+            case (.file(let url, let captureDate), true):
+                imported = try await importVideo(entryId, fileURL: url, captureDate: captureDate, into: context)
+            case (.picked(let item), false):
+                imported = try await importOne(Self.load(item), into: context, syncService: syncService)
+            case (.file(let url, let captureDate), false):
+                imported = try await importOne(Self.load(url, captureDate: captureDate), into: context, syncService: syncService)
             }
             entries[entryId]?.photoId = imported.photo.id
             entries[entryId]?.hasCaptureDate = imported.hasCaptureDate
@@ -161,6 +245,9 @@ final class PhotoImporter {
         } catch {
             AppLog.ui.error("Photo import failed: \(String(describing: error), privacy: .public)")
             entries[entryId]?.failed = true
+            if case .file = entry.source {
+                lastErrors[entryId] = error
+            }
             if entry.isVideo {
                 entries[entryId]?.failureMessage = error.localizedDescription
             }
@@ -220,11 +307,11 @@ final class PhotoImporter {
     }
 
     private func importOne(
-        _ item: PhotosPickerItem,
+        _ loaded: (data: Data, captureDate: Date?),
         into context: ModelContext,
         syncService: SyncService?
     ) async throws -> (photo: Photo, hasCaptureDate: Bool) {
-        let (data, captureDate) = try await Self.load(item)
+        let (data, captureDate) = loaded
         let photo = Photo(
             title: "",
             descriptionText: "",
@@ -239,19 +326,16 @@ final class PhotoImporter {
     }
 
     /// Checks, uploads and stores one video. Online only: the batch form's people, caption and tags then queue against a photo that already has its server id, exactly as they would for an uploaded photo.
-    private func importVideo(_ entryId: UUID, item: PhotosPickerItem, into context: ModelContext) async throws -> (photo: Photo, hasCaptureDate: Bool) {
+    /// `fileURL` is the caller's to delete: a picked video's scratch copy, or a shared file the inbox keeps until it hears the outcome.
+    private func importVideo(_ entryId: UUID, fileURL: URL, captureDate: Date?, into context: ModelContext) async throws -> (photo: Photo, hasCaptureDate: Bool) {
         guard let support = videoSupport else { throw VideoImportFailure.unsupported }
-        guard let picked = try await item.loadTransferable(type: PickedVideo.self) else {
-            throw VideoImportFailure.unreadable
-        }
-        defer { picked.remove() }
 
-        let filename = picked.url.lastPathComponent
-        let size = (try? picked.url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let filename = fileURL.lastPathComponent
+        let size = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         if let problem = VideoFiles.problem(filename: filename, size: size, support: support) {
             throw VideoImportFailure.refused(problem)
         }
-        let seconds = try? await AVURLAsset(url: picked.url).load(.duration).seconds
+        let seconds = try? await AVURLAsset(url: fileURL).load(.duration).seconds
         if let problem = VideoFiles.durationProblem(filename: filename, seconds: seconds, maxSeconds: support.maxDurationSeconds) {
             throw VideoImportFailure.refused(problem)
         }
@@ -260,7 +344,6 @@ final class PhotoImporter {
         }
 
         // The server dates the video from its own metadata; this day is only for a file that carries none.
-        let captureDate = Self.libraryDate(for: item)
         let fallbackDate = (captureDate ?? Date()).localWallClock().recordDayKey
 
         // A short trip out of the app shouldn't cost the upload.
@@ -270,7 +353,7 @@ final class PhotoImporter {
         let image: ImageDTO
         do {
             image = try await VideoUploadService().upload(
-                fileURL: picked.url,
+                fileURL: fileURL,
                 filename: filename,
                 contentType: contentType,
                 size: size,
@@ -348,6 +431,14 @@ final class PhotoImporter {
         return (data, libraryDate(for: item) ?? captureDate(from: data))
     }
 
+    /// A shared file's bytes. The date is the one the extension read from the file as it copied it.
+    static func load(_ url: URL, captureDate: Date?) throws -> (data: Data, captureDate: Date?) {
+        guard let data = try? Data(contentsOf: url), UIImage(data: data) != nil else {
+            throw ImportFailure.unreadable
+        }
+        return (data, captureDate ?? CaptureDate.from(data: data))
+    }
+
     /// A limited library grant only covers assets the user explicitly allowed;
     /// selecting something in PhotosPicker does not extend that grant. Denied access is harmless.
     private static func libraryDate(for item: PhotosPickerItem) -> Date? {
@@ -360,29 +451,12 @@ final class PhotoImporter {
 
     /// The capture date in the image's own EXIF.
     static func captureDate(from data: Data) -> Date? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
-              let original = (exif[kCGImagePropertyExifDateTimeOriginal]
-                              ?? exif[kCGImagePropertyExifDateTimeDigitized]) as? String
-        else {
-            return nil
-        }
-
-        return exifDate(from: original)
+        CaptureDate.from(data: data)
     }
 
-    /// EXIF's own date spelling — colons in the date, not only the time. Parsed against a fixed POSIX locale, or a device set to a non-Gregorian calendar reads the digits as its own era.
     static func exifDate(from string: String) -> Date? {
-        exifDateFormatter.date(from: string)
+        CaptureDate.exifDate(from: string)
     }
-
-    private static let exifDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
-        return formatter
-    }()
 }
 
 /// A picked video as a file of its own in a scratch folder: the system's copy lasts only as long as the import callback, and an upload needs it for minutes.

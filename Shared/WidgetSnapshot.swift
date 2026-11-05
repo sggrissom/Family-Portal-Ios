@@ -25,6 +25,8 @@ nonisolated struct WidgetSnapshot: Codable, Equatable, Sendable {
     var quotes: [WidgetItem]? = nil
     /// The Home strip's people with their ages worked out for each day of the horizon, for the Family ages widget.
     var family: [WidgetFamilyMember]? = nil
+    /// The family's tag vocabulary, for the share extension's tag list. Optional so a snapshot from before it existed still reads.
+    var tags: [WidgetTag]? = nil
 
     func person(_ id: Int) -> WidgetPerson? {
         people.first { $0.id == id }
@@ -44,6 +46,12 @@ nonisolated struct WidgetPerson: Codable, Equatable, Hashable, Sendable, Identif
     /// The server id, the one a deep link names. A person added offline has none and is left out.
     var id: Int
     /// First name only: a widget is small, and this is what a caption reads.
+    var name: String
+}
+
+nonisolated struct WidgetTag: Codable, Equatable, Hashable, Sendable, Identifiable {
+    /// The server id: what a photo's tags are sent as.
+    var id: Int
     var name: String
 }
 

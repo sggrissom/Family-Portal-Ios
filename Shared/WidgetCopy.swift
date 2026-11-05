@@ -117,3 +117,40 @@ nonisolated enum WidgetCopy {
         return "\"“„«‘'".contains(first)
     }
 }
+
+/// The share extension's words. Beside the widgets' because the extension does not compile the app's `Copy` either; the form's own labels match `Copy.photos`.
+nonisolated enum ShareCopy {
+    static let title = "Family Record"
+    static let cancel = "Cancel"
+    static let add = "Add"
+    static let whoIsIn = "Who's in these?"
+    static let caption = "Caption"
+    static let captionPlaceholder = "Optional"
+    static let tags = "Tags"
+    static let signedOut = "Sign in to Family Record"
+    static let signedOutDetail = "Open Family Record and sign in, then share again."
+    static let nothingReadable = "These couldn't be read"
+    static let nothingReadableDetail = "If they're stored in iCloud, open them in Photos first and try again."
+    static let addedLater = "They're added the next time you open Family Record."
+
+    /// "3 photos and 1 video".
+    static func summary(photos: Int, videos: Int) -> String {
+        let photoText = photos == 1 ? "1 photo" : "\(photos) photos"
+        let videoText = videos == 1 ? "1 video" : "\(videos) videos"
+        switch (photos, videos) {
+        case (_, 0): return photoText
+        case (0, _): return videoText
+        default: return "\(photoText) and \(videoText)"
+        }
+    }
+
+    /// "Preparing 3 of 11…".
+    static func preparing(_ done: Int, of total: Int) -> String {
+        "Preparing \(min(done + 1, total)) of \(total)…"
+    }
+
+    /// "2 couldn't be read and won't be added."
+    static func skipped(_ n: Int) -> String {
+        n == 1 ? "1 couldn't be read and won't be added." : "\(n) couldn't be read and won't be added."
+    }
+}

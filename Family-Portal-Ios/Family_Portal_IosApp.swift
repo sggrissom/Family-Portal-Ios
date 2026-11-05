@@ -97,6 +97,7 @@ struct Family_Portal_IosApp: App {
                             await APIClient.shared.ensureFreshAccessToken()
                             guard authService.isAuthenticated else { return }
                             await syncService.performFullSync()
+                            await drainShareInbox()
                         }
                     }
                 }
@@ -106,12 +107,15 @@ struct Family_Portal_IosApp: App {
                             // A session restored from the cache may be holding an expired token; refreshing first saves every request below a 401 round trip.
                             await APIClient.shared.ensureFreshAccessToken()
                             await syncService.performFullSync()
+                            await drainShareInbox()
                             await initializeChatService()
                             await PushNotificationService.shared.registerForPushNotifications()
                         }
                     } else {
                         // Logout, an expired session and a deleted account all land here: the widgets must not keep showing the family.
                         WidgetPublisher.shared.clear()
+                        // Shares made under this account wait for it alone; the next one to sign in must not import them.
+                        ShareInbox.shared()?.removeAll()
                         retireChatService()
                         // The next account starts on Home with empty stacks, not on the last one's screens.
                         navigator = AppNavigator()
@@ -179,9 +183,25 @@ struct Family_Portal_IosApp: App {
             context: container.mainContext,
             syncQueue: syncService.syncQueue,
             photoCache: .shared,
-            widgets: .shared
+            widgets: .shared,
+            shareInbox: ShareInbox.shared()
         )
         deepLinkRouter.clear()
+    }
+
+    /// Imports what was shared to Family Record from other apps while it wasn't open. After the sync, so the people a share names are in the store.
+    @MainActor
+    private func drainShareInbox() async {
+        guard authService.isAuthenticated, let userId = authService.currentUser?.id else { return }
+        await ShareInboxDrain.shared.drain(
+            userId: userId,
+            access: authService.access,
+            addFlow: addFlow,
+            isConnected: networkMonitor.isConnected,
+            context: container.mainContext,
+            syncService: syncService,
+            errorPresenter: errorPresenter
+        )
     }
 
     /// Rebuilds the widgets' snapshot from the store, for whoever is signed in. Not awaited by the caller: downloading the images is nobody's reason to wait.
