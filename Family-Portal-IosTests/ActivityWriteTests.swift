@@ -176,6 +176,17 @@ struct ActivityWriteTests {
         #expect(ActivityResults.quickLabels(kind: "sport", used: []) == [])
     }
 
+    @Test("A photo uploaded from a performance comes back as the id to attach")
+    func uploadPhotoForAttaching() async throws {
+        let server = FakeHTTPServer()
+        server.route("api/upload-photo", respond: .json(["image": Fixture.image(id: 88, title: "")]))
+
+        let remoteId = try await Self.service(server).uploadPhoto(Data([0xFF, 0xD8]), captureDate: nil)
+
+        #expect(remoteId == 88)
+        #expect(server.requests(for: "api/upload-photo").count == 1)
+    }
+
     // MARK: - Deleting
 
     @Test("Deleting a performance asks by id")

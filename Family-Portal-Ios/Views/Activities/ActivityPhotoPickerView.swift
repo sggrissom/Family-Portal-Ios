@@ -1,10 +1,11 @@
+import PhotosUI
 import SwiftUI
 import SwiftData
 import OSLog
 
 /// Which photos are of this performance, or of this competition.
-/// `SetAppearancePhotos` and `SetEventPhotos` are whole-set writes over **remote** photo ids, so an attached id with no local record still gets a tile — a photo this grid cannot show is one the next save silently detaches.
-/// Selection is by remote id, unlike `MilestonePhotoPickerView`: this path is online-only, so a photo with no remote id cannot be attached yet.
+/// A performance's photos (saved with it by `SaveAppearance`) and `SetEventPhotos` are whole-set writes over **remote** photo ids, so an attached id with no local record still gets a tile — a photo this grid cannot show is one the next save silently detaches.
+/// Selection is by remote id, unlike `MilestonePhotoPickerView`: this path is online-only, so a photo with no remote id cannot be attached yet — which is why one picked from the library here is uploaded at once rather than queued.
 struct ActivityPhotoPickerView: View {
     let attachedPhotoIds: [Int]
     let subject: String
@@ -12,12 +13,17 @@ struct ActivityPhotoPickerView: View {
     let onSaved: @MainActor () async -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(ActivityService.self) private var service
     @Query private var photos: [Photo]
 
     @State private var selection: [Int] = []
     @State private var didSeed = false
     @State private var saveError: String?
     @State private var isSaving = false
+    /// Photos uploaded from here, which this device has no record of until the next pull.
+    @State private var uploadedIds: [Int] = []
+    @State private var newItems: [PhotosPickerItem] = []
+    @State private var isUploading = false
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 8)]
 
@@ -37,8 +43,9 @@ struct ActivityPhotoPickerView: View {
             .sorted { ($0.photo?.photoDate ?? .distantPast) > ($1.photo?.photoDate ?? .distantPast) }
 
         let known = Set(local.map(\.remoteId))
-        let unresolved = attachedPhotoIds
-            .filter { !known.contains($0) }
+        var seen = Set<Int>()
+        let unresolved = (uploadedIds.reversed() + attachedPhotoIds)
+            .filter { !known.contains($0) && seen.insert($0).inserted }
             .map { Choice(remoteId: $0, photo: nil) }
 
         return unresolved + local
@@ -55,7 +62,7 @@ struct ActivityPhotoPickerView: View {
                     ContentUnavailableView(
                         "No Photos Yet",
                         systemImage: "photo.on.rectangle",
-                        description: Text("A photo has to finish uploading before it can be attached to a \(subject).")
+                        description: Text("Upload one below. A photo added elsewhere can be attached to a \(subject) once it finishes uploading.")
                     )
                 } else {
                     ScrollView {
@@ -92,8 +99,24 @@ struct ActivityPhotoPickerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { commitSelection() }
-                        .disabled(isSaving || isOverLimit)
+                        .disabled(isSaving || isUploading || isOverLimit)
                 }
+                // A photo taken at the event, added without leaving: uploaded now and selected.
+                ToolbarItem(placement: .bottomBar) {
+                    if isUploading {
+                        ProgressView("Uploading…")
+                    } else {
+                        PhotosPicker(selection: $newItems, matching: .images, photoLibrary: .shared()) {
+                            Label("Upload New Photos", systemImage: "photo.badge.plus")
+                        }
+                        .disabled(isSaving)
+                    }
+                }
+            }
+            .onChange(of: newItems) { _, items in
+                guard !items.isEmpty else { return }
+                newItems = []
+                Task { await upload(items) }
             }
             .onAppear {
                 guard !didSeed else { return }
@@ -145,6 +168,23 @@ struct ActivityPhotoPickerView: View {
             selection.remove(at: index)
         } else {
             selection.append(remoteId)
+        }
+    }
+
+    private func upload(_ items: [PhotosPickerItem]) async {
+        isUploading = true
+        saveError = nil
+        defer { isUploading = false }
+        for item in items {
+            do {
+                let loaded = try await PhotoImporter.load(item)
+                let remoteId = try await service.uploadPhoto(loaded.data, captureDate: loaded.captureDate)
+                uploadedIds.append(remoteId)
+                selection.append(remoteId)
+            } catch {
+                AppLog.activities.error("Uploading a photo failed: \(String(describing: error), privacy: .public)")
+                saveError = error.localizedDescription
+            }
         }
     }
 

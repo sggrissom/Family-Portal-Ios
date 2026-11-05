@@ -116,6 +116,18 @@ final class ActivityService {
         )
     }
 
+    /// Uploads a photo straight away, for attaching to a performance or a competition: those writes are online-only and name server ids, so a queued upload would leave nothing to attach yet. Tagged to nobody; the photo's own page can tag it.
+    func uploadPhoto(_ data: Data, captureDate: Date?) async throws -> Int {
+        let image = try await PhotoSyncService(apiClient: apiClient).uploadPhoto(
+            imageData: data,
+            title: "",
+            description: "",
+            photoDate: (captureDate ?? Date()).localWallClock(),
+            personIds: []
+        )
+        return image.id
+    }
+
     /// A whole performance in one call: creates it when `id` is 0, and replaces its results and photos either way. The matchup is always sent, so emptying it clears it; on create an empty one is left out.
     func saveAppearance(
         id: Int,
