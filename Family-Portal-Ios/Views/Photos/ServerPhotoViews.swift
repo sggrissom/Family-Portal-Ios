@@ -73,9 +73,16 @@ struct VideoFrameView<Fallback: View>: View {
     let frameMs: Int
     /// The play badge over the frame, which the fallback thumbnail draws for itself.
     var badgeDurationMs: Int = 0
-    @ViewBuilder let fallback: () -> Fallback
+    private let fallback: Fallback
 
     @State private var image: UIImage?
+
+    init(remoteId: Int, frameMs: Int, badgeDurationMs: Int = 0, @ViewBuilder fallback: () -> Fallback) {
+        self.remoteId = remoteId
+        self.frameMs = frameMs
+        self.badgeDurationMs = badgeDurationMs
+        self.fallback = fallback()
+    }
 
     var body: some View {
         Group {
@@ -89,7 +96,7 @@ struct VideoFrameView<Fallback: View>: View {
                         VideoBadge(durationMs: badgeDurationMs)
                     }
             } else {
-                fallback()
+                fallback
             }
         }
         .task(id: "\(remoteId)-\(frameMs)") {
