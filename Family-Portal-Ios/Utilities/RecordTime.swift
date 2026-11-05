@@ -123,6 +123,7 @@ nonisolated struct RecordTime: Codable, Equatable, Hashable, Sendable {
         case "age":
             let age: String
             switch precision {
+            case "month" where ageYears == 0: age = "age \(Self.plural(ageMonths, "month"))"
             case "month": age = "age \(Self.plural(ageYears, "year")), \(Self.plural(ageMonths, "month"))"
             case "range": age = "ages \(ageYears)–\(ageToYears)"
             default: age = "age \(ageYears)"
