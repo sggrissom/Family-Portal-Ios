@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// One season: its competitions and its routines, side by side.
+/// One season: a results grid (a row per routine, a column per competition), then the competitions as a schedule and the routines.
 /// `GetSeasonOverview` ships each event and each entry once and the appearances as the bare hinge; the join is done here on `entryId` and `eventId`, exactly as the web does it.
 struct SeasonView: View {
     let seasonId: Int
@@ -118,8 +118,14 @@ struct SeasonView: View {
         let appearancesByEvent = Dictionary(grouping: response.appearances) { $0.appearance.eventId }
         let appearancesByEntry = Dictionary(grouping: response.appearances) { $0.appearance.entryId }
 
+        let today = Date().localRecordDay().recordDayKey
+
         VStack(spacing: 16) {
             header(response)
+
+            if !response.events.isEmpty && !response.entries.isEmpty {
+                resultsGrid(response, labels: labels, today: today)
+            }
 
             GroupBox(labels.eventPlural) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -134,7 +140,9 @@ struct SeasonView: View {
                                     eventRow(
                                         event,
                                         appearanceCount: appearancesByEvent[event.id]?.count ?? 0,
-                                        labels: labels
+                                        needsResults: editable && !response.entries.isEmpty,
+                                        labels: labels,
+                                        today: today
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -201,8 +209,96 @@ struct SeasonView: View {
         }
     }
 
-    private func eventRow(_ event: ActivityEventDTO, appearanceCount: Int, labels: ActivityLabels) -> some View {
-        HStack {
+    // MARK: - Results grid
+
+    /// A row per routine and a column per competition, each cell the headline of how that routine did there, linking through. Upcoming columns are dimmed.
+    private func resultsGrid(_ response: GetSeasonOverviewResponseDTO, labels: ActivityLabels, today: String) -> some View {
+        let cells = Dictionary(grouping: response.appearances) { CellKey(entryId: $0.appearance.entryId, eventId: $0.appearance.eventId) }
+
+        return GroupBox("Results") {
+            ScrollView(.horizontal, showsIndicators: false) {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                    GridRow {
+                        Text(labels.entry)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        ForEach(response.events) { event in
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(event.name)
+                                    .font(.caption.weight(.semibold))
+                                    .lineLimit(2)
+                                if let day = ActivityDateText.day(event.startDate) {
+                                    Text(day)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(width: 96, alignment: .leading)
+                            .opacity(isUpcoming(event, today: today) ? 0.45 : 1)
+                        }
+                    }
+                    Divider()
+                    ForEach(response.entries) { entryView in
+                        GridRow {
+                            Text(entryView.entry.name)
+                                .font(.subheadline.weight(.medium))
+                                .frame(maxWidth: 140, alignment: .leading)
+                                .lineLimit(2)
+                            ForEach(response.events) { event in
+                                let views = cells[CellKey(entryId: entryView.entry.id, eventId: event.id)] ?? []
+                                let headline = ActivityResults.cellHeadline(views.map { (Matchup($0.appearance), $0.results) })
+                                NavigationLink {
+                                    CompetitionView(eventId: event.id, eventName: event.name)
+                                } label: {
+                                    Text(headline.isEmpty ? "—" : headline)
+                                        .font(.subheadline)
+                                        .foregroundStyle(headline.isEmpty ? .secondary : .primary)
+                                        .frame(width: 96, alignment: .leading)
+                                        .lineLimit(2)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .opacity(isUpcoming(event, today: today) ? 0.45 : 1)
+                                .accessibilityLabel("\(entryView.entry.name) at \(event.name): \(headline.isEmpty ? "not recorded" : headline)")
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    private struct CellKey: Hashable {
+        let entryId: Int
+        let eventId: Int
+    }
+
+    private func isUpcoming(_ event: ActivityEventDTO, today: String) -> Bool {
+        ActivityHome.eventStatus(
+            start: ActivityHome.dayKey(event.startDate),
+            end: ActivityHome.dayKey(event.endDate),
+            today: today
+        ) == .upcoming
+    }
+
+    // MARK: - Schedule
+
+    /// A competition with its date block: a held one with nothing recorded offers Add results, an upcoming one says so, and the rest show their performance count.
+    private func eventRow(
+        _ event: ActivityEventDTO,
+        appearanceCount: Int,
+        needsResults: Bool,
+        labels: ActivityLabels,
+        today: String
+    ) -> some View {
+        let status = ActivityHome.eventStatus(
+            start: ActivityHome.dayKey(event.startDate),
+            end: ActivityHome.dayKey(event.endDate),
+            today: today
+        )
+        return HStack(spacing: 12) {
+            dateBlock(event.startDate)
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.name)
                     .font(.subheadline)
@@ -212,9 +308,22 @@ struct SeasonView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text(countText(appearanceCount, labels: labels))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if status == .upcoming {
+                    Text("Upcoming")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.blue)
+                } else if appearanceCount == 0 && needsResults {
+                    Text("Add results")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.accentColor))
+                        .foregroundStyle(.white)
+                } else {
+                    Text(countText(appearanceCount, labels: labels))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             Image(systemName: "chevron.right")
@@ -234,6 +343,21 @@ struct SeasonView: View {
             parts.append(dates)
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// "MAR / 14", or a dash when the day isn't set yet.
+    private func dateBlock(_ date: Date) -> some View {
+        let day = date.serverDate?.displayDay()
+        return VStack(spacing: 0) {
+            Text(day?.formatted(.dateTime.month(.abbreviated)).uppercased() ?? "")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(day?.formatted(.dateTime.day()) ?? "–")
+                .font(.title3.weight(.semibold))
+        }
+        .frame(width: 44, height: 44)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(.secondarySystemBackground)))
+        .accessibilityHidden(true)
     }
 
     private func entryRow(

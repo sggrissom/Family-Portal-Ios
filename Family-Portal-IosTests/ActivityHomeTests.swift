@@ -97,3 +97,92 @@ struct ActivityHomeTests {
         #expect(body["familyId"] as? Int == 0)
     }
 }
+
+/// The cases from frontend/lib/activityResults.test.ts.
+@Suite("Activity result summaries")
+struct ActivityResultSummaryTests {
+
+    private struct Result: ActivityResultLike {
+        var kind: String
+        var label = ""
+        var rank: Int? = nil
+        var outOf: Int? = nil
+        var score: Double? = nil
+    }
+
+    private static func result(_ kind: ActivityResultKind, label: String = "", rank: Int? = nil, outOf: Int? = nil, score: Double? = nil) -> Result {
+        Result(kind: kind.rawValue, label: label, rank: rank, outOf: outOf, score: score)
+    }
+
+    @Test("Ordinals keep 11th to 13th")
+    func ordinals() {
+        #expect([1, 2, 3, 4, 11, 12, 13, 21, 32, 93, 111].map(ActivityResults.ordinal)
+                == ["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "32nd", "93rd", "111th"])
+    }
+
+    @Test("A headline leads with the best placement and the adjudication")
+    func headlineLeads() {
+        #expect(ActivityResults.headline([
+            Self.result(.placement, rank: 4, outOf: 20),
+            Self.result(.adjudication, label: "Platinum"),
+            Self.result(.placement, rank: 1, outOf: 6),
+        ]) == "1st · Platinum")
+    }
+
+    @Test("A headline falls back to an award, then to whatever came first")
+    func headlineFallsBack() {
+        #expect(ActivityResults.headline([Self.result(.award, label: "Studio Choice")]) == "Studio Choice")
+        #expect(ActivityResults.headline([Self.result(.score, label: "3–1 W")]) == "3–1 W")
+        #expect(ActivityResults.headline([Result]()) == "")
+    }
+
+    @Test("A score whose label already starts with its number is shown once")
+    func scoreText() {
+        #expect(ActivityResults.text(Self.result(.score, label: "1 goal(s)", score: 1)) == "1 goal(s)")
+        #expect(ActivityResults.text(Self.result(.score, label: "points", score: 92.5)) == "92.5 points")
+        #expect(ActivityResults.text(Self.result(.placement, rank: 2, outOf: 9)) == "2nd of 9")
+    }
+
+    @Test("A grid cell sums a performance, a game, or a bracket")
+    func cellHeadline() {
+        typealias View = (matchup: Matchup, results: [Result])
+        #expect(ActivityResults.cellHeadline([View]()) == "")
+        #expect(ActivityResults.cellHeadline([(Matchup(), [
+            Self.result(.adjudication, label: "High Gold"),
+            Self.result(.placement, rank: 3, outOf: 18),
+        ])]) == "3rd · High Gold")
+        #expect(ActivityResults.cellHeadline([(Matchup(), [Result]())]) == "Recorded")
+        #expect(ActivityResults.cellHeadline([(Matchup(outcome: "win", scoreFor: 3, scoreAgainst: 1), [Result]())]) == "W 3–1")
+        #expect(ActivityResults.cellHeadline([(Matchup(outcome: "loss"), [Result]())]) == "L")
+        #expect(ActivityResults.cellHeadline([
+            (Matchup(outcome: "win"), [Result]()),
+            (Matchup(outcome: "win"), [Result]()),
+            (Matchup(outcome: "loss"), [Result]()),
+        ]) == "2–1")
+    }
+
+    @Test("Adjudications are counted, most first")
+    func adjudicationCounts() {
+        let counts = ActivityResults.adjudicationCounts([
+            Self.result(.adjudication, label: "High Gold"),
+            Self.result(.adjudication, label: "Platinum"),
+            Self.result(.adjudication, label: " Platinum "),
+            Self.result(.award, label: "Platinum"),
+            Self.result(.adjudication, label: ""),
+        ])
+        #expect(counts == [.init(label: "Platinum", count: 2), .init(label: "High Gold", count: 1)])
+    }
+
+    @Test("The best finish is the best placement across performances")
+    func bestFinish() {
+        let views: [(name: String, results: [Result])] = [
+            ("autumn", [Self.result(.placement, rank: 3, outOf: 18)]),
+            ("winter", [Self.result(.award, label: "Studio Choice")]),
+            ("spring", [Self.result(.placement, rank: 1, outOf: 24)]),
+        ]
+        let best = ActivityResults.bestFinish(views) { $0.results }
+        #expect(best?.view.name == "spring")
+        #expect(best?.result.rank == 1)
+        #expect(ActivityResults.bestFinish([views[1]]) { $0.results } == nil)
+    }
+}

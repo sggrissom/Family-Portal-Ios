@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// One routine across its season: where it went, and how it did each time.
+/// One routine across its season: stat tiles (competitions, best placement and where, head-to-head record, adjudications), then how it did at each competition.
 /// `GetEntryHistory` resolves through a roster, so it answers with a `SeasonSummary` and an `EventSummary` per performance rather than the full records.
 struct RoutineView: View {
     let entryId: Int
@@ -66,6 +66,10 @@ struct RoutineView: View {
         VStack(spacing: 16) {
             header(response, labels: labels, people: people)
 
+            if !response.appearances.isEmpty {
+                stats(response, labels: labels)
+            }
+
             GroupBox(labels.appearancePlural) {
                 VStack(alignment: .leading, spacing: 12) {
                     if response.appearances.isEmpty {
@@ -103,6 +107,45 @@ struct RoutineView: View {
         .padding(.horizontal)
     }
 
+    private func stats(_ response: GetEntryHistoryResponseDTO, labels: ActivityLabels) -> some View {
+        let events = Set(response.appearances.map(\.event.id)).count
+        let best = ActivityResults.bestFinish(response.appearances) { $0.results }
+        let tally = Matchups.tally(response.appearances.map { Matchup($0.appearance) })
+        let record = Matchups.recordText(tally)
+        let adjudications = ActivityResults.adjudicationCounts(response.appearances.flatMap(\.results))
+
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], alignment: .leading, spacing: 10) {
+            statTile(
+                value: "\(events)",
+                caption: (events == 1 ? labels.event : labels.eventPlural).lowercased()
+            )
+            if let best, let rank = best.result.rank {
+                statTile(value: ActivityResults.ordinal(rank), caption: "best, at \(best.view.event.name)")
+            }
+            if !record.isEmpty {
+                statTile(value: record, caption: Matchups.recordLabel(tally))
+            }
+            ForEach(adjudications, id: \.label) { count in
+                statTile(value: "\(count.count)×", caption: count.label)
+            }
+        }
+    }
+
+    private func statTile(value: String, caption: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.title2.weight(.semibold))
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground)))
+        .accessibilityElement(children: .combine)
+    }
+
     private func header(
         _ response: GetEntryHistoryResponseDTO,
         labels: ActivityLabels,
@@ -120,13 +163,6 @@ struct RoutineView: View {
                     Label("\(labels.roster): \(roster)", systemImage: "person.2")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                }
-
-                let tally = Matchups.tally(response.appearances.map { Matchup($0.appearance) })
-                let record = Matchups.recordText(tally)
-                if !record.isEmpty {
-                    Label("Record \(record) (\(Matchups.recordLabel(tally)))", systemImage: "trophy")
-                        .font(.subheadline)
                 }
 
                 if !response.entry.entry.notes.isEmpty {
