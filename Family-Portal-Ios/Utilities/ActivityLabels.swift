@@ -60,6 +60,14 @@ nonisolated enum ActivityKind {
 
     static let all = [dance, sport, generic]
 
+    static func symbol(_ kind: String) -> String {
+        switch kind.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case dance: return "figure.dance"
+        case sport: return "sportscourt"
+        default: return "star"
+        }
+    }
+
     static func displayName(_ kind: String) -> String {
         switch kind.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case dance: return "Dance"

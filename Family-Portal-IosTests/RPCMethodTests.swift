@@ -134,6 +134,7 @@ struct RPCMethodTests {
         #expect(RPCMethod.getEntryHistory.rawValue == "GetEntryHistory")
         #expect(RPCMethod.getPersonSeason.rawValue == "GetPersonSeason")
         #expect(RPCMethod.listActivityVocabulary.rawValue == "ListActivityVocabulary")
+        #expect(RPCMethod.getActivitiesHome.rawValue == "GetActivitiesHome")
     }
 
     @Test("Activity photo proc names match the backend")
