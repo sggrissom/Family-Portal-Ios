@@ -11,9 +11,11 @@ struct PhotoDetailView: View {
 
     private var photo: Photo? { photos.first }
     private let openedFrom: UUID?
+    private let startMs: Int
 
-    init(photoId: UUID, openedFrom: UUID? = nil) {
+    init(photoId: UUID, openedFrom: UUID? = nil, startMs: Int = 0) {
         self.openedFrom = openedFrom
+        self.startMs = startMs
         _photos = Query(filter: #Predicate<Photo> { photo in
             photo.id == photoId
         })
@@ -21,7 +23,7 @@ struct PhotoDetailView: View {
 
     var body: some View {
         if let photo {
-            PhotoDetailContent(photo: photo, openedFrom: openedFrom, showDeleteConfirmation: $showDeleteConfirmation)
+            PhotoDetailContent(photo: photo, openedFrom: openedFrom, startMs: startMs, showDeleteConfirmation: $showDeleteConfirmation)
                 .navigationBarTitleDisplayMode(.inline)
                 .confirmationDialog(photo.isVideo ? Copy.video.deleteTitle : "Delete Photo", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
                     Button("Delete", role: .destructive) {
@@ -51,6 +53,7 @@ private struct PhotoDetailContent: View {
     @Environment(AuthService.self) private var authService
     @Bindable var photo: Photo
     let openedFrom: UUID?
+    let startMs: Int
     @Binding var showDeleteConfirmation: Bool
 
     /// Values last handed to the sync queue, so leaving an untouched field doesn't enqueue a redundant update.
@@ -68,7 +71,7 @@ private struct PhotoDetailContent: View {
         ScrollView {
             VStack(spacing: 20) {
                 if photo.isVideo, let remoteId = photo.serverId {
-                    VideoPlayerSection(photo: photo, remoteId: remoteId)
+                    VideoPlayerSection(photo: photo, remoteId: remoteId, startMs: startMs)
                 } else if let imageData = photo.imageData, let uiImage = UIImage(data: imageData) {
                     ZoomableView {
                         Image(uiImage: uiImage)

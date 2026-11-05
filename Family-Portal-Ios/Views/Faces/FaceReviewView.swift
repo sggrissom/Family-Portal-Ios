@@ -117,10 +117,10 @@ struct FaceReviewView: View {
         HStack(spacing: 12) {
             Button {
                 if let localId = localPhotoIds[face.photoId] {
-                    navigator.push(PhotoRoute(id: localId))
+                    navigator.push(PhotoRoute(id: localId, startMs: face.videoFrameMs ?? 0))
                 }
             } label: {
-                FaceCropView(photoId: face.photoId, box: face.box, size: 72)
+                FaceCropView(photoId: face.photoId, box: face.box, frameMs: face.videoFrameMs, size: 72)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
@@ -333,7 +333,7 @@ private struct FaceGroupRow: View {
                 excluded.insert(face.id)
             }
         } label: {
-            FaceCropView(photoId: face.photoId, box: face.box, size: Self.cropSize)
+            FaceCropView(photoId: face.photoId, box: face.box, frameMs: face.videoFrameMs, size: Self.cropSize)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .opacity(isExcluded ? 0.35 : 1)
                 .overlay(alignment: .topTrailing) {

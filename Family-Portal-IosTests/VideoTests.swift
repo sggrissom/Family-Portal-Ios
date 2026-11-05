@@ -242,4 +242,22 @@ struct VideoTests {
         #expect(VideoTranscript.currentSegment(segments, seconds: 7.5) == 2)
         #expect(VideoTranscript.currentSegment(segments, seconds: 8) == nil)
     }
+
+    @Test("Captions show the line playing, and nothing between lines")
+    func captions() {
+        let segments = [
+            TranscriptSegmentDTO(startMs: 0, endMs: 2000, text: "a", confidence: 1),
+            TranscriptSegmentDTO(startMs: 6000, endMs: 8000, text: "c", confidence: 1),
+        ]
+        #expect(VideoTranscript.caption(segments, seconds: 1) == "a")
+        #expect(VideoTranscript.caption(segments, seconds: 4) == nil)
+        #expect(VideoTranscript.caption(segments, seconds: 6.5) == "c")
+    }
+
+    @Test("A video opened from a match starts there, paused")
+    func startsAtOffset() {
+        #expect(VideoPlayerModel(photoId: 42, startMs: 42500).position == 42.5)
+        #expect(VideoPlayerModel(photoId: 42).position == 0)
+        #expect(PhotoRoute(id: UUID()).startMs == 0)
+    }
 }

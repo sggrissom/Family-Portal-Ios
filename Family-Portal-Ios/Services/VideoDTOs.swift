@@ -126,4 +126,9 @@ nonisolated enum VideoTranscript {
         let ms = seconds * 1000
         return segments.firstIndex { ms >= Double($0.startMs) && ms < Double($0.endMs) }
     }
+
+    /// The caption to show at `seconds`: the line playing, or nil between lines.
+    static func caption(_ segments: [TranscriptSegmentDTO], seconds: Double) -> String? {
+        currentSegment(segments, seconds: seconds).map { segments[$0].text }
+    }
 }

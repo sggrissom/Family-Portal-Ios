@@ -3,15 +3,22 @@ import Foundation
 // Face review (backend/faces.go). Online only and never queued: assigning a face makes the server re-match the whole family, so the outcome is the server's to report.
 // Every list is decoded with `decodeList`, since Go marshals a nil slice as `null`.
 
-/// One face found in one photo. `personId` is 0 until someone names it or the server auto-tags it.
+/// One face found in one photo, or in one sampled frame of a video. `personId` is 0 until someone names it or the server auto-tags it.
 nonisolated struct PhotoFaceDTO: Decodable, Sendable, Identifiable, Equatable {
     let id: Int
     let photoId: Int
     let familyId: Int
     let personId: Int
+    /// Relative to the photo, or to the frame at `frameMs` for a face from a video.
     let box: FaceBoxDTO
+    let frameMs: Int
+    /// How many of a video's frames the face was seen in; 0 for a photo.
+    let frameCount: Int
 
-    private enum CodingKeys: String, CodingKey { case id, photoId, familyId, personId, box }
+    /// The frame a video face was found in, or nil for a face on a photo. The first frame is at 0, so `frameMs` alone can't tell.
+    var videoFrameMs: Int? { frameCount > 0 ? frameMs : nil }
+
+    private enum CodingKeys: String, CodingKey { case id, photoId, familyId, personId, box, frameMs, frameCount }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -20,6 +27,8 @@ nonisolated struct PhotoFaceDTO: Decodable, Sendable, Identifiable, Equatable {
         familyId = try c.decodeIfPresent(Int.self, forKey: .familyId) ?? 0
         personId = try c.decodeIfPresent(Int.self, forKey: .personId) ?? 0
         box = try c.decodeIfPresent(FaceBoxDTO.self, forKey: .box) ?? FaceBoxDTO(left: 0, top: 0, right: 0, bottom: 0)
+        frameMs = try c.decodeIfPresent(Int.self, forKey: .frameMs) ?? 0
+        frameCount = try c.decodeIfPresent(Int.self, forKey: .frameCount) ?? 0
     }
 }
 

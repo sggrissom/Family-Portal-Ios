@@ -366,6 +366,20 @@ nonisolated struct PhotoWithPeopleDTO: Codable, Sendable {
     let people: [PersonDTO]
     /// With `collapseSimilar`, the other photos in this cover's group of similar shots. Absent otherwise.
     var similar: [Int]? = nil
+    /// For a video a search found, where in it: absent for a photo, or a video matched only by its title.
+    var match: MediaMatchDTO? = nil
+}
+
+/// Where in a video a search matched (backend/photos.go `MediaMatch`): a frame that looks like the query, or a line of the transcript that says it.
+nonisolated struct MediaMatchDTO: Codable, Sendable, Hashable {
+    /// `"frame"` or `"transcript"`.
+    @OrZero var source: String
+    @OrZero var offsetMs: Int
+    /// The line, for a transcript match.
+    @OrZero var snippet: String
+
+    static let frame = "frame"
+    static let transcript = "transcript"
 }
 
 nonisolated struct GetPersonResponseDTO: Codable, Sendable {

@@ -33,6 +33,14 @@ final class VideoPlayerModel {
     private(set) var transcript: GetVideoTranscriptResponseDTO?
     /// Where playback is, in seconds: for resuming after a renewal, and for the transcript's current line.
     private(set) var position: Double = 0
+    /// Off until asked for, as on the web.
+    var showsCaptions = false
+
+    /// The line to draw over the video, when captions are on and someone is speaking.
+    var caption: String? {
+        guard showsCaptions, let transcript, transcript.status == GetVideoTranscriptResponseDTO.Status.done else { return nil }
+        return VideoTranscript.caption(transcript.segments, seconds: position)
+    }
 
     let photoId: Int
     private let apiClient: APIClient
@@ -48,9 +56,14 @@ final class VideoPlayerModel {
     /// How long to wait between asks while the server is still preparing the video.
     private static let processingPollInterval: Duration = .seconds(5)
 
-    init(photoId: Int, apiClient: APIClient = .shared) {
+    /// `startMs` opens the video there, paused: a search match or a face's frame, the web's `?t=`.
+    init(photoId: Int, startMs: Int = 0, apiClient: APIClient = .shared) {
         self.photoId = photoId
         self.apiClient = apiClient
+        if startMs > 0 {
+            position = Double(startMs) / 1000
+            resume = (position, false)
+        }
     }
 
     /// Fetches the links, and keeps asking while the video is still processing. Called from the view's `.task`, so leaving the page stops the asking.
@@ -153,7 +166,7 @@ final class VideoPlayerModel {
             player.replaceCurrentItem(with: item)
         } else {
             let player = AVPlayer(playerItem: item)
-            timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self] time in
+            timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] time in
                 let seconds = time.seconds
                 MainActor.assumeIsolated {
                     guard let self, let player = self.player, player.currentItem?.status == .readyToPlay else { return }
@@ -244,15 +257,15 @@ struct VideoPlayerSection: View {
     @Environment(NetworkMonitor.self) private var network
     @State private var model: VideoPlayerModel
 
-    init(photo: Photo?, remoteId: Int) {
+    init(photo: Photo?, remoteId: Int, startMs: Int = 0) {
         self.photo = photo
-        _model = State(initialValue: VideoPlayerModel(photoId: remoteId))
+        _model = State(initialValue: VideoPlayerModel(photoId: remoteId, startMs: startMs))
     }
 
     var body: some View {
         VStack(spacing: 12) {
             if let player = model.player, model.phase == .ready || model.phase == .stopped {
-                VideoPlayerController(player: player)
+                VideoPlayerController(player: player, caption: model.caption)
                     .aspectRatio(model.aspectRatio ?? 16 / 9, contentMode: .fit)
                     .frame(maxHeight: 560)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -261,6 +274,9 @@ struct VideoPlayerSection: View {
             }
             note
             if let transcript = model.transcript, model.player != nil {
+                if transcript.status == GetVideoTranscriptResponseDTO.Status.done, !transcript.segments.isEmpty {
+                    captionsToggle
+                }
                 VideoTranscriptView(transcript: transcript, position: model.position) { seconds in
                     model.seek(to: seconds)
                 }
@@ -319,6 +335,19 @@ struct VideoPlayerSection: View {
         }
     }
 
+    private var captionsToggle: some View {
+        Button {
+            model.showsCaptions.toggle()
+        } label: {
+            Label(Copy.video.captions, systemImage: model.showsCaptions ? "captions.bubble.fill" : "captions.bubble")
+                .font(.subheadline)
+        }
+        .buttonStyle(.bordered)
+        .tint(model.showsCaptions ? .accentColor : .secondary)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .accessibilityLabel(model.showsCaptions ? Copy.video.captionsOff : Copy.video.captionsOn)
+    }
+
     private var retryButton: some View {
         Button {
             Task { await model.retry() }
@@ -343,13 +372,19 @@ struct VideoPlayerSection: View {
     }
 }
 
-/// The system player — controls, full screen, AirPlay — around an `AVPlayer` the model owns.
+/// The system player — controls, full screen, AirPlay — around an `AVPlayer` the model owns. Captions are drawn in its content overlay, between the video and the controls, so they follow it into full screen: AVPlayer reads WebVTT only from inside HLS, and playback here is a plain MP4.
 private struct VideoPlayerController: UIViewControllerRepresentable {
     let player: AVPlayer
+    let caption: String?
+
+    func makeCoordinator() -> CaptionOverlay { CaptionOverlay() }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
+        if let overlay = controller.contentOverlayView {
+            context.coordinator.install(in: overlay)
+        }
         return controller
     }
 
@@ -357,6 +392,46 @@ private struct VideoPlayerController: UIViewControllerRepresentable {
         if controller.player !== player {
             controller.player = player
         }
+        context.coordinator.show(caption)
+    }
+}
+
+/// White text on a dark band near the bottom of the picture, like system captions.
+private final class CaptionOverlay {
+    private let label = UILabel()
+    private let band = UIView()
+
+    func install(in overlay: UIView) {
+        label.numberOfLines = 3
+        label.textAlignment = .center
+        label.textColor = .white
+        label.font = .preferredFont(forTextStyle: .callout)
+        label.adjustsFontForContentSizeCategory = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        band.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        band.layer.cornerRadius = 6
+        band.isUserInteractionEnabled = false
+        band.isHidden = true
+        band.translatesAutoresizingMaskIntoConstraints = false
+        band.addSubview(label)
+        overlay.addSubview(band)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: band.leadingAnchor, constant: 8),
+            label.trailingAnchor.constraint(equalTo: band.trailingAnchor, constant: -8),
+            label.topAnchor.constraint(equalTo: band.topAnchor, constant: 4),
+            label.bottomAnchor.constraint(equalTo: band.bottomAnchor, constant: -4),
+            band.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            band.leadingAnchor.constraint(greaterThanOrEqualTo: overlay.leadingAnchor, constant: 16),
+            band.trailingAnchor.constraint(lessThanOrEqualTo: overlay.trailingAnchor, constant: -16),
+            band.bottomAnchor.constraint(equalTo: overlay.bottomAnchor, constant: -48),
+        ])
+    }
+
+    func show(_ caption: String?) {
+        label.text = caption
+        band.isHidden = caption == nil
     }
 }
 
