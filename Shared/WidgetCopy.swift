@@ -47,6 +47,10 @@ nonisolated enum WidgetCopy {
     /// "+3 more": the people a full grid could not show.
     static func morePeople(_ n: Int) -> String { "+\(n) more" }
     static let openFamily = "Open family"
+    static let addQuoteControl = "Add Quote"
+    static let addQuoteControlDescription = "Write down something someone said."
+    static let addPhotosControl = "Add Photos"
+    static let addPhotosControlDescription = "Choose photos to add to Family Record."
 
     /// "Theo & Mia: birthdays tomorrow" — two or more birthdays on one day, in one line.
     static func sharedBirthday(_ names: [String], inDays days: Int) -> String {

@@ -160,6 +160,18 @@ struct ContentView: View {
         case .interviewSetup(let personId):
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.interviewSetup(personId: personId)], on: .home)
+        case .search(let query):
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([.search(query: query)])
+        case .addPhotos:
+            _ = deepLinkRouter.claim { $0 == link }
+            guard authService.access.canContributeAnywhere else { return }
+            addFlow.pickPhotos()
+        case .addQuote(let remoteId):
+            _ = deepLinkRouter.claim { $0 == link }
+            guard authService.access.canContributeAnywhere else { return }
+            let person = remoteId.flatMap { id in people.first { $0.serverId == id } }
+            addFlow.open(.quote(personId: person?.id))
         }
     }
 }

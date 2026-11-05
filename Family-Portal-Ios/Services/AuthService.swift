@@ -341,7 +341,8 @@ final class AuthService {
         UserDefaults.standard.set(data, forKey: Self.cachedUserKey)
     }
 
-    private static func cachedUser() -> AuthResponseDTO? {
+    /// The signed-in account as last cached, for a caller that runs before the session is restored — an App Intent the system launched the app to perform.
+    static func cachedUser() -> AuthResponseDTO? {
         guard let data = UserDefaults.standard.data(forKey: cachedUserKey) else { return nil }
         return try? JSONDecoder().decode(AuthResponseDTO.self, from: data)
     }

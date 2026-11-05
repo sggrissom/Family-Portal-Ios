@@ -85,11 +85,21 @@
 			);
 			target = 33D5A0010000000000000001 /* FamilyRecordShare */;
 		};
+		33D5A001000000000000000E /* Exceptions for "Shared" folder in "FamilyRecordShare" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				FamilyRecordIntents.swift,
+			);
+			target = 33D5A0010000000000000001 /* FamilyRecordShare */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		33957899307BF12F0083A28F /* Shared */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				33D5A001000000000000000E /* Exceptions for "Shared" folder in "FamilyRecordShare" target */,
+			);
 			path = Shared;
 			sourceTree = "<group>";
 		};
@@ -673,6 +683,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios;
 				PRODUCT_MODULE_NAME = Family_Portal_Ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) FAMILY_RECORD_APP";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -707,6 +718,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.familyrecord.ios;
 				PRODUCT_MODULE_NAME = Family_Portal_Ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) FAMILY_RECORD_APP";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
