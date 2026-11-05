@@ -462,8 +462,9 @@ struct SearchView: View {
     private func photoStrip(_ response: SearchResponseDTO) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: 4) {
+                let matches = Dictionary(response.photos.compactMap { item in item.match.map { (item.image.id, $0) } }, uniquingKeysWith: { first, _ in first })
                 ForEach(SearchResults.resolve(response.photos.map(\.image.id), in: localPhotos), id: \.id) { photo in
-                    ServerPhotoCell(remoteId: photo.id, local: photo.local)
+                    ServerPhotoCell(remoteId: photo.id, local: photo.local, match: matches[photo.id])
                         .frame(width: 96, height: 96)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 }

@@ -62,7 +62,19 @@ final class PhotoImageCache {
     }
 
     func image(remoteId: Int, size: PhotoSizeVariant) async -> Outcome {
-        let key = Self.key(remoteId, size)
+        await image(key: Self.key(remoteId, size), path: "api/photo/\(remoteId)/\(size.rawValue)")
+    }
+
+    /// One sampled frame of a video, as the server's analysis kept it: what a video face's box and a search match's offset point into.
+    func cachedFrame(remoteId: Int, frameMs: Int) -> UIImage? {
+        decoded.object(forKey: Self.frameKey(remoteId, frameMs) as NSString)
+    }
+
+    func frame(remoteId: Int, frameMs: Int) async -> Outcome {
+        await image(key: Self.frameKey(remoteId, frameMs), path: "api/photo/\(remoteId)/frame/\(frameMs)")
+    }
+
+    private func image(key: String, path: String) async -> Outcome {
         if let cached = decoded.object(forKey: key as NSString) {
             return .image(cached)
         }
@@ -74,7 +86,7 @@ final class PhotoImageCache {
             lastOutcome[key] = nil
 
             let task = Task { [self] in
-                let outcome = await load(remoteId: remoteId, size: size)
+                let outcome = await load(path: path)
                 if case .image(let image) = outcome {
                     decoded.setObject(image, forKey: key as NSString, cost: Self.cost(of: image))
                 } else {
@@ -116,16 +128,17 @@ final class PhotoImageCache {
         "\(remoteId)-\(size.rawValue)"
     }
 
+    private static func frameKey(_ remoteId: Int, _ frameMs: Int) -> String {
+        "\(remoteId)-frame-\(frameMs)"
+    }
+
     private static func cost(of image: UIImage) -> Int {
         guard let cgImage = image.cgImage else { return 1024 }
         return cgImage.bytesPerRow * cgImage.height
     }
 
-    private func load(remoteId: Int, size: PhotoSizeVariant) async -> Outcome {
-        let service = PhotoSyncService(apiClient: apiClient)
-        guard let url = await service.photoURL(remoteId: remoteId, size: size) else {
-            return .unavailable
-        }
+    private func load(path: String) async -> Outcome {
+        let url = await apiClient.getBaseURL().appendingPathComponent(path)
 
         // Photos are fetched with the raw token rather than through `APIClient.request`, so the proactive refresh and the retry-on-401 have to be asked for here.
         await apiClient.ensureFreshAccessToken()

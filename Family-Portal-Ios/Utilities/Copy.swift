@@ -307,6 +307,9 @@ nonisolated enum Copy {
         static let transcriptAutomatic = "Automatic — may contain mistakes"
         static let transcriptPending = "A transcript will appear here once the video has been listened to."
         static func transcriptLine(_ time: String) -> String { "Play from \(time)" }
+        static let captions = "Captions"
+        static let captionsOn = "Show captions"
+        static let captionsOff = "Hide captions"
     }
 
     /// Similar-photo groups and place filters on `family-photos.tsx`.
@@ -351,6 +354,8 @@ nonisolated enum Copy {
 
     /// The web's `copy.search`: global search, from the magnifying glass on every tab.
     enum search {
+        /// VoiceOver for a video found by what is said in it.
+        static func saidInVideo(_ line: String) -> String { "Video where someone says “\(line)”" }
         static let title = "Search"
         static let label = "Search everything"
         static let placeholder = "Search people, moments, photos…"

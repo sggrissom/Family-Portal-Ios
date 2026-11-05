@@ -46,8 +46,8 @@ enum AppRoute: Hashable {
     case photoSet(ids: [UUID], title: String)
     /// A group of similar shots, by server id, cover first.
     case similarPhotos(ids: [Int])
-    /// A photo the server returned that this device doesn't hold yet.
-    case remotePhoto(id: Int)
+    /// A photo the server returned that this device doesn't hold yet. `startMs` is where a video starts, as on `PhotoRoute`.
+    case remotePhoto(id: Int, startMs: Int = 0)
     /// One milestone by local id, as its own page — where a link to it lands.
     case milestone(UUID)
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
@@ -202,7 +202,7 @@ extension View {
             AppRouteDestination(route: route)
         }
         .navigationDestination(for: PhotoRoute.self) { route in
-            PhotoDetailView(photoId: route.id, openedFrom: route.openedFrom)
+            PhotoDetailView(photoId: route.id, openedFrom: route.openedFrom, startMs: route.startMs)
         }
     }
 }
@@ -236,8 +236,8 @@ private struct AppRouteDestination: View {
             PhotoSetView(ids: ids, title: title)
         case .similarPhotos(let ids):
             SimilarPhotosView(remoteIds: ids)
-        case .remotePhoto(let id):
-            RemotePhotoDetailView(remoteId: id)
+        case .remotePhoto(let id, let startMs):
+            RemotePhotoDetailView(remoteId: id, startMs: startMs)
         case .event(let id, let name):
             CompetitionView(eventId: id, eventName: name)
         case .milestone(let id):

@@ -35,15 +35,18 @@ struct RemoteMediaView<Still: View>: View {
     let remoteId: Int
     /// The mirror's record, when it holds one.
     let local: Photo?
+    /// Where a video starts, in milliseconds.
+    var startMs: Int = 0
     private let still: Still
 
     @Environment(NetworkMonitor.self) private var network
     /// `mediaKind` from `GetPhoto`, for a server id the mirror doesn't hold.
     @State private var fetchedKind: Int?
 
-    init(remoteId: Int, local: Photo?, @ViewBuilder still: () -> Still) {
+    init(remoteId: Int, local: Photo?, startMs: Int = 0, @ViewBuilder still: () -> Still) {
         self.remoteId = remoteId
         self.local = local
+        self.startMs = startMs
         self.still = still()
     }
 
@@ -55,7 +58,7 @@ struct RemoteMediaView<Still: View>: View {
     var body: some View {
         Group {
             if isVideo {
-                VideoPlayerSection(photo: local, remoteId: remoteId)
+                VideoPlayerSection(photo: local, remoteId: remoteId, startMs: startMs)
             } else {
                 still
             }

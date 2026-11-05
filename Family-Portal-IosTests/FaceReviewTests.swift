@@ -19,6 +19,18 @@ struct FaceReviewTests {
         ]
     }
 
+    @Test("A face from a video crops from its frame, even the first; a photo's from the photo")
+    func videoFaceFrames() throws {
+        var video = Self.face(id: 1)
+        video["frameMs"] = 0
+        video["frameCount"] = 3
+        var later = Self.face(id: 2)
+        later["frameMs"] = 4200
+        later["frameCount"] = 1
+        let faces = try APIClient.decode([PhotoFaceDTO].self, from: Fixture.data([video, later, Self.face(id: 3)]))
+        #expect(faces.map(\.videoFrameMs) == [0, 4200, nil])
+    }
+
     private static func review(
         groups: Any = NSNull(),
         autoTagged: Any = NSNull(),

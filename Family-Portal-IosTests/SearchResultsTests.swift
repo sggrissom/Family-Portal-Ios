@@ -68,6 +68,25 @@ struct SearchResultsTests {
         #expect(response.books.map(\.title) == ["Beach summers"])
         #expect(!response.isTextOnly)
         #expect(!response.isEmpty)
+        #expect(response.photos[0].match == nil)
+    }
+
+    @Test("A video found by what is said in it carries the line and where")
+    func transcriptMatch() throws {
+        let payload: [String: Any] = [
+            "photos": [
+                ["image": Fixture.image(id: 52), "people": [Any](), "match": ["source": "transcript", "offsetMs": 42000, "snippet": "the T-rex is my favorite"]],
+                ["image": Fixture.image(id: 53), "people": [Any](), "match": ["source": "frame", "offsetMs": 9000]],
+            ],
+        ]
+        let response = try decode(SearchResponseDTO.self, payload)
+        let said = try #require(response.photos[0].match)
+        #expect(said.source == MediaMatchDTO.transcript)
+        #expect(said.offsetMs == 42000)
+        #expect(said.snippet == "the T-rex is my favorite")
+        let seen = try #require(response.photos[1].match)
+        #expect(seen.source == MediaMatchDTO.frame)
+        #expect(seen.snippet.isEmpty)
     }
 
     @Test("Missing and null groups read as empty")

@@ -22,6 +22,8 @@ nonisolated enum FaceCropLayout {
 struct FaceCropView: View {
     let photoId: Int
     let box: FaceBoxDTO
+    /// For a face from a video: the frame its box is relative to. The poster would put the box in the wrong place.
+    var frameMs: Int? = nil
     var size: CGFloat = 88
 
     @State private var image: UIImage?
@@ -41,13 +43,22 @@ struct FaceCropView: View {
         // Clipping only limits drawing. The enlarged, offset image must not
         // receive taps outside the visible crop (including controls above it).
         .contentShape(Rectangle())
-        .task(id: photoId) {
+        .task(id: "\(photoId)-\(frameMs ?? -1)") {
             guard box.hasArea else { return }
-            if let cached = PhotoImageCache.shared.cachedImage(remoteId: photoId, size: .medium) {
+            let cache = PhotoImageCache.shared
+            if let frameMs {
+                if let cached = cache.cachedFrame(remoteId: photoId, frameMs: frameMs) {
+                    image = cached
+                } else if case .image(let loaded) = await cache.frame(remoteId: photoId, frameMs: frameMs) {
+                    image = loaded
+                }
+                return
+            }
+            if let cached = cache.cachedImage(remoteId: photoId, size: .medium) {
                 image = cached
                 return
             }
-            if case .image(let loaded) = await PhotoImageCache.shared.image(remoteId: photoId, size: .medium) {
+            if case .image(let loaded) = await cache.image(remoteId: photoId, size: .medium) {
                 image = loaded
             }
         }
