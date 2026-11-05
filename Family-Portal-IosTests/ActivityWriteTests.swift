@@ -45,95 +45,100 @@ struct ActivityWriteTests {
         #expect(ServerDateFormat.requestString(zero) == nil)
     }
 
-    // MARK: - Creating
+    // MARK: - Saving a performance
 
-    @Test("Filing a routine at a competition names both parents")
-    func createAppearanceRequestShape() async throws {
+    private static func save(
+        _ server: FakeHTTPServer,
+        id: Int = 0,
+        occurredAt: Date? = nil,
+        notes: String = "",
+        matchup: Matchup = Matchup(),
+        results: [ResultInputDTO] = [],
+        photoIds: [Int] = []
+    ) async throws -> AppearanceViewDTO {
+        try await service(server).saveAppearance(
+            id: id, eventId: 5, entryId: 11, occurredAt: occurredAt, notes: notes,
+            matchup: matchup, results: results, photoIds: photoIds
+        )
+    }
+
+    @Test("A new performance names both parents and carries its results and photos in the same call")
+    func saveNewAppearanceRequestShape() async throws {
         let server = FakeHTTPServer()
-        server.route("rpc/CreateAppearance", respond: .json(
-            Fixture.appearanceResponse(Fixture.appearance(id: 21, eventId: 5, entryId: 11))
+        server.route("rpc/SaveAppearance", respond: .json(
+            Fixture.appearanceResponse(Fixture.appearance(id: 21, eventId: 5, entryId: 11), photoIds: [102, 101])
         ))
 
-        let appearance = try await Self.service(server).createAppearance(
-            eventId: 5,
-            entryId: 11,
+        let inputs = ResultSheet.inputs([
+            ResultDraft(kind: .placement, rankText: "1", outOfText: "14", category: "Teen Small Group Lyrical"),
+            ResultDraft(kind: .adjudication, label: "High Gold"),
+            ResultDraft()
+        ])
+        let appearance = try await Self.save(
+            server,
             occurredAt: Self.day(year: 2026, month: 3, day: 14),
-            notes: "  ballroom C  "
+            notes: "  ballroom C  ",
+            results: inputs,
+            photoIds: [102, 101]
         )
-
         #expect(appearance.appearance.id == 21)
 
-        let body = try Self.body(try #require(server.requests(for: "rpc/CreateAppearance").first))
+        let requests = server.requests(for: "rpc/SaveAppearance")
+        #expect(requests.count == 1)
+        let body = try Self.body(try #require(requests.first))
+        #expect(body["id"] as? Int == 0)
         #expect(body["eventId"] as? Int == 5)
         #expect(body["entryId"] as? Int == 11)
         #expect(body["occurredAt"] as? String == "2026-03-14")
         #expect(body["notes"] as? String == "ballroom C")
+        #expect(body["photoIds"] as? [Int] == [102, 101])
+        // Nothing recorded head-to-head on a new performance: left out rather than sent empty.
+        #expect(body["matchup"] == nil)
+
+        let results = try #require(body["results"] as? [[String: Any]])
+        #expect(results.count == 2)
+        #expect(results[0]["kind"] as? String == "placement")
+        #expect(results[0]["rank"] as? Int == 1)
+        #expect(results[0]["outOf"] as? Int == 14)
+        #expect(results[1]["kind"] as? String == "adjudication")
+        #expect(results[0]["sortOrder"] == nil)
+        #expect(results[1]["rank"] == nil)
+        #expect(results[1]["score"] == nil)
+        #expect(results[1]["personId"] == nil)
     }
 
-    @Test("A performance with no known day omits the date")
-    func createAppearanceWithoutDate() async throws {
+    @Test("An update with nothing left sends empty sets and an empty matchup, which clear them")
+    func saveExistingAppearanceClears() async throws {
         let server = FakeHTTPServer()
-        server.route("rpc/CreateAppearance", respond: .json(
+        server.route("rpc/SaveAppearance", respond: .json(
             Fixture.appearanceResponse(Fixture.appearance(id: 21))
         ))
 
-        _ = try await Self.service(server).createAppearance(
-            eventId: 5, entryId: 11, occurredAt: nil, notes: ""
-        )
+        _ = try await Self.save(server, id: 21)
 
-        let body = try Self.body(try #require(server.requests(for: "rpc/CreateAppearance").first))
+        let body = try Self.body(try #require(server.requests(for: "rpc/SaveAppearance").first))
+        #expect(body["id"] as? Int == 21)
         #expect(body["occurredAt"] == nil)
+        #expect((body["results"] as? [[String: Any]])?.isEmpty == true)
+        #expect((body["photoIds"] as? [Int])?.isEmpty == true)
+        #expect(body["matchup"] != nil)
     }
 
-    @Test("An entry from another season is refused in the backend's own words")
-    func createAppearanceRefusal() async {
-        let sentence = "That entry is not in the same season as this competition"
+    @Test("A refused performance reaches the user in the backend's own words")
+    func saveAppearanceRefusal() async {
+        let sentence = "A result can only name someone on this entry's roster"
         let server = FakeHTTPServer()
-        server.route("rpc/CreateAppearance", respond: .status(400, message: sentence))
+        server.route("rpc/SaveAppearance", respond: .status(400, message: sentence))
 
         do {
-            _ = try await Self.service(server).createAppearance(
-                eventId: 5, entryId: 11, occurredAt: nil, notes: ""
+            _ = try await Self.save(
+                server,
+                results: [ResultDraft(kind: .award, label: "Judges' Choice", personId: 99).input()]
             )
             Issue.record("Expected the write to be refused")
         } catch {
             #expect(error.localizedDescription == sentence)
         }
-    }
-
-    // MARK: - Updating
-
-    @Test("An update always sends the date it is showing")
-    func updateAppearanceSendsItsDate() async throws {
-        let server = FakeHTTPServer()
-        server.route("rpc/UpdateAppearance", respond: .json(
-            Fixture.appearanceResponse(Fixture.appearance(id: 21))
-        ))
-
-        _ = try await Self.service(server).updateAppearance(
-            id: 21,
-            occurredAt: Self.day(year: 2026, month: 3, day: 15),
-            notes: "second call"
-        )
-
-        let body = try Self.body(try #require(server.requests(for: "rpc/UpdateAppearance").first))
-        #expect(body["id"] as? Int == 21)
-        #expect(body["occurredAt"] as? String == "2026-03-15")
-        #expect(body["notes"] as? String == "second call")
-    }
-
-    @Test("Clearing the date omits the key, which is what clears it")
-    func updateAppearanceClearsItsDate() async throws {
-        let server = FakeHTTPServer()
-        server.route("rpc/UpdateAppearance", respond: .json(
-            Fixture.appearanceResponse(Fixture.appearance(id: 21))
-        ))
-
-        _ = try await Self.service(server).updateAppearance(id: 21, occurredAt: nil, notes: "")
-
-        let body = try Self.body(try #require(server.requests(for: "rpc/UpdateAppearance").first))
-        #expect(body.keys.contains("id"))
-        #expect(body["occurredAt"] == nil)
     }
 
     @Test("The date field reads a server zero as not set")
@@ -150,6 +155,13 @@ struct ActivityWriteTests {
         #expect(known.date == nil)
     }
 
+    @Test("A new dance program offers the common adjudications; a family's own replace them")
+    func quickLabels() {
+        #expect(ActivityResults.quickLabels(kind: "dance", used: ["Diamond", "Elite"]) == ["Diamond", "Elite"])
+        #expect(ActivityResults.quickLabels(kind: "dance", used: []) == ["Platinum", "High Gold", "Gold"])
+        #expect(ActivityResults.quickLabels(kind: "sport", used: []) == [])
+    }
+
     // MARK: - Deleting
 
     @Test("Deleting a performance asks by id")
@@ -161,99 +173,6 @@ struct ActivityWriteTests {
 
         let body = try Self.body(try #require(server.requests(for: "rpc/DeleteAppearance").first))
         #expect(body["id"] as? Int == 21)
-    }
-
-    // MARK: - Results
-
-    @Test("Saving a results sheet sends the whole set in order")
-    func setAppearanceResultsRequestShape() async throws {
-        let server = FakeHTTPServer()
-        server.route("rpc/SetAppearanceResults", respond: .json(
-            Fixture.appearanceResponse(Fixture.appearance(id: 21))
-        ))
-
-        let inputs = ResultSheet.inputs([
-            ResultDraft(kind: .placement, rankText: "1", outOfText: "14", category: "Teen Small Group Lyrical"),
-            ResultDraft(kind: .adjudication, label: "High Gold"),
-            ResultDraft()
-        ])
-        _ = try await Self.service(server).setAppearanceResults(appearanceId: 21, results: inputs)
-
-        let body = try Self.body(try #require(server.requests(for: "rpc/SetAppearanceResults").first))
-        #expect(body["appearanceId"] as? Int == 21)
-
-        let results = try #require(body["results"] as? [[String: Any]])
-        #expect(results.count == 2)
-        #expect(results[0]["kind"] as? String == "placement")
-        #expect(results[0]["rank"] as? Int == 1)
-        #expect(results[0]["outOf"] as? Int == 14)
-        #expect(results[1]["kind"] as? String == "adjudication")
-        #expect(results[0]["sortOrder"] == nil)
-        #expect(results[1]["rank"] == nil)
-        #expect(results[1]["score"] == nil)
-        #expect(results[1]["personId"] == nil)
-    }
-
-    @Test("Saving no results clears the sheet")
-    func setAppearanceResultsCanClear() async throws {
-        let server = FakeHTTPServer()
-        server.route("rpc/SetAppearanceResults", respond: .json(
-            Fixture.appearanceResponse(Fixture.appearance(id: 21))
-        ))
-
-        _ = try await Self.service(server).setAppearanceResults(appearanceId: 21, results: [])
-
-        let body = try Self.body(try #require(server.requests(for: "rpc/SetAppearanceResults").first))
-        #expect((body["results"] as? [[String: Any]])?.isEmpty == true)
-    }
-
-    @Test("A refused results sheet reaches the user as its own sentence")
-    func setAppearanceResultsRefusal() async {
-        let sentence = "A result can only name someone on this entry's roster"
-        let server = FakeHTTPServer()
-        server.route("rpc/SetAppearanceResults", respond: .status(400, message: sentence))
-
-        do {
-            _ = try await Self.service(server).setAppearanceResults(
-                appearanceId: 21,
-                results: [ResultDraft(kind: .award, label: "Judges' Choice", personId: 99).input()]
-            )
-            Issue.record("Expected the write to be refused")
-        } catch {
-            #expect(error.localizedDescription == sentence)
-        }
-    }
-
-    // MARK: - Photos
-
-    @Test("Attaching photos sends the whole set, in order")
-    func setAppearancePhotosRequestShape() async throws {
-        let server = FakeHTTPServer()
-        server.route("rpc/SetAppearancePhotos", respond: .json(
-            Fixture.appearanceResponse(Fixture.appearance(id: 21), photoIds: [102, 101])
-        ))
-
-        let appearance = try await Self.service(server).setAppearancePhotos(
-            appearanceId: 21, photoIds: [102, 101]
-        )
-        #expect(appearance.photoIds == [102, 101])
-
-        let body = try Self.body(try #require(server.requests(for: "rpc/SetAppearancePhotos").first))
-        #expect(body["appearanceId"] as? Int == 21)
-        #expect(body["photoIds"] as? [Int] == [102, 101])
-    }
-
-    @Test("Detaching every photo sends an empty set")
-    func setAppearancePhotosCanClear() async throws {
-        let server = FakeHTTPServer()
-        server.route("rpc/SetAppearancePhotos", respond: .json(
-            Fixture.appearanceResponse(Fixture.appearance(id: 21))
-        ))
-
-        _ = try await Self.service(server).setAppearancePhotos(appearanceId: 21, photoIds: [])
-
-        let body = try Self.body(try #require(server.requests(for: "rpc/SetAppearancePhotos").first))
-        #expect((body["photoIds"] as? [Int])?.isEmpty == true)
     }
 
     // MARK: - Vocabulary

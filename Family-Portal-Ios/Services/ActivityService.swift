@@ -109,45 +109,6 @@ final class ActivityService {
     // Online only, never queued: the server's cross-record refusals cannot be predicted on-device, and a queued write replayed hours later would report a success that never happened. None of these touch the snapshot cache.
     // Text is clamped here rather than at each call site — over-length text is silently truncated on write, not refused.
 
-    func createAppearance(
-        eventId: Int,
-        entryId: Int,
-        occurredAt: Date?,
-        notes: String,
-        matchup: Matchup? = nil
-    ) async throws -> AppearanceViewDTO {
-        let response: AppearanceResponseDTO = try await apiClient.callRPC(
-            .createAppearance,
-            payload: CreateAppearanceRequestDTO(
-                eventId: eventId,
-                entryId: entryId,
-                occurredAt: ServerDateFormat.requestString(occurredAt),
-                notes: ActivityFieldLimit.notes.clamp(notes),
-                matchup: matchup.flatMap { $0.isRecorded ? $0.input : nil }
-            )
-        )
-        return response.appearance
-    }
-
-    /// The date, the notes and, when given, the whole matchup. `occurredAt: nil` **clears** the date rather than leaving it alone, so pass what the caller is showing; `matchup: nil` leaves the stored one alone, and an empty one clears it.
-    func updateAppearance(
-        id: Int,
-        occurredAt: Date?,
-        notes: String,
-        matchup: Matchup? = nil
-    ) async throws -> AppearanceViewDTO {
-        let response: AppearanceResponseDTO = try await apiClient.callRPC(
-            .updateAppearance,
-            payload: UpdateAppearanceRequestDTO(
-                id: id,
-                occurredAt: ServerDateFormat.requestString(occurredAt),
-                notes: ActivityFieldLimit.notes.clamp(notes),
-                matchup: matchup?.input
-            )
-        )
-        return response.appearance
-    }
-
     func deleteAppearance(id: Int) async throws {
         let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
             .deleteAppearance,
@@ -155,26 +116,29 @@ final class ActivityService {
         )
     }
 
-    /// Replaces the whole results sheet; array order is where `sortOrder` comes from.
-    func setAppearanceResults(
-        appearanceId: Int,
-        results: [ResultInputDTO]
-    ) async throws -> AppearanceViewDTO {
-        let response: AppearanceResponseDTO = try await apiClient.callRPC(
-            .setAppearanceResults,
-            payload: SetAppearanceResultsRequestDTO(appearanceId: appearanceId, results: results)
-        )
-        return response.appearance
-    }
-
-    /// Replaces the whole attachment set, over *remote* photo ids.
-    func setAppearancePhotos(
-        appearanceId: Int,
+    /// A whole performance in one call: creates it when `id` is 0, and replaces its results and photos either way. The matchup is always sent, so emptying it clears it; on create an empty one is left out.
+    func saveAppearance(
+        id: Int,
+        eventId: Int,
+        entryId: Int,
+        occurredAt: Date?,
+        notes: String,
+        matchup: Matchup,
+        results: [ResultInputDTO],
         photoIds: [Int]
     ) async throws -> AppearanceViewDTO {
         let response: AppearanceResponseDTO = try await apiClient.callRPC(
-            .setAppearancePhotos,
-            payload: SetAppearancePhotosRequestDTO(appearanceId: appearanceId, photoIds: photoIds)
+            .saveAppearance,
+            payload: SaveAppearanceRequestDTO(
+                id: id,
+                eventId: eventId,
+                entryId: entryId,
+                occurredAt: ServerDateFormat.requestString(occurredAt),
+                notes: ActivityFieldLimit.notes.clamp(notes),
+                matchup: id == 0 && !matchup.isRecorded ? nil : matchup.input,
+                results: results,
+                photoIds: photoIds
+            )
         )
         return response.appearance
     }

@@ -124,6 +124,7 @@ struct RPCMethodTests {
         #expect(RPCMethod.updateAppearance.rawValue == "UpdateAppearance")
         #expect(RPCMethod.deleteAppearance.rawValue == "DeleteAppearance")
         #expect(RPCMethod.setAppearanceResults.rawValue == "SetAppearanceResults")
+        #expect(RPCMethod.saveAppearance.rawValue == "SaveAppearance")
     }
 
     @Test("Activity aggregate read proc names match the backend")

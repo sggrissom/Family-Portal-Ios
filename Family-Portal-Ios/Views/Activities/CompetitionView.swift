@@ -12,21 +12,18 @@ struct CompetitionView: View {
     @State private var state = ActivityScreenState<GetEventDetailResponseDTO>()
     @State private var seasonState = ActivityScreenState<GetSeasonOverviewResponseDTO>()
 
-    /// One sheet slot rather than four `.sheet` modifiers: SwiftUI presents one sheet per view, and several `isPresented` bindings on the same node race each other.
+    /// One sheet slot rather than several `.sheet` modifiers: SwiftUI presents one sheet per view, and several `isPresented` bindings on the same node race each other.
     private enum AppearanceSheet: Identifiable {
-        case add
-        case edit(AppearanceDetailDTO)
-        case results(AppearanceDetailDTO)
-        case photos(AppearanceDetailDTO)
+        /// A new performance, of this routine when one is given.
+        case record(entryId: Int?)
+        case performance(AppearanceDetailDTO)
         case editEvent
         case eventPhotos
 
         var id: String {
             switch self {
-            case .add: return "add"
-            case .edit(let detail): return "edit-\(detail.id)"
-            case .results(let detail): return "results-\(detail.id)"
-            case .photos(let detail): return "photos-\(detail.id)"
+            case .record(let entryId): return "record-\(entryId ?? 0)"
+            case .performance(let detail): return "performance-\(detail.id)"
             case .editEvent: return "event"
             case .eventPhotos: return "event-photos"
             }
@@ -64,7 +61,7 @@ struct CompetitionView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
-                            sheet = .add
+                            sheet = .record(entryId: nil)
                         } label: {
                             Label("Add \(labels.appearance)", systemImage: "plus")
                         }
@@ -89,30 +86,10 @@ struct CompetitionView: View {
         }
         .sheet(item: $sheet) { presented in
             switch presented {
-            case .add:
-                AddAppearanceView(
-                    eventId: eventId,
-                    entries: seasonState.value?.entries ?? [],
-                    labels: labels,
-                    onSaved: { await state.reload() }
-                )
-            case .edit(let detail):
-                EditAppearanceView(
-                    appearance: detail.appearance,
-                    entryName: detail.entry.name,
-                    labels: labels,
-                    onSaved: { await state.reload() }
-                )
-            case .results(let detail):
-                ResultsEditorView(
-                    appearanceId: detail.appearance.id,
-                    entryName: detail.entry.name,
-                    roster: roster(forEntry: detail.entry.id),
-                    activityId: seasonState.value?.activity.id,
-                    initialResults: detail.results,
-                    labels: labels,
-                    onSaved: { await state.reload() }
-                )
+            case .record(let entryId):
+                performanceEditor(existing: nil, entryId: entryId)
+            case .performance(let detail):
+                performanceEditor(existing: detail, entryId: nil)
             case .editEvent:
                 if let response = state.value {
                     CompetitionEditorView(
@@ -135,24 +112,21 @@ struct CompetitionView: View {
                         onSaved: { await state.reload() }
                     )
                 }
-            case .photos(let detail):
-                ActivityPhotoPickerView(
-                    attachedPhotoIds: detail.photoIds,
-                    subject: labels.appearance.lowercased(),
-                    save: { photoIds in
-                        _ = try await service.setAppearancePhotos(
-                            appearanceId: detail.appearance.id,
-                            photoIds: photoIds
-                        )
-                    },
-                    onSaved: { await state.reload() }
-                )
             }
         }
     }
 
-    private func roster(forEntry entryId: Int) -> [Int] {
-        seasonState.value?.entries.first { $0.entry.id == entryId }?.personIds ?? []
+    private func performanceEditor(existing: AppearanceDetailDTO?, entryId: Int?) -> some View {
+        PerformanceEditorView(
+            eventId: eventId,
+            existing: existing,
+            entryId: entryId,
+            entries: seasonState.value?.entries ?? [],
+            activityId: seasonState.value?.activity.id,
+            activityKind: state.value?.season.kind ?? ActivityKind.generic,
+            labels: labels,
+            onSaved: { await state.reload() }
+        )
     }
 
     @ViewBuilder
@@ -164,28 +138,84 @@ struct CompetitionView: View {
         VStack(spacing: 16) {
             header(response, labels: labels)
 
-            GroupBox(labels.appearancePlural) {
-                VStack(alignment: .leading, spacing: 12) {
-                    if response.appearances.isEmpty {
-                        Text("No \(labels.appearancePlural.lowercased()) recorded yet")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        // An entry's rounds stay together, under how its run went.
-                        let runs = Matchups.group(response.appearances) { $0.entry.id }
-                        ForEach(runs, id: \.first?.id) { run in
-                            let summary = run.count > 1 ? Matchups.runSummary(run.map { Matchup($0.appearance) }) : ""
-                            if !summary.isEmpty {
-                                Text(summary)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                            ForEach(run) { detail in
-                                appearanceRow(detail, people: people)
+            ForEach(cards(response)) { card in
+                routineCard(card, labels: labels, people: people)
+            }
 
-                                if detail.id != response.appearances.last?.id {
-                                    Divider()
-                                }
-                            }
+            if response.appearances.isEmpty && (!editable || cards(response).isEmpty) {
+                Text("No \(labels.appearancePlural.lowercased()) recorded yet")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    /// A card for every routine in the season, recorded or not, so a weekend's results are entered from here rather than by adding each performance first. Routines the season no longer lists still show when they have performances here.
+    private struct RoutineCard: Identifiable {
+        let entryId: Int
+        let name: String
+        let appearances: [AppearanceDetailDTO]
+        var id: Int { entryId }
+    }
+
+    private func cards(_ response: GetEventDetailResponseDTO) -> [RoutineCard] {
+        let byEntry = Dictionary(grouping: response.appearances) { $0.entry.id }
+        var cards = (seasonState.value?.entries ?? []).map { view in
+            RoutineCard(entryId: view.entry.id, name: view.entry.name, appearances: byEntry[view.entry.id] ?? [])
+        }
+        let listed = Set(cards.map(\.entryId))
+        for run in Matchups.group(response.appearances, by: { $0.entry.id }) {
+            guard let first = run.first, !listed.contains(first.entry.id) else { continue }
+            cards.append(RoutineCard(entryId: first.entry.id, name: first.entry.name, appearances: run))
+        }
+        return cards
+    }
+
+    @ViewBuilder
+    private func routineCard(_ card: RoutineCard, labels: ActivityLabels, people: ActivityPeople) -> some View {
+        if card.appearances.isEmpty {
+            if editable {
+                Button {
+                    sheet = .record(entryId: card.entryId)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(card.name)
+                                .font(.headline)
+                            Text("Not recorded yet")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Label("Record results", systemImage: "plus.circle")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                            .foregroundStyle(.secondary)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        } else {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    // An entry's rounds stay together, under how its run went.
+                    let summary = card.appearances.count > 1 ? Matchups.runSummary(card.appearances.map { Matchup($0.appearance) }) : ""
+                    if !summary.isEmpty {
+                        Text(summary)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    ForEach(card.appearances) { detail in
+                        appearanceRow(detail, people: people)
+                        if detail.id != card.appearances.last?.id {
+                            Divider()
                         }
                     }
                 }
@@ -193,7 +223,6 @@ struct CompetitionView: View {
                 .padding(.vertical, 4)
             }
         }
-        .padding(.horizontal)
     }
 
     private func appearanceRow(_ detail: AppearanceDetailDTO, people: ActivityPeople) -> some View {
@@ -214,29 +243,16 @@ struct CompetitionView: View {
                 .buttonStyle(.plain)
 
                 if editable {
-                    Menu {
-                        Button {
-                            sheet = .results(detail)
-                        } label: {
-                            Label(detail.results.isEmpty ? "Add Results" : "Edit Results", systemImage: "list.number")
-                        }
-                        Button {
-                            sheet = .photos(detail)
-                        } label: {
-                            Label("Photos", systemImage: "photo.on.rectangle")
-                        }
-                        Button {
-                            sheet = .edit(detail)
-                        } label: {
-                            Label("Edit \(labels.appearance)", systemImage: "pencil")
-                        }
+                    Button {
+                        sheet = .performance(detail)
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "square.and.pencil")
                             .font(.title3)
                             .foregroundStyle(.secondary)
                             .padding(.top, 2)
                     }
-                    .accessibilityLabel("Actions for \(detail.entry.name)")
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(detail.results.isEmpty ? "Record results for \(detail.entry.name)" : "Edit results for \(detail.entry.name)")
                 }
             }
 

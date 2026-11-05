@@ -53,7 +53,8 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── Milestones/    AddMilestoneView, MilestoneDetailView,
 │   │                  EditMilestoneView, MilestonePhotoPickerView,
 │   │                  MilestonePhotoUploadSection
-│   ├── Activities/    ActivitiesRootView, SeasonView, CompetitionView, …
+│   ├── Activities/    ActivitiesRootView, SeasonView, CompetitionView,
+│   │                  PerformanceEditorView (one performance, saved whole), …
 │   ├── Books/         BooksView (shelf), BookReaderView, BookBlocks,
 │   │                  NewBookView, BookEditorView
 │   ├── Interviews/    InterviewView (one interview's page), InterviewSetupView,
@@ -543,7 +544,8 @@ The web's `/same-age` (`same-age.tsx`, `SameAgePortraits`, `sameAgeNavigation.ts
 ### Activity matchups (`Services/Matchups.swift`)
 
 - An appearance can carry a head-to-head round (`round`, `opponent`, `outcome`, optional `scoreFor`/`scoreAgainst`), flat on `AppearanceDTO`. `Matchups` is a port of `frontend/lib/matchups.ts` with its test table (`MatchupTests`): the matchup line, W–L(–D) records, and an entry's run summary. Change both together
-- `CreateAppearance`/`UpdateAppearance` take an all-or-nothing `matchup`: absent on update leaves the stored one alone, an empty one clears it. The editor (`AppearanceMatchupSection`) always sends its whole matchup on update. A score is 0–9999, and `nil` means none was kept, never 0
+- A performance is saved whole by `SaveAppearance` (`ActivityService.saveAppearance`): created when `id` is 0, with its whole results sheet, whole photo set and an all-or-nothing `matchup` (absent leaves the stored one alone, an empty one clears it), in one transaction. `PerformanceEditorView` is the only editor: it sends its whole matchup on update and leaves an empty one out on create. A score is 0–9999, and `nil` means none was kept, never 0
+- The competition page has a card per season routine; one with no performance there is a dashed "Record results" card that opens the editor on that routine. `ActivityResults` (`Services/ActivityResults.swift`) ports `frontend/lib/activityResults.ts`: the one-tap adjudications (`quickLabels`)
 - A sport's event is an "Event" and its appearance a "Game" (`ActivityLabels.sport`), as on the web
 
 ### Books (`BookService`, `BookAssembler`, `Views/Books/`)

@@ -127,6 +127,8 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case updateAppearance = "UpdateAppearance"
     case deleteAppearance = "DeleteAppearance"
     case setAppearanceResults = "SetAppearanceResults"
+    /// A whole performance — the appearance, its results sheet and its photos — in one transaction; nothing is written if any part is refused.
+    case saveAppearance = "SaveAppearance"
 
     // MARK: - Activities: aggregate reads (backend/activity_views.go)
 
