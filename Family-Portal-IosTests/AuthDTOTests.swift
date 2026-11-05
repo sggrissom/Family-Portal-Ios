@@ -35,6 +35,7 @@ struct AuthDTOTests {
         #expect(fields["initialPersonName"] as? String == "Ada")
         #expect(fields["initialPersonGender"] as? Int == 1)
         #expect(fields["initialPersonBirthdate"] as? String == "1990-12-10")
+        #expect(fields["claimPersonId"] as? Int == 0)
     }
 
     @Test("Decodes CreateAccountResponse as the backend marshals it")

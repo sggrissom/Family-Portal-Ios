@@ -118,6 +118,38 @@ struct PersonRelationTests {
         #expect(await harness.service.syncQueue.count() == 0)
     }
 
+    @Test("A new partner carries the anchor's children they are a parent of too")
+    func addPartnerCarriesChildren() async throws {
+        let harness = try TestSync.harness(connected: false)
+        let steven = try Self.person(in: harness, name: "Steven", remoteId: "12")
+        let mia = try Self.person(in: harness, name: "Mia", remoteId: "15")
+        let ruth = try Self.person(in: harness, name: "Ruth", remoteId: nil)
+        Self.routeAddPerson(harness, relationship: "wife")
+
+        try await harness.service.addPerson(ruth, stated: .partner, anchor: steven, children: [mia])
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        let body = try Self.body(of: try #require(harness.server.requests(for: "rpc/AddPerson").first))
+        #expect(body["childIds"] as? [Int] == [15])
+    }
+
+    @Test("Children go only with a stated partner")
+    func childrenNeedAPartner() async throws {
+        let harness = try TestSync.harness(connected: false)
+        let steven = try Self.person(in: harness, name: "Steven", remoteId: "12")
+        let mia = try Self.person(in: harness, name: "Mia", remoteId: "15")
+        let kate = try Self.person(in: harness, name: "Kate", remoteId: nil)
+        Self.routeAddPerson(harness, relationship: "sister")
+
+        try await harness.service.addPerson(kate, stated: .sibling, anchor: steven, children: [mia])
+        harness.monitor.isConnected = true
+        await harness.service.processQueue()
+
+        let body = try Self.body(of: try #require(harness.server.requests(for: "rpc/AddPerson").first))
+        #expect((body["childIds"] as? [Int])?.isEmpty == true)
+    }
+
     // MARK: - Editing a person
 
     @Test("An edit adopts the relationship the server words back")

@@ -15,6 +15,8 @@ struct AddPersonView: View {
     @State private var relation: RelationOption?
     @State private var anchorId: UUID?
     @State private var coAnchorIds: [Int] = []
+    /// For a partner: which of the anchor's children they are a parent of too, by server id.
+    @State private var partnerChildIds: [Int] = []
     /// Not specified until someone says, as on the web; a gendered relationship word ("daughter") fills it in.
     @State private var gender: Gender = .other
     @State private var birthday = Date()
@@ -44,6 +46,19 @@ struct AddPersonView: View {
             personId: 0,
             anchorId: anchorRemoteId
         )
+    }
+
+    private var partnerChildren: [Int] {
+        guard let anchorRemoteId else { return [] }
+        return RelationGraph.partnerChildren(relations.map(\.edge), stated: relation?.stated, anchorId: anchorRemoteId)
+    }
+
+    private var parentWord: String {
+        switch gender {
+        case .female: return "mother"
+        case .male: return "father"
+        case .other: return "parent"
+        }
     }
 
     private var showsPregnancyOption: Bool {
@@ -82,6 +97,19 @@ struct AddPersonView: View {
                             disabled: isSaving,
                             selectedIds: $coAnchorIds
                         )
+
+                        ForEach(partnerChildren, id: \.self) { childId in
+                            if let child = people.first(where: { $0.serverId == childId }) {
+                                Toggle("Also the \(parentWord) of \(child.name)", isOn: Binding(
+                                    get: { partnerChildIds.contains(childId) },
+                                    set: { isOn in
+                                        partnerChildIds.removeAll { $0 == childId }
+                                        if isOn { partnerChildIds.append(childId) }
+                                    }
+                                ))
+                                .disabled(isSaving)
+                            }
+                        }
                     } header: {
                         Text("Relationship")
                     } footer: {
@@ -150,6 +178,10 @@ struct AddPersonView: View {
             )) { _, _ in
                 coAnchorIds = CoAnchorPicker.defaultSelection(coAnchorSuggestions)
             }
+            // All ticked whenever the partner's anchor changes, as on the web; a hand-made untick survives anything else.
+            .onChange(of: partnerChildren, initial: true) { _, children in
+                partnerChildIds = children
+            }
         }
     }
 
@@ -172,6 +204,12 @@ struct AddPersonView: View {
                 guard let remoteId = candidate.serverId else { return false }
                 return coAnchorIds.contains(remoteId)
             }
+        let children = partnerChildren.isEmpty
+            ? []
+            : people.filter { candidate in
+                guard let remoteId = candidate.serverId else { return false }
+                return partnerChildIds.contains(remoteId)
+            }
 
         Task {
             do {
@@ -179,7 +217,8 @@ struct AddPersonView: View {
                     person,
                     stated: statedRelation,
                     anchor: statedAnchor,
-                    additionalAnchors: coAnchors
+                    additionalAnchors: coAnchors,
+                    children: children
                 )
                 dismiss()
             } catch {

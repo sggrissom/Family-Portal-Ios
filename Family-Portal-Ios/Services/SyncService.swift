@@ -382,7 +382,8 @@ final class SyncService {
             isPregnancy: payload.isPregnancy,
             stated: payload.stated,
             anchorId: try resolveRelationAnchor(payload),
-            additionalAnchorIds: resolveAdditionalAnchors(payload)
+            additionalAnchorIds: resolveAdditionalAnchors(payload),
+            childIds: payload.childLocalIds.compactMap { findPerson(byLocalId: $0)?.serverId }
         )
         let response: AddPersonResponseDTO = try await apiClient.callRPC(.addPerson, payload: request)
         dropPulledCopies(of: person, serverId: response.person.id)
@@ -684,7 +685,8 @@ final class SyncService {
         _ person: Person,
         stated: StatedRelation = .none,
         anchor: Person? = nil,
-        additionalAnchors: [Person] = []
+        additionalAnchors: [Person] = [],
+        children: [Person] = []
     ) async throws {
         guard let birthday = person.birthday else {
             throw SyncError.missingBirthday
@@ -700,7 +702,8 @@ final class SyncService {
             anchorLocalId: statesRelation ? anchor?.id.uuidString : nil,
             additionalAnchorLocalIds: statesRelation
                 ? additionalAnchors.filter { $0.id != anchor?.id }.map(\.id.uuidString)
-                : []
+                : [],
+            childLocalIds: statesRelation && stated == .partner ? children.map(\.id.uuidString) : []
         )
 
         // The anchor is a dependency only while it is unsynced, so the create waits at the gate instead of spending a request to learn the same thing.

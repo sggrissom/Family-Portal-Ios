@@ -58,7 +58,8 @@ final class AuthService {
         password: String,
         confirmPassword: String,
         familyCode: String = "",
-        initialPerson: InitialPerson? = nil
+        initialPerson: InitialPerson? = nil,
+        claimPersonId: Int = 0
     ) async -> String? {
         isLoading = true
         defer { isLoading = false }
@@ -73,7 +74,8 @@ final class AuthService {
             familyCode: familyCode,
             initialPersonName: personName,
             initialPersonGender: genderToInt(initialPerson?.gender ?? .other),
-            initialPersonBirthdate: initialPerson.map { WhenEntry.localDateString($0.birthdate) } ?? ""
+            initialPersonBirthdate: claimPersonId != 0 ? "" : initialPerson.map { WhenEntry.localDateString($0.birthdate) } ?? "",
+            claimPersonId: familyCode.isEmpty ? 0 : claimPersonId
         )
 
         do {
@@ -83,6 +85,19 @@ final class AuthService {
             return nil
         } catch {
             return error.localizedDescription
+        }
+    }
+
+    /// Who an invitee might already be in the family. Empty on any failure: the question is only an offer.
+    func inviteClaims(code: String) async -> [InviteClaimDTO] {
+        do {
+            let response: GetInviteClaimsResponseDTO = try await APIClient.shared.callPublicRPC(
+                .getInviteClaims,
+                payload: GetInviteClaimsRequestDTO(code: code)
+            )
+            return response.claims
+        } catch {
+            return []
         }
     }
 

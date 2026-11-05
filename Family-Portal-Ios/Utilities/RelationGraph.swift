@@ -28,6 +28,11 @@ nonisolated enum RelationGraph {
         edges.filter { $0.kind == .parent && $0.fromId == personId }.map(\.toId)
     }
 
+    /// The anchor's children, offered to a new partner as theirs too, so a spouse added after the kids isn't left a step-parent — `syncPartnerChildren`. Offered, all ticked, never assumed.
+    static func partnerChildren(_ edges: [RelationEdge], stated: StatedRelation?, anchorId: Int) -> [Int] {
+        stated == .partner ? children(edges, of: anchorId) : []
+    }
+
     /// Mirrors the backend: siblings stated outright plus those sharing a parent.
     /// Stated sibling edges are *not* transitive — A–B and B–C does not make A–C, because half-siblings break that — so this walks one step and stops.
     static func siblings(_ edges: [RelationEdge], of personId: Int) -> [Int] {

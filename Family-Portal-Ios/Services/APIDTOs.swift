@@ -88,6 +88,25 @@ nonisolated struct CreateAccountRequestDTO: Codable, Sendable {
     let initialPersonName: String
     let initialPersonGender: Int
     let initialPersonBirthdate: String
+    /// An adult already in the invited family to sign up as, in place of adding an initial person. 0 for none.
+    var claimPersonId: Int = 0
+}
+
+nonisolated struct GetInviteClaimsRequestDTO: Encodable, Sendable {
+    let code: String
+}
+
+nonisolated struct InviteClaimDTO: Decodable, Sendable, Identifiable, Equatable {
+    let personId: Int
+    let name: String
+
+    var id: Int { personId }
+}
+
+/// Empty for an unknown code: the proc answers the same either way, so it can't be used to test codes.
+nonisolated struct GetInviteClaimsResponseDTO: Decodable, Sendable {
+    @OrZero var familyName: String
+    @OrZero var claims: [InviteClaimDTO]
 }
 
 nonisolated struct RequestPasswordResetRequestDTO: Codable, Sendable {
@@ -478,6 +497,8 @@ nonisolated struct AddPersonRequestDTO: Encodable, Sendable {
     let anchorId: Int
     /// The same stated relation against more people, so "child of Steven and Ruth" is one write. Ids that are 0, the new person, repeated, or already stored are skipped server-side; one naming somebody the caller cannot see fails the whole call.
     let additionalAnchorIds: [Int]
+    /// People the new person is a parent of too, in the same write — a partner added after the children.
+    let childIds: [Int]
 
     nonisolated init(
         name: String,
@@ -486,7 +507,8 @@ nonisolated struct AddPersonRequestDTO: Encodable, Sendable {
         isPregnancy: Bool = false,
         stated: Int,
         anchorId: Int,
-        additionalAnchorIds: [Int] = []
+        additionalAnchorIds: [Int] = [],
+        childIds: [Int] = []
     ) {
         self.name = name
         self.gender = gender
@@ -495,6 +517,7 @@ nonisolated struct AddPersonRequestDTO: Encodable, Sendable {
         self.stated = stated
         self.anchorId = anchorId
         self.additionalAnchorIds = additionalAnchorIds
+        self.childIds = childIds
     }
 }
 
