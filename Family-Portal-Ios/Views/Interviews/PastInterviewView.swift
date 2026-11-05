@@ -144,7 +144,7 @@ struct PastInterviewView: View {
     }
 
     private func save(_ setup: GetInterviewSetupResponseDTO) async {
-        if let problem = when.problem {
+        if let problem = when.problem(birthday: setup.person.birthday.serverDate) {
             saveError = problem
             return
         }

@@ -61,6 +61,11 @@ struct AddPersonView: View {
         }
     }
 
+    /// The server refuses a birthday after today unless the baby isn't born yet; caught here, since a queued save would only fail later.
+    private var isFutureBirthday: Bool {
+        !isPregnancy && birthday.localRecordDay() > Date().localRecordDay()
+    }
+
     private var showsPregnancyOption: Bool {
         AgeCalculator.offersPregnancyOption(isPregnancy: isPregnancy, birthday: birthday)
     }
@@ -146,9 +151,14 @@ struct AddPersonView: View {
                 } header: {
                     Text(isPregnancy ? "Due Date" : "Birthday")
                 } footer: {
-                    Text(isPregnancy
-                         ? "An unborn record's age reads in weeks, and keeps counting in weeks past the due date."
-                         : "Used to calculate ages across the app.")
+                    if isFutureBirthday {
+                        Text(Copy.person.futureBirthday)
+                            .foregroundStyle(.red)
+                    } else {
+                        Text(isPregnancy
+                             ? "An unborn record's age reads in weeks, and keeps counting in weeks past the due date."
+                             : "Used to calculate ages across the app.")
+                    }
                 }
             }
             .navigationTitle("Add Person")
@@ -163,7 +173,7 @@ struct AddPersonView: View {
                     Button("Save") {
                         savePerson()
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isFutureBirthday || isSaving)
                 }
             }
             .onAppear {

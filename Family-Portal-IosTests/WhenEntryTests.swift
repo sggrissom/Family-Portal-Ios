@@ -89,4 +89,18 @@ struct WhenEntryTests {
     func problemResolvesToNothing() {
         #expect(WhenEntry(mode: .date).resolvedDate(birthday: nil, now: Self.now) == nil)
     }
+
+    @Test("An age that hasn't happened yet is refused, as the server does")
+    func futureAge() {
+        let born = ISO8601DateFormatter().date(from: "2022-06-15T00:00:00Z")!
+        let now = ISO8601DateFormatter().date(from: "2026-09-27T18:00:00Z")!
+        var entry = WhenEntry()
+        entry.mode = .age
+        entry.ageYears = 4
+        entry.ageMonths = 0
+        #expect(entry.problem(birthday: born, now: now) == nil)
+        entry.ageYears = 5
+        #expect(entry.problem(birthday: born, now: now) == "That age hasn't happened yet")
+        #expect(entry.problem(birthday: nil, now: now) == nil)
+    }
 }

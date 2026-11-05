@@ -169,7 +169,15 @@ nonisolated struct MatchupDraft: Equatable, Sendable {
         if scores.contains(where: { if case .score(let value) = $0 { return value > Matchups.maxScore }; return false }) {
             return "A score must be between 0 and \(Matchups.maxScore)."
         }
+        if outcomeContradictsScore { return "The outcome doesn't match the score." }
         return nil
+    }
+
+    /// A win on a losing score, or the reverse. A level score can still be a win or a loss — penalties.
+    var outcomeContradictsScore: Bool {
+        let derived = outcomeFromScore
+        if derived.isEmpty || outcome.isEmpty || outcome == derived { return false }
+        return derived != MatchupOutcome.draw
     }
 
     var matchup: Matchup {

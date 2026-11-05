@@ -466,6 +466,13 @@ The redesign (`redesign-plan.md`, phase 2) replaced the per-tab `QuickAddMenu`.
   on messages stored before this, read as the account's own. A view-only member reads
   but can't post. The Home strip labels each family (`GetDashboard`'s `families`)
   when it spans more than one
+- Entry checks the server also makes, caught before a queued write can fail:
+  `Checkup.plausibilityWarning` (a port of the web's, with its tests) questions a
+  value far outside the range for the age or a big jump within a year, once — a second
+  Save keeps it; height and weight problems are reported together; an age that hasn't
+  happened yet (`WhenEntry.problem(birthday:)`), a birthday after today unless the
+  baby isn't born yet, an activity ending before it starts, and an outcome the score
+  contradicts are refused
 - `WhenControl` ("Today ▾": Today, Yesterday, Pick a date…, By age…) dates
   measurements and past interviews, and is keyed with `.id(person?.id)`: an age
   resolves against the birthday it was handed. `WhenEntry.resolvedDate` turns an

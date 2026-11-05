@@ -112,6 +112,23 @@ struct MatchupTests {
         #expect(draft("2", "").outcomeFromScore == "")
     }
 
+    @Test("An outcome the score contradicts is refused; a level score can still be won on penalties")
+    func outcomeContradictingScore() {
+        var draft = MatchupDraft()
+        draft.scoreFor = "1"
+        draft.scoreAgainst = "3"
+        draft.outcome = "win"
+        #expect(draft.error == "The outcome doesn't match the score.")
+        draft.outcome = "loss"
+        #expect(draft.error == nil)
+        draft.scoreFor = "3"
+        draft.outcome = "win"
+        #expect(draft.error == nil)
+        draft.scoreFor = ""
+        draft.outcome = "loss"
+        #expect(draft.error == nil)
+    }
+
     // MARK: - The wire
 
     @Test("An appearance decodes its matchup, and one from before matchups decodes as none")
