@@ -9,7 +9,7 @@ nonisolated enum SharedPhotoDates {
     private static let candidateLimit = 64
 
     @concurrent
-    static func resolve(_ files: [URL]) async -> [URL: Date] {
+    static func resolve(_ files: [URL], onlyMissingEmbeddedDates: Bool = true) async -> [URL: Date] {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard !files.isEmpty, status == .authorized || status == .limited else { return [:] }
 
@@ -19,7 +19,7 @@ nonisolated enum SharedPhotoDates {
         for file in files {
             guard !Task.isCancelled else { break }
             // Older inbox entries may still carry an embedded date.
-            guard CaptureDate.from(fileURL: file) == nil,
+            guard !onlyMissingEmbeddedDates || CaptureDate.from(fileURL: file) == nil,
                   let size = Size(file),
                   let digest = digest(of: file) else { continue }
             if matchesBySize[size] == nil {

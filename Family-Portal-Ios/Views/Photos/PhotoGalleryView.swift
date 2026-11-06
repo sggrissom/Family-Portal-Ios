@@ -21,6 +21,7 @@ struct PhotoGalleryView: View {
         Binding(get: { navigator.photoFilter }, set: { navigator.photoFilter = $0 })
     }
     @State private var isFilterPresented = false
+    @State private var isDateRepairPresented = false
     /// The tag-suggestion review, for the toolbar link. `nil` hides it — offline, analysis off, or nothing to review.
     @State private var suggestionReview: GetTagSuggestionsResponseDTO?
     /// A submitted server search. While set, the grid shows its ranked results instead of the local filter; editing the text away from its query drops it.
@@ -110,6 +111,15 @@ struct PhotoGalleryView: View {
                         .accessibilityLabel("\(Copy.tagSuggestions.title), \(review.total)")
                     }
                 }
+                if authService.access.canContributeAnywhere {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu("Photo Actions", systemImage: "ellipsis.circle") {
+                            Button("Repair Photo Dates", systemImage: "calendar.badge.clock") {
+                                isDateRepairPresented = true
+                            }
+                        }
+                    }
+                }
             }
             // Keyed on connectivity, so the link appears once a signal returns.
             .task(id: network.isConnected) {
@@ -134,6 +144,13 @@ struct PhotoGalleryView: View {
             .sheet(isPresented: $isFilterPresented) {
                 NavigationStack {
                     PhotoFilterView(filter: filterBinding)
+                }
+            }
+            .sheet(isPresented: $isDateRepairPresented) {
+                let searchIDs = search.map { Set($0.photoIds) }
+                let candidates = searchIDs.map { ids in photos.filter { $0.serverId.map(ids.contains) ?? false } } ?? visiblePhotos
+                NavigationStack {
+                    PhotoDateRepairView(photos: candidates)
                 }
             }
     }
