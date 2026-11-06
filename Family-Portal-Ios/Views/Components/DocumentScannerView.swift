@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import UIKit
 import VisionKit
