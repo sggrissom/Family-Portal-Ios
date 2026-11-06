@@ -138,57 +138,8 @@ private struct PhotoDetailContent: View {
                     .padding(.horizontal)
                 }
 
-                if !taggedPeople.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Tagged People")
-                            .font(.headline)
-                            .padding(.horizontal)
-
-                        FlowLayout(spacing: 8) {
-                            ForEach(taggedPeople) { person in
-                                HStack(spacing: 4) {
-                                    PersonAvatarView(person: person, size: 20)
-                                    Text(person.name)
-                                        .font(.subheadline)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(.quaternary, in: Capsule())
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if canEdit {
-                    NavigationLink(destination: TagPeopleView(photo: photo)) {
-                        Label("Manage Tagged People", systemImage: "person.crop.circle.badge.plus")
-                    }
-                    .padding(.horizontal)
-                }
-
-                // Below the people and their Manage link, not between them: "tagged people" and "tags" are separate things that share a word.
-                TagChipsView(tagRemoteIds: photo.tagRemoteIds, title: "Tags")
-                    .padding(.horizontal)
-
-                if canEdit {
-                    SuggestedTagChips(
-                        suggestions: details?.suggestions ?? [],
-                        onAccept: accept,
-                        onReject: reject
-                    )
-                    .padding(.horizontal)
-
-                    NavigationLink {
-                        TagPickerView(tagRemoteIds: photo.tagRemoteIds) { tagRemoteIds in
-                            try await syncService.updatePhotoTags(photo, tagRemoteIds: tagRemoteIds)
-                        }
-                    } label: {
-                        Label("Edit Tags", systemImage: "tag")
-                    }
-                    .padding(.horizontal)
-                }
+                peopleSection
+                tagsSection
 
                 // Only people tagged in the photo are offered: the server refuses a profile photo the person is not associated with. And only those the account can change — a view-only member may still see a photo shared from a family they can edit, as on the web.
                 if !profileCandidates.isEmpty {
@@ -242,6 +193,88 @@ private struct PhotoDetailContent: View {
             ToolbarItem(placement: .topBarTrailing) {
                 OriginalPhotoMenu(photo: photo)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var peopleSection: some View {
+        let people = taggedPeople
+        if canEdit || !people.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Tagged People")
+                        .font(.headline)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer()
+                    if canEdit {
+                        NavigationLink("Edit", destination: TagPeopleView(photo: photo))
+                            .font(.subheadline)
+                            .accessibilityLabel("Edit Tagged People")
+                    }
+                }
+
+                if people.isEmpty {
+                    Text("No people tagged")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    FlowLayout(spacing: 8) {
+                        ForEach(people) { person in
+                            HStack(spacing: 4) {
+                                PersonAvatarView(person: person, size: 20)
+                                Text(person.name)
+                                    .font(.subheadline)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.quaternary, in: Capsule())
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    @ViewBuilder
+    private var tagsSection: some View {
+        if canEdit || !photo.tagRemoteIds.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                if canEdit {
+                    HStack {
+                        Text("Tags")
+                            .font(.headline)
+                            .accessibilityAddTraits(.isHeader)
+                        Spacer()
+                        NavigationLink {
+                            TagPickerView(tagRemoteIds: photo.tagRemoteIds) { tagRemoteIds in
+                                try await syncService.updatePhotoTags(photo, tagRemoteIds: tagRemoteIds)
+                            }
+                        } label: {
+                            Text("Edit")
+                                .font(.subheadline)
+                        }
+                        .accessibilityLabel("Edit Tags")
+                    }
+
+                    if photo.tagRemoteIds.isEmpty {
+                        Text("No tags")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                TagChipsView(tagRemoteIds: photo.tagRemoteIds, title: canEdit ? nil : "Tags")
+
+                if canEdit {
+                    SuggestedTagChips(
+                        suggestions: details?.suggestions ?? [],
+                        onAccept: accept,
+                        onReject: reject
+                    )
+                }
+            }
+            .padding(.horizontal)
         }
     }
 

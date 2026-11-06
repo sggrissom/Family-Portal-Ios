@@ -223,31 +223,46 @@ struct PersonSameAgeStrip: View {
     }
 }
 
-/// A photo's strip. The anchor is the person it was opened from; for a group photo opened from Photos, a chip row of the people in it chooses — nobody is picked invisibly. A photo of one person anchors on them, shown as the one chip.
+/// Compare at the age of a tagged person. A person page or the only eligible person can supply the initial selection.
 struct PhotoSameAgeSection: View {
     let photo: Photo
     let openedFrom: UUID?
 
     @State private var anchorId: UUID?
-    @State private var didSeed = false
-
-    private var tagged: [Person] {
-        photo.taggedPeople.sorted { FamilyGroups.isOlder($1, $0) }
-    }
 
     var body: some View {
-        let people = tagged
+        let people = photo.taggedPeople
+            .filter { person in
+                guard !person.isPregnancy, person.serverId != nil, let birthday = person.birthday else { return false }
+                return AgeSteps.monthsOld(birthday: birthday, at: photo.photoDate) >= 0
+            }
+            .sorted { FamilyGroups.isOlder($1, $0) }
+        let ids = people.map(\.id)
+
         if !people.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                if people.count > 1 || openedFrom == nil {
-                    PersonChips(selection: $anchorId, only: Set(people.map(\.id)))
+                if people.count > 1 {
+                    let labels = FamilyGroups.chipLabels(people)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Compare at the same age")
+                            .font(.headline)
+                            .accessibilityAddTraits(.isHeader)
+                        Picker("Compare at the same age", selection: $anchorId) {
+                            Text("Choose a person").tag(nil as UUID?)
+                            ForEach(people) { person in
+                                Text(labels[person.id] ?? person.name).tag(Optional(person.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
                 }
                 PersonSameAgeStrip(person: people.first { $0.id == anchorId }, date: photo.photoDate)
             }
-            .onAppear {
-                guard !didSeed else { return }
-                didSeed = true
-                anchorId = SameAgeAnchor.initial(tagged: people.map(\.id), openedFrom: openedFrom)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onChange(of: ids, initial: true) { _, ids in
+                if let anchorId, ids.contains(anchorId) { return }
+                anchorId = SameAgeAnchor.initial(tagged: ids, openedFrom: openedFrom)
             }
         }
     }
