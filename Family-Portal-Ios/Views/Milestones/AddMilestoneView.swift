@@ -72,8 +72,11 @@ struct AddMilestoneView: View {
         )
     }
 
-    /// `category` preselects one as if the user had chosen it, so a suggestion never moves it.
-    init(personId: UUID? = nil, category: MilestoneCategory? = nil) {
+    private let startsScanning: Bool
+
+    /// `category` preselects one as if the user had chosen it, so a suggestion never moves it. `startsScanning` opens the document camera over the form.
+    init(personId: UUID? = nil, category: MilestoneCategory? = nil, startsScanning: Bool = false) {
+        self.startsScanning = startsScanning
         _selectedPersonId = State(initialValue: personId)
         if let category {
             _category = State(initialValue: category)
@@ -124,7 +127,7 @@ struct AddMilestoneView: View {
                         .id(person?.id)
                 }
 
-                MilestonePhotoSections(category: category, newPhotos: $newPhotos, isReadingPhotos: $isReadingPhotos, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds)
+                MilestonePhotoSections(category: category, newPhotos: $newPhotos, isReadingPhotos: $isReadingPhotos, suggestedPhotos: suggestedPhotos, selectedPhotoIds: $selectedPhotoIds, startsScanning: startsScanning)
 
                 Section {
                     DisclosureGroup(Copy.milestone.more, isExpanded: $showsMore) {

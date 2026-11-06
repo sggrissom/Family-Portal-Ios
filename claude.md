@@ -660,6 +660,13 @@ Phase 3 of the system integration plan in `plan.md`.
 - Settings' **Search** toggle (`SpotlightSettingsSection`, `@AppStorage(SpotlightIndexer.enabledKey)`, on by default) turns it off and deletes everything indexed. Sign-out (`isAuthenticated` false) deletes everything too
 - Person, milestone and photo pages call `advertisesRecord(path:title:)`: an `NSUserActivityTypeBrowsingWeb` activity with the page's universal link, eligible for prediction and Handoff but not search (the indexer covers that), so a suggestion comes back through the existing web-link continuation
 
+### Scanning artwork and documents (`DocumentScannerView`, `SubjectLift`)
+
+Phase 5 of the system integration plan in `plan.md`.
+
+- `DocumentScannerView` wraps VisionKit's `VNDocumentCameraViewController` (absent on a simulator: `isAvailable`). `MilestonePhotoUploadSection` offers **Scan** beside the library picker; each page becomes a `PickedMilestonePhoto`, so it uploads ahead of the moment like any new photo. The add sheet's **Scan artwork** opens `AddForm.scannedArtwork`: the moment form with artwork preselected and the camera already open (`startsScanning`)
+- On an artwork moment, a new photo's context menu offers **Lift from Background** (`SubjectLift`, Vision's `VNGenerateForegroundInstanceMaskRequest`, off the main actor). The lifted drawing is a transparent PNG inserted after the original, which stays
+
 ### Error presentation and logging
 - `ErrorPresenter` (`@Observable`, app scope, injected into the environment) plus the `.appErrorAlert()` modifier applied once at the root. Views report failures through it rather than swallowing them
 - App-scoped rather than per view because the views raising these errors dismiss themselves in the same breath; an alert owned by a closing sheet never appears. Sheets `dismiss()` first, then report

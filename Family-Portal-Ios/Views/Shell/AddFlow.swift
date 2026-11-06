@@ -10,6 +10,8 @@ enum AddForm: Identifiable, Equatable {
     case milestone(personId: UUID?)
     /// A moment with its category already set to quote: Siri's and the controls' "Add quote".
     case quote(personId: UUID?)
+    /// An artwork moment with the document camera already open.
+    case scannedArtwork(personId: UUID?)
     case person
 
     var id: String {
@@ -17,6 +19,7 @@ enum AddForm: Identifiable, Equatable {
         case .measurement(let id): return "measurement-\(id?.uuidString ?? "")"
         case .milestone(let id): return "milestone-\(id?.uuidString ?? "")"
         case .quote(let id): return "quote-\(id?.uuidString ?? "")"
+        case .scannedArtwork(let id): return "scan-\(id?.uuidString ?? "")"
         case .person: return "person"
         }
     }
@@ -148,6 +151,8 @@ private struct AddFlowPresentation: ViewModifier {
                     AddMilestoneView(personId: personId)
                 case .quote(let personId):
                     AddMilestoneView(personId: personId, category: .quote)
+                case .scannedArtwork(let personId):
+                    AddMilestoneView(personId: personId, category: .artwork, startsScanning: true)
                 case .person:
                     AddPersonView()
                 }
@@ -223,6 +228,15 @@ struct AddSheetView: View {
                         Label(Copy.addSheet.milestone, systemImage: MilestoneCategory.first.icon)
                     }
                     .disabled(writablePeople.isEmpty)
+                    if DocumentScannerView.isAvailable {
+                        Button {
+                            remember()
+                            flow.choose(.scannedArtwork(personId: personId))
+                        } label: {
+                            Label(Copy.addSheet.scanArtwork, systemImage: "doc.viewfinder")
+                        }
+                        .disabled(writablePeople.isEmpty)
+                    }
                 }
 
                 if let events = openEvents.value?.events, !events.isEmpty {

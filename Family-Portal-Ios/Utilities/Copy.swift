@@ -51,6 +51,8 @@ nonisolated enum Copy {
         static let photosAndVideos = "Photos or videos"
         static let measurement = "Measurement"
         static let milestone = "Moment"
+        /// iOS only: the document camera.
+        static let scanArtwork = "Scan artwork"
         static let close = "Close"
     }
 
@@ -128,6 +130,12 @@ nonisolated enum Copy {
         static let artworkPlaceholder = "Drew the whole family as dinosaurs"
         static let artworkPhotos = "Photos of it"
         static let addArtworkPhoto = "Add a photo of it"
+        // iOS only: the web has no document camera or subject lifting.
+        static let scan = "Scan"
+        static let scanArtwork = "Scan it"
+        static let liftFromBackground = "Lift from Background"
+        static let liftFailed = "Couldn't find a drawing to lift from that photo."
+        static let lifting = "Lifting…"
         static let quotePlaceholder = "The moon is following our car!"
         static let context = "Context (optional)"
         static let contextPlaceholder = "On the drive home from Grandma's"

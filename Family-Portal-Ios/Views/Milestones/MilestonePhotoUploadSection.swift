@@ -35,9 +35,15 @@ struct MilestonePhotoUploadSection: View {
     @Binding var picked: [PickedMilestonePhoto]
     @Binding var isReading: Bool
     var isArtwork = false
+    /// Opens the document camera as soon as the form appears: the add sheet's **Scan artwork** already said what comes next.
+    var startsScanning = false
 
+    @State private var didStartScanning = false
     @State private var items: [PhotosPickerItem] = []
     @State private var unreadable = false
+    @State private var isScanning = false
+    @State private var liftingId: UUID?
+    @State private var liftFailed = false
 
     var body: some View {
         Section(isArtwork ? Copy.milestone.artworkPhotos : Copy.milestone.photos) {
@@ -48,6 +54,22 @@ struct MilestonePhotoUploadSection: View {
                             PhotoThumbnailView(imageData: pick.data, title: "")
                                 .frame(width: 72, height: 72)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay {
+                                    if liftingId == pick.id {
+                                        ProgressView()
+                                            .accessibilityLabel(Copy.milestone.lifting)
+                                    }
+                                }
+                                .contextMenu {
+                                    if isArtwork {
+                                        Button {
+                                            Task { await lift(pick) }
+                                        } label: {
+                                            Label(Copy.milestone.liftFromBackground, systemImage: "wand.and.stars")
+                                        }
+                                        .disabled(liftingId != nil)
+                                    }
+                                }
                                 .overlay(alignment: .topTrailing) {
                                     Button {
                                         picked.removeAll { $0.id == pick.id }
@@ -71,6 +93,16 @@ struct MilestonePhotoUploadSection: View {
             }
             .disabled(isReading)
 
+            // The document camera flattens a drawing or a certificate taken at an angle; each page becomes its own photo.
+            if DocumentScannerView.isAvailable {
+                Button {
+                    isScanning = true
+                } label: {
+                    Label(isArtwork ? Copy.milestone.scanArtwork : Copy.milestone.scan, systemImage: "doc.viewfinder")
+                }
+                .disabled(isReading)
+            }
+
             if isReading {
                 ProgressView("Loading photos…")
             }
@@ -80,12 +112,48 @@ struct MilestonePhotoUploadSection: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
+
+            if liftFailed {
+                Text(Copy.milestone.liftFailed)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .onAppear {
+            guard startsScanning, !didStartScanning, DocumentScannerView.isAvailable else { return }
+            didStartScanning = true
+            isScanning = true
+        }
+        .fullScreenCover(isPresented: $isScanning) {
+            DocumentScannerView { pages in
+                isScanning = false
+                // A scan is taken now; there is no EXIF date to read.
+                picked.append(contentsOf: pages.map { PickedMilestonePhoto(data: $0, captureDate: Date()) })
+            }
+            .ignoresSafeArea()
         }
         .onChange(of: items) { _, newItems in
             guard !newItems.isEmpty else { return }
             items = []
             isReading = true
             Task { await read(newItems) }
+        }
+    }
+
+    /// Adds the lifted drawing right after the photo it came from, which stays: the lift is a second version, not a replacement.
+    private func lift(_ pick: PickedMilestonePhoto) async {
+        liftingId = pick.id
+        liftFailed = false
+        defer { liftingId = nil }
+        guard let lifted = await SubjectLift.lift(pick.data) else {
+            liftFailed = true
+            return
+        }
+        let version = PickedMilestonePhoto(data: lifted, captureDate: pick.captureDate)
+        if let index = picked.firstIndex(where: { $0.id == pick.id }) {
+            picked.insert(version, at: index + 1)
+        } else {
+            picked.append(version)
         }
     }
 
