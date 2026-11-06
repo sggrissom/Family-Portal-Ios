@@ -1,3 +1,4 @@
+import AppIntents
 import CoreSpotlight
 import SwiftUI
 import SwiftData
