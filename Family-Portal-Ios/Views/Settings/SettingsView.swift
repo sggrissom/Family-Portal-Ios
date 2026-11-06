@@ -109,6 +109,7 @@ struct SettingsView: View {
 
             if authService.isAuthenticated {
                 NotificationSettingsSection()
+                SpotlightSettingsSection()
             }
 
             Section("About") {

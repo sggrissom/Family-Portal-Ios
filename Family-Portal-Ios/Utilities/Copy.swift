@@ -54,6 +54,13 @@ nonisolated enum Copy {
         static let close = "Close"
     }
 
+    /// Settings' system-search switch. iOS only.
+    enum spotlight {
+        static let header = "Search"
+        static let toggle = "Show in iPhone Search"
+        static let footer = "People, moments and quotes appear when you search from the Home Screen. Anyone using this iPhone while it's unlocked can see them there."
+    }
+
     /// The Home Screen icon's long-press menu. iOS only: the web has nothing like it.
     enum quickActions {
         static let addPhotos = "Add Photos"

@@ -25,6 +25,7 @@ struct PhotoDetailView: View {
         if let photo {
             PhotoDetailContent(photo: photo, openedFrom: openedFrom, startMs: startMs, showDeleteConfirmation: $showDeleteConfirmation)
                 .navigationBarTitleDisplayMode(.inline)
+                .advertisesRecord(path: photo.serverId.map { "/view-photo/\($0)" }, title: photo.title.isEmpty ? Copy.nav.photos : photo.title)
                 .confirmationDialog(photo.isVideo ? Copy.video.deleteTitle : "Delete Photo", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
                     Button("Delete", role: .destructive) {
                         Task {
