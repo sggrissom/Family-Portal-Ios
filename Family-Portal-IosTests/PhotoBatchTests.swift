@@ -73,6 +73,21 @@ struct PhotoBatchTests {
         #expect(payload.title == "Beach day, again")
     }
 
+    @Test("A repaired day remains queued when the caption is edited before sync")
+    func captionEditKeepsRepairedDay() async throws {
+        let harness = try TestSync.harness(connected: false)
+        let photo = try await Self.queuedPhoto(in: harness)
+        let repair = RecordTime.exact(day: "2018-04-23")
+
+        try await harness.service.updatePhoto(photo, keepingDate: false, recordTime: repair)
+        photo.title = "Beach day"
+        try await harness.service.updatePhoto(photo, keepingDate: true)
+
+        let payload = try await Self.queuedUpdate(for: photo, in: harness)
+        #expect(payload.recordTime == repair)
+        #expect(payload.title == "Beach day")
+    }
+
     private static func queuedUpdate(for photo: Photo, in harness: TestSync.Harness) async throws -> UpdatePhotoPayload {
         let updates = await harness.service.syncQueue.allOperations().filter { $0.type == .updatePhoto && $0.localId == photo.id.uuidString }
         #expect(updates.count == 1)

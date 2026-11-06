@@ -11,11 +11,16 @@ final class ShareInboxDrain {
     static let shared = ShareInboxDrain()
 
     private let makeInbox: () -> ShareInbox?
+    private let resolvePhotoDates: ([URL]) async -> [URL: Date]
     private var running = false
     private var rerunRequested = false
 
-    init(makeInbox: @escaping () -> ShareInbox? = { ShareInbox.shared() }) {
+    init(
+        makeInbox: @escaping () -> ShareInbox? = { ShareInbox.shared() },
+        resolvePhotoDates: @escaping ([URL]) async -> [URL: Date] = { await SharedPhotoDates.resolve($0) }
+    ) {
         self.makeInbox = makeInbox
+        self.resolvePhotoDates = resolvePhotoDates
     }
 
     func drain(
@@ -71,9 +76,16 @@ final class ShareInboxDrain {
         let ready = share.manifest.items.filter { !waiting.contains($0) }
         guard !ready.isEmpty else { return }
 
+        let undatedPhotos = ready.filter { $0.kind == .photo && $0.captureDate == nil }.map { share.url(of: $0) }
+        let recoveredDates = undatedPhotos.isEmpty ? [:] : await resolvePhotoDates(undatedPhotos)
+        guard !Task.isCancelled else { return }
+
         let choices = Self.choices(for: share.manifest, access: access, context: context)
         let files = ready.map {
-            PhotoImporter.SharedFile(url: share.url(of: $0), isVideo: $0.kind == .video, captureDate: $0.captureDate)
+            let url = share.url(of: $0)
+            return PhotoImporter.SharedFile(
+                url: url, isVideo: $0.kind == .video, captureDate: $0.captureDate ?? recoveredDates[url]
+            )
         }
         let outcomes = await importer.importShared(files, choices: choices, into: context, syncService: syncService, errorPresenter: errorPresenter)
 

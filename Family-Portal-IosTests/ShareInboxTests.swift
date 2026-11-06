@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import ImageIO
 import SwiftData
@@ -153,6 +154,51 @@ struct ShareInboxTests {
         #expect(photos.allSatisfy { $0.taggedPeople.map(\.name) == ["Emma"] })
         #expect(inbox.pending().isEmpty)
         #expect(flow.importer.progress == nil)
+    }
+
+    @Test("A shared photo without EXIF imports with its recovered library date")
+    func drainUsesRecoveredDate() async throws {
+        let inbox = Self.makeInbox()
+        defer { inbox.removeAll() }
+        let context = try TestStore.makeContext()
+        let jpeg = try PhotoImporterTests.jpeg(exifDateTimeOriginal: nil)
+        _ = try Self.writeShare(in: inbox, files: [("a.jpg", jpeg, .photo)])
+        let share = try #require(inbox.pending().first)
+        let file = share.url(of: try #require(share.manifest.items.first))
+        let date = Date(timeIntervalSince1970: 1_600_000_000)
+        let drain = ShareInboxDrain(makeInbox: { inbox }, resolvePhotoDates: { files in
+            #expect(files == [file])
+            return [file: date]
+        })
+
+        await drain.drain(
+            userId: 1, access: Self.contributor, addFlow: AddFlow(), isConnected: false,
+            context: context, syncService: nil, errorPresenter: nil
+        )
+
+        let photo = try #require(try context.fetch(FetchDescriptor<Photo>()).first)
+        #expect(photo.photoDate == date.localWallClock())
+        #expect(inbox.pending().isEmpty)
+    }
+
+    @Test("Shared photo matches require identical bytes and an unambiguous date")
+    func sharedPhotoMatches() {
+        let first = SHA256.hash(data: Data([1]))
+        let other = SHA256.hash(data: Data([2]))
+        let date = Date(timeIntervalSince1970: 1_600_000_000)
+        var matches = SharedPhotoDates.Matches()
+        matches.add(first, date: date)
+        matches.add(first, date: date)
+        #expect(matches.date(for: first) == date)
+        #expect(matches.date(for: other) == nil)
+
+        matches.add(first, date: date.addingTimeInterval(86_400))
+        matches.add(first, date: date)
+        #expect(matches.date(for: first) == nil)
+
+        matches.add(other, date: nil)
+        matches.add(other, date: date)
+        #expect(matches.date(for: other) == nil)
     }
 
     @Test("A share made under another account is dropped, not imported")
