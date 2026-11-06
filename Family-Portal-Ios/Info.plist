@@ -38,7 +38,7 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Family Record uses the camera to take a portrait at an interview.</string>
+	<string>Family Record uses the camera to take a portrait at an interview and to scan artwork and documents.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Family Record saves the original photos you choose to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

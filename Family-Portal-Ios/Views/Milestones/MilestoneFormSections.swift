@@ -29,12 +29,14 @@ struct MilestonePhotoSections: View {
     @Binding var isReadingPhotos: Bool
     let suggestedPhotos: [Photo]
     @Binding var selectedPhotoIds: Set<UUID>
+    var startsScanning = false
 
     var body: some View {
         MilestonePhotoUploadSection(
             picked: $newPhotos,
             isReading: $isReadingPhotos,
-            isArtwork: category == .artwork
+            isArtwork: category == .artwork,
+            startsScanning: startsScanning
         )
 
         if !suggestedPhotos.isEmpty {
