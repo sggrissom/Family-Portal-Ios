@@ -650,6 +650,16 @@ Phase 2 of the system integration plan in `plan.md`.
 - `AddPhotosIntent` and `OpenAddQuoteIntent` are in `Shared/` because the widget extension's controls (`AddQuoteControl`, `AddPhotosControl`) run them; their `perform` touches the router only under `#if FAMILY_RECORD_APP`, a compilation condition set on the app target alone, and the system performs an app-opening intent in the app
 - Home Screen quick actions (`QuickActions`) are set in code while signed in and cleared on sign-out. A cold launch's arrives in `AppDelegate`'s `configurationForConnecting`; one while running reaches `QuickActionSceneDelegate`
 
+### Spotlight (`SpotlightIndexer`, `advertisesRecord`)
+
+Phase 3 of the system integration plan in `plan.md`.
+
+- `SpotlightIndexer.reindex` runs after every `performFullSync` (`onFullSyncFinished`, not awaited). It builds every entry from the store — people and moments/quotes with a server id; interview answers never — and sends Spotlight only those whose fingerprint (title, text, date, thumbnail) changed since the last run, deleting identifiers no longer present. Fingerprints and the domain are kept in `UserDefaults`; a failed run leaves them alone, so the next one resends
+- An item's `uniqueIdentifier` is its site-relative path (`/profile/7`, `/milestone/45`), so a tapped result (`onContinueUserActivity(CSSearchableItemActionType)`) goes through `DeepLink.parse(path:)` like any link. The domain is `family-<familyId>`; a different domain wipes the index first
+- Thumbnails come only from `PhotoImageCache` when already cached (a person's profile photo, a moment's first photo); indexing never downloads
+- Settings' **Search** toggle (`SpotlightSettingsSection`, `@AppStorage(SpotlightIndexer.enabledKey)`, on by default) turns it off and deletes everything indexed. Sign-out (`isAuthenticated` false) deletes everything too
+- Person, milestone and photo pages call `advertisesRecord(path:title:)`: an `NSUserActivityTypeBrowsingWeb` activity with the page's universal link, eligible for prediction and Handoff but not search (the indexer covers that), so a suggestion comes back through the existing web-link continuation
+
 ### Error presentation and logging
 - `ErrorPresenter` (`@Observable`, app scope, injected into the environment) plus the `.appErrorAlert()` modifier applied once at the root. Views report failures through it rather than swallowing them
 - App-scoped rather than per view because the views raising these errors dismiss themselves in the same breath; an alert owned by a closing sheet never appears. Sheets `dismiss()` first, then report

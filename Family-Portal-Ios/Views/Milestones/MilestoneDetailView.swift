@@ -200,6 +200,8 @@ struct MilestoneDetailContent: View {
         .fullScreenCover(item: $selectedPhoto) { selection in
             MilestonePhotoViewer(photoIds: milestone.photoRemoteIds, initialPhotoId: selection.id)
         }
+        // An interview answer stays out of suggestions, as it stays out of search and the widgets.
+        .advertisesRecord(path: isAnswer ? nil : milestone.serverId.map { "/milestone/\($0)" }, title: milestone.displayText)
     }
 }
 

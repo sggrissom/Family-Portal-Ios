@@ -1,4 +1,5 @@
 import AppIntents
+import CoreSpotlight
 import SwiftUI
 import SwiftData
 import UIKit
@@ -135,6 +136,8 @@ struct Family_Portal_IosApp: App {
                         WidgetPublisher.shared.clear()
                         // Shares made under this account wait for it alone; the next one to sign in must not import them.
                         ShareInbox.shared()?.removeAll()
+                        // System search must not keep offering the family once nobody is signed in.
+                        Task { await SpotlightIndexer.shared.removeAll() }
                         retireChatService()
                         // The next account starts on Home with empty stacks, not on the last one's screens.
                         navigator = AppNavigator()
@@ -144,6 +147,10 @@ struct Family_Portal_IosApp: App {
                 .onOpenURL { url in
                     if authService.handleGoogleSignInURL(url) { return }
                     deepLinkRouter.open(url: url)
+                }
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    guard let link = SpotlightIndexer.link(forActivity: activity) else { return }
+                    deepLinkRouter.open(link)
                 }
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                     guard let url = activity.webpageURL else { return }
@@ -175,6 +182,7 @@ struct Family_Portal_IosApp: App {
 
         syncService.onFullSyncFinished = {
             self.publishWidgets()
+            self.reindexSpotlight()
         }
 
         // Siri learns the people its phrases name from the snapshot `PersonQuery` reads, so it hears again whenever that may have changed.
@@ -229,6 +237,15 @@ struct Family_Portal_IosApp: App {
             syncService: syncService,
             errorPresenter: errorPresenter
         )
+    }
+
+    /// Sends system search what changed in the store. Not awaited, like the widgets.
+    @MainActor
+    private func reindexSpotlight() {
+        guard authService.isAuthenticated else { return }
+        let domain = SpotlightIndexer.domain(for: authService.currentUser)
+        let context = container.mainContext
+        Task { await SpotlightIndexer.shared.reindex(context: context, domain: domain) }
     }
 
     /// Rebuilds the widgets' snapshot from the store, for whoever is signed in. Not awaited by the caller: downloading the images is nobody's reason to wait.
