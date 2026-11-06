@@ -29,6 +29,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── SearchDTOs.swift                            # global search: online read, never cached or queued
 │   ├── VideoDTOs.swift                             # video support, upload and playback: online only, never queued
 │   ├── WidgetSnapshotBuilder.swift, WidgetPublisher.swift  # the widgets' snapshot in the App Group
+│   ├── ShareInboxDrain.swift                       # imports what the share extension left in the App Group
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
 ├── Views/
 │   ├── Shell/         AppNavigator (tabs, per-tab paths, AppRoute, filters),
@@ -626,6 +627,17 @@ See `plan.md`. The app publishes, the extension only reads.
 - **Dating is truthful** (`WidgetDating`): only an exact anniversary (`WidgetDay.isAnniversary`, with 29 February on 1 March in a common year) says "On this day"; the rest of the ±2 window says "Around this day" with its own date, and a pool item says "A memory"
 - Providers check each image file once per timeline (`SnapshotImageCheck`) and pass it as `imageAvailable`: a photo whose file is missing or undecodable leaves the pool or the day, and a milestone keeps its words without the picture
 - The widget walks its timeline in 3-hour slots from local midnight: a day's pictures take turns, and a day with nothing shows a pool item chosen by slot, so a reload never reshuffles what is on screen
+
+### Share extension (`FamilyRecordShare/`, `Shared/ShareInbox.swift`, `ShareInboxDrain`)
+
+Phase 1 of the system integration plan in `plan.md`. A handoff, not an upload: the extension never holds a session, opens SwiftData or calls the API.
+
+- `FamilyRecordShare` (bundle `com.familyrecord.ios.share`, App Group `group.com.familyrecord.ios`) takes images and movies, up to 50. `ShareView` offers who's in them (the snapshot's `people`), a caption and tags (`snapshot.tags`, optional so older snapshots still read). No snapshot means signed out, and the sheet says to sign in instead of offering the form
+- `ShareModel` starts copying when the sheet opens: each item by `loadFileRepresentation` into `Inbox/<share>/<index>/<original name>` (the most specific registered type, so HEIC stays HEIC and a video keeps the extension `VideoFiles` reads), and a photo's EXIF date via `CaptureDate.from(fileURL:)`, which reads metadata only — the extension has ~120 MB. **Add** writes `manifest.json` last (`ShareManifest`: owner, person and tag server ids, caption, items); a folder without one is unfinished and is deleted after a day
+- The extension keeps originals; `PhotoImporter.load(_:captureDate:)` re-encodes anything but JPEG/PNG/GIF (a camera's HEIC) as JPEG with its metadata, since `isValidImageType` on the server takes only those
+- `ShareInboxDrain` runs after `performFullSync` on sign-in and on every return to the foreground. A share whose `ownerUserId` isn't the signed-in account is deleted. Server ids map to local people and tags, keeping only those `FamilyAccess` can contribute to, and the files go through `PhotoImporter.importShared` — the same read, queue and batch choices as an in-app pick, in the same progress bar. A video waits in the inbox until video support is known (offline, or before the server answers) and on `needsConnection`; everything else, imported or refused, leaves the inbox
+- The inbox is emptied when `isAuthenticated` goes false and by `LocalDataReset.erase(.everything)`
+- `CaptureDate` in `Shared/` is the EXIF reader `PhotoImporter.captureDate(from:)` delegates to. The extension's words are `ShareCopy` in `Shared/WidgetCopy.swift`
 
 ### Error presentation and logging
 - `ErrorPresenter` (`@Observable`, app scope, injected into the environment) plus the `.appErrorAlert()` modifier applied once at the root. Views report failures through it rather than swallowing them

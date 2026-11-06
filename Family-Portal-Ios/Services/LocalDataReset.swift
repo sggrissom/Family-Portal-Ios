@@ -39,14 +39,15 @@ enum LocalDataReset {
 
     /// Deletes local records and, for a full erase, drops whatever the previous account had queued for upload — a pending operation carries no identity and would push under the new session.
     ///
-    /// `activityCache`, `photoCache` and `widgets` are injectable for the same reason `syncQueue` is: a test must be able to prove the sweep happens without erasing the real app's cache directories. `photoCache` carries no default because `PhotoImageCache.shared` is main-actor isolated, and a default value expression is evaluated outside the function's isolation.
+    /// `activityCache`, `photoCache`, `widgets` and `shareInbox` are injectable for the same reason `syncQueue` is: a test must be able to prove the sweep happens without erasing the real app's cache directories. `photoCache` carries no default because `PhotoImageCache.shared` is main-actor isolated, and a default value expression is evaluated outside the function's isolation.
     @MainActor static func erase(
         _ scope: LocalDataResetScope,
         context: ModelContext,
         syncQueue: SyncQueue,
         activityCache: ActivitySnapshotCache = .shared,
         photoCache: PhotoImageCache,
-        widgets: WidgetPublisher? = nil
+        widgets: WidgetPublisher? = nil,
+        shareInbox: ShareInbox? = nil
     ) async {
         delete(ChatMessage.self, from: context)
 
@@ -58,6 +59,9 @@ enum LocalDataReset {
 
             // The widgets' snapshot is the old account's family, readable from the Home Screen without opening the app.
             widgets?.clear()
+
+            // Photos shared from other apps under the old account, still waiting to be imported.
+            shareInbox?.removeAll()
 
             // Cached photo bytes are keyed by photo id, and photo ids are global, so without this the cache could still answer for the old account.
             photoCache.removeAll()

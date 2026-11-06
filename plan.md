@@ -1,61 +1,230 @@
-# Annual interview plan (iOS)
+# System integration plan (iOS)
 
-Status: built in five stacked PRs (#132–#136), October 12, 2026.
+Status: proposed; documentation only.
+Written: November 5, 2026, against iOS main `8d04d6c`.
 
-The web built the annual interview in PRs #157–#162 of Family-Portal
-(`docs/plans/annual-interview.md`). Its phase 7 is iOS parity, built here
-after the web settled the design. iOS copies the web's screens and words and
-keeps none of its own logic: parsing, matching and the default question list
-stay on the server.
+The app already uses widgets (Home Screen, Lock Screen, StandBy, CarPlay),
+push, universal links, Sign in with Apple and Google, background app refresh
+for widgets, Swift Charts, PhotosUI, the camera, AVKit and the share sheet.
+This plan covers the rest of iOS that fits a family record: getting things
+*into* the app without opening it first, finding them from outside it, and
+handing them back out.
 
-## The model, as iOS sees it
-
-- An **answer** is a moment with `category: "interview"`, `interviewId` and
-  `questionId`. `context` holds the question as it was asked. Answers arrive
-  in the ordinary `GetFamilyTimeline` pull, so they live in SwiftData like
-  every other moment.
-- An **interview** (the sitting) and the family's **question list** are not
-  in SwiftData. They are online-first reads through `ActivitySnapshotCache`,
-  like books, and every write is online-only and never queued: a write
-  carries a version, and answers are created by the server.
-- Today iOS reads an answer as an "Other" moment, so one interview shows as
-  ~45 loose rows, and editing one sends a category switch the server refuses.
-  That is why the folding comes first.
+The deployment target stays iOS 18. Anything newer (Foundation Models,
+SpeechAnalyzer, `BGContinuedProcessingTask`) is gated with `#available` and
+has an iOS 18 fallback or is simply absent there.
 
 ## Rules
 
-- **Fold.** Wherever moments are listed, the answers of one interview are one
-  card (`InterviewFold`, a port of `groupInterviewAnswers`): History, Story,
-  Home's recent and on-this-day, same age. Widgets leave answers out.
-- **Lock.** `interview` is never offered by a category picker. Editing an
-  answer changes its text, photos and tags only; the question and the date
-  belong to the interview.
-- **Words** come from `copy.ts` (`copy.interview`), mirrored in `Copy.interview`.
+- **Local-first stays local-first.** Anything captured outside the app
+  (share extension, Siri, controls) lands in SwiftData and the sync queue the
+  same way an in-app add does. Nothing writes to the server behind the
+  queue's back.
+- **Extensions stay thin.** An extension hands work to the app through the
+  App Group; it does not open the SwiftData store or call the RPC API unless a
+  phase says otherwise. This avoids store migrations and token refresh in
+  three processes.
+- **Words** go in `Copy.swift` (and `WidgetCopy.swift` for extensions), and
+  match the web's `copy.ts` where the web has the same thing.
+- **Deep links** reuse `DeepLink.swift` / `DeepLinkRouter`. A new destination
+  is added to the web's universal link list first.
+- **Developer portal work** (new App IDs, the App Group on them, keychain
+  sharing, push for an extension) can't be done by CI or by Claude. Each phase
+  that needs it says so up front.
 
 ## Phases (stacked PRs)
 
-1. **Foundations and the interview page.** The `interview` category and the
-   answer fields, folding everywhere, the locked answer editor, the
-   `/interview/<id>` page (portrait, what changed, answers by section, edit
-   details, delete), the `/interview/` universal link (with the web PR
-   claiming it).
-2. **Conduct and resume.** Setup (date, checklist by section with age
-   filtering, one-offs, "show earlier answers"), the one-question-at-a-time
-   screen (autosave with a local draft and quiet retry, skip, jump list,
-   follow-up questions, portrait from the camera, finish), the Home nudges
-   `interview` and `interview-continue`, and the person page's Interviews tab
-   with Start/Continue and each interview as a card.
-3. **Look back.** The Interviews tab's Questions view (first, since it suits
-   narrow screens) and Years view, the family Interviews page under More,
-   compare at the same age.
-4. **Past interviews.** Type in a past interview (date or age, every question,
-   retired ones behind a toggle, questions not on the list), and edit answers
-   from the interview page.
-5. **Question editor.** Reword, reorder, sections, ages, retire and restore,
-   delete when unanswered, merge, suggested defaults, reset.
+One PR per phase, each based on the last. Phases 1–3 are the core; 4 onward
+can be reordered or dropped.
 
-Deliberately web-only for now: paste/CSV import (the web plan allows it),
-the book interview spread (iOS skips item kinds it does not know), printing.
+### 1. Share extension: send photos and videos to Family Record
+
+The biggest daily-use win: share from Photos, Messages or Safari straight
+into the record, instead of opening the app and picking again.
+
+- New target `FamilyRecordShare` (share extension, SwiftUI hosted in
+  `UIHostingController`). Activation rule: images and movies, up to 50 items.
+- The sheet offers what `PhotoBatchFormView` offers: people, tags, and an
+  optional milestone/moment. People and tags come from the widget snapshot
+  (`Shared/WidgetSnapshot.swift`), which already carries the roster; add the
+  tag vocabulary to the snapshot if it isn't there.
+- **Handoff, not upload.** The extension copies each file (original bytes,
+  capture date read with the existing EXIF helper moved to `Shared/`) into
+  an `Inbox/` folder in the App Group plus one JSON manifest per share. The
+  app drains the inbox on launch and on `scenePhase == .active`, through a
+  new `PhotoImporter` entry point that takes file URLs instead of
+  `PhotosPickerItem`. Progress shows in the existing
+  `PhotoImportProgressBar`.
+- Signed out, or no snapshot: the sheet says to sign in to the app first
+  and offers no form.
+- Sign-out clears the inbox along with the widget files (`LocalDataReset`).
+- Portal: a new App ID with the App Group.
+
+Trade-off: an upload waits until the app next opens. Phase 6 can upload from
+the extension directly, which needs keychain sharing. Start with the inbox,
+which is simpler and can't lose data.
+
+Done when: sharing 10 photos and a video from Photos while the app is
+killed, then opening the app, imports all 11 with the chosen people and
+tags, and their capture dates.
+
+### 2. App Intents: Siri, Shortcuts, Spotlight actions, controls
+
+Capture a quote with your hands full, and jump to the common places.
+
+- Move the intent and entity types the widgets already use
+  (`WidgetIntents.swift`'s person entity) into `Shared/` so the app and the
+  widget extension use one `PersonEntity`.
+- Intents in the app target (they run in-process, so they can use
+  `DataStore` and the sync queue):
+  - **Add a quote** (person, text). Writes a quote moment like
+    `AddMilestoneView` does and queues it. Siri phrase: "Add a quote from
+    \(person) in Family Record".
+  - **Open person**, **On this day**, **Search** (opens `SearchView` with the
+    query), **Add photos** (opens the add flow's photo picker).
+- An `AppShortcutsProvider` exposes these to Siri, Spotlight and the Action
+  Button with no setup.
+- **Control Center / Lock Screen controls** (`ControlWidget`, iOS 18) in the
+  widget extension: "Add quote" and "Add photos", which open the app to that
+  sheet.
+- **Home Screen quick actions** (long-press the icon): Add photos, Add quote,
+  Search. These go through the same router.
+
+Done when: "Add a quote from Emma in Family Record" said with the app killed
+creates the quote, it syncs, and it shows on the web.
+
+### 3. Spotlight indexing and continuation
+
+Typing "Emma first steps" into system search finds the milestone.
+
+- A `SpotlightIndexer` service indexes people, milestones, quotes and books
+  as `CSSearchableItem`s (title, short text, date, thumbnail from
+  `PhotoImageCache` when cached). The domain identifier is the family, so
+  switching families or signing out deletes the whole domain.
+- Reindex incrementally after each sync pull (`SyncService` already knows
+  what changed), and fully after sign-in.
+- Opening a result goes through `DeepLinkRouter` using the same paths as
+  universal links. The main person, milestone and photo screens advertise an
+  `NSUserActivity` so Siri suggestions learn them.
+- Interview answers stay out of the index, like they stay out of widgets.
+
+Done when: a milestone added on the web shows up in Spotlight after the next
+sync, and disappears after sign-out.
+
+### 4. Rich notifications
+
+- **Images.** A Notification Service Extension (`FamilyRecordNotifications`)
+  downloads the thumbnail a push names and attaches it. The backend has to
+  set `mutable-content: 1` and include a thumbnail URL (a Family-Portal PR).
+  If thumbnails need the JWT, the extension needs keychain sharing (shared
+  access group for `APIClient`'s keychain items); prefer a short-lived signed
+  URL from the server instead.
+- **Chat.** Register a `chat` category with a `UNTextInputNotificationAction`
+  so a reply can be sent from the notification (it goes through
+  `ChatService`; if offline it fails visibly, since chat is never queued).
+  Chat pushes become communication notifications (`INSendMessageIntent`)
+  so they show the sender's avatar.
+- Portal: a new App ID for the extension, with the App Group.
+
+Done when: a "new photos" push shows the photo on the Lock Screen, and a
+chat reply sent from a notification appears in the web chat.
+
+### 5. Scan artwork and documents
+
+Kids' drawings, report cards and certificates are a big part of the record,
+and the Artwork tab exists already.
+
+- In the add flow, a "Scan" option opens VisionKit's
+  `VNDocumentCameraViewController`. Each page becomes a photo with the
+  category set to artwork, then goes through the normal importer and the
+  batch form.
+- For a single drawing, offer "Lift from background" using Vision's
+  subject lifting (`VNGenerateForegroundInstanceMaskRequest`), saved as a
+  second version rather than replacing the original.
+- Needs no new permission beyond the existing camera string; update that
+  string, which currently only mentions interview portraits.
+
+### 6. Uploads that finish in the background, with a Live Activity
+
+- Move photo and video uploads to a background `URLSession` so they continue
+  after the app leaves the foreground. On iOS 26 a large import also asks
+  for a `BGContinuedProcessingTask`, which gives the system's progress UI.
+- A Live Activity (Lock Screen + Dynamic Island) shows "Uploading 12 of 40"
+  for imports over a threshold, and ends when the importer finishes.
+- With keychain sharing in place (phase 4), the share extension can start
+  these uploads itself instead of waiting for the app.
+- Portal: Live Activities need no new App ID; keychain sharing does.
+
+### 7. Record interview answers by voice
+
+A child's voice at six is worth more than the transcript.
+
+- In `InterviewAskView`, a record button next to each answer saves audio
+  (AAC) and transcribes it on-device: SpeechAnalyzer on iOS 26,
+  `SFSpeechRecognizer` with `requiresOnDeviceRecognition` on iOS 18. The
+  transcript fills the answer field for editing.
+- The audio is uploaded like a video original. This **needs a backend
+  decision** on storing audio on an answer (a Family-Portal plan first);
+  until then, ship transcription only and keep no audio.
+- New `NSMicrophoneUsageDescription` and `NSSpeechRecognitionUsageDescription`.
+
+### 8. Books as PDF
+
+- "Export PDF" in `BookReaderView` renders each spread with `ImageRenderer`
+  into a PDF context at print size, using full-size images rather than
+  thumbnails, and offers it through the share sheet (print, Files, mail).
+- The web plan left printing for later; check that the web doesn't intend a
+  different print layout before building this.
+
+### 9. Polish
+
+Small and independent. Each can be its own PR or folded into another phase.
+
+- **Face ID lock.** An optional setting; `LocalAuthentication` on launch
+  and after N minutes in the background, with the app blurred in the
+  switcher.
+- **TipKit.** Tips for things people miss: Same Age, face review, the
+  interview nudge, the new share extension.
+- **Calendar.** "Add to Calendar" on a competition (EventKit, write-only
+  access on iOS 17+).
+- **Liquid Glass.** Check the tab bar, toolbars and sheets under iOS 26
+  and remove any custom backgrounds that fight it.
+
+### 10. On-device Apple Intelligence (exploratory)
+
+Only on iOS 26 devices that support it (`SystemLanguageModel.default.availability`);
+the features are absent everywhere else.
+
+- Draft a paragraph for a person's Story tab from their milestones.
+- Suggest follow-up questions during an interview.
+- Suggest captions for a book spread.
+
+Everything stays on-device, which suits family data. Prototype one feature
+and judge the quality before committing to more.
+
+## Not planned
+
+- **HealthKit**: it holds the phone owner's data, not the children's, so it
+  doesn't fit growth records.
+- **Watch app**: Siri intents (phase 2) already cover voice capture of
+  quotes.
+- **SharePlay** (reading a book together over FaceTime): charming, but niche
+  for the effort.
+
+## Risks and open questions
+
+1. **Several new App IDs and keychain sharing** need the developer portal.
+   Phases 1 and 4 are blocked on that, as widgets phase 0 was.
+2. **Extension memory limits.** A share extension gets about 120 MB, so it
+   must copy files by URL and never load a whole video into memory.
+3. **Backend work**: phase 4 needs `mutable-content` and thumbnail URLs on
+   pushes, and phase 7's audio needs a storage decision. Both are
+   Family-Portal PRs that land first.
+4. **Spotlight and privacy.** Indexed items show in system search to anyone
+   holding the unlocked phone. Make indexing a setting, on by default, and
+   turn it off when Face ID lock is on.
+
+---
 
 # Widget redesign plan
 

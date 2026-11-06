@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Read: the widgets' snapshot, for the roster and tags the sheet offers.
+	     Write: the share inbox, which the app drains the next time it opens.
+	     No keychain group and no network: the extension never holds a session.
+	     The group has to be enabled on this App ID in the developer portal. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.familyrecord.ios</string>
+	</array>
+</dict>
+</plist>
