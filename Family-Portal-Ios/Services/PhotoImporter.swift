@@ -432,11 +432,32 @@ final class PhotoImporter {
     }
 
     /// A shared file's bytes. The date is the one the extension read from the file as it copied it.
+    /// The extension keeps the original, which from a camera is usually HEIC; the server takes only JPEG, PNG and GIF, so anything else becomes a JPEG here, metadata and all.
     static func load(_ url: URL, captureDate: Date?) throws -> (data: Data, captureDate: Date?) {
-        guard let data = try? Data(contentsOf: url), UIImage(data: data) != nil else {
+        guard let original = try? Data(contentsOf: url), UIImage(data: original) != nil,
+              let data = uploadable(original)
+        else {
             throw ImportFailure.unreadable
         }
-        return (data, captureDate ?? CaptureDate.from(data: data))
+        return (data, captureDate ?? CaptureDate.from(data: original))
+    }
+
+    /// `data` as the server accepts it: unchanged when it is already JPEG, PNG or GIF, otherwise re-encoded as JPEG with its EXIF, orientation and GPS carried over.
+    static func uploadable(_ data: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let identifier = CGImageSourceGetType(source) as String?,
+              let type = UTType(identifier)
+        else { return nil }
+        if [UTType.jpeg, .png, .gif].contains(where: { type.conforms(to: $0) }) {
+            return data
+        }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) else {
+            return nil
+        }
+        CGImageDestinationAddImageFromSource(destination, source, 0, [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
     }
 
     /// A limited library grant only covers assets the user explicitly allowed;
