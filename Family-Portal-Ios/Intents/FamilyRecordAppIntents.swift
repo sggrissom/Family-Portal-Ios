@@ -3,7 +3,7 @@ import Foundation
 import SwiftData
 
 /// Saves a quote without opening the app: "Add a quote from Emma in Family Record". Runs in the app's process, so the quote is written to the store and queued exactly as the moment form writes one — local first, synced when the queue next runs.
-nonisolated struct AddQuoteIntent: AppIntent {
+struct AddQuoteIntent: AppIntent {
     static let title: LocalizedStringResource = "Add a Quote"
     static let description = IntentDescription("Writes down something someone in your family said.")
 
@@ -31,7 +31,7 @@ nonisolated struct AddQuoteIntent: AppIntent {
 }
 
 /// Opens a person's page.
-nonisolated struct OpenPersonIntent: AppIntent {
+struct OpenPersonIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Person"
     static let description = IntentDescription("Opens someone's page in Family Record.")
     static let openAppWhenRun = true
@@ -60,7 +60,7 @@ nonisolated struct OpenOnThisDayIntent: AppIntent {
 }
 
 /// Opens search, run on the words given.
-nonisolated struct SearchFamilyRecordIntent: AppIntent {
+struct SearchFamilyRecordIntent: AppIntent {
     static let title: LocalizedStringResource = "Search Family Record"
     static let description = IntentDescription("Searches your family's photos, moments and people.")
     static let openAppWhenRun = true

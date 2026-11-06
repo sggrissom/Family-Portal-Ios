@@ -2,31 +2,31 @@ import Foundation
 import Testing
 @testable import Family_Portal_Ios
 
-private final class FixtureBundle {}
+nonisolated private final class FixtureBundle {}
 
 /// The golden cases in RecordTimeFixtures.json, copied verbatim from the web repo's frontend/lib/recordTimeFixtures.json, which the Go and web tests also run.
 @Suite("Record time")
 struct RecordTimeTests {
 
-    struct Expect: Decodable {
+    nonisolated struct Expect: Decodable {
         let start: String
         let end: String
         let label: String
         let exactDay: Bool
     }
 
-    struct Case: Decodable {
+    nonisolated struct Case: Decodable {
         let name: String
         let record: RecordTime
         let birthday: String?
         let expect: Expect
     }
 
-    struct Fixtures: Decodable {
+    nonisolated struct Fixtures: Decodable {
         let valid: [Case]
     }
 
-    static let fixtures: [Case] = {
+    nonisolated static let fixtures: [Case] = {
         let url = Bundle(for: FixtureBundle.self).url(forResource: "RecordTimeFixtures", withExtension: "json")!
         return try! JSONDecoder().decode(Fixtures.self, from: Data(contentsOf: url)).valid
     }()

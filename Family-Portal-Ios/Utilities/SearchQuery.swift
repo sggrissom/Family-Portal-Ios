@@ -81,7 +81,7 @@ enum SearchQuery {
         ignore: Set<SearchIgnore> = []
     ) -> ParsedSearch {
         let raw = query.split(whereSeparator: \.isWhitespace).map(String.init)
-        let tokens = raw.map(token)
+        let tokens = raw.map { token($0) }
         var used = Array(repeating: false, count: tokens.count)
         var keep = Array(repeating: false, count: tokens.count)
         var out = ParsedSearch()

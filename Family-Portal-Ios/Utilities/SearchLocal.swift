@@ -5,7 +5,7 @@ import Foundation
 /// Works on plain values rather than models, so it is tested without a store; ids are the records' local ids.
 enum SearchLocal {
     static let peopleLimit = 8
-    static let momentLimit = 20
+    nonisolated static let momentLimit = 20
     static let photoLimit = 12
 
     struct Person {

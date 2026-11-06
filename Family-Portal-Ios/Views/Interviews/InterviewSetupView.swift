@@ -175,7 +175,7 @@ struct InterviewSetupView: View {
     /// Checks the questions that suit the child's age on the chosen day — redone whenever the date moves, as the web does.
     private func checkForAge(_ setup: GetInterviewSetupResponseDTO) {
         let age = Interviews.ageYears(birthday: setup.person.birthday, at: date.localRecordDay())
-        checked = Set(setup.questions.filter { Interviews.fits($0, age: age) }.map(Interviews.ref))
+        checked = Set(setup.questions.filter { Interviews.fits($0, age: age) }.map { Interviews.ref($0) })
     }
 
     private func addOneOff() {

@@ -110,7 +110,7 @@ struct VideoTests {
 
     // MARK: - Playback failures (the web's videoPlayback.test.ts table)
 
-    private static let now = Date(timeIntervalSince1970: 1_000)
+    nonisolated private static let now = Date(timeIntervalSince1970: 1_000)
     private static let later = now.addingTimeInterval(3_600)
 
     private func classify(network: Bool, _ probe: Int?, at now: Date = VideoTests.now) -> PlaybackProblem {

@@ -144,7 +144,7 @@ enum Interviews {
 
 /// What is being typed into an answer, held until it saves — the web's localStorage drafts. Keyed by interview and question, so a phone that sleeps or loses signal mid-sentence finds the words again on the way back in.
 /// Also remembers "show earlier answers while asking", which, like the web's, belongs to this device rather than the account.
-struct InterviewDrafts {
+nonisolated struct InterviewDrafts {
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {

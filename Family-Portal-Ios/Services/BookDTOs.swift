@@ -31,14 +31,14 @@ nonisolated struct BookSummaryDTO: Decodable, Sendable, Identifiable, Hashable {
 
     init(id: Int, personIds: [Int], personNames: [String], preset: String, title: String, startDate: String, endDate: String, coverPhotoId: Int, updatedAt: String) {
         self.id = id
-        self.personIds = personIds
-        self.personNames = personNames
-        self.preset = preset
-        self.title = title
-        self.startDate = startDate
-        self.endDate = endDate
-        self.coverPhotoId = coverPhotoId
-        self.updatedAt = updatedAt
+        _personIds = OrZero(wrappedValue: personIds)
+        _personNames = OrZero(wrappedValue: personNames)
+        _preset = OrZero(wrappedValue: preset)
+        _title = OrZero(wrappedValue: title)
+        _startDate = OrZero(wrappedValue: startDate)
+        _endDate = OrZero(wrappedValue: endDate)
+        _coverPhotoId = OrZero(wrappedValue: coverPhotoId)
+        _updatedAt = OrZero(wrappedValue: updatedAt)
     }
 }
 
@@ -59,12 +59,12 @@ nonisolated enum BookItemKind: Int, Sendable {
 /// A reference to a source record. `photoId` pairs a milestone with one of its attached photos; `caption` overrides a photo's caption in this book only.
 nonisolated struct BookItemDTO: Codable, Sendable, Hashable {
     /// Raw rather than `BookItemKind`: a kind added server-side is skipped by the reader instead of failing the whole book.
-    @OrZero var kind: Int
-    @OrZero var sourceId: Int
-    @OrZero var photoId: Int
-    @OrZero var caption: String
+    var kind: Int
+    var sourceId: Int
+    var photoId: Int
+    var caption: String
     /// Kept: stays when photos are picked again.
-    @OrZero var pinned: Bool
+    var pinned: Bool
 
     var itemKind: BookItemKind? { BookItemKind(rawValue: kind) }
 
@@ -78,32 +78,46 @@ nonisolated struct BookItemDTO: Codable, Sendable, Hashable {
         self.caption = caption
         self.pinned = pinned
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, sourceId, photoId, caption, pinned
+    }
+
+    /// Every field as `@OrZero` would read it: plain `var`s because the editor changes them (see `OrZero`).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try c.decodeOrZero(forKey: .kind)
+        sourceId = try c.decodeOrZero(forKey: .sourceId)
+        photoId = try c.decodeOrZero(forKey: .photoId)
+        caption = try c.decodeOrZero(forKey: .caption)
+        pinned = try c.decodeOrZero(forKey: .pinned)
+    }
 }
 
 /// A saved book. `startDate`/`endDate` are half-open — `endDate` is the day after the last one covered — except that a first-year book also keeps its first birthday.
 /// Mutable so the editor can work on a copy and assemble it as it goes.
 nonisolated struct BookDTO: Decodable, Sendable {
     var id: Int
-    @OrZero var personIds: [Int]
-    @OrZero var preset: String
-    @OrZero var title: String
-    @OrZero var startDate: String
-    @OrZero var endDate: String
-    @OrZero var coverPhotoId: Int
-    @OrZero var density: String
+    var personIds: [Int]
+    var preset: String
+    var title: String
+    var startDate: String
+    var endDate: String
+    var coverPhotoId: Int
+    var density: String
     /// Empty means every category.
-    @OrZero var categories: [String]
-    @OrZero var match: String
-    @OrZero var introduction: String
-    @OrZero var letter: String
-    @OrZero var signature: String
-    @OrZero var showGrowth: Bool
-    @OrZero var items: [BookItemDTO]
+    var categories: [String]
+    var match: String
+    var introduction: String
+    var letter: String
+    var signature: String
+    var showGrowth: Bool
+    var items: [BookItemDTO]
     /// Records the editor took out, which a re-pick must never bring back.
-    @OrZero var excluded: [BookItemDTO]
-    @OrZero var revision: Int
+    var excluded: [BookItemDTO]
+    var revision: Int
     /// When the editor last looked at what the family record holds; anything created since is offered as new.
-    @OrZero var reviewedAt: String
+    var reviewedAt: String
 
     init(
         id: Int = 1,
@@ -144,6 +158,33 @@ nonisolated struct BookDTO: Decodable, Sendable {
         self.revision = revision
         self.reviewedAt = reviewedAt
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, personIds, preset, title, startDate, endDate, coverPhotoId, density, categories, match, introduction, letter, signature, showGrowth, items, excluded, revision, reviewedAt
+    }
+
+    /// Every field but `id` as `@OrZero` would read it: plain `var`s because the editor changes them (see `OrZero`).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(Int.self, forKey: .id)
+        personIds = try c.decodeOrZero(forKey: .personIds)
+        preset = try c.decodeOrZero(forKey: .preset)
+        title = try c.decodeOrZero(forKey: .title)
+        startDate = try c.decodeOrZero(forKey: .startDate)
+        endDate = try c.decodeOrZero(forKey: .endDate)
+        coverPhotoId = try c.decodeOrZero(forKey: .coverPhotoId)
+        density = try c.decodeOrZero(forKey: .density)
+        categories = try c.decodeOrZero(forKey: .categories)
+        match = try c.decodeOrZero(forKey: .match)
+        introduction = try c.decodeOrZero(forKey: .introduction)
+        letter = try c.decodeOrZero(forKey: .letter)
+        signature = try c.decodeOrZero(forKey: .signature)
+        showGrowth = try c.decodeOrZero(forKey: .showGrowth)
+        items = try c.decodeOrZero(forKey: .items)
+        excluded = try c.decodeOrZero(forKey: .excluded)
+        revision = try c.decodeOrZero(forKey: .revision)
+        reviewedAt = try c.decodeOrZero(forKey: .reviewedAt)
+    }
 }
 
 nonisolated struct BookPersonDTO: Decodable, Sendable {
@@ -155,10 +196,10 @@ nonisolated struct BookPersonDTO: Decodable, Sendable {
 
     init(id: Int, name: String, birthday: String, isPregnancy: Bool = false, profilePhotoId: Int = 0) {
         self.id = id
-        self.name = name
-        self.birthday = birthday
-        self.isPregnancy = isPregnancy
-        self.profilePhotoId = profilePhotoId
+        _name = OrZero(wrappedValue: name)
+        _birthday = OrZero(wrappedValue: birthday)
+        _isPregnancy = OrZero(wrappedValue: isPregnancy)
+        _profilePhotoId = OrZero(wrappedValue: profilePhotoId)
     }
 }
 
@@ -176,13 +217,13 @@ nonisolated struct BookMilestoneDTO: Decodable, Sendable {
 
     init(id: Int, personId: Int, description: String, category: String = "development", context: String = "", milestoneDate: String, createdAt: String? = nil, photoIds: [Int] = []) {
         self.id = id
-        self.personId = personId
-        self.description = description
-        self.category = category
-        self.context = context
-        self.milestoneDate = milestoneDate
-        self.createdAt = createdAt ?? milestoneDate
-        self.photoIds = photoIds
+        _personId = OrZero(wrappedValue: personId)
+        _description = OrZero(wrappedValue: description)
+        _category = OrZero(wrappedValue: category)
+        _context = OrZero(wrappedValue: context)
+        _milestoneDate = OrZero(wrappedValue: milestoneDate)
+        _createdAt = OrZero(wrappedValue: createdAt ?? milestoneDate)
+        _photoIds = OrZero(wrappedValue: photoIds)
     }
 }
 
@@ -201,14 +242,14 @@ nonisolated struct BookImageDTO: Decodable, Sendable {
 
     init(id: Int, originalFilename: String = "photo.jpg", width: Int = 800, height: Int = 600, title: String = "", description: String = "", photoDate: String, createdAt: String? = nil, status: Int = 0) {
         self.id = id
-        self.originalFilename = originalFilename
-        self.width = width
-        self.height = height
-        self.title = title
-        self.description = description
-        self.photoDate = photoDate
-        self.createdAt = createdAt ?? photoDate
-        self.status = status
+        _originalFilename = OrZero(wrappedValue: originalFilename)
+        _width = OrZero(wrappedValue: width)
+        _height = OrZero(wrappedValue: height)
+        _title = OrZero(wrappedValue: title)
+        _description = OrZero(wrappedValue: description)
+        _photoDate = OrZero(wrappedValue: photoDate)
+        _createdAt = OrZero(wrappedValue: createdAt ?? photoDate)
+        _status = OrZero(wrappedValue: status)
     }
 }
 
@@ -223,11 +264,11 @@ nonisolated struct BookGrowthDTO: Decodable, Sendable {
 
     init(id: Int, personId: Int, measurementType: Int, value: Double, unit: String, measurementDate: String) {
         self.id = id
-        self.personId = personId
-        self.measurementType = measurementType
-        self.value = value
-        self.unit = unit
-        self.measurementDate = measurementDate
+        _personId = OrZero(wrappedValue: personId)
+        _measurementType = OrZero(wrappedValue: measurementType)
+        _value = OrZero(wrappedValue: value)
+        _unit = OrZero(wrappedValue: unit)
+        _measurementDate = OrZero(wrappedValue: measurementDate)
     }
 }
 

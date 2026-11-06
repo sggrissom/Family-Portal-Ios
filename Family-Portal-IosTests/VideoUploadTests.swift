@@ -26,12 +26,11 @@ struct VideoUploadTests {
         #expect(VideoFiles.problem(filename: "a.mov", size: 2048, support: Self.support)?.contains("over 1.0 KB") == true)
         #expect(VideoFiles.problem(filename: "a.webm", size: 10, support: Self.support)?.contains("not an MP4 or MOV") == true)
 
-        var off = Self.support
-        off.enabled = false
-        off.reason = VideoUploadRefusal.disabled
-        #expect(VideoFiles.problem(filename: "a.mov", size: 10, support: off) == "a.mov: Video uploads are not turned on for this family.")
-        off.reason = ""
-        #expect(VideoFiles.problem(filename: "a.mov", size: 10, support: off) == "a.mov: videos can't be added here")
+        func off(reason: String) -> GetVideoSupportResponseDTO {
+            GetVideoSupportResponseDTO(enabled: false, reason: reason, maxBytes: 1024, maxDurationSeconds: 600, contentTypes: [])
+        }
+        #expect(VideoFiles.problem(filename: "a.mov", size: 10, support: off(reason: VideoUploadRefusal.disabled)) == "a.mov: Video uploads are not turned on for this family.")
+        #expect(VideoFiles.problem(filename: "a.mov", size: 10, support: off(reason: "")) == "a.mov: videos can't be added here")
     }
 
     @Test("Checks duration with a second of slack")

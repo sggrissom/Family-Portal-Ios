@@ -148,13 +148,7 @@ struct SearchResultsTests {
 
     @Test("Chips name each understood filter, people by first name")
     func chips() {
-        var understood = SearchUnderstoodDTO()
-        understood.personIds = [1, 3]
-        understood.ageLabel = "age 2"
-        understood.year = 2024
-        understood.month = 6
-        understood.category = "quote"
-        understood.tagIds = [10]
+        let understood = SearchUnderstoodDTO(personIds: [1, 3], ageLabel: "age 2", year: 2024, month: 6, category: "quote", tagIds: [10])
 
         let chips = SearchResults.chips(understood, names: [1: "Ada Grissom", 3: "Ada Smith"])
 
@@ -233,11 +227,7 @@ struct SearchResultsTests {
         var utc = Calendar(identifier: .gregorian)
         utc.timeZone = .gmt
         let ada = UUID()
-        var understood = SearchUnderstoodDTO()
-        understood.personIds = [4, 99]
-        understood.year = 2024
-        understood.month = 2
-        understood.text = "beach"
+        let understood = SearchUnderstoodDTO(personIds: [4, 99], year: 2024, month: 2, text: "beach")
 
         let filter = SearchResults.photoFilter(understood, localIds: [4: ada], calendar: utc)
 
@@ -251,14 +241,10 @@ struct SearchResultsTests {
     func seeAllPhotosYear() {
         var utc = Calendar(identifier: .gregorian)
         utc.timeZone = .gmt
-        var understood = SearchUnderstoodDTO()
-        understood.year = 2023
-        let filter = SearchResults.photoFilter(understood, localIds: [:], calendar: utc)
+        let filter = SearchResults.photoFilter(SearchUnderstoodDTO(year: 2023), localIds: [:], calendar: utc)
         #expect(filter.dateTo.map { utc.dateComponents([.year, .month, .day], from: $0) } == DateComponents(year: 2023, month: 12, day: 31))
 
-        understood.year = 0
-        understood.month = 6
-        let monthOnly = SearchResults.photoFilter(understood, localIds: [:], calendar: utc)
+        let monthOnly = SearchResults.photoFilter(SearchUnderstoodDTO(year: 0, month: 6), localIds: [:], calendar: utc)
         #expect(monthOnly.dateFrom == nil)
         #expect(monthOnly.dateTo == nil)
     }

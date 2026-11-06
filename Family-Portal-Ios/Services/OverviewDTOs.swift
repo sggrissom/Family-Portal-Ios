@@ -184,7 +184,7 @@ nonisolated struct SameAgeOptionDTO: Decodable, Sendable, Equatable {
 
     init(ageMonths: Int, peopleCount: Int) {
         self.ageMonths = ageMonths
-        self.peopleCount = peopleCount
+        _peopleCount = OrZero(wrappedValue: peopleCount)
     }
 }
 
@@ -231,7 +231,7 @@ nonisolated struct TimelineAppearanceDTO: Decodable, Sendable, Identifiable {
     /// For a person's own appearances (`GetPersonSeason`), which arrive without the wrapper.
     init(detail: AppearanceDetailDTO, personIds: [Int]) {
         self.detail = detail
-        self.personIds = personIds
+        _personIds = OrZero(wrappedValue: personIds)
     }
 }
 

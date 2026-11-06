@@ -4,9 +4,9 @@ import Foundation
 /// The server enforces all of this; hiding the controls only spares a view-only member a button that can only fail.
 struct FamilyAccess {
     /// The backend's `AccessLevel` (backend/access.go).
-    static let view = 1
-    static let contribute = 2
-    static let admin = 3
+    nonisolated static let view = 1
+    nonisolated static let contribute = 2
+    nonisolated static let admin = 3
 
     let families: [FamilyRefDTO]
     /// The account's own family, which a record with no family of its own yet — anyone added offline, or anything pulled before the upgrade that started recording it — is read as belonging to.

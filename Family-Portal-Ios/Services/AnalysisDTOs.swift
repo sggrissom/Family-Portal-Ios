@@ -183,8 +183,8 @@ nonisolated struct PhotoPlaceCountDTO: Decodable, Sendable, Identifiable, Equata
 
     init(key: String, name: String, count: Int) {
         self.key = key
-        self.name = name
-        self.count = count
+        _name = OrZero(wrappedValue: name)
+        _count = OrZero(wrappedValue: count)
     }
 }
 

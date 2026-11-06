@@ -217,6 +217,6 @@ nonisolated struct MatchupDraft: Equatable, Sendable {
     }
 }
 
-private extension Character {
+nonisolated private extension Character {
     var isASCIIDigit: Bool { isASCII && isNumber }
 }

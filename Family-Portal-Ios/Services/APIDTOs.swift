@@ -7,7 +7,12 @@ extension KeyedDecodingContainer {
     }
 
     nonisolated func decode<Value: Decodable & ZeroValue>(_ type: OrZero<Value>.Type, forKey key: Key) throws -> OrZero<Value> {
-        OrZero(wrappedValue: try decodeIfPresent(Value.self, forKey: key) ?? .zero)
+        OrZero(wrappedValue: try decodeOrZero(forKey: key))
+    }
+
+    /// `@OrZero`'s rule for a plain `var`, in the hand-written decoders of types that are changed after decoding.
+    nonisolated func decodeOrZero<Value: Decodable & ZeroValue>(forKey key: Key) throws -> Value {
+        try decodeIfPresent(Value.self, forKey: key) ?? .zero
     }
 }
 
@@ -24,9 +29,10 @@ nonisolated extension Array: ZeroValue { static var zero: Array { [] } }
 nonisolated extension Dictionary: ZeroValue { static var zero: Dictionary { [:] } }
 
 /// A field that reads as its zero value when the key is missing or `null`, rather than failing the whole response. The one rule every DTO shares, written once instead of as a hand-written decoder per type; fields left plain still throw when missing, so a malformed response is still caught.
+/// Get-only: a settable wrapped property in a `nonisolated` struct is refused ("'nonisolated' cannot be applied to mutable stored properties", an error in Swift 6), even where a plain `var` is accepted. A hand-written init therefore sets the storage (`_title = OrZero(wrappedValue: title)`), and a type whose fields change after decoding keeps plain `var`s and decodes them with `decodeOrZero` instead.
 @propertyWrapper
 nonisolated struct OrZero<Value: ZeroValue> {
-    var wrappedValue: Value
+    let wrappedValue: Value
 
     init(wrappedValue: Value) {
         self.wrappedValue = wrappedValue

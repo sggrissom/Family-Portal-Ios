@@ -53,8 +53,8 @@ nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
     let createdAt: Date
     var retryCount: Int
     /// Sync runs this operation sat out because a dependency has not synced. Counted apart from `retryCount`, but not free, or a permanently blocked operation stays for the life of the install.
-    /// `@OrZero` because operations written before the field existed lack it: the queue is one blob, and one undecodable operation would take every pending change with it.
-    @OrZero var blockedCount: Int
+    /// Read as 0 when missing, because operations written before the field existed lack it: the queue is one blob, and one undecodable operation would take every pending change with it. Decoded by hand rather than `@OrZero`, since the queue changes it (see `OrZero`).
+    var blockedCount: Int
     let dependsOnLocalId: String?
 
     init(
@@ -75,6 +75,22 @@ nonisolated struct PendingOperation: Codable, Identifiable, Sendable {
         self.retryCount = retryCount
         self.blockedCount = blockedCount
         self.dependsOnLocalId = dependsOnLocalId
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, type, localId, payload, createdAt, retryCount, blockedCount, dependsOnLocalId
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        type = try c.decode(SyncOperationType.self, forKey: .type)
+        localId = try c.decode(String.self, forKey: .localId)
+        payload = try c.decode(Data.self, forKey: .payload)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        retryCount = try c.decode(Int.self, forKey: .retryCount)
+        blockedCount = try c.decodeOrZero(forKey: .blockedCount)
+        dependsOnLocalId = try c.decodeIfPresent(String.self, forKey: .dependsOnLocalId)
     }
 
     func isReady(syncedLocalIds: Set<String>) -> Bool {
