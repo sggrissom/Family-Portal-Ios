@@ -1,6 +1,8 @@
 import Foundation
+import ImageIO
 import SwiftData
 import Testing
+import UniformTypeIdentifiers
 @testable import Family_Portal_Ios
 
 @Suite("Share inbox")
@@ -220,6 +222,28 @@ struct ShareInboxTests {
         let choices = ShareInboxDrain.choices(for: manifest, access: Self.contributor, context: context)
 
         #expect(choices.personIds == [own.id])
+    }
+
+    @Test("A JPEG is uploaded as it is")
+    func jpegKept() throws {
+        let jpeg = try PhotoImporterTests.jpeg(exifDateTimeOriginal: nil)
+        #expect(PhotoImporter.uploadable(jpeg) == jpeg)
+    }
+
+    /// The server takes JPEG, PNG and GIF; a camera's HEIC original (TIFF here, which every simulator can write) has to become a JPEG first, keeping when it was taken.
+    @Test("Another image type becomes a JPEG that keeps its capture date")
+    func otherTypesBecomeJPEG() throws {
+        let jpeg = try PhotoImporterTests.jpeg(exifDateTimeOriginal: "2026:03:15 14:30:00")
+        let source = try #require(CGImageSourceCreateWithData(jpeg as CFData, nil))
+        let tiff = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(tiff, UTType.tiff.identifier as CFString, 1, nil))
+        CGImageDestinationAddImageFromSource(destination, source, 0, nil)
+        #expect(CGImageDestinationFinalize(destination))
+
+        let converted = try #require(PhotoImporter.uploadable(tiff as Data))
+        let convertedSource = try #require(CGImageSourceCreateWithData(converted as CFData, nil))
+        #expect(CGImageSourceGetType(convertedSource) as String? == UTType.jpeg.identifier)
+        #expect(CaptureDate.from(data: converted) == CaptureDate.from(data: jpeg))
     }
 
     @Test("Shared summary counts photos and videos")
