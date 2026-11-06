@@ -446,8 +446,8 @@ nonisolated enum Copy {
             "Suggested tag \(label)"
         }
 
-        static func tagPhotos(_ count: Int, label: String) -> String {
-            "Tag \(count) photo\(count == 1 ? "" : "s") \u{201C}\(label)\u{201D}"
+        static func tagPhotos(_ count: Int) -> String {
+            "Tag \(count) photo\(count == 1 ? "" : "s")"
         }
 
         /// "Not these" while every shown photo is included, "Not the selected" once some are left out.

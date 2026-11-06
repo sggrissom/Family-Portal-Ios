@@ -67,7 +67,7 @@ struct FamilyInterviewsView: View {
         let person = row.person
         let local = people.first { $0.serverId == person.id }
         let canContribute = authService.access.canContribute(person.familyId)
-        return HStack(spacing: 12) {
+        return VStack(alignment: .leading, spacing: 8) {
             NavigationLink {
                 if let local {
                     PersonDetailView(personId: local.id, tab: .interviews, allowsManagementActions: false)
@@ -90,42 +90,36 @@ struct FamilyInterviewsView: View {
                              : Copy.interview.family.never)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if row.due && row.inProgress.id == 0 {
+                            Text(Copy.interview.family.due)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
             .buttonStyle(.plain)
             .disabled(local == nil)
 
-            Spacer(minLength: 0)
-
-            if row.due && row.inProgress.id == 0 {
-                Text(Copy.interview.family.due)
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(MilestoneCategory.interview.color.opacity(0.2), in: Capsule())
-            }
             if canContribute {
-                NavigationLink {
-                    PastInterviewView(personId: person.id)
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .frame(width: 28, height: 28)
-                }
-                .accessibilityLabel(Copy.interview.family.typeIn)
-                if row.inProgress.id > 0 {
-                    NavigationLink(Copy.interview.family.continue(row.answered, row.inProgress.questionIds.count)) {
-                        InterviewAskView(interviewId: row.inProgress.id)
+                AdaptiveActionRow {
+                    if row.inProgress.id > 0 {
+                        NavigationLink(Copy.interview.family.continue(row.answered, row.inProgress.questionIds.count)) {
+                            InterviewAskView(interviewId: row.inProgress.id)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        NavigationLink(Copy.interview.family.start) {
+                            InterviewSetupView(personId: person.id)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(row.due ? MilestoneCategory.interview.color : nil)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                } else {
-                    NavigationLink(Copy.interview.family.start) {
-                        InterviewSetupView(personId: person.id)
+
+                    NavigationLink(Copy.interview.family.typeIn) {
+                        PastInterviewView(personId: person.id)
                     }
                     .buttonStyle(.bordered)
-                    .tint(row.due ? MilestoneCategory.interview.color : nil)
-                    .controlSize(.small)
                 }
             }
         }

@@ -96,7 +96,7 @@ struct FaceReviewView: View {
             } header: {
                 Text("Who is this? (\(review.unknownCount))")
             } footer: {
-                Text("Faces that look alike are grouped together. Tap a face to leave it out before you name the group. Someone missing from the list? Add them first, then come back.")
+                Text("Tap a face to leave it out. Dismiss faces outside the family. If someone is missing from the list, add them to the family first.")
             }
         }
 
@@ -108,48 +108,58 @@ struct FaceReviewView: View {
             } header: {
                 Text("Check automatic tags (\(review.autoCount))")
             } footer: {
-                Text("These were tagged automatically, least certain first. Confirming a match teaches the app what that person looks like.")
+                Text("Least certain matches appear first. Confirming a tag helps the app recognize that person.")
             }
         }
     }
 
     private func autoTagRow(_ face: PhotoFaceDTO, name: String) -> some View {
-        HStack(spacing: 12) {
-            Button {
-                if let localId = localPhotoIds[face.photoId] {
-                    navigator.push(PhotoRoute(id: localId, startMs: face.videoFrameMs ?? 0))
-                }
-            } label: {
-                FaceCropView(photoId: face.photoId, box: face.box, frameMs: face.videoFrameMs, size: 72)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain)
-            .disabled(localPhotoIds[face.photoId] == nil)
-            .accessibilityLabel("Open photo")
-
-            VStack(alignment: .leading, spacing: 8) {
+        let localId = localPhotoIds[face.photoId]
+        let openTitle = face.videoFrameMs == nil ? "Open photo" : "Open video"
+        let header = HStack(spacing: 12) {
+            faceThumbnail(face)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(name)
                     .font(.headline)
-                HStack(spacing: 8) {
-                    Button {
-                        Task { await assign([face.id], to: face.personId) }
-                    } label: {
-                        Label("Confirm", systemImage: "checkmark")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityLabel("Confirm \(name)")
-
-                    Button {
-                        Task { await reject(face) }
-                    } label: {
-                        Label("Not them", systemImage: "xmark")
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Not \(name)")
+                if localId != nil {
+                    Label(openTitle, systemImage: "arrow.up.right")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentColor)
                 }
-                .controlSize(.small)
-                .disabled(isBusy)
             }
+        }
+
+        return VStack(alignment: .leading, spacing: 12) {
+            if let localId {
+                Button {
+                    navigator.push(PhotoRoute(id: localId, startMs: face.videoFrameMs ?? 0))
+                } label: {
+                    header
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(openTitle) for \(name)")
+            } else {
+                header
+            }
+
+            AdaptiveActionRow {
+                Button("Confirm") {
+                    Task { await assign([face.id], to: face.personId) }
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityLabel("Confirm \(name)")
+
+                Button("Not them") {
+                    Task { await reject(face) }
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Reject the tag for \(name)")
+            }
+            .controlSize(.large)
+            .disabled(isBusy)
         }
         .padding(.vertical, 4)
     }
@@ -242,9 +252,6 @@ private struct FaceGroupRow: View {
     let assign: (_ faceIds: [Int], _ personId: Int) -> Void
     let dismiss: (_ faceIds: [Int]) -> Void
 
-    private static let cropsShown = 8
-    private static let cropSize: CGFloat = 72
-
     private var includedIds: [Int] {
         group.faces.filter { !excluded.contains($0.id) }.map(\.id)
     }
@@ -253,50 +260,40 @@ private struct FaceGroupRow: View {
         people.first { $0.id == group.suggestedPersonId }
     }
 
-    private var hiddenCount: Int {
-        max(group.faces.count - Self.cropsShown, 0)
-    }
-
-    private var meta: String {
-        let count = includedIds.count
-        let faces = count == 1 ? "1 face" : "\(count) faces"
-        return count == group.faces.count ? faces : "\(faces) of \(group.faces.count)"
+    private func selectionSummary(selected: Int) -> String {
+        let total = group.faces.count
+        if selected == 0 { return "No faces selected" }
+        if selected == total { return "\(total) faces" }
+        return "\(selected) of \(total) faces selected"
     }
 
     var body: some View {
         let ids = includedIds
-        VStack(alignment: .leading, spacing: 10) {
-            if let familyName {
-                Text(familyName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(group.faces.prefix(Self.cropsShown)) { face in
-                        crop(face)
-                    }
-                    if hiddenCount > 0 {
-                        Text("+\(hiddenCount)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: Self.cropSize, height: Self.cropSize)
-                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        VStack(alignment: .leading, spacing: 12) {
+            if group.faces.count == 1, let face = group.faces.first {
+                HStack(spacing: 12) {
+                    crop(face)
+                    heading(selected: ids.count)
+                }
+            } else {
+                heading(selected: ids.count)
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 8) {
+                        ForEach(group.faces) { face in
+                            crop(face)
+                        }
                     }
                 }
+                .frame(height: 80)
             }
 
-            Text(meta)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 8) {
-                if let suggested {
-                    Button("It's \(suggested.name)") {
-                        assign(ids, suggested.id)
+            AdaptiveActionRow {
+                if let person = suggested {
+                    Button("Confirm") {
+                        assign(ids, person.id)
                     }
                     .buttonStyle(.borderedProminent)
+                    .accessibilityLabel("Confirm \(person.name)")
                 }
                 Menu {
                     ForEach(people, id: \.id) { person in
@@ -305,23 +302,52 @@ private struct FaceGroupRow: View {
                         }
                     }
                 } label: {
-                    Text(suggested == nil ? "Who is this?" : "Someone else…")
+                    Text(suggested == nil ? "Choose person…" : "Someone else…")
                 }
                 .buttonStyle(.bordered)
                 .disabled(people.isEmpty)
             }
+            .controlSize(.large)
             .disabled(ids.isEmpty)
 
-            Button("Not someone in the family") {
+            Button {
                 dismiss(ids)
+            } label: {
+                Label("Dismiss from review", systemImage: "eye.slash")
+                    .font(.subheadline)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .font(.footnote)
-            .foregroundStyle(.secondary)
             .disabled(ids.isEmpty)
         }
         .disabled(isBusy)
         .padding(.vertical, 4)
+    }
+
+    private func heading(selected: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let suggested {
+                Text("Suggested match")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(suggested.name)
+                    .font(.headline)
+            } else {
+                Text(group.faces.count == 1 ? "Unnamed face" : "Unnamed faces")
+                    .font(.headline)
+            }
+            if group.faces.count != 1 || selected == 0 {
+                Text(selectionSummary(selected: selected))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            if let familyName {
+                Text(familyName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private func crop(_ face: PhotoFaceDTO) -> some View {
@@ -333,8 +359,7 @@ private struct FaceGroupRow: View {
                 excluded.insert(face.id)
             }
         } label: {
-            FaceCropView(photoId: face.photoId, box: face.box, frameMs: face.videoFrameMs, size: Self.cropSize)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            faceThumbnail(face)
                 .opacity(isExcluded ? 0.35 : 1)
                 .overlay(alignment: .topTrailing) {
                     if isExcluded {
@@ -349,4 +374,9 @@ private struct FaceGroupRow: View {
         .accessibilityLabel(isExcluded ? "Include this face" : "Leave this face out")
         .accessibilityAddTraits(isExcluded ? [] : .isSelected)
     }
+}
+
+private func faceThumbnail(_ face: PhotoFaceDTO) -> some View {
+    FaceCropView(photoId: face.photoId, box: face.box, frameMs: face.videoFrameMs, size: 72)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
 }

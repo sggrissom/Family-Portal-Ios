@@ -100,24 +100,18 @@ struct TagSuggestionsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack {
-                Button {
+            AdaptiveActionRow {
+                Button(Copy.tagSuggestions.tagPhotos(included.count)) {
                     Task { await accept(included, label: group.label) }
-                } label: {
-                    Text(Copy.tagSuggestions.tagPhotos(included.count, label: group.label))
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button {
+                Button(Copy.tagSuggestions.reject(all: included.count == shown.count)) {
                     Task { await reject(included) }
-                } label: {
-                    Text(Copy.tagSuggestions.reject(all: included.count == shown.count))
-                        .lineLimit(1)
                 }
                 .buttonStyle(.bordered)
             }
+            .controlSize(.large)
             .disabled(busy || included.isEmpty)
         }
         .padding()
