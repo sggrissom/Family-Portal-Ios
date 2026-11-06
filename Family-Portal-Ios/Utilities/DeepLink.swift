@@ -33,6 +33,15 @@ nonisolated enum DeepLink: Equatable, Sendable {
     /// `/interview/new/<personServerId>` — setting up a new interview, which Home's "time for an interview" nudge opens on the web.
     case interviewSetup(personId: Int)
 
+    // App-only destinations: Siri, Shortcuts, controls and the Home Screen quick actions open these. No path parses to them, so they have no place in `backend/universal_links.go`.
+
+    /// Global search, run on `query` when there is one.
+    case search(query: String?)
+    /// The add flow's photo picker.
+    case addPhotos
+    /// A new quote, for the person with this server id when there is one.
+    case addQuote(personRemoteId: Int?)
+
     /// Parses a site-relative path. The fragment is ignored, and the query only where a destination reads one (`/profile`'s `tab`, `/same-age`'s `age`, `from` and `view`).
     static func parse(path rawPath: String) -> DeepLink? {
         let withoutFragment = rawPath.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]

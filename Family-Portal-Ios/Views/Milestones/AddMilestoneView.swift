@@ -72,8 +72,13 @@ struct AddMilestoneView: View {
         )
     }
 
-    init(personId: UUID? = nil) {
+    /// `category` preselects one as if the user had chosen it, so a suggestion never moves it.
+    init(personId: UUID? = nil, category: MilestoneCategory? = nil) {
         _selectedPersonId = State(initialValue: personId)
+        if let category {
+            _category = State(initialValue: category)
+            _categoryTouched = State(initialValue: true)
+        }
     }
 
     var body: some View {

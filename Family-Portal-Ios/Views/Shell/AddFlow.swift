@@ -8,12 +8,15 @@ import SwiftUI
 enum AddForm: Identifiable, Equatable {
     case measurement(personId: UUID?)
     case milestone(personId: UUID?)
+    /// A moment with its category already set to quote: Siri's and the controls' "Add quote".
+    case quote(personId: UUID?)
     case person
 
     var id: String {
         switch self {
         case .measurement(let id): return "measurement-\(id?.uuidString ?? "")"
         case .milestone(let id): return "milestone-\(id?.uuidString ?? "")"
+        case .quote(let id): return "quote-\(id?.uuidString ?? "")"
         case .person: return "person"
         }
     }
@@ -61,6 +64,11 @@ final class AddFlow {
     /// Opens a form directly, with no sheet in front — a roster row's long press already said what and for whom.
     func open(_ form: AddForm) {
         self.form = form
+    }
+
+    /// Opens the photo picker directly, with no sheet in front — an App Intent or quick action already said what.
+    func pickPhotos() {
+        isPickingPhotos = true
     }
 
     func choosePhotos() {
@@ -138,6 +146,8 @@ private struct AddFlowPresentation: ViewModifier {
                     AddMeasurementView(personId: personId)
                 case .milestone(let personId):
                     AddMilestoneView(personId: personId)
+                case .quote(let personId):
+                    AddMilestoneView(personId: personId, category: .quote)
                 case .person:
                     AddPersonView()
                 }

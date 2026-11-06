@@ -1,33 +1,6 @@
 import AppIntents
 import WidgetKit
 
-/// A person a widget can be limited to. The choices come from the snapshot's people — the ones with a server id, by first name — so configuring a widget needs no network either.
-struct PersonEntity: AppEntity {
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Person"
-    static let defaultQuery = PersonQuery()
-
-    var id: Int
-    var name: String
-
-    var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name)")
-    }
-}
-
-struct PersonQuery: EntityQuery {
-    private var people: [PersonEntity] {
-        (WidgetStore.shared()?.read()?.people ?? []).map { PersonEntity(id: $0.id, name: $0.name) }
-    }
-
-    func entities(for identifiers: [Int]) async throws -> [PersonEntity] {
-        people.filter { identifiers.contains($0.id) }
-    }
-
-    func suggestedEntities() async throws -> [PersonEntity] {
-        people
-    }
-}
-
 enum MemoryContentOption: String, AppEnum {
     case everything, photos, milestones, quotes
 

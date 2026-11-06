@@ -9,5 +9,7 @@ struct FamilyRecordWidgetsBundle: WidgetBundle {
         MemoryWidget()
         QuoteWidget()
         FamilyAgesWidget()
+        AddQuoteControl()
+        AddPhotosControl()
     }
 }

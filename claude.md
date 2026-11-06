@@ -80,6 +80,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │                      InterviewCardView (an interview's answers as one card),
 │                      CameraCaptureView (the system camera, for one photo),
 │                      VideoBadge (play mark + length on a video's poster)
+├── Intents/           App Intents, the Siri shortcuts provider, QuickActions
 └── Utilities/
     ├── Constants.swift, AgeCalculator.swift, PreviewData.swift
     ├── Copy.swift                    # every user-facing string the web has words for (copy.ts)
@@ -638,6 +639,16 @@ Phase 1 of the system integration plan in `plan.md`. A handoff, not an upload: t
 - `ShareInboxDrain` runs after `performFullSync` on sign-in and on every return to the foreground. A share whose `ownerUserId` isn't the signed-in account is deleted. Server ids map to local people and tags, keeping only those `FamilyAccess` can contribute to, and the files go through `PhotoImporter.importShared` — the same read, queue and batch choices as an in-app pick, in the same progress bar. A video waits in the inbox until video support is known (offline, or before the server answers) and on `needsConnection`; everything else, imported or refused, leaves the inbox
 - The inbox is emptied when `isAuthenticated` goes false and by `LocalDataReset.erase(.everything)`
 - `CaptureDate` in `Shared/` is the EXIF reader `PhotoImporter.captureDate(from:)` delegates to. The extension's words are `ShareCopy` in `Shared/WidgetCopy.swift`
+
+### Siri, Shortcuts, controls and quick actions (`Intents/`, `Shared/FamilyRecordIntents.swift`)
+
+Phase 2 of the system integration plan in `plan.md`.
+
+- `PersonEntity` / `PersonQuery` live in `Shared/FamilyRecordIntents.swift`, compiled into the app and the widget extension (the share target excludes the file). Choices are the widget snapshot's people, by server id; `FamilyRecordShortcuts.updateAppShortcutParameters()` runs after every snapshot publish so Siri's phrases know them
+- `AddQuoteIntent` saves without opening the app: `QuickQuote.save` checks the cached account (`AuthService.cachedUser()`, since the system may launch the app just to run it) and `FamilyAccess`, writes today's quote like `AddMilestoneView`, and awaits the local enqueue through `IntentServices.syncService`, set in `App.init`
+- Everything else opens the app (`openAppWhenRun`) and parks a `DeepLink` on `DeepLinkRouter.shared` for `ContentView.openPendingLink`: `OpenPersonIntent` (`.person`), `OpenOnThisDayIntent` (`.home`), `SearchFamilyRecordIntent` (`.search(query:)`), `AddPhotosIntent` (`.addPhotos`, the picker via `AddFlow.pickPhotos`), `OpenAddQuoteIntent` (`.addQuote`, `AddForm.quote` — the moment form with quote preselected). The last three `DeepLink` cases are app-only: no path parses to them
+- `AddPhotosIntent` and `OpenAddQuoteIntent` are in `Shared/` because the widget extension's controls (`AddQuoteControl`, `AddPhotosControl`) run them; their `perform` touches the router only under `#if FAMILY_RECORD_APP`, a compilation condition set on the app target alone, and the system performs an app-opening intent in the app
+- Home Screen quick actions (`QuickActions`) are set in code while signed in and cleared on sign-out. A cold launch's arrives in `AppDelegate`'s `configurationForConnecting`; one while running reaches `QuickActionSceneDelegate`
 
 ### Error presentation and logging
 - `ErrorPresenter` (`@Observable`, app scope, injected into the environment) plus the `.appErrorAlert()` modifier applied once at the root. Views report failures through it rather than swallowing them

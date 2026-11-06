@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 import SwiftData
 import UIKit
@@ -15,6 +16,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // Background task handlers have to be registered before launch finishes, like the notification delegate.
         WidgetBackgroundRefresh.register()
         return true
+    }
+
+    /// A cold launch from a quick action names it here; one chosen while running reaches `QuickActionSceneDelegate`.
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        if let shortcutItem = options.shortcutItem {
+            QuickActions.handle(shortcutItem)
+        }
+        let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = QuickActionSceneDelegate.self
+        return configuration
     }
 
     func application(
@@ -46,7 +61,7 @@ struct Family_Portal_IosApp: App {
     @State private var activityService = ActivityService()
     @State private var bookService = BookService()
     @State private var interviewService = InterviewService()
-    @State private var deepLinkRouter = DeepLinkRouter()
+    @State private var deepLinkRouter = DeepLinkRouter.shared
     @State private var navigator = AppNavigator()
     @State private var addFlow = AddFlow()
     @State private var networkMonitor: NetworkMonitor
@@ -59,11 +74,14 @@ struct Family_Portal_IosApp: App {
         CalendarDateMigration.runIfNeeded(container.mainContext)
         let monitor = NetworkMonitor()
         _networkMonitor = State(initialValue: monitor)
-        _syncService = State(initialValue: SyncService(
+        let sync = SyncService(
             modelContext: container.mainContext,
             apiClient: APIClient.shared,
             networkMonitor: monitor
-        ))
+        )
+        _syncService = State(initialValue: sync)
+        // Before any intent can run: the system builds the app first when it launches it to perform one.
+        IntentServices.syncService = sync
     }
 
     var body: some Scene {
@@ -102,6 +120,7 @@ struct Family_Portal_IosApp: App {
                     }
                 }
                 .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+                    QuickActions.update(signedIn: isAuthenticated)
                     if isAuthenticated {
                         Task {
                             // A session restored from the cache may be holding an expired token; refreshing first saves every request below a 401 round trip.
@@ -156,6 +175,14 @@ struct Family_Portal_IosApp: App {
 
         syncService.onFullSyncFinished = {
             self.publishWidgets()
+        }
+
+        // Siri learns the people its phrases name from the snapshot `PersonQuery` reads, so it hears again whenever that may have changed.
+        // Chained onto the background refresh's own hook, set in `didFinishLaunching`.
+        let scheduleRefresh = WidgetPublisher.shared.onPublished
+        WidgetPublisher.shared.onPublished = {
+            scheduleRefresh?()
+            FamilyRecordShortcuts.updateAppShortcutParameters()
         }
 
         authService.onUnownedLocalData = { scope in

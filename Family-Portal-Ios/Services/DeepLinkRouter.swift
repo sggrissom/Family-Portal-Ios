@@ -7,6 +7,9 @@ import OSLog
 @Observable
 final class DeepLinkRouter {
 
+    /// The app's one router. Shared so an App Intent or a quick action, which arrive outside the view tree, can park a destination the same way a link does.
+    static let shared = DeepLinkRouter()
+
     private(set) var pending: DeepLink?
 
     func open(_ link: DeepLink) {

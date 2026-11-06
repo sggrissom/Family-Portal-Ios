@@ -54,6 +54,13 @@ nonisolated enum Copy {
         static let close = "Close"
     }
 
+    /// The Home Screen icon's long-press menu. iOS only: the web has nothing like it.
+    enum quickActions {
+        static let addPhotos = "Add Photos"
+        static let addQuote = "Add Quote"
+        static let search = "Search"
+    }
+
     enum when {
         static let ageInFuture = "That age hasn't happened yet"
         static let label = "When"
