@@ -131,6 +131,8 @@ struct HomeView: View {
                 .lineLimit(1)
         }
         .frame(width: 72)
+        // The whole label is tappable, bounded to this person's strip cell.
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(age.isEmpty ? person.name : "\(person.name), \(age)")
     }

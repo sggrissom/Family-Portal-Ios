@@ -74,6 +74,9 @@ struct PersonAvatarView: View {
 
     var body: some View {
         avatar
+            // Clipping only changes drawing. Keep a scaled/aspect-fill photo's
+            // invisible bounds from intercepting taps on neighbouring people.
+            .contentShape(Circle())
             // Decorative and hidden rather than labelled: every place this appears already shows the name in text beside it, and VoiceOver would otherwise spell the initials.
             .accessibilityHidden(true)
     }
