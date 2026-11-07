@@ -73,15 +73,18 @@ struct TagSuggestionsView: View {
         let rest = group.suggestions.count - shown.count
 
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Circle()
                     .fill(TagColor.color(forHex: group.color))
                     .frame(width: 12, height: 12)
                 Text(group.label)
                     .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
                 Text("\(group.suggestions.count)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .fixedSize()
             }
 
             Text(Copy.tagSuggestions.hint)
@@ -127,10 +130,16 @@ struct TagSuggestionsView: View {
                 excluded.insert(suggestion.id)
             }
         } label: {
-            RemotePhotoView(remoteId: suggestion.photoId, size: .thumb)
-                .frame(minWidth: 0, maxWidth: .infinity)
-                .aspectRatio(1, contentMode: .fill)
-                .clipped()
+            // Let the grid size the square before loading the image. An overlay
+            // cannot enlarge its parent when a portrait or landscape photo arrives.
+            Color.gray.opacity(0.2)
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    GeometryReader { geometry in
+                        RemotePhotoView(remoteId: suggestion.photoId, size: .thumb)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                    }
+                }
                 .opacity(isExcluded ? 0.35 : 1)
                 .overlay(alignment: .topTrailing) {
                     if isExcluded {
@@ -141,6 +150,7 @@ struct TagSuggestionsView: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isExcluded ? "Include this photo" : "Leave this photo out")
