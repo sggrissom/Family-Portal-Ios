@@ -21,6 +21,8 @@ struct HomeView: View {
     @State private var memories = ActivityScreenState<GetMemoriesResponseDTO>()
     private let visit = MemoryVisit.shared
     @State private var dismissedVersion = 0
+    /// Which ends of the family strip have people scrolled past them, so the strip can fade there.
+    @State private var stripEdges = StripEdges()
 
     private let dismissals = NudgeDismissals()
     private static let recentDays = 14
@@ -174,7 +176,27 @@ struct HomeView: View {
             }
             .padding(.horizontal)
         }
+        .onScrollGeometryChange(for: StripEdges.self) { geometry in
+            StripEdges(
+                before: geometry.contentOffset.x > 4,
+                after: geometry.contentOffset.x + geometry.containerSize.width < geometry.contentSize.width - 4
+            )
+        } action: { _, edges in
+            stripEdges = edges
+        }
+        .mask {
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: stripEdges.before ? Self.stripFade : 0)
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: stripEdges.after ? Self.stripFade : 0)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: stripEdges)
     }
+
+    private static let stripFade: CGFloat = 40
 
     private func familyName(_ familyId: Int) -> String {
         let name = dashboard.value?.families.first { $0.id == familyId }?.name
@@ -452,4 +474,10 @@ struct HomeView: View {
         }
         .padding(.horizontal)
     }
+}
+
+/// Whether the family strip has people past its leading and trailing edges.
+nonisolated struct StripEdges: Equatable, Sendable {
+    var before = false
+    var after = false
 }

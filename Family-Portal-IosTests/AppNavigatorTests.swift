@@ -105,3 +105,40 @@ struct AppNavigatorTests {
         #expect(navigator.depth(of: .home) == 1)
     }
 }
+
+@Suite("Add flow page person")
+@MainActor
+struct AddFlowPagePersonTests {
+
+    @Test("The tab bar's + opens for the person the screen on top is about")
+    func presentsForPage() {
+        let flow = AddFlow()
+        let person = UUID()
+        flow.showing(person, token: UUID())
+        flow.present()
+        #expect(flow.contextPersonId == person)
+    }
+
+    @Test("A person passed explicitly wins over the page's")
+    func explicitWins() {
+        let flow = AddFlow()
+        let explicit = UUID()
+        flow.showing(UUID(), token: UUID())
+        flow.present(for: explicit)
+        #expect(flow.contextPersonId == explicit)
+    }
+
+    @Test("Only the screen that set the person clears it")
+    func onlyOwnerClears() {
+        let flow = AddFlow()
+        let leaving = UUID()
+        let arriving = UUID()
+        let person = UUID()
+        flow.showing(UUID(), token: leaving)
+        flow.showing(person, token: arriving)
+        flow.leaving(token: leaving)
+        #expect(flow.pagePersonId == person)
+        flow.leaving(token: arriving)
+        #expect(flow.pagePersonId == nil)
+    }
+}

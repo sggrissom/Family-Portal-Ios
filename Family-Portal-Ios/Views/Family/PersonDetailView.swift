@@ -57,6 +57,7 @@ struct PersonDetailView: View {
             .navigationTitle(person.name)
             .navigationBarTitleDisplayMode(.inline)
             .advertisesRecord(path: person.serverId.map { "/profile/\($0)" }, title: person.name)
+            .addsFor(person.id)
             .toolbar {
                 // The web's 📖 Books on a profile: the family's shelf, since a book is often about several people.
                 ToolbarItem(placement: .topBarTrailing) {
