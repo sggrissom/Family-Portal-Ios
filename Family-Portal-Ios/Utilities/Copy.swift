@@ -34,6 +34,14 @@ nonisolated enum Copy {
         static let books = "Turn memories into a story"
         static let sameAge = "Everyone at one age"
         static let chat = "Family messages"
+        static let previews = "Something to look through"
+        static let said = "Things they said"
+        static let compare = "Compare"
+        static let seeStory = "See their story"
+
+        static func throughTheYears(_ name: String) -> String {
+            "\(name) through the years"
+        }
     }
 
     enum account {

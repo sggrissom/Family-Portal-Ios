@@ -67,4 +67,22 @@ nonisolated enum Memories {
         let age = AgeSteps.photoAge(birthday: birthday, at: memory.date)
         return age.isEmpty ? date : "\(date) · \(age)"
     }
+
+    /// The year a memory is filed under on a "through the years" strip: its calendar year when exact, otherwise its own label.
+    static func yearLabel(_ memory: MemoryDTO) -> String {
+        if let recordTime = memory.recordTime, !recordTime.isExactDay {
+            return recordTime.label
+        }
+        return String(memory.date.recordDay.year ?? 0)
+    }
+
+    /// One photo memory per year, the server's order deciding which, up to `limit`, oldest first.
+    static func throughTheYears(_ memories: [MemoryDTO], limit: Int = 6) -> [MemoryDTO] {
+        var seen: Set<String> = []
+        var picked: [MemoryDTO] = []
+        for memory in memories where !memory.photoIds.isEmpty && picked.count < limit {
+            if seen.insert(yearLabel(memory)).inserted { picked.append(memory) }
+        }
+        return picked.sorted { ($0.recordTime?.start ?? $0.date.recordDayKey) < ($1.recordTime?.start ?? $1.date.recordDayKey) }
+    }
 }
