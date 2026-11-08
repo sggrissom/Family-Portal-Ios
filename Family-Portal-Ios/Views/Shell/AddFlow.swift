@@ -53,9 +53,25 @@ final class AddFlow {
     /// Pushes the chosen event onto the current tab once the sheet is gone. Set by the shell, which owns navigation.
     var openEvent: ((OpenEventDTO) -> Void)?
 
+    /// Who the screen on top is about, set by `addsFor(_:)` while it shows: a person page, a moment, a photo of one person. The tab bar's **+** opens for them, as the web's Add does from those pages.
+    private(set) var pagePersonId: UUID?
+    private var pageToken: UUID?
+
     func present(for personId: UUID? = nil) {
-        contextPersonId = personId
+        contextPersonId = personId ?? pagePersonId
         isSheetPresented = true
+    }
+
+    func showing(_ personId: UUID?, token: UUID) {
+        pagePersonId = personId
+        pageToken = token
+    }
+
+    /// Only the screen that set the person clears it, so a screen appearing before the last one's disappearance doesn't lose its own.
+    func leaving(token: UUID) {
+        guard pageToken == token else { return }
+        pagePersonId = nil
+        pageToken = nil
     }
 
     /// Closes the sheet, then opens the chosen form from `sheetDidDismiss`.
@@ -288,5 +304,25 @@ struct AddSheetView: View {
         if let personId {
             defaults.rememberPerson(personId)
         }
+    }
+}
+
+private struct AddsFor: ViewModifier {
+    let personId: UUID?
+    @Environment(AddFlow.self) private var addFlow
+    @State private var token = UUID()
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { addFlow.showing(personId, token: token) }
+            .onChange(of: personId) { _, id in addFlow.showing(id, token: token) }
+            .onDisappear { addFlow.leaving(token: token) }
+    }
+}
+
+extension View {
+    /// Names the person this screen is about, so the add sheet opens with them chosen while it shows.
+    func addsFor(_ personId: UUID?) -> some View {
+        modifier(AddsFor(personId: personId))
     }
 }

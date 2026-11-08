@@ -16,6 +16,7 @@ struct MilestoneDetailSheetView: View {
             MilestoneDetailContent(milestone: milestone)
                 .navigationTitle(milestone.category.label)
                 .navigationBarTitleDisplayMode(.inline)
+                .addsFor(milestone.person?.id)
                 .toolbar {
                     // A view-only member reads the milestone and nothing more.
                     if authService.access.canContribute(to: milestone) {
