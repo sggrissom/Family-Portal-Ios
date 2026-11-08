@@ -177,6 +177,22 @@ nonisolated enum Copy {
         static let dropHint = "or drop them here"
     }
 
+    /// The web's `memory`: a resurfaced record and the words around it.
+    enum memory {
+        static let featured = "A memory"
+        static let another = "Another memory"
+        static let open = "Open"
+        static let kinds: [String: String] = [
+            "moment": "Moment",
+            "quote": "They said",
+            "artwork": "Artwork",
+            "interview": "Interview",
+            "event": "Event",
+            "photo": "Photo",
+        ]
+        static let addedFromEarlier = "Added from earlier"
+    }
+
     enum home {
         static let seeAll = "See all"
         static let history = "History"
@@ -186,6 +202,7 @@ nonisolated enum Copy {
         static let recent = "Recent"
         static let nothingRecent = "Nothing added in the last two weeks."
         static let dismiss = "Dismiss"
+        static let whenYouHaveAMinute = "When you have a minute"
         static let checkup = "measured"
         static let checkupTitle = "Measured"
         static let addPhotos = "Add photos"

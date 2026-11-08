@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// Home: the family strip, up to two nudges, what's in season, on this day, and the last two weeks — the web's dashboard.
+/// Home: the family strip, birthdays, what's in season, a featured memory, on this day, the last two weeks with older records just entered, and the quieter prompts last — the web's dashboard.
 /// The strip and Recent render from the store, so they are up before the network answers. Nudges, In season and On this day come from `GetDashboard`, cached: the last good answer shows at once and is replaced when a fetch lands.
 /// A cached dashboard from an earlier day is stale in exactly the sections that name a day — a birthday "tomorrow", an event "Today" — so those three are held back until a fresh one arrives.
 struct HomeView: View {
@@ -15,8 +15,11 @@ struct HomeView: View {
     @Environment(AppNavigator.self) private var navigator
     @Environment(AddFlow.self) private var addFlow
     @Environment(ActivityService.self) private var activityService
+    @Environment(\.modelContext) private var modelContext
 
     @State private var dashboard = ActivityScreenState<GetDashboardResponseDTO>()
+    @State private var memories = ActivityScreenState<GetMemoriesResponseDTO>()
+    private let visit = MemoryVisit.shared
     @State private var dismissedVersion = 0
 
     private let dismissals = NudgeDismissals()
@@ -40,19 +43,85 @@ struct HomeView: View {
                 familyStrip
 
                 if let current {
-                    nudges(current)
+                    nudges(timely(current))
                     inSeason(current)
+                }
+
+                featuredMemory
+
+                if let current {
                     onThisDay(current)
                 }
 
                 recent
+
+                if let current {
+                    chores(current)
+                }
             }
             .padding(.vertical)
         }
         .navigationTitle(Copy.nav.home)
-        .refreshable { await dashboard.reload() }
+        .refreshable {
+            async let dashboardReload: Void = dashboard.reload()
+            async let memoriesReload: Void = memories.reload()
+            _ = await (dashboardReload, memoriesReload)
+        }
         .task {
             await dashboard.load(activityService.dashboard(today: today))
+        }
+        .task {
+            await memories.load(activityService.memories(GetMemoriesRequestDTO(
+                today: today, seed: visit.seed, seen: visit.seen, recentlyAdded: true
+            )))
+        }
+    }
+
+    // MARK: - Memories
+
+    private var memoryPeople: [Int: (name: String, birthday: Date?)] {
+        var byId: [Int: (name: String, birthday: Date?)] = [:]
+        for person in people {
+            if let id = person.serverId { byId[id] = (person.name, person.isPregnancy ? nil : person.birthday) }
+        }
+        return byId
+    }
+
+    private var opener: MemoryOpener {
+        MemoryOpener(context: modelContext, navigator: navigator)
+    }
+
+    @ViewBuilder
+    private var featuredMemory: some View {
+        let all = memories.value?.memories ?? []
+        if let memory = visit.featured(all) {
+            FeaturedMemoryView(
+                memory: memory,
+                people: memoryPeople,
+                onOpen: { opener.open(memory) },
+                onAnother: all.count > 1 ? { visit.advance(count: all.count) } : nil
+            )
+            .padding(.horizontal)
+            .onAppear { visit.markSeen(memory.key) }
+            .onChange(of: memory.key) { _, key in visit.markSeen(key) }
+        }
+    }
+
+    /// Older records entered in the last two weeks, which Recent — by the day they happened — would bury. The featured memory is not repeated here.
+    @ViewBuilder
+    private var addedFromEarlier: some View {
+        let featuredKey = visit.featured(memories.value?.memories ?? [])?.key
+        let added = (memories.value?.recentlyAdded ?? []).filter { $0.key != featuredKey }
+        if !added.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Copy.memory.addedFromEarlier)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(added) { memory in
+                    MemoryTileView(memory: memory, people: memoryPeople) { opener.open(memory) }
+                }
+            }
+            .padding(.top, 8)
         }
     }
 
@@ -139,10 +208,31 @@ struct HomeView: View {
 
     // MARK: - Nudges
 
-    @ViewBuilder
-    private func nudges(_ dashboard: GetDashboardResponseDTO) -> some View {
+    /// Birthdays stay at the top; the rest are chores and wait at the bottom, as on the web.
+    private static let timelyKinds: Set<String> = ["birthday"]
+
+    private func timely(_ dashboard: GetDashboardResponseDTO) -> [DashboardNudgeDTO] {
         let _ = dismissedVersion
-        let shown = dismissals.visible(dashboard.nudges)
+        return dismissals.visible(dashboard.nudges.filter { Self.timelyKinds.contains($0.kind) }, limit: .max)
+    }
+
+    @ViewBuilder
+    private func chores(_ dashboard: GetDashboardResponseDTO) -> some View {
+        let _ = dismissedVersion
+        let shown = dismissals.visible(dashboard.nudges.filter { !Self.timelyKinds.contains($0.kind) })
+        if !shown.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(Copy.home.whenYouHaveAMinute)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                nudges(shown, prominent: false)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func nudges(_ shown: [DashboardNudgeDTO], prominent: Bool = true) -> some View {
         if !shown.isEmpty {
             VStack(spacing: 8) {
                 ForEach(shown) { nudge in
@@ -163,7 +253,15 @@ struct HomeView: View {
                         .accessibilityLabel(Copy.home.dismiss)
                     }
                     .padding(12)
-                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                    .background(
+                        prominent ? Color.accentColor.opacity(0.1) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
+                    .overlay {
+                        if !prominent {
+                            RoundedRectangle(cornerRadius: 10).strokeBorder(Color(.separator))
+                        }
+                    }
                 }
             }
             .padding(.horizontal)
@@ -315,12 +413,14 @@ struct HomeView: View {
                 Text(Copy.home.seeAll).font(.subheadline)
             }
         }) {
-            if days.isEmpty {
-                Text(Copy.home.nothingRecent)
-                    .foregroundStyle(.secondary)
-            } else {
+            if !days.isEmpty {
                 DaySummaryList(days: days, today: today)
             }
+            if days.isEmpty && (memories.value?.recentlyAdded ?? []).isEmpty {
+                Text(Copy.home.nothingRecent)
+                    .foregroundStyle(.secondary)
+            }
+            addedFromEarlier
         }
     }
 
