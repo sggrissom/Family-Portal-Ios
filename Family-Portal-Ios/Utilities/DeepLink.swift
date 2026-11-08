@@ -8,6 +8,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case photos
     /// `/dashboard`, the Home tab.
     case home
+    /// `/explore`, the Explore tab's directory.
+    case explore
     /// `/history`, and the legacy `/family-timeline` it replaced.
     case history
     /// `/growth`, and the legacy `/family-chart`.
@@ -60,6 +62,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
             return .photos
         case "dashboard" where segments.count == 1:
             return .home
+        case "explore" where segments.count == 1:
+            return .explore
         case "history" where segments.count == 1:
             return .history
         // Legacy paths map to their replacements, as `appNav.legacyRedirect` does on the web.

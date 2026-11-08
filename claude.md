@@ -34,7 +34,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 ├── Views/
 │   ├── Shell/         AppNavigator (tabs, per-tab paths, AppRoute, filters),
 │   │                  AddFlow (the one add sheet), AccountMenu (account
-│   │                  button + TabRoot), MoreView (the More tab)
+│   │                  button + TabRoot), ExploreView (the Explore tab)
 │   ├── Home/          HomeView (GetDashboard: strip, nudges, in season,
 │   │                  on this day, recent)
 │   ├── History/       HistoryView (day summaries by month)
@@ -104,7 +104,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 
 ## Architecture
 
-- **UI**: SwiftUI, tab-based: Home · Photos · **+** · Growth · More (the web's phone bar). **+** presents the add sheet. More (`MoreView`) lists History, Books, Same age, Activities, Interviews and Chat, pushed onto More's own stack and badged with unread chat; deep links to History, Chat and Same age open there. The account menu keeps Tags, Face review, Settings and Log out, pushed onto the current tab and handed back when the tab is left (`AppRoute.isBorrowed`). See `redesign-plan.md`
+- **UI**: SwiftUI, tab-based: Home · **+** · Explore (the web's phone bar). **+** presents the add sheet. Explore (`ExploreView`) lists Photos, Timeline (History), Growth, Activities, Interviews, Books, Same age and Chat in the web directory's order, pushed onto Explore's own stack and badged with unread chat; deep links to those open there. The account menu keeps Tags, Face review, Settings and Log out, pushed onto the current tab and handed back when the tab is left (`AppRoute.isBorrowed`). See `redesign-plan.md`
 - **State**: `@Observable` classes, `@Query` for SwiftData reads
 - **Persistence**: SwiftData with models: Family, Person, PersonRelation, GrowthData, Milestone, Photo, User, ChatMessage, FamilyTag
 - **Networking**: `APIClient` actor with JWT auth, auto-refresh on 401
