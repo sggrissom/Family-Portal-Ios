@@ -40,6 +40,15 @@ final class ActivityService {
         )
     }
 
+    /// Memories to resurface. The last good answer is cached per person, so Home and a profile still have something to show offline; a fresh answer for this visit's seed replaces it.
+    func memories(_ request: GetMemoriesRequestDTO) -> ActivityRead<GetMemoriesResponseDTO> {
+        read(
+            .getMemories,
+            payload: request,
+            key: ActivitySnapshotKey(.getMemories, request.personId, request.kinds.isEmpty ? 0 : 1)
+        )
+    }
+
     /// Events whose results can be entered now, for the add sheet's Result rows. `today` is the device's day.
     func openEvents(today: String) -> ActivityRead<ListOpenEventsResponseDTO> {
         read(

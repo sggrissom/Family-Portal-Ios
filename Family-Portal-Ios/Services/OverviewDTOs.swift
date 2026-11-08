@@ -246,3 +246,42 @@ nonisolated struct FaceReviewSummaryDTO: Decodable, Sendable {
 
 /// The body for an argument-less proc — vbeam still requires one.
 nonisolated struct EmptyRequestDTO: Encodable, Sendable {}
+
+// MARK: - GetMemories (backend/memories.go)
+
+/// One visit's ask. `seed` fixes the draw and `seen` pushes earlier visits' memories to the back, so the same pair returns the same memories. `kinds` and `personId` narrow it (Explore's quotes, a person's profile).
+nonisolated struct GetMemoriesRequestDTO: Encodable, Sendable, Hashable {
+    let today: String
+    let seed: Int
+    var seen: [String] = []
+    var limit = 12
+    var kinds: [String] = []
+    var personId = 0
+    var recentlyAdded = false
+}
+
+/// A record worth resurfacing. `kind` is moment, quote, artwork, interview, event or photo; the ids say where it opens — a milestone (moments, quotes, artwork, interview answers), an event, or a photo.
+nonisolated struct MemoryDTO: Decodable, Sendable, Identifiable, Equatable {
+    let key: String
+    let kind: String
+    @OrZero var personIds: [Int]
+    @OrZero var photoIds: [Int]
+    @OrZero var text: String
+    @OrZero var context: String
+    @OrZero var category: String
+    let date: Date
+    var recordTime: RecordTime?
+    let createdAt: Date
+    @OrZero var milestoneId: Int
+    @OrZero var interviewId: Int
+    @OrZero var photoId: Int
+    @OrZero var eventId: Int
+
+    var id: String { key }
+}
+
+nonisolated struct GetMemoriesResponseDTO: Decodable, Sendable {
+    @OrZero var memories: [MemoryDTO]
+    /// Older records entered in the last two weeks, newest entry first; empty unless asked for.
+    @OrZero var recentlyAdded: [MemoryDTO]
+}

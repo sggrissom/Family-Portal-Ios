@@ -153,6 +153,7 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case getDashboard = "GetDashboard"
     case listOpenEvents = "ListOpenEvents"
     case getSameAge = "GetSameAge"
+    case getMemories = "GetMemories"
 
     // MARK: - Books (backend/book.go)
     // Reads are cached like the overviews; writes are online only. `GetBook` returns the records the book draws on with it, filtered to what the viewer may see.

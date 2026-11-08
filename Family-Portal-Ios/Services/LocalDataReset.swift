@@ -68,6 +68,7 @@ enum LocalDataReset {
 
             // The old account's words, offered to the next one on an empty search field.
             RecentSearches.clear()
+            MemoryVisit.clear()
 
             // In memory only, but keyed by server ids the next account could share.
             AnalysisService.shared.removeAll()
