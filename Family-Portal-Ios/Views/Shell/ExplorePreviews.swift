@@ -48,7 +48,7 @@ final class ExplorePreviews {
                 let answer: GetSameAgeResponseDTO? = age.ageMonths == ages.ageMonths
                     ? ages
                     : try? await apiClient.callRPC(.getSameAge, payload: GetSameAgeRequestDTO(ageMonths: age.ageMonths, fromPersonId: 0, today: today))
-                sameAge = answer.flatMap { $0.rows.filter(Self.hasRecords).count >= 2 ? $0 : nil }
+                sameAge = answer.flatMap { Self.portraitRows($0.rows).count >= 2 ? $0 : nil }
             }
         }
 
@@ -68,8 +68,9 @@ final class ExplorePreviews {
         )
     }
 
-    nonisolated static func hasRecords(_ row: SameAgeRowDTO) -> Bool {
-        row.height != nil || row.weight != nil || !row.milestones.isEmpty || !row.contextMilestones.isEmpty
-            || !row.photoIds.isEmpty || !row.portraits.isEmpty
+    /// Use the same pictured people and order as the comparison's Portraits view.
+    /// Records near an age do not guarantee a portrait; a current avatar is misleading here.
+    static func portraitRows(_ rows: [SameAgeRowDTO]) -> [SameAgeRowDTO] {
+        SameAgeText.portraitOrder(rows.filter { !$0.portraits.isEmpty })
     }
 }

@@ -105,6 +105,31 @@ struct SameAgeTests {
         #expect(SameAgeText.portraitOrder(rows).map(\.id) == [4, 5])
     }
 
+    @Test("Explore's same-age preview excludes records and profile photos without age portraits")
+    func exploreOnlyShowsAgePortraits() throws {
+        let younger = try montageRow(id: 5, portraits: [portrait(9)])
+        let older = try APIClient.decode(SameAgeRowDTO.self, from: Fixture.data([
+            "person": Fixture.person(id: 4, birthday: "2013-08-07T00:00:00Z"),
+            "date": "2014-02-07T00:00:00Z",
+            "portraits": [portrait(10)],
+        ]))
+        let profileAndNearbyPhoto = try APIClient.decode(SameAgeRowDTO.self, from: Fixture.data([
+            "person": Fixture.person(id: 6, profilePhotoId: 99),
+            "date": "2020-02-04T00:00:00Z",
+            "photoIds": [98],
+            "portraits": [],
+        ]))
+        let measurementOnly = try row(date: "2023-12-04T00:00:00Z")
+        let noPortraitField = try montageRow(id: 7, portraits: nil)
+
+        let pictured = ExplorePreviews.portraitRows([
+            younger, profileAndNearbyPhoto, measurementOnly, older, noPortraitField,
+        ])
+        #expect(pictured.map(\.id) == [4, 5])
+        #expect(pictured.compactMap { $0.portraits.first?.photoId } == [10, 9])
+        #expect(ExplorePreviews.portraitRows([profileAndNearbyPhoto, measurementOnly]).isEmpty)
+    }
+
     @Test("The empty and missing-photo lines name newborns as newborns")
     func portraitCopy() {
         #expect(Copy.sameAge.noPortraits("Newborn") == "No newborn photos yet.")

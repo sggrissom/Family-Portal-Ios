@@ -121,8 +121,7 @@ struct ExploreView: View {
     }
 
     private func sameAgePreview(_ sameAge: GetSameAgeResponseDTO) -> some View {
-        let rows = SameAgeText.portraitOrder(sameAge.rows.filter(ExplorePreviews.hasRecords))
-        let local = people.byServerId()
+        let rows = ExplorePreviews.portraitRows(sameAge.rows)
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 14) {
                 ForEach(rows) { row in
@@ -130,7 +129,7 @@ struct ExploreView: View {
                         navigator.push(.sameAge(ageMonths: sameAge.ageMonths, fromRemoteId: row.person.id))
                     } label: {
                         VStack(spacing: 4) {
-                            face(row, local: local[row.person.id])
+                            face(row)
                                 .frame(width: 72, height: 72)
                                 .clipShape(Circle())
                             Text(row.person.name.firstName)
@@ -147,13 +146,9 @@ struct ExploreView: View {
     }
 
     @ViewBuilder
-    private func face(_ row: SameAgeRowDTO, local: Person?) -> some View {
+    private func face(_ row: SameAgeRowDTO) -> some View {
         if let portrait = row.portraits.first {
             FaceCropView(photoId: portrait.photoId, box: portrait.box, size: 72)
-        } else if let local {
-            PersonAvatarView(person: local, size: 72)
-        } else {
-            PersonAvatarView(name: row.person.name, profilePhotoRemoteId: row.person.profilePhotoId, size: 72)
         }
     }
 
