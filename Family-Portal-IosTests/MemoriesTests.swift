@@ -93,3 +93,31 @@ struct MemoriesTests {
         #expect(second.featured(memories)?.key == "m1")
     }
 }
+
+@Suite("Explore previews")
+struct ExplorePreviewTests {
+
+    @Test("Only childhood ages on a friendly grid are suggested")
+    func invitingAges() {
+        #expect(AgeSteps.invitingAge(6))
+        #expect(AgeSteps.invitingAge(18))
+        #expect(AgeSteps.invitingAge(24))
+        #expect(!AgeSteps.invitingAge(30))
+        #expect(!AgeSteps.invitingAge(0))
+        #expect(AgeSteps.invitingAge(17 * 12))
+        #expect(!AgeSteps.invitingAge(66 * 12 + 6))
+    }
+
+    @Test("Through the years takes one photo memory per year, oldest first")
+    func throughTheYears() throws {
+        let memories = try [
+            MemoriesTests.memory(["key": "a", "date": "2023-05-01T00:00:00Z", "photoIds": [1]]),
+            MemoriesTests.memory(["key": "b", "date": "2021-05-01T00:00:00Z", "photoIds": [2]]),
+            MemoriesTests.memory(["key": "c", "date": "2023-09-01T00:00:00Z", "photoIds": [3]]),
+            MemoriesTests.memory(["key": "d", "date": "2019-05-01T00:00:00Z", "photoIds": []]),
+        ].map(MemoriesTests.decode)
+
+        #expect(Memories.throughTheYears(memories).map(\.key) == ["b", "a"])
+        #expect(Memories.yearLabel(memories[0]) == "2023")
+    }
+}

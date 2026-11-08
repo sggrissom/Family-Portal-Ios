@@ -66,6 +66,11 @@ nonisolated enum AgeSteps {
         direction < 0 ? ages.filter { $0 < current }.max() : ages.filter { $0 > current }.min()
     }
 
+    /// An age worth suggesting a comparison at — a childhood month under two, a birthday after — as `invitingAge` decides on the web.
+    static func invitingAge(_ ageMonths: Int) -> Bool {
+        ageMonths > 0 && ageMonths <= 18 * 12 && (ageMonths < 24 || ageMonths % 12 == 0)
+    }
+
     /// "Everyone as newborns", "Everyone at 3 years" — `ageHeading`.
     static func ageHeading(_ ageMonths: Int) -> String {
         ageMonths <= 0 ? "Everyone as newborns" : "Everyone at \(ageTitle(ageMonths))"
