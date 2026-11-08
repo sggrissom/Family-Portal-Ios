@@ -534,6 +534,25 @@ nonisolated enum Copy {
         static let openInPhotos = "Open in Photos →"
         static let growingUp = "Growing up"
         static let seeGrowingUp = "See the full timeline →"
+        static let highlights = "Highlights"
+        static let fromInterview = "From the interview"
+        static let allInterviews = "All interviews →"
+
+        static func theySaid(_ name: String) -> String {
+            "\(name) said"
+        }
+
+        static func allQuotes(_ n: Int) -> String {
+            n == 1 ? "The quote →" : "All \(n) quotes →"
+        }
+
+        static func artworkCount(_ n: Int) -> String {
+            n == 1 ? "1 piece →" : "All \(n) pieces →"
+        }
+
+        static func othersAtAge(_ age: Int) -> String {
+            age == 0 ? "Everyone in their first year" : "Everyone at \(age)"
+        }
         static let oftenWith = "Often photographed with"
         static let useAsProfilePhoto = "Use as Profile Photo"
         static let metric = "Measurement"
