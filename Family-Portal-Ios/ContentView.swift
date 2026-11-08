@@ -40,7 +40,7 @@ struct ContentView: View {
         .accessibilityLabel("Restoring your session")
     }
 
-    /// Home · Photos · **+** · Growth · More — the web's phone bar. More holds History, Books, Same age, Activities and Chat; the account menu keeps only the account's own controls.
+    /// Home · **+** · Explore — the web's phone bar. Explore holds Photos, Timeline, Growth, Activities, Interviews, Books, Same age and Chat; the account menu keeps only the account's own controls.
     /// **+** is a tab only so it sits in the bar: selecting it presents the add sheet and leaves the previous tab selected, because the binding never lets the selection become `.add`.
     private var mainTabs: some View {
         let selection = Binding<MainTab>(
@@ -62,10 +62,6 @@ struct ContentView: View {
                 .tabItem { Label(Copy.nav.home, systemImage: "house") }
                 .tag(MainTab.home)
 
-            TabRoot(tab: .photos) { PhotoGalleryView() }
-                .tabItem { Label(Copy.nav.photos, systemImage: "photo.on.rectangle") }
-                .tag(MainTab.photos)
-
             // A view-only member has nothing to add, so the bar drops the **+** rather than offering a sheet whose every choice would be refused.
             if authService.access.canContributeAnywhere {
                 Color.clear
@@ -73,15 +69,11 @@ struct ContentView: View {
                     .tag(MainTab.add)
             }
 
-            TabRoot(tab: .growth) { GrowthRootView() }
-                .tabItem { Label(Copy.nav.growth, systemImage: "chart.line.uptrend.xyaxis") }
-                .tag(MainTab.growth)
-
             // Unread chat badges the tab that holds Chat, so a new message is visible from anywhere.
-            TabRoot(tab: .more) { MoreView() }
-                .tabItem { Label(Copy.nav.more, systemImage: "ellipsis") }
+            TabRoot(tab: .explore) { ExploreView() }
+                .tabItem { Label(Copy.nav.explore, systemImage: "safari") }
                 .badge(chatService?.unreadCount ?? 0)
-                .tag(MainTab.more)
+                .tag(MainTab.explore)
         }
         .addFlowPresentation(addFlow)
         // Both, because a link can arrive before the tabs exist — a cold launch from a tapped notification — or while they are already on screen.
@@ -100,7 +92,7 @@ struct ContentView: View {
         .onChange(of: syncService.lastSyncDate) { _, _ in openPendingLink() }
     }
 
-    /// Every link is routed here, in one place. Tab roots are selected; History, Chat and Same age open on More, where they live; Settings is pushed onto the current tab, as the account menu pushes it.
+    /// Every link is routed here, in one place. Home is selected; Photos, Timeline, Growth, Chat, Same age and Interviews open on Explore, where they live; Settings is pushed onto the current tab, as the account menu pushes it.
     private func openPendingLink() {
         guard let link = deepLinkRouter.pending else { return }
 
@@ -108,21 +100,24 @@ struct ContentView: View {
         case .home:
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([], on: .home)
+        case .explore:
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([], on: .explore)
         case .photos:
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([], on: .photos)
+            navigator.show([.photos], on: .explore)
         case .history:
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.history], on: .more)
+            navigator.show([.history], on: .explore)
         case .growth:
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([], on: .growth)
+            navigator.show([.growth], on: .explore)
         case .sameAge(let ageMonths, let from, let view):
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.sameAge(ageMonths: ageMonths, fromRemoteId: from, view: view)], on: .more)
+            navigator.show([.sameAge(ageMonths: ageMonths, fromRemoteId: from, view: view)], on: .explore)
         case .chat:
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.chat], on: .more)
+            navigator.show([.chat], on: .explore)
         case .settings:
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.settings])
@@ -134,9 +129,10 @@ struct ContentView: View {
             _ = deepLinkRouter.claim { $0 == link }
             // A photo can always be shown: from the store when it is here, from the server when it is not yet.
             if let photo = fetchPhoto(remoteId: remoteId) {
-                navigator.show(PhotoRoute(id: photo.id), on: .photos)
+                navigator.show([.photos], on: .explore)
+                navigator.push(PhotoRoute(id: photo.id))
             } else {
-                navigator.show([.remotePhoto(id: remoteId)], on: .photos)
+                navigator.show([.photos, .remotePhoto(id: remoteId)], on: .explore)
             }
         case .milestone(let remoteId):
             guard let milestone = fetchMilestone(remoteId: remoteId) else { return }
@@ -147,13 +143,13 @@ struct ContentView: View {
             navigator.show([ask ? .interviewAsk(id: id) : .interview(id: id)], on: .home)
         case .interviews:
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.interviews], on: .more)
+            navigator.show([.interviews], on: .explore)
         case .interviewQuestions:
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.interviews, .interviewQuestions], on: .more)
+            navigator.show([.interviews, .interviewQuestions], on: .explore)
         case .interviewCompare(let questionId):
             _ = deepLinkRouter.claim { $0 == link }
-            navigator.show([.interviews, .interviewCompare(questionId: questionId)], on: .more)
+            navigator.show([.interviews, .interviewCompare(questionId: questionId)], on: .explore)
         case .interviewPast(let personId):
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.interviewPast(personId: personId)], on: .home)

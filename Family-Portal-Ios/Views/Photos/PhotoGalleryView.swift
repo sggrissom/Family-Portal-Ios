@@ -29,8 +29,6 @@ struct PhotoGalleryView: View {
     @State private var isSearching = false
     @State private var isLoadingMore = false
     @State private var searchError: String?
-    /// The last `AppNavigator.photoSearchRequest` run, so coming back to the tab doesn't run it again.
-    @State private var handledSearchRequest = 0
 
     /// A place filter whose answer could not be fetched, for the empty state.
     @State private var placeError: String?
@@ -131,8 +129,8 @@ struct PhotoGalleryView: View {
             }
             // Handed a search from elsewhere ("See all photos" on the search screen): run it as if submitted here.
             .task(id: navigator.photoSearchRequest) {
-                guard navigator.photoSearchRequest != handledSearchRequest else { return }
-                handledSearchRequest = navigator.photoSearchRequest
+                guard navigator.photoSearchRequest != navigator.handledPhotoSearchRequest else { return }
+                navigator.handledPhotoSearchRequest = navigator.photoSearchRequest
                 await submitSearch()
             }
             // Coming back from the review, whose last fetch is the freshest count there is.

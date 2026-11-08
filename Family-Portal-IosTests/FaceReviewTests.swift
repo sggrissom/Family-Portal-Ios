@@ -140,10 +140,10 @@ struct FaceReviewTests {
         #expect(AppRoute.faces.isBorrowed)
 
         let navigator = AppNavigator()
-        navigator.select(.growth)
+        navigator.select(.explore)
         navigator.push(.faces)
         navigator.select(.home)
-        #expect(navigator.depth(of: .growth) == 0)
+        #expect(navigator.depth(of: .explore) == 0)
     }
 
     @Test("The Faces screen's counts update the menu badge, and a disabled server hides it")

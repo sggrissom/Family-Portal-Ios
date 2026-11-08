@@ -11,25 +11,29 @@ nonisolated enum Copy {
         static let home = "Home"
         static let photos = "Photos"
         static let growth = "Growth"
-        static let history = "History"
+        static let history = "Timeline"
         static let chat = "Chat"
         static let books = "Books"
         static let sameAge = "Same age"
         static let activities = "Activities"
-        static let more = "More"
+        static let explore = "Explore"
         static let add = "Add"
         static let account = "Account"
         static let interviews = "Interviews"
     }
 
-    /// The web's `moreSheet`: More's destinations, each with a line saying what it is for.
-    enum more {
+    /// The web's `explore`: the directory's destinations, each with a line saying what it is for.
+    enum explore {
+        static let title = "Explore"
+        static let lede = "Everything your family has kept, in one place."
+        static let photos = "Every photo and video"
         static let history = "Everything, day by day"
-        static let books = "Turn memories into a story"
-        static let sameAge = "Compare everyone at the same age"
+        static let growth = "Height and weight by age"
         static let activities = "Seasons, meets and results"
+        static let interviews = "Same questions each year"
+        static let books = "Turn memories into a story"
+        static let sameAge = "Everyone at one age"
         static let chat = "Family messages"
-        static let interviews = "Same questions, every year"
     }
 
     enum account {

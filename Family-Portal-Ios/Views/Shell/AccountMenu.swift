@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The account button on every tab root: the user's initial. Its menu is the web's account menu without Import/Export and Admin — Tags, Face review, Settings and Log out, each a native screen pushed onto the current tab. Browsing (History, Books, Same age, Activities, Chat) lives on the More tab, which carries the unread-chat badge.
+/// The account button on every tab root: the user's initial. Its menu is the web's account menu without Import/Export and Admin — Tags, Face review, Settings and Log out, each a native screen pushed onto the current tab. Browsing (Photos, Timeline, Growth, Activities, Interviews, Books, Same age, Chat) lives on the Explore tab, which carries the unread-chat badge.
 /// Deliberately web-only, with no entry here: naming and managing family places, and the age-in-text parser on the milestone form. Places live on the web's `/settings`, a universal-link path, so a link from the app would only open the app again.
 struct AccountMenuButton: View {
     @Environment(AuthService.self) private var authService

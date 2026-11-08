@@ -1,10 +1,10 @@
 import OSLog
 import SwiftUI
 
-/// The tab bar's identities — the web's phone bar: Home, Photos, **+**, Growth, More. A raw value rather than an index, so a tab inserted later cannot silently change what a deep link selects.
+/// The tab bar's identities — the web's phone bar: Home, **+**, Explore. A raw value rather than an index, so a tab inserted later cannot silently change what a deep link selects.
 /// `.add` is not a destination: selecting it presents the add sheet and leaves the previous tab selected.
 enum MainTab: String, Hashable, CaseIterable {
-    case home, photos, add, growth, more
+    case home, add, explore
 }
 
 /// The person page's tabs. The raw value is the `?tab=` a link carries, so it matches the web's.
@@ -27,8 +27,12 @@ nonisolated enum PersonTab: String, Hashable, CaseIterable, Identifiable, Sendab
     }
 }
 
-/// Somewhere a tab's stack can be pushed to. One enum for the whole app, so Settings, Tags and Face review — reached from the account menu on *any* tab — and More's destinations are registered once at every tab root instead of once per screen that might link to them.
+/// Somewhere a tab's stack can be pushed to. One enum for the whole app, so Settings, Tags and Face review — reached from the account menu on *any* tab — and Explore's destinations are registered once at every tab root instead of once per screen that might link to them.
 enum AppRoute: Hashable {
+    /// The photo gallery, showing `AppNavigator.photoFilter`.
+    case photos
+    /// The family growth chart.
+    case growth
     case history
     case chat
     case activities
@@ -62,14 +66,14 @@ enum AppRoute: Hashable {
     case interviewPast(personId: Int)
     /// The family's question list.
     case interviewQuestions
-    /// The family's Interviews page, under More.
+    /// The family's Interviews page, under Explore.
     case interviews
     /// One question's answers by age, everyone side by side. 0 lets the server choose the question.
     case interviewCompare(questionId: Int)
     /// Global search, from the magnifying glass on every tab root. A query starts it searching.
     case search(query: String?)
 
-    /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back. History, Chat, Activities and Books are More's own and are not borrowed.
+    /// The account menu's screens (Face review is also a Home nudge). They are pushed onto whichever tab is up but belong to none of them, so leaving the tab hands them back. Explore's destinations are its own and are not borrowed.
     var isBorrowed: Bool {
         switch self {
         case .settings, .tags, .faces: return true
@@ -91,24 +95,25 @@ final class AppNavigator {
     var historyFilters = HistoryFilters()
     var photoFilter = PhotoFilter()
 
-    /// Bumped to hand the Photos tab a search to run on its words, as "See all photos" does. The gallery runs each request once.
+    /// Bumped to hand the gallery a search to run on its words, as "See all photos" does. The gallery runs each request once.
     private(set) var photoSearchRequest = 0
+    /// The last request a gallery ran. Held here, not in the gallery, because Explore makes a new gallery each time Photos is opened.
+    var handledPhotoSearchRequest = 0
 
-    /// "Open in Photos →": the Photos tab, filtered to one person.
+    /// "Open in Photos →": the gallery, filtered to one person.
     func openPhotos(of personId: UUID) {
         var filter = PhotoFilter()
         filter.personLocalIds = [personId]
         openPhotos(filter)
     }
 
-    /// The Photos tab at its root, showing `filter`. With `search`, the gallery also runs a server search for the filter's words.
+    /// The gallery on Explore, showing `filter`. With `search`, the gallery also runs a server search for the filter's words.
     func openPhotos(_ filter: PhotoFilter, search: Bool = false) {
         photoFilter = filter
         if search, !filter.trimmedSearch.isEmpty {
             photoSearchRequest += 1
         }
-        popToRoot(.photos)
-        select(.photos)
+        show([.photos], on: .explore)
     }
 
     /// Switches tabs, handing back whatever the tab being left had borrowed.
@@ -212,6 +217,10 @@ private struct AppRouteDestination: View {
 
     var body: some View {
         switch route {
+        case .photos:
+            PhotoGalleryView()
+        case .growth:
+            GrowthRootView()
         case .history:
             HistoryView()
         case .chat:
