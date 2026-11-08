@@ -232,7 +232,8 @@ struct PersonDetailView: View {
                 person: person,
                 onShowActivities: { tab = .activities },
                 insights: insights,
-                onShowGrowingUp: { tab = .photos }
+                onShowGrowingUp: { tab = .photos },
+                onShowTab: { tab = $0 }
             )
         case .quotes:
             PersonQuotesTab(person: person)

@@ -3,14 +3,18 @@ import SwiftData
 
 // MARK: - Story
 
-/// A short overview, then everything recorded for the person grouped into age chapters (`Story.chapters`) with a "Grew …" line each. The web's Story tab as built.
+/// A short overview, highlight cards, then everything recorded for the person grouped into age chapters (`Story.chapters`) with a "Grew …" line each and a link to everyone at that age. The web's Story tab as built.
 struct PersonStoryTab: View {
     let person: Person
     let onShowActivities: () -> Void
-    /// The same `GetPersonPhotoInsights` answer the Photos tab shows; its Growing up faces preview here, in the first chapter.
+    /// The same `GetPersonPhotoInsights` answer the Photos tab shows; its Growing up faces lead the highlights.
     var insights: GetPersonPhotoInsightsResponseDTO? = nil
     /// Opens the Photos tab, where the full Growing up timeline sits at the top.
     var onShowGrowingUp: () -> Void = {}
+    /// Switches to one of the person's other tabs, for a highlight's "All …" link.
+    var onShowTab: (PersonTab) -> Void = { _ in }
+
+    @Environment(AppNavigator.self) private var navigator
 
     @Environment(ActivityService.self) private var activityService
     @State private var season = ActivityScreenState<GetPersonSeasonResponseDTO>()
@@ -26,6 +30,11 @@ struct PersonStoryTab: View {
     }
 
     private var today: String { WhenEntry.localDateString(Date()) }
+
+    /// Whether anyone else has a birthday to be compared at, which a chapter's "Everyone at" link needs.
+    private var hasOthersToCompare: Bool {
+        people.contains { $0.id != person.id && !$0.isPregnancy && $0.birthday != nil }
+    }
 
     var body: some View {
         let days = DaySummaries.summarize(
@@ -48,15 +57,19 @@ struct PersonStoryTab: View {
                     PersonSameAgeStrip(person: person, date: Date(), hideWhenEmpty: true)
                 }
 
+                PersonHighlights(
+                    person: person,
+                    growingUp: insights?.growingUp ?? [],
+                    onShowGrowingUp: onShowGrowingUp,
+                    onShowTab: onShowTab
+                )
+
                 if days.isEmpty {
                     Text(Copy.person.nothingYet(person.name.firstName))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    let storyChapters = chapters(days)
-                    // One face is not a timeline, so the preview waits for two, as the Photos tab does.
-                    let growingUp = insights?.growingUp ?? []
-                    ForEach(storyChapters) { chapter in
+                    ForEach(chapters(days)) { chapter in
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(Story.chapterTitle(chapter.age))
@@ -68,16 +81,13 @@ struct PersonStoryTab: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
-                            // In the first chapter, after its first few days: discoverable without pushing the story itself down the page.
-                            if growingUp.count > 1 && chapter.id == storyChapters.first?.id {
-                                DaySummaryList(days: Array(chapter.days.prefix(3)), today: today, subjectId: person.id)
-                                GrowingUpPreview(portraits: growingUp, onShowAll: onShowGrowingUp)
-                                if chapter.days.count > 3 {
-                                    DaySummaryList(days: Array(chapter.days.dropFirst(3)), today: today, subjectId: person.id)
+                            if let age = chapter.age, hasOthersToCompare, let remoteId = person.serverId {
+                                Button(Copy.person.othersAtAge(age)) {
+                                    navigator.push(.sameAge(ageMonths: max(age * 12, 6), fromRemoteId: remoteId, view: .details))
                                 }
-                            } else {
-                                DaySummaryList(days: chapter.days, today: today, subjectId: person.id)
+                                .font(.subheadline.weight(.semibold))
                             }
+                            DaySummaryList(days: chapter.days, today: today, subjectId: person.id)
                         }
                     }
                 }
@@ -101,6 +111,105 @@ struct PersonStoryTab: View {
             return [StoryChapter(age: nil, days: days, grew: "")]
         }
         return Story.chapters(days, birthday: birthday)
+    }
+}
+
+/// The top of a person's Story: Growing up, one of their quotes, an answer from their latest interview and a few pieces of artwork, each leading to its tab. The quote and answer rotate with the visit — the web's `ProfileHighlights`.
+struct PersonHighlights: View {
+    let person: Person
+    let growingUp: [PortraitPhotoDTO]
+    let onShowGrowingUp: () -> Void
+    let onShowTab: (PersonTab) -> Void
+
+    @State private var openMilestone: Milestone?
+    private let visit = MemoryVisit.shared
+
+    private var salt: Int { person.serverId ?? 0 }
+
+    var body: some View {
+        let quotes = person.milestones.filter { $0.category == .quote }.sorted { $0.date < $1.date }
+        let artwork = person.milestones.filter { $0.category == .artwork && !$0.photoRemoteIds.isEmpty }.sorted { $0.date > $1.date }
+        let answers = person.milestones.filter { $0.interviewId > 0 && !$0.descriptionText.isEmpty }
+        let latest = answers.map(\.date).max()
+        let answer = visit.pick(answers.filter { $0.date == latest }.sorted { $0.questionId < $1.questionId }, salt: salt)
+        let quote = visit.pick(quotes, salt: salt)
+        // One face is not a timeline, so Growing up waits for two, as the Photos tab does.
+        let hasGrowingUp = growingUp.count > 1
+
+        if hasGrowingUp || quote != nil || answer != nil || !artwork.isEmpty {
+            VStack(spacing: 10) {
+                if hasGrowingUp {
+                    GrowingUpPreview(portraits: growingUp, onShowAll: onShowGrowingUp)
+                }
+                if let quote {
+                    card(title: Copy.person.theySaid(person.name.firstName), link: Copy.person.allQuotes(quotes.count), tab: .quotes) {
+                        Button { openMilestone = quote } label: {
+                            Text("“\(quote.displayText)”")
+                                .font(.title3.weight(.semibold))
+                                .italic()
+                                .multilineTextAlignment(.leading)
+                                .lineLimit(4)
+                        }
+                        .buttonStyle(.plain)
+                        Text(quote.dateText(.abbreviated))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if let answer {
+                    card(title: Copy.person.fromInterview, link: Copy.person.allInterviews, tab: .interviews) {
+                        Text(Interviews.shortQuestion(answer.context))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Button { openMilestone = answer } label: {
+                            Text(answer.displayText)
+                                .font(.title3.weight(.semibold))
+                                .multilineTextAlignment(.leading)
+                                .lineLimit(4)
+                        }
+                        .buttonStyle(.plain)
+                        Text(answer.dateText(.abbreviated))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if !artwork.isEmpty {
+                    card(title: Copy.person.tabs.artwork, link: Copy.person.artworkCount(artwork.count), tab: .artwork) {
+                        HStack(spacing: 6) {
+                            ForEach(artwork.prefix(3)) { piece in
+                                Button { openMilestone = piece } label: {
+                                    Color(.secondarySystemBackground)
+                                        .aspectRatio(1, contentMode: .fit)
+                                        .overlay { RemotePhotoView(remoteId: piece.photoRemoteIds[0], size: .thumb) }
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(piece.displayText)
+                            }
+                        }
+                    }
+                }
+            }
+            .sheet(item: $openMilestone) { milestone in
+                MilestoneDetailSheetView(milestone: milestone)
+            }
+        }
+    }
+
+    private func card<Content: View>(title: String, link: String, tab: PersonTab, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .textCase(.uppercase)
+                .foregroundStyle(.secondary)
+            content()
+            Button(link) { onShowTab(tab) }
+                .font(.subheadline.weight(.semibold))
+                .padding(.top, 2)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
