@@ -581,9 +581,16 @@ struct PersonPhotosTab: View {
     var insights: GetPersonPhotoInsightsResponseDTO? = nil
 
     @Environment(AppNavigator.self) private var navigator
+    @Environment(AuthService.self) private var auth
     @Query private var people: [Person]
     @State private var filter = PhotoFilter()
     @State private var isFilterPresented = false
+    @State private var isFindingInLibrary = false
+
+    /// Ages need a birthday, and an expected baby has no photos in anybody's library yet.
+    private var canFindInLibrary: Bool {
+        person.birthday != nil && !person.isPregnancy && auth.access.canContribute(to: person)
+    }
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
@@ -610,6 +617,18 @@ struct PersonPhotosTab: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
+            if canFindInLibrary {
+                Button {
+                    isFindingInLibrary = true
+                } label: {
+                    Label(Copy.libraryFinder.entry, systemImage: "sparkle.magnifyingglass")
+                }
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+                .padding(.top, 4)
+            }
+
             if let insights {
                 insightsSection(insights)
             }
@@ -635,6 +654,9 @@ struct PersonPhotosTab: View {
             NavigationStack {
                 PhotoFilterView(filter: $filter, showsServerOptions: false)
             }
+        }
+        .sheet(isPresented: $isFindingInLibrary) {
+            LibraryFinderView(person: person)
         }
     }
 }
