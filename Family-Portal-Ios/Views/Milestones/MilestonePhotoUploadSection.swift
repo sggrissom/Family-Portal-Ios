@@ -7,6 +7,8 @@ struct PickedMilestonePhoto: Identifiable {
     let id = UUID()
     let data: Data
     let captureDate: Date?
+    /// The library asset it was read from (`Photo.libraryAssetId`). A scan or a lifted drawing is a new image, not that asset, and has none.
+    var libraryAssetId: String? = nil
 }
 
 enum MilestonePhotoUploads {
@@ -20,6 +22,7 @@ enum MilestonePhotoUploads {
         var photos: [Photo] = []
         for pick in picked {
             let photo = Photo(title: "", descriptionText: "", photoDate: (pick.captureDate ?? Date()).localWallClock(), imageData: pick.data)
+            photo.libraryAssetId = pick.libraryAssetId
             context.insert(photo)
             photo.taggedPeople = [artist]
             try context.save()
@@ -165,7 +168,7 @@ struct MilestonePhotoUploadSection: View {
                 unreadable = true
                 continue
             }
-            picked.append(PickedMilestonePhoto(data: loaded.data, captureDate: loaded.captureDate))
+            picked.append(PickedMilestonePhoto(data: loaded.data, captureDate: loaded.captureDate, libraryAssetId: item.itemIdentifier))
         }
     }
 }

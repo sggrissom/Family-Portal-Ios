@@ -147,6 +147,14 @@ silently clears the flag. `AgeCalculator.offersPregnancyOption` decides whether
 an editor shows the toggle at all — a record already flagged, or a date that has
 not arrived.
 
+`Photo.libraryAssetId` is the `PHAsset.localIdentifier` a photo was picked from
+on **this device** (the photo picker with `.shared()` exposes it as
+`itemIdentifier`; `PhotoImporter` and `MilestonePhotoUploads` store it). It is
+never synced — an identifier means nothing on another device — and nothing the
+server sends touches it. It is `nil` for photos imported before it existed,
+shared in, scanned or pulled; anything that needs to know "is this library photo
+already in the app?" falls back to matching capture time for those.
+
 `Milestone.photoRemoteIds`/`tagRemoteIds` and `Photo.tagRemoteIds` hold *server*
 ids rather than SwiftData relationships: the pairings are the server's to own,
 both sides can arrive from different calls, and an id with nothing to resolve it
