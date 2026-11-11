@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// A person's page: a header, then **Story · Quotes · Artwork · Interviews · Photos · Growth · Activities**, Quotes, Artwork and Interviews only once there are some (Interviews also for anyone this account can interview). Switching person keeps the tab, and the tab is part of the deep link (`/profile/<id>?tab=`).
+/// A person's page: a header, then **Story · Quotes · Artwork · Interviews · Photos · Growth · Activities**, each content tab only once it has something in it (`ProfileTabs`). Switching person keeps the tab, and the tab is part of the deep link (`/profile/<id>?tab=`).
 struct PersonDetailView: View {
     @Query private var people: [Person]
     @Query private var relations: [PersonRelation]
@@ -11,6 +11,7 @@ struct PersonDetailView: View {
     @Environment(SyncService.self) private var syncService
     @Environment(NetworkMonitor.self) private var network
     @Environment(ErrorPresenter.self) private var errorPresenter
+    @Environment(ActivityService.self) private var activityService
 
     @State private var personId: UUID
     @State private var tab: PersonTab
@@ -18,6 +19,8 @@ struct PersonDetailView: View {
     @State private var showProfilePhotoPicker = false
     /// `GetPersonPhotoInsights` for the person on screen: the cached answer first, then a fresh one when online.
     @State private var insights: GetPersonPhotoInsightsResponseDTO?
+    /// `GetPersonSeason` for the person on screen: whether they have an Activities tab, and their Story's season line and appearances.
+    @State private var season = ActivityScreenState<GetPersonSeasonResponseDTO>()
     let allowsManagementActions: Bool
 
     init(personId: UUID, tab: PersonTab = .story, allowsManagementActions: Bool = true) {
@@ -118,6 +121,11 @@ struct PersonDetailView: View {
             .task(id: person.remoteId) {
                 await loadInsights(for: person)
             }
+            .task(id: person.remoteId) {
+                season = ActivityScreenState()
+                guard let remoteId = person.serverId else { return }
+                await season.load(activityService.personSeason(personId: remoteId))
+            }
         } else {
             ContentUnavailableView("Person Not Found", systemImage: "person.slash")
         }
@@ -209,20 +217,22 @@ struct PersonDetailView: View {
 
     // MARK: - Tabs
 
-    /// Quotes and Artwork only for somebody who has some, as on the web. Interviews for somebody who has had one, or whom this account could interview — never a due date.
+    /// The tab already chosen stays, so a deep link isn't lost before the person's records sync.
     private func tabs(for person: Person) -> [PersonTab] {
-        let hasQuotes = person.milestones.contains { milestone in milestone.category == .quote }
-        let hasArtwork = person.milestones.contains { milestone in milestone.category == .artwork }
-        let hasInterviews = person.milestones.contains { milestone in milestone.interviewId > 0 }
-        let canInterview = canEdit && !person.isPregnancy && person.serverId != nil
-        return PersonTab.allCases.filter { option in
-            switch option {
-            case .quotes: hasQuotes || tab == .quotes
-            case .artwork: hasArtwork || tab == .artwork
-            case .interviews: hasInterviews || canInterview || tab == .interviews
-            default: true
-            }
-        }
+        let shown = ProfileTabs.tabs(ProfileTabs.Content(
+            isPregnancy: person.isPregnancy,
+            hasBirthday: person.birthday != nil,
+            quotes: person.milestones.filter { $0.category == .quote }.count,
+            artwork: person.milestones.filter { $0.category == .artwork }.count,
+            interviews: interviewCount(person),
+            seasons: season.value?.seasons.count ?? 0
+        ))
+        return PersonTab.allCases.filter { shown.contains($0) || $0 == tab }
+    }
+
+    /// Interviews held, from the answers this device has.
+    private func interviewCount(_ person: Person) -> Int {
+        Set(person.milestones.filter { $0.interviewId > 0 }.map(\.interviewId)).count
     }
 
     @ViewBuilder
@@ -231,6 +241,14 @@ struct PersonDetailView: View {
         case .story:
             PersonStoryTab(
                 person: person,
+                season: season.value,
+                invitesInterview: person.serverId != nil && ProfileTabs.invitesInterview(
+                    birthday: person.birthday,
+                    isPregnancy: person.isPregnancy,
+                    interviews: interviewCount(person),
+                    editable: canEdit,
+                    today: Date().localRecordDay()
+                ),
                 onShowActivities: { tab = .activities },
                 insights: insights,
                 onShowGrowingUp: { tab = .photos },
