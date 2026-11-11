@@ -42,7 +42,7 @@ final class AddFlow {
     /// Waiting for the sheet to finish dismissing: SwiftUI will not present a second sheet while the first is still animating away.
     private var pendingForm: AddForm?
     private var pendingPhotos = false
-    private var pendingEvent: OpenEventDTO?
+    private var pendingRoute: AppRoute?
 
     var isPickingPhotos = false
     let importer = PhotoImporter()
@@ -50,8 +50,8 @@ final class AddFlow {
     /// Whether the picker offers videos: only when the server says video is on for the account's family.
     var acceptsVideo: Bool { importer.videoSupport?.enabled == true }
 
-    /// Pushes the chosen event onto the current tab once the sheet is gone. Set by the shell, which owns navigation.
-    var openEvent: ((OpenEventDTO) -> Void)?
+    /// Pushes a chosen screen — an event's results, an interview — onto the current tab once the sheet is gone. Set by the shell, which owns navigation.
+    var openRoute: ((AppRoute) -> Void)?
 
     /// Who the screen on top is about, set by `addsFor(_:)` while it shows: a person page, a moment, a photo of one person. The tab bar's **+** opens for them, as the web's Add does from those pages.
     private(set) var pagePersonId: UUID?
@@ -96,7 +96,11 @@ final class AddFlow {
     }
 
     func chooseResult(for event: OpenEventDTO) {
-        pendingEvent = event
+        chooseRoute(.event(id: event.event.id, name: event.event.name))
+    }
+
+    func chooseRoute(_ route: AppRoute) {
+        pendingRoute = route
         isSheetPresented = false
     }
 
@@ -107,9 +111,9 @@ final class AddFlow {
         } else if pendingPhotos {
             isPickingPhotos = true
             pendingPhotos = false
-        } else if let pendingEvent {
-            openEvent?(pendingEvent)
-            self.pendingEvent = nil
+        } else if let pendingRoute {
+            openRoute?(pendingRoute)
+            self.pendingRoute = nil
         }
     }
 
@@ -193,7 +197,7 @@ private struct AddFlowPresentation: ViewModifier {
     }
 }
 
-/// **Who is this for?**, then Photos · Measurement · Milestone, then up to two **Result — {event}** rows for events open for results. Backfilling older events goes through Activities.
+/// **Who is this for?**, then Photos · Measurement · Milestone · Interview, then up to two **Result — {event}** rows for events open for results. Backfilling older events goes through Activities.
 struct AddSheetView: View {
     let flow: AddFlow
 
@@ -212,6 +216,10 @@ struct AddSheetView: View {
     /// Everyone in a family the account can add to; a view-only family's people are never offered.
     private var writablePeople: [Person] {
         people.filter { authService.access.canContribute(to: $0) }
+    }
+
+    private var selectedPerson: Person? {
+        writablePeople.first { $0.id == personId }
     }
 
     var body: some View {
@@ -250,6 +258,14 @@ struct AddSheetView: View {
                             flow.choose(.scannedArtwork(personId: personId))
                         } label: {
                             Label(Copy.addSheet.scanArtwork, systemImage: "doc.viewfinder")
+                        }
+                        .disabled(writablePeople.isEmpty)
+                    }
+                    if selectedPerson?.isPregnancy != true {
+                        Button {
+                            flow.chooseRoute(selectedPerson?.serverId.map { AppRoute.interviewSetup(personId: $0) } ?? .interviews)
+                        } label: {
+                            Label(Copy.addSheet.interview, systemImage: "mic")
                         }
                         .disabled(writablePeople.isEmpty)
                     }

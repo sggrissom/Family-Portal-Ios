@@ -119,6 +119,20 @@ struct AddFlowPagePersonTests {
         #expect(flow.contextPersonId == person)
     }
 
+    @Test("A chosen screen opens only once the sheet has gone")
+    func routeAfterDismiss() {
+        let flow = AddFlow()
+        var opened: [AppRoute] = []
+        flow.openRoute = { opened.append($0) }
+        flow.isSheetPresented = true
+        flow.chooseRoute(.interviewSetup(personId: 7))
+        #expect(!flow.isSheetPresented)
+        #expect(opened.isEmpty)
+        flow.sheetDidDismiss()
+        flow.sheetDidDismiss()
+        #expect(opened == [.interviewSetup(personId: 7)])
+    }
+
     @Test("A person passed explicitly wins over the page's")
     func explicitWins() {
         let flow = AddFlow()

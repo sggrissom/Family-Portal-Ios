@@ -8,8 +8,6 @@ struct PersonStoryTab: View {
     let person: Person
     /// `GetPersonSeason`, loaded by the person page, which also decides on the Activities tab with it.
     var season: GetPersonSeasonResponseDTO? = nil
-    /// Whether to invite a first interview among the highlights (`ProfileTabs.invitesInterview`).
-    var invitesInterview = false
     let onShowActivities: () -> Void
     /// The same `GetPersonPhotoInsights` answer the Photos tab shows; its Growing up faces lead the highlights.
     var insights: GetPersonPhotoInsightsResponseDTO? = nil
@@ -58,7 +56,6 @@ struct PersonStoryTab: View {
                     PersonHighlights(
                         person: person,
                         growingUp: insights?.growingUp ?? [],
-                        invitesInterview: invitesInterview,
                         onShowGrowingUp: onShowGrowingUp,
                         onShowTab: onShowTab
                     )
@@ -114,15 +111,13 @@ struct PersonStoryTab: View {
     }
 }
 
-/// The top of a person's Story: Growing up, one of their quotes, an answer from their latest interview (or an invitation to a first one) and a few pieces of artwork, each leading to its tab. The quote and answer rotate with the visit — the web's `ProfileHighlights`.
+/// The top of a person's Story: Growing up, one of their quotes, an answer from their latest interview and a few pieces of artwork, each leading to its tab. The quote and answer rotate with the visit — the web's `ProfileHighlights`.
 struct PersonHighlights: View {
     let person: Person
     let growingUp: [PortraitPhotoDTO]
-    var invitesInterview = false
     let onShowGrowingUp: () -> Void
     let onShowTab: (PersonTab) -> Void
 
-    @Environment(AppNavigator.self) private var navigator
     @State private var openMilestone: Milestone?
     private let visit = MemoryVisit.shared
 
@@ -138,7 +133,7 @@ struct PersonHighlights: View {
         // One face is not a timeline, so Growing up waits for two, as the Photos tab does.
         let hasGrowingUp = growingUp.count > 1
 
-        if hasGrowingUp || quote != nil || answer != nil || invitesInterview || !artwork.isEmpty {
+        if hasGrowingUp || quote != nil || answer != nil || !artwork.isEmpty {
             VStack(spacing: 10) {
                 if hasGrowingUp {
                     GrowingUpPreview(portraits: growingUp, onShowAll: onShowGrowingUp)
@@ -175,9 +170,6 @@ struct PersonHighlights: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                if invitesInterview, let remoteId = person.serverId {
-                    interviewInvitation(remoteId: remoteId)
-                }
                 if !artwork.isEmpty {
                     card(title: Copy.person.tabs.artwork, link: Copy.person.artworkCount(artwork.count), tab: .artwork) {
                         HStack(spacing: 6) {
@@ -199,25 +191,6 @@ struct PersonHighlights: View {
                 MilestoneDetailSheetView(milestone: milestone)
             }
         }
-    }
-
-    private func interviewInvitation(remoteId: Int) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(Copy.person.tabs.interviews)
-                .font(.caption.weight(.bold))
-                .textCase(.uppercase)
-                .foregroundStyle(.secondary)
-            Text(Copy.person.interviewInvite(person.name.firstName))
-            Button(Copy.interview.tab.typeIn) { navigator.push(.interviewPast(personId: remoteId)) }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Button(Copy.person.startInterview) { navigator.push(.interviewSetup(personId: remoteId)) }
-                .font(.subheadline.weight(.semibold))
-                .padding(.top, 2)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func card<Content: View>(title: String, link: String, tab: PersonTab, @ViewBuilder content: () -> Content) -> some View {

@@ -242,13 +242,6 @@ struct PersonDetailView: View {
             PersonStoryTab(
                 person: person,
                 season: season.value,
-                invitesInterview: person.serverId != nil && ProfileTabs.invitesInterview(
-                    birthday: person.birthday,
-                    isPregnancy: person.isPregnancy,
-                    interviews: interviewCount(person),
-                    editable: canEdit,
-                    today: Date().localRecordDay()
-                ),
                 onShowActivities: { tab = .activities },
                 insights: insights,
                 onShowGrowingUp: { tab = .photos },

@@ -65,6 +65,7 @@ nonisolated enum Copy {
         static let milestone = "Moment"
         /// iOS only: the document camera.
         static let scanArtwork = "Scan artwork"
+        static let interview = "Interview"
         static let close = "Close"
     }
 
@@ -537,11 +538,6 @@ nonisolated enum Copy {
         static let highlights = "Highlights"
         static let fromInterview = "From the interview"
         static let allInterviews = "All interviews →"
-        static let startInterview = "Start an interview →"
-
-        static func interviewInvite(_ name: String) -> String {
-            "Ask \(name) the same questions each birthday and see how the answers change."
-        }
 
         static func theySaid(_ name: String) -> String {
             "\(name) said"

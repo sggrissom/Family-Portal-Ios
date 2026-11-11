@@ -78,9 +78,9 @@ struct ContentView: View {
         .addFlowPresentation(addFlow)
         // Both, because a link can arrive before the tabs exist — a cold launch from a tapped notification — or while they are already on screen.
         .task {
-            // A Result row in the add sheet opens its event on whichever tab is up.
-            addFlow.openEvent = { [navigator] open in
-                navigator.push(.event(id: open.event.id, name: open.event.name))
+            // The add sheet's Result and Interview rows open on whichever tab is up.
+            addFlow.openRoute = { [navigator] route in
+                navigator.push(route)
             }
             openPendingLink()
             await navigator.refreshFaceReviewCount()
