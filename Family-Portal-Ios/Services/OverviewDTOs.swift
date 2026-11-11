@@ -237,7 +237,7 @@ nonisolated struct TimelineAppearanceDTO: Decodable, Sendable, Identifiable {
 
 // MARK: - GetFaceReview
 
-/// The only part of `GetFaceReview` the app reads: whether face tagging is on, and how many photos wait for review. Face review itself is web-only; the account menu links to it with this count.
+/// `GetFaceReviewCount`: whether face tagging is on, and how many faces wait for review — the account menu's badge.
 nonisolated struct FaceReviewSummaryDTO: Decodable, Sendable {
     @OrZero var enabled: Bool
     @OrZero var unknownCount: Int

@@ -87,6 +87,82 @@ nonisolated struct AssignFacesResponseDTO: Decodable, Sendable {
     @OrZero var assigned: Int
     /// Other photos the server tagged on its own once it learned the face.
     @OrZero var autoTagged: Int
+    /// Faces left unnamed because the person is already confirmed on their photo.
+    @OrZero var skipped: Int
+}
+
+/// One look-alike group as the screen shows it. Answers shrink it in place; `id` stays the first face the server sent, so the row keeps its place.
+nonisolated struct FaceGroupCard: Identifiable, Sendable {
+    let id: Int
+    let familyId: Int
+    var faces: [PhotoFaceDTO]
+    var suggestedPersonId: Int
+}
+
+/// The review with answers applied locally, as the web's Faces page does. The server re-clusters on every load, so reloading after each answer would move rows under the user's finger; it reloads only on pull to refresh, on an error, or once the lists run out.
+nonisolated struct FaceReviewState: Sendable {
+    let enabled: Bool
+    let families: [FaceReviewFamilyDTO]
+    var groups: [FaceGroupCard]
+    var autoTagged: [PhotoFaceDTO]
+    var unknownCount: Int
+    var autoCount: Int
+
+    init(_ review: GetFaceReviewResponseDTO) {
+        enabled = review.enabled
+        families = review.families
+        groups = review.groups.map { FaceGroupCard(id: $0.id, familyId: $0.familyId, faces: $0.faces, suggestedPersonId: $0.suggestedPersonId) }
+        autoTagged = review.autoTagged
+        unknownCount = review.unknownCount
+        autoCount = review.autoCount
+    }
+
+    var isEmpty: Bool { groups.isEmpty && autoTagged.isEmpty }
+
+    func people(inFamily familyId: Int) -> [PersonDTO] {
+        families.first { $0.familyId == familyId }?.people ?? []
+    }
+
+    func familyName(_ familyId: Int) -> String? {
+        families.first { $0.familyId == familyId }?.name
+    }
+
+    func personName(_ personId: Int) -> String {
+        for family in families {
+            if let person = family.people.first(where: { $0.id == personId }) {
+                return person.name
+            }
+        }
+        return "Unknown"
+    }
+
+    /// Named or dismissed faces leave their group. What is left loses the suggestion, which was for the whole group.
+    mutating func removeFromGroup(_ groupId: Int, faceIds: [Int]) {
+        guard let index = groups.firstIndex(where: { $0.id == groupId }) else { return }
+        let ids = Set(faceIds)
+        let before = groups[index].faces.count
+        groups[index].faces.removeAll { ids.contains($0.id) }
+        unknownCount -= before - groups[index].faces.count
+        if groups[index].faces.isEmpty {
+            groups.remove(at: index)
+        } else {
+            groups[index].suggestedPersonId = 0
+        }
+    }
+
+    /// A confirmed or rejected automatic tag. A rejected face goes back to the unnamed count; it shows up in a group after the next reload.
+    mutating func removeAutoTag(_ faceId: Int, rejected: Bool) {
+        guard let index = autoTagged.firstIndex(where: { $0.id == faceId }) else { return }
+        autoTagged.remove(at: index)
+        autoCount -= 1
+        if rejected { unknownCount += 1 }
+    }
+
+    /// The server's report of an assign: skipped faces stay unnamed, and newly auto-tagged ones move from unnamed to check.
+    mutating func recordAssigned(_ response: AssignFacesResponseDTO) {
+        unknownCount += response.skipped - response.autoTagged
+        autoCount += response.autoTagged
+    }
 }
 
 /// The body of `RejectFaces` and `DismissFaces`.
