@@ -1,5 +1,6 @@
 import Foundation
 import ImageIO
+import OSLog
 import Photos
 import UIKit
 import Vision
@@ -68,7 +69,7 @@ nonisolated enum LibraryScanner {
             if !faces.isEmpty {
                 quality.inputFaceObservations = faces
                 try handler.perform([quality])
-                analysis.bestFaceQuality = (quality.results ?? []).compactMap { $0.faceCaptureQuality?.floatValue }.max() ?? 0
+                analysis.bestFaceQuality = (quality.results ?? []).compactMap(\.faceCaptureQuality).max() ?? 0
             }
         } catch {
             AppLog.ui.error("Face detection failed: \(String(describing: error), privacy: .public)")
