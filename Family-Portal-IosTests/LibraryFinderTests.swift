@@ -150,6 +150,44 @@ struct LibraryFinderTests {
         #expect(!index.contains(asset("x", day(2021, 5, 1))))
     }
 
+    // MARK: - Coverage map
+
+    @Test("A childhood is birth to eighteen, and lines up with the axis")
+    func childhoodColumns() throws {
+        let windows = LibraryFinder.windows(birthday: day(1990, 1, 1), now: day(2026, 1, 1))
+        let childhood = LibraryFinder.childhood(windows)
+
+        #expect(childhood.count == LibraryFinder.childhoodColumns)
+        #expect(childhood.last?.label == "18 years old")
+        for mark in LibraryFinder.axisMarks {
+            let window = childhood[mark.column]
+            let expected = mark.label == "0" ? 0 : Int(mark.label)! * 12
+            #expect(window.fromMonth == expected, "column \(mark.column)")
+        }
+    }
+
+    @Test("An age before the library's first photo can't be filled, and an empty library fills nothing")
+    func beforeLibrary() throws {
+        let window = try #require(LibraryFinder.windows(birthday: day(2020, 1, 1), now: day(2024, 1, 1)).first)
+
+        #expect(LibraryFinder.isBeforeLibrary(window, start: day(2020, 7, 1)))
+        #expect(!LibraryFinder.isBeforeLibrary(window, start: day(2020, 6, 30)))
+        #expect(LibraryFinder.isBeforeLibrary(window, start: nil))
+    }
+
+    @Test("Coverage levels", arguments: [(0, LibraryFinder.Coverage.empty), (1, .few), (2, .few), (3, .several), (9, .several), (10, .many)])
+    func coverageLevels(count: Int, expected: LibraryFinder.Coverage) {
+        #expect(LibraryFinder.coverage(count) == expected)
+    }
+
+    @Test("A wall-clock time turns back into the instant it was on the device")
+    func wallClockRoundTrip() throws {
+        let zone = try #require(TimeZone(identifier: "America/New_York"))
+        let instant = day(2021, 7, 4, 18, 30)
+
+        #expect(LibraryFinder.instant(fromWallClock: instant.localWallClock(in: zone), in: zone) == instant)
+    }
+
     // MARK: - Skips
 
     @Test("Skips are per person and erased with the rest")
