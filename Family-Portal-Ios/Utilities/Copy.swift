@@ -550,6 +550,16 @@ nonisolated enum Copy {
             n == 1 ? "1 piece →" : "All \(n) pieces →"
         }
 
+        static func photoCount(_ n: Int) -> String {
+            n == 1 ? "1 photo" : "\(n) photos"
+        }
+
+        static func momentCount(_ n: Int) -> String {
+            n == 1 ? "1 moment" : "\(n) moments"
+        }
+
+        static let measuredThen = "Measured"
+
         static func othersAtAge(_ age: Int) -> String {
             age == 0 ? "Everyone in their first year" : "Everyone at \(age)"
         }
