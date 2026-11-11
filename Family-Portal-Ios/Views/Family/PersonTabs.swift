@@ -52,17 +52,18 @@ struct PersonStoryTab: View {
             VStack(alignment: .leading, spacing: 24) {
                 PersonOverview(person: person, season: season.value, onShowActivities: onShowActivities)
 
-                // The oldest child has nobody older to compare with, so the strip would only ever be empty.
-                if !isOldestChild {
-                    PersonSameAgeStrip(person: person, date: Date(), hideWhenEmpty: true)
+                VStack(spacing: 10) {
+                    PersonHighlights(
+                        person: person,
+                        growingUp: insights?.growingUp ?? [],
+                        onShowGrowingUp: onShowGrowingUp,
+                        onShowTab: onShowTab
+                    )
+                    // The oldest child has nobody older to compare with, so the card would only ever be empty.
+                    if !isOldestChild {
+                        SameAgeHighlight(person: person)
+                    }
                 }
-
-                PersonHighlights(
-                    person: person,
-                    growingUp: insights?.growingUp ?? [],
-                    onShowGrowingUp: onShowGrowingUp,
-                    onShowTab: onShowTab
-                )
 
                 if days.isEmpty {
                     Text(Copy.person.nothingYet(person.name.firstName))
@@ -210,6 +211,80 @@ struct PersonHighlights: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+/// Everyone else at the person's age today, one line each — their face then and what was recorded — leading to the Same age page. The web's `SameAgeCard`; nothing until someone else has a record at this age.
+struct SameAgeHighlight: View {
+    let person: Person
+
+    @Environment(NetworkMonitor.self) private var network
+    @Environment(AppNavigator.self) private var navigator
+    @State private var loader = SameAgeLoader()
+
+    var body: some View {
+        // A container, not a `Group`, so the `.task` runs before there is anything to show.
+        VStack(alignment: .leading, spacing: 0) {
+            if let response = loader.response, let remoteId = person.serverId {
+                let others = response.rows.filter { $0.person.id != remoteId && !$0.isEmpty }
+                if !others.isEmpty {
+                    card(response: response, others: others, remoteId: remoteId)
+                }
+            }
+        }
+        .task(id: person.serverId) {
+            guard !person.isPregnancy, let remoteId = person.serverId, let birthday = person.birthday else { return }
+            let months = AgeSteps.monthsOld(birthday: birthday, at: Date())
+            guard months >= 0 else { return }
+            await loader.load(ageMonths: months, fromPersonId: remoteId, isConnected: network.isConnected)
+        }
+    }
+
+    private func card(response: GetSameAgeResponseDTO, others: [SameAgeRowDTO], remoteId: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(Copy.sameAge.atThisAge(AgeSteps.ageTitle(response.ageMonths)))
+                .font(.caption.weight(.bold))
+                .textCase(.uppercase)
+                .foregroundStyle(.secondary)
+            ForEach(others.prefix(4)) { row in
+                HStack(spacing: 10) {
+                    face(row)
+                        .frame(width: 36, height: 36)
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(row.person.name.firstName)
+                            .font(.subheadline.weight(.semibold))
+                        Text(SameAgeText.summary(row))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+            Button(Copy.sameAge.seeAll) {
+                navigator.push(.sameAge(ageMonths: response.ageMonths, fromRemoteId: remoteId, view: .details))
+            }
+            .font(.subheadline.weight(.semibold))
+            .padding(.top, 2)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func face(_ row: SameAgeRowDTO) -> some View {
+        if let portrait = row.portraits.first {
+            FaceCropView(photoId: portrait.photoId, box: portrait.box, size: 36)
+        } else if let photoId = row.photoIds.first {
+            RemotePhotoView(remoteId: photoId, size: .thumb)
+        } else {
+            Text(String(row.person.name.prefix(1)))
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.tertiarySystemFill))
+        }
     }
 }
 

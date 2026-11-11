@@ -35,6 +35,15 @@ enum SameAgeText {
         }
     }
 
+    /// "14 photos · 2 moments", or "Measured" when a measurement is all there is — a row on a profile's same-age highlight.
+    static func summary(_ row: SameAgeRowDTO) -> String {
+        var parts: [String] = []
+        if !row.photoIds.isEmpty { parts.append(Copy.person.photoCount(row.photoIds.count)) }
+        if !row.milestones.isEmpty { parts.append(Copy.person.momentCount(row.milestones.count)) }
+        if parts.isEmpty && (row.height != nil || row.weight != nil) { parts.append(Copy.person.measuredThen) }
+        return parts.joined(separator: " · ")
+    }
+
     /// The age a record was actually taken at, which is rarely exactly the row's age.
     static func actualAge(_ row: SameAgeRowDTO, at date: Date) -> String {
         AgeSteps.ageTitle(AgeSteps.monthsOld(birthday: row.person.birthday, at: date))
@@ -167,8 +176,6 @@ struct SameAgeRows: View {
 struct SameAgeStrip: View {
     let anchorRemoteId: Int
     let ageMonths: Int
-    /// Hidden when nobody else has anything, instead of saying so — Story's overview does this.
-    var hideWhenEmpty = false
 
     @Environment(NetworkMonitor.self) private var network
     @State private var loader = SameAgeLoader()
@@ -178,22 +185,20 @@ struct SameAgeStrip: View {
         VStack(alignment: .leading, spacing: 0) {
             if let response = loader.response {
                 let others = response.rows.filter { $0.person.id != anchorRemoteId && !$0.isEmpty }
-                if !(hideWhenEmpty && others.isEmpty) {
-                    ContextSection(Copy.sameAge.atThisAge(AgeSteps.ageTitle(response.ageMonths)), kind: .sameAge) {
-                        NavigationLink {
-                            SameAgeView(ageMonths: response.ageMonths, fromRemoteId: response.fromPersonId, view: .details)
-                        } label: {
-                            Text(Copy.sameAge.seeAll)
-                                .font(.subheadline)
-                        }
-                    } content: {
-                        if others.isEmpty {
-                            Text(Copy.sameAge.nobodyElse)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            SameAgeRows(rows: others, ageMonths: response.ageMonths, photoLimit: 4)
-                        }
+                ContextSection(Copy.sameAge.atThisAge(AgeSteps.ageTitle(response.ageMonths)), kind: .sameAge) {
+                    NavigationLink {
+                        SameAgeView(ageMonths: response.ageMonths, fromRemoteId: response.fromPersonId, view: .details)
+                    } label: {
+                        Text(Copy.sameAge.seeAll)
+                            .font(.subheadline)
+                    }
+                } content: {
+                    if others.isEmpty {
+                        Text(Copy.sameAge.nobodyElse)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        SameAgeRows(rows: others, ageMonths: response.ageMonths, photoLimit: 4)
                     }
                 }
             }
@@ -208,7 +213,6 @@ struct SameAgeStrip: View {
 struct PersonSameAgeStrip: View {
     let person: Person?
     let date: Date
-    var hideWhenEmpty = false
 
     var body: some View {
         if let person,
@@ -217,7 +221,7 @@ struct PersonSameAgeStrip: View {
            let birthday = person.birthday {
             let months = AgeSteps.monthsOld(birthday: birthday, at: date)
             if months >= 0 {
-                SameAgeStrip(anchorRemoteId: remoteId, ageMonths: months, hideWhenEmpty: hideWhenEmpty)
+                SameAgeStrip(anchorRemoteId: remoteId, ageMonths: months)
             }
         }
     }

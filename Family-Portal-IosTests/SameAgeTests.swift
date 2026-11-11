@@ -44,6 +44,29 @@ struct SameAgeTests {
         ]))
     }
 
+    private func summaryRow(photos: [Int], milestones: Int, height: Bool) throws -> SameAgeRowDTO {
+        try APIClient.decode(SameAgeRowDTO.self, from: Fixture.data([
+            "person": Fixture.person(id: 4, birthday: "2020-08-04T00:00:00Z"),
+            "date": "2023-12-04T00:00:00Z",
+            "height": height
+                ? Fixture.growthData(id: 1, personId: 4, measurementType: 0, value: 38.5, unit: "in", measurementDate: "2023-12-10T00:00:00Z")
+                : NSNull(),
+            "weight": NSNull(),
+            "milestones": (0..<milestones).map { Fixture.milestone(id: $0 + 1, personId: 4) },
+            "photoIds": photos,
+        ]))
+    }
+
+    @Test("A summary counts photos and moments")
+    func summaryCounts() throws {
+        #expect(SameAgeText.summary(try summaryRow(photos: [1, 2, 3], milestones: 1, height: true)) == "3 photos · 1 moment")
+    }
+
+    @Test("A summary falls back to the measurement when that is all there is")
+    func summaryMeasured() throws {
+        #expect(SameAgeText.summary(try summaryRow(photos: [], milestones: 0, height: true)) == "Measured")
+    }
+
     @Test("A row says the month the person reached the age")
     func whenIsAMonth() throws {
         let row = try row(date: "2023-12-04T00:00:00Z")
