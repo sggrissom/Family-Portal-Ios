@@ -50,6 +50,18 @@ nonisolated enum LibraryScanner {
         return assets
     }
 
+    /// How many library photos fall in `window`: a count PhotoKit answers without loading them, so the ages list can show every window's. Screenshots are counted too — leaving them out would mean reading each asset.
+    @concurrent
+    static func count(in window: LibraryFinder.AgeWindow) async -> Int {
+        let options = PHFetchOptions()
+        options.predicate = NSPredicate(
+            format: "creationDate >= %@ AND creationDate < %@",
+            LibraryFinder.instant(fromWallClock: window.from) as NSDate,
+            LibraryFinder.instant(fromWallClock: window.to) as NSDate
+        )
+        return PHAsset.fetchAssets(with: .image, options: options).count
+    }
+
     /// Faces and aesthetics for one photo, from a small thumbnail. Nil when the photo can't be read, which the finder treats as not worth suggesting.
     @concurrent
     static func analyze(_ assetId: String) async -> LibraryFinder.Analysis? {

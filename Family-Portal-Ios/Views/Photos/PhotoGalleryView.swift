@@ -22,6 +22,7 @@ struct PhotoGalleryView: View {
     }
     @State private var isFilterPresented = false
     @State private var isDateRepairPresented = false
+    @State private var isFindingInLibrary = false
     /// The tag-suggestion review, for the toolbar link. `nil` hides it — offline, analysis off, or nothing to review.
     @State private var suggestionReview: GetTagSuggestionsResponseDTO?
     /// A submitted server search. While set, the grid shows its ranked results instead of the local filter; editing the text away from its query drops it.
@@ -112,6 +113,9 @@ struct PhotoGalleryView: View {
                 if authService.access.canContributeAnywhere {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu("Photo Actions", systemImage: "ellipsis.circle") {
+                            Button(Copy.libraryFinder.galleryEntry, systemImage: "sparkle.magnifyingglass") {
+                                isFindingInLibrary = true
+                            }
                             Button("Repair Photo Dates", systemImage: "calendar.badge.clock") {
                                 isDateRepairPresented = true
                             }
@@ -143,6 +147,9 @@ struct PhotoGalleryView: View {
                 NavigationStack {
                     PhotoFilterView(filter: filterBinding)
                 }
+            }
+            .sheet(isPresented: $isFindingInLibrary) {
+                LibraryFinderView()
             }
             .sheet(isPresented: $isDateRepairPresented) {
                 let searchIDs = search.map { Set($0.photoIds) }

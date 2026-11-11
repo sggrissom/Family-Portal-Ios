@@ -49,6 +49,49 @@ nonisolated enum LibraryFinder {
         dates.reduce(0) { $0 + ($1 >= window.from && $1 < window.to ? 1 : 0) }
     }
 
+    /// Whether a window ended before the library's first photo, so the library can't fill it. A library with no photos reaches nothing.
+    static func isBeforeLibrary(_ window: AgeWindow, start: Date?) -> Bool {
+        guard let start else { return true }
+        return window.to <= start
+    }
+
+    // MARK: - Coverage map
+
+    /// Birth to eighteen, the ages the family map lines up: four half-years, then a year at a time.
+    static func childhood(_ windows: [AgeWindow]) -> [AgeWindow] {
+        windows.filter { $0.fromMonth <= 18 * 12 }
+    }
+
+    /// Columns in a complete childhood: 0–24 months in four, then 2 through 18.
+    static let childhoodColumns = 4 + 17
+
+    /// The age labels over the map's columns.
+    struct AxisMark: Hashable, Sendable {
+        let column: Int
+        let label: String
+    }
+
+    static let axisMarks: [AxisMark] = [(0, "0"), (2, "1"), (4, "2"), (7, "5"), (12, "10"), (17, "15"), (20, "18")]
+        .map { AxisMark(column: $0.0, label: $0.1) }
+
+    enum Coverage: Equatable {
+        case empty, few, several, many
+    }
+
+    static func coverage(_ count: Int) -> Coverage {
+        switch count {
+        case 0: .empty
+        case 1...2: .few
+        case 3...9: .several
+        default: .many
+        }
+    }
+
+    /// The device instant for a wall-clock time in the current zone: the inverse of `localWallClock`, for asking PhotoKit, which compares instants.
+    static func instant(fromWallClock date: Date, in timeZone: TimeZone = .current) -> Date {
+        date.addingTimeInterval(-Double(timeZone.secondsFromGMT(for: date)))
+    }
+
     // MARK: - Library photos
 
     /// What the finder needs to know about one library photo, read once from its `PHAsset`.

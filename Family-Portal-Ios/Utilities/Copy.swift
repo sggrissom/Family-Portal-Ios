@@ -342,6 +342,16 @@ nonisolated enum Copy {
         static let reading = "Reading your library…"
         static let nothingFound = "Nothing New to Suggest"
         static let nothingFoundDetail = "No photos with people in them from this age that aren't already in Family Record."
+        static let galleryEntry = "Find in Library"
+        static let coverageTitle = "Photos at each age"
+        static let coverageFooter = "Each square is an age, from birth to 18. Tap one to look through your library for it. Outlined ages are older than your library."
+        static let othersTitle = "Everyone else"
+        static let nobody = "Add a birthday to someone to look for photos of them."
+        static let legendNone = "None"
+
+        static func inLibrary(_ n: Int) -> String { n == 1 ? "1 in library" : "\(n) in library" }
+        static func gaps(_ n: Int) -> String { n == 1 ? "1 age with none" : "\(n) ages with none" }
+        static func cellLabel(name: String, age: String, count: Int) -> String { "\(name), \(age): \(inApp(count))" }
 
         static func chooseAge(_ name: String) -> String { "\(name) at each age" }
         static func inApp(_ n: Int) -> String { n == 1 ? "1 photo" : "\(n) photos" }

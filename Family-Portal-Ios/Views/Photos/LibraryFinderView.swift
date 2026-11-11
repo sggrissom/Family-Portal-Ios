@@ -3,17 +3,33 @@ import SwiftData
 import SwiftUI
 import UIKit
 
-/// **Find in your library**: one person's ages, each with how many photos the app already has of them then, leading to the best library photos from that stretch.
+/// Where the finder's stack can go: one person's ages, or one age's search.
+enum LibraryRoute: Hashable {
+    case ages(personId: UUID)
+    case window(personId: UUID, window: LibraryFinder.AgeWindow)
+}
+
+/// **Find in your library**. Opened for a person, it starts at their ages; opened from the gallery, at the family's coverage map.
 /// Everything is looked at on the device; a photo leaves it only when the user adds it.
 struct LibraryFinderView: View {
-    let person: Person
+    /// Nil opens the family map.
+    let personId: UUID?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Query private var people: [Person]
 
     @State private var status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     @State private var libraryStart: Date?
     @State private var isPrepared = false
+
+    init(personId: UUID? = nil) {
+        self.personId = personId
+    }
+
+    init(person: Person) {
+        self.init(personId: person.id)
+    }
 
     var body: some View {
         NavigationStack {
@@ -25,21 +41,43 @@ struct LibraryFinderView: View {
                         Button(Copy.libraryFinder.done) { dismiss() }
                     }
                 }
-                .navigationDestination(for: LibraryFinder.AgeWindow.self) { window in
-                    LibraryCandidatesView(person: person, window: window)
+                .navigationDestination(for: LibraryRoute.self) { route in
+                    switch route {
+                    case .ages(let personId):
+                        if let person = lookUp(personId) {
+                            LibraryAgesView(person: person, libraryStart: libraryStart)
+                        }
+                    case .window(let personId, let window):
+                        if let person = lookUp(personId) {
+                            LibraryCandidatesView(person: person, window: window)
+                        }
+                    }
                 }
                 .task { await prepare() }
         }
+    }
+
+    private func lookUp(_ id: UUID) -> Person? {
+        people.first { $0.id == id }
     }
 
     @ViewBuilder
     private var content: some View {
         switch status {
         case .authorized, .limited:
-            if isPrepared {
-                windowList
-            } else {
+            if !isPrepared {
                 ProgressView()
+            } else {
+                VStack(spacing: 0) {
+                    if status == .limited {
+                        limitedNote
+                    }
+                    if let personId, let person = lookUp(personId) {
+                        LibraryAgesView(person: person, libraryStart: libraryStart)
+                    } else {
+                        LibraryCoverageView(libraryStart: libraryStart)
+                    }
+                }
             }
         case .notDetermined:
             ProgressView()
@@ -54,61 +92,16 @@ struct LibraryFinderView: View {
         }
     }
 
-    private var windows: [LibraryFinder.AgeWindow] {
-        guard let birthday = person.birthday else { return [] }
-        let all = LibraryFinder.windows(birthday: birthday)
-        guard let libraryStart else { return all }
-        return all.filter { $0.to > libraryStart }
-    }
-
-    private var windowList: some View {
-        let dates = person.photos.map(\.photoDate)
-        let windows = windows
-        return List {
-            if status == .limited {
-                Section {
-                    Text(Copy.libraryFinder.limited)
-                        .font(.subheadline)
-                    Button(Copy.libraryFinder.openSettings, action: openSettings)
-                }
-            }
-            Section {
-                ForEach(windows) { window in
-                    NavigationLink(value: window) {
-                        windowRow(window, inApp: LibraryFinder.count(of: dates, in: window))
-                    }
-                }
-            } header: {
-                Text(Copy.libraryFinder.chooseAge(person.name))
-            } footer: {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(Copy.libraryFinder.onDevice)
-                    if let libraryStart, windows.count < LibraryFinder.windows(birthday: person.birthday ?? libraryStart).count {
-                        Text(Copy.libraryFinder.libraryStarts(libraryStart.displayDay().formatted(.dateTime.month(.wide).year())))
-                    }
-                }
-            }
-        }
-        .overlay {
-            if windows.isEmpty {
-                ContentUnavailableView(Copy.libraryFinder.nothingInRange, systemImage: "photo.on.rectangle")
-            }
-        }
-    }
-
-    private func windowRow(_ window: LibraryFinder.AgeWindow, inApp: Int) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(window.label)
-                Text(Copy.libraryFinder.range(from: window.from, to: window.to))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(inApp == 0 ? Copy.libraryFinder.noneYet : Copy.libraryFinder.inApp(inApp))
+    private var limitedNote: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(Copy.libraryFinder.limited)
                 .font(.subheadline)
-                .foregroundStyle(inApp == 0 ? Color.orange : Color.secondary)
+            Button(Copy.libraryFinder.openSettings, action: openSettings)
+                .font(.subheadline)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.secondarySystemBackground))
     }
 
     private func prepare() async {
@@ -123,6 +116,238 @@ struct LibraryFinderView: View {
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             openURL(url)
+        }
+    }
+}
+
+/// One person's ages, each with how many photos the app has of them then and how many the library holds, so a gap that can be filled stands out from one that can't.
+struct LibraryAgesView: View {
+    let person: Person
+    let libraryStart: Date?
+
+    /// Library photos per window, by `AgeWindow.id`, filled in as the counts arrive.
+    @State private var libraryCounts: [Int: Int] = [:]
+
+    private var windows: [LibraryFinder.AgeWindow] {
+        guard let birthday = person.birthday else { return [] }
+        return LibraryFinder.windows(birthday: birthday).filter { !LibraryFinder.isBeforeLibrary($0, start: libraryStart) }
+    }
+
+    private var hidesEarlierAges: Bool {
+        guard let birthday = person.birthday else { return false }
+        return windows.count < LibraryFinder.windows(birthday: birthday).count
+    }
+
+    var body: some View {
+        let dates = person.photos.map(\.photoDate)
+        let windows = windows
+        List {
+            Section {
+                ForEach(windows) { window in
+                    NavigationLink(value: LibraryRoute.window(personId: person.id, window: window)) {
+                        row(window, inApp: LibraryFinder.count(of: dates, in: window), inLibrary: libraryCounts[window.id])
+                    }
+                }
+            } header: {
+                Text(Copy.libraryFinder.chooseAge(person.name))
+            } footer: {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(Copy.libraryFinder.onDevice)
+                    if let libraryStart, hidesEarlierAges {
+                        Text(Copy.libraryFinder.libraryStarts(libraryStart.displayDay().formatted(.dateTime.month(.wide).year())))
+                    }
+                }
+            }
+        }
+        .navigationTitle(person.name)
+        .overlay {
+            if windows.isEmpty {
+                ContentUnavailableView(Copy.libraryFinder.nothingInRange, systemImage: "photo.on.rectangle")
+            }
+        }
+        .task(id: person.id) {
+            for window in windows {
+                guard !Task.isCancelled else { return }
+                libraryCounts[window.id] = await LibraryScanner.count(in: window)
+            }
+        }
+    }
+
+    private func row(_ window: LibraryFinder.AgeWindow, inApp: Int, inLibrary: Int?) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(window.label)
+                Text(Copy.libraryFinder.range(from: window.from, to: window.to))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(inApp == 0 ? Copy.libraryFinder.noneYet : Copy.libraryFinder.inApp(inApp))
+                    .font(.subheadline)
+                    .foregroundStyle(inApp == 0 && (inLibrary ?? 1) > 0 ? Color.orange : Color.secondary)
+                if let inLibrary {
+                    Text(Copy.libraryFinder.inLibrary(inLibrary))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+/// The family at a glance: a row of ages for each child, birth to eighteen, coloured by how many photos the app has of them at each. Orange is an age with none that the library reaches back to. Tap a square to search that age.
+/// Ages line up down the page, so "everyone at two" is one column. Adults' childhoods are usually older than any phone library, so they're listed below with their own counts instead.
+struct LibraryCoverageView: View {
+    let libraryStart: Date?
+
+    @Query private var people: [Person]
+    @Query private var relations: [PersonRelation]
+    @Environment(AuthService.self) private var auth
+
+    private let cell: CGFloat = 12
+    private let spacing: CGFloat = 3
+
+    private var everyone: [Person] {
+        PersonChips.ordered(people, relations: relations, ownFamilyId: auth.currentUser?.familyId)
+            .filter { $0.birthday != nil && !$0.isPregnancy && auth.access.canContribute(to: $0) }
+    }
+
+    private func childhood(_ person: Person) -> [LibraryFinder.AgeWindow] {
+        guard let birthday = person.birthday else { return [] }
+        return LibraryFinder.childhood(LibraryFinder.windows(birthday: birthday))
+    }
+
+    var body: some View {
+        let everyone = everyone
+        let mapped = everyone.filter { person in
+            childhood(person).contains { !LibraryFinder.isBeforeLibrary($0, start: libraryStart) }
+        }
+        let others = everyone.filter { person in !mapped.contains { $0.id == person.id } }
+
+        List {
+            if !mapped.isEmpty {
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            axis
+                            ForEach(mapped) { person in
+                                personRow(person)
+                            }
+                        }
+                        .padding(.vertical, 6)
+                    }
+                    legend
+                } header: {
+                    Text(Copy.libraryFinder.coverageTitle)
+                } footer: {
+                    Text(Copy.libraryFinder.coverageFooter)
+                }
+            }
+            if !others.isEmpty {
+                Section(Copy.libraryFinder.othersTitle) {
+                    ForEach(others) { person in
+                        NavigationLink(value: LibraryRoute.ages(personId: person.id)) {
+                            Text(person.name)
+                        }
+                    }
+                }
+            }
+        }
+        .overlay {
+            if everyone.isEmpty {
+                ContentUnavailableView(Copy.libraryFinder.nobody, systemImage: "person.2")
+            }
+        }
+    }
+
+    private func personRow(_ person: Person) -> some View {
+        let windows = childhood(person)
+        let dates = person.photos.map(\.photoDate)
+        let counts = windows.map { LibraryFinder.count(of: dates, in: $0) }
+        let gaps = zip(windows, counts).filter { !LibraryFinder.isBeforeLibrary($0.0, start: libraryStart) && $0.1 == 0 }.count
+
+        return VStack(alignment: .leading, spacing: 4) {
+            NavigationLink(value: LibraryRoute.ages(personId: person.id)) {
+                HStack(spacing: 6) {
+                    Text(person.name)
+                        .font(.subheadline.weight(.semibold))
+                    if gaps > 0 {
+                        Text(Copy.libraryFinder.gaps(gaps))
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            HStack(spacing: spacing) {
+                ForEach(windows.indices, id: \.self) { index in
+                    square(person, window: windows[index], count: counts[index])
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func square(_ person: Person, window: LibraryFinder.AgeWindow, count: Int) -> some View {
+        let label = Copy.libraryFinder.cellLabel(name: person.name, age: window.label, count: count)
+        if LibraryFinder.isBeforeLibrary(window, start: libraryStart) {
+            RoundedRectangle(cornerRadius: 3)
+                .strokeBorder(Color.secondary.opacity(0.3))
+                .frame(width: cell, height: cell * 1.8)
+                .accessibilityLabel(label)
+        } else {
+            NavigationLink(value: LibraryRoute.window(personId: person.id, window: window)) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(fill(LibraryFinder.coverage(count)))
+                    .frame(width: cell, height: cell * 1.8)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(label)
+        }
+    }
+
+    private func fill(_ coverage: LibraryFinder.Coverage) -> Color {
+        switch coverage {
+        case .empty: .orange
+        case .few: Color.accentColor.opacity(0.3)
+        case .several: Color.accentColor.opacity(0.6)
+        case .many: Color.accentColor
+        }
+    }
+
+    /// Age marks over the columns: birth, then 1, 2, 5, 10, 15 and 18.
+    private var axis: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(LibraryFinder.axisMarks, id: \.column) { mark in
+                Text(mark.label)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                    .offset(x: CGFloat(mark.column) * (cell + spacing))
+            }
+        }
+        .frame(width: CGFloat(LibraryFinder.childhoodColumns) * (cell + spacing), height: 14, alignment: .topLeading)
+        .accessibilityHidden(true)
+    }
+
+    private var legend: some View {
+        HStack(spacing: 12) {
+            legendItem(.empty, Copy.libraryFinder.legendNone)
+            legendItem(.few, "1–2")
+            legendItem(.several, "3–9")
+            legendItem(.many, "10+")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private func legendItem(_ coverage: LibraryFinder.Coverage, _ text: String) -> some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(fill(coverage))
+                .frame(width: 10, height: 10)
+            Text(text)
         }
     }
 }
