@@ -49,8 +49,8 @@ struct SameAgeTests {
             "person": Fixture.person(id: 4, birthday: "2020-08-04T00:00:00Z"),
             "date": "2023-12-04T00:00:00Z",
             "height": height
-                ? Fixture.growthData(id: 1, personId: 4, measurementType: 0, value: 38.5, unit: "in", measurementDate: "2023-12-10T00:00:00Z")
-                : NSNull(),
+                ? Fixture.growthData(id: 1, personId: 4, measurementType: 0, value: 38.5, unit: "in", measurementDate: "2023-12-10T00:00:00Z") as Any
+                : NSNull() as Any,
             "weight": NSNull(),
             "milestones": (0..<milestones).map { Fixture.milestone(id: $0 + 1, personId: 4) },
             "photoIds": photos,
