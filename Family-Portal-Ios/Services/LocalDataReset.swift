@@ -69,6 +69,8 @@ enum LocalDataReset {
             // The old account's words, offered to the next one on an empty search field.
             RecentSearches.clear()
             MemoryVisit.clear()
+            // Skips are keyed by local person ids, which go with the store.
+            LibraryFinderSkips.clear()
 
             // In memory only, but keyed by server ids the next account could share.
             AnalysisService.shared.removeAll()

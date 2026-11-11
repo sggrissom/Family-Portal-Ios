@@ -42,6 +42,8 @@ final class PhotoImporter {
         case picked(PhotosPickerItem)
         /// The file stays where it is until the drain that handed it over has heard how the import went.
         case file(URL, captureDate: Date?)
+        /// A photo the library finder suggested, by `PHAsset.localIdentifier`. Read straight from the library, which needs read access the finder has already asked for.
+        case libraryAsset(String)
     }
 
     /// One picked item as the photo batch form shows it: the photo it became, whether a capture date was available, or that it could not be read.
@@ -111,6 +113,37 @@ final class PhotoImporter {
                 _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
             }
             // Sequential on purpose: twenty full-resolution images decoded at once is the kind of memory spike that gets an app killed mid-import.
+            for entry in batch {
+                await read(entry.id, into: context, syncService: syncService)
+                if progress?.isFinished == true {
+                    finish(reportingTo: errorPresenter)
+                }
+            }
+        }
+        return batch.map(\.id)
+    }
+
+    /// Adds photos chosen in the library finder to the run, like a pick. Photos only: the finder never suggests a video.
+    @discardableResult
+    func importLibraryAssets(
+        _ assetIds: [String],
+        into context: ModelContext,
+        syncService: SyncService?,
+        errorPresenter: ErrorPresenter?
+    ) -> [UUID] {
+        guard !assetIds.isEmpty else { return [] }
+
+        var next = progress ?? ImportProgress()
+        next.total += assetIds.count
+        progress = next
+
+        let batch = assetIds.map { ImportEntry(id: UUID(), source: .libraryAsset($0)) }
+        for entry in batch {
+            entries[entry.id] = entry
+        }
+
+        Task {
+            // Sequential, for the same reason as a pick.
             for entry in batch {
                 await read(entry.id, into: context, syncService: syncService)
                 if progress?.isFinished == true {
@@ -221,6 +254,8 @@ final class PhotoImporter {
         do {
             let imported: (photo: Photo, hasCaptureDate: Bool)
             switch (entry.source, entry.isVideo) {
+            case (.libraryAsset(let assetId), _):
+                imported = try await importOne(Self.load(libraryAsset: assetId), libraryAssetId: assetId, into: context, syncService: syncService)
             case (.picked(let item), true):
                 guard let picked = try await item.loadTransferable(type: PickedVideo.self) else {
                     throw VideoImportFailure.unreadable
@@ -435,6 +470,17 @@ final class PhotoImporter {
             throw ImportFailure.unreadable
         }
         return (data, libraryDate(for: item) ?? captureDate(from: data))
+    }
+
+    /// A library photo's bytes as the server takes them, dated by Photos, which carries any correction made there.
+    static func load(libraryAsset assetId: String) async throws -> (data: Data, captureDate: Date?) {
+        guard let original = await LibraryScanner.original(assetId),
+              UIImage(data: original.data) != nil,
+              let data = uploadable(original.data)
+        else {
+            throw ImportFailure.unreadable
+        }
+        return (data, original.captureDate ?? captureDate(from: original.data))
     }
 
     /// A shared file's bytes. The date is the one the extension read from the file as it copied it.

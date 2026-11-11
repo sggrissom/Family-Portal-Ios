@@ -433,6 +433,16 @@ network answers.
 - Online only; a cancelled download is silent; failures go through `ErrorPresenter` and the page stays. Save asks for **add-only** Photos access (`NSPhotoLibraryAddUsageDescription`) at the moment the user chooses it; `PhotoLibrarySaver` is `nonisolated` because PhotoKit runs the change block off the main actor. A photo not uploaded yet says so instead of offering either action
 - A video's original is not at `api/photo/{id}/original` (404). The menu asks `GetVideoPlayback` for a fresh `downloadUrl` every time and fetches it with `APIClient.downloadMedia` — **no token and no cookies** (`httpShouldHandleCookies = false`), since a minted link carries its own authority and a bucket refuses more. `APIClient.mediaURL` resolves a `/`-relative link against the origin rather than appending it, so the signed query survives. Saved as a `.video` asset
 
+### Library finder (`LibraryFinderView`, `LibraryScanner`, `Utilities/LibraryFinder.swift`)
+
+**Find in your library** on a person's Photos tab (needs a birthday, not an expected baby, and contribute access). iOS only, and **entirely on the device**: nothing is sent to the server until the user adds a photo, which is then an ordinary import. No face *recognition*: Vision only detects faces and scores them.
+
+- Lists the person's age windows (`LibraryFinder.windows`: half-years to two, whole years after, clipped to today and to the library's first photo), each with how many app photos of them it already has, so gaps show
+- A window's search (`LibraryScan`): fetch the window's images (screenshots out; bursts are one asset), drop ones already in the app (`ImportedIndex`: `Photo.libraryAssetId`, else capture time to the second, ignoring midnight-dated photos) or skipped for this person (`LibraryFinderSkips`, UserDefaults, cleared by `LocalDataReset`), split into moments (45-minute gap or 2 km), analyse a sample of each (favourites + 4 spread) from a 512px thumbnail — face rectangles, face capture quality, iOS 18 aesthetics/utility — and keep the moment's best photo with a face (or a favourite)
+- Moments are analysed oldest first and candidates append in date order, so the grid only grows at the end while the progress bar runs. Leaving cancels and resets; the next visit starts over
+- **Add** goes through `PhotoImporter.importLibraryAssets` (`Source.libraryAsset`: the Photos original, re-encoded by `uploadable`, dated by `PHAsset.creationDate`) and opens the usual `PhotoBatchFormView` with the person preselected, over the finder
+- Limited library access works on what was allowed and says so; denied shows a Settings link
+
 ### Video (`video-plan.md`)
 
 - A video is a `Photo` with `mediaKind == .video`, pulled through the same `ListFamilyPhotos`/`GetFamilyTimeline`. Everywhere it is listed it shows its poster (the ordinary variants) with `VideoBadge`, which `PhotoThumbnailView` draws when given `videoDurationMs` (`Photo.videoBadgeDuration`). Server-id-only cells get no badge until the mirror catches up; attached-media thumbnails drawn from a server id (activity strips, a milestone's photos) badge through `.videoBadge(remoteId:)`, which asks the mirror (`MirroredPhoto`)

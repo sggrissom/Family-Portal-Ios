@@ -327,6 +327,40 @@ nonisolated enum Copy {
         static let saveFailed = "Couldn't Save Photo"
     }
 
+    /// **Find in your library** (`LibraryFinderView`). iOS only: the web has no photo library to look through.
+    enum libraryFinder {
+        static let entry = "Find in your library"
+        static let title = "Find in Library"
+        static let done = "Done"
+        static let openSettings = "Open Settings"
+        static let noAccessTitle = "No Access to Photos"
+        static let noAccess = "Allow Family Record to read your photo library in Settings to look through it for photos to add."
+        static let limited = "Family Record can see only the photos you've allowed. To look through your whole library, allow Full Access in Settings."
+        static let onDevice = "Your library is looked through on this iPhone. Only the photos you add are uploaded."
+        static let nothingInRange = "No Ages to Look Through"
+        static let noneYet = "None yet"
+        static let reading = "Reading your library…"
+        static let nothingFound = "Nothing New to Suggest"
+        static let nothingFoundDetail = "No photos with people in them from this age that aren't already in Family Record."
+
+        static func chooseAge(_ name: String) -> String { "\(name) at each age" }
+        static func inApp(_ n: Int) -> String { n == 1 ? "1 photo" : "\(n) photos" }
+        static func libraryStarts(_ month: String) -> String { "Your library starts in \(month), so earlier ages aren't shown." }
+        static func add(_ n: Int) -> String { n == 0 ? "Add" : "Add \(n)" }
+        static func looking(photos: Int, moments: Int) -> String { "Looking through \(photos) photos from \(moments) moments…" }
+        static func summary(candidates: Int, moments: Int) -> String {
+            "The best photo with people from \(candidates) of \(moments) moments. Tap to choose; press and hold for a closer look."
+        }
+        static func alreadyAdded(_ n: Int) -> String { n == 1 ? "1 photo already in Family Record or skipped." : "\(n) photos already in Family Record or skipped." }
+        static func bestOf(_ n: Int) -> String { "Best of \(n) photos" }
+        static func dontSuggest(_ name: String) -> String { "Don't Suggest for \(name)" }
+        static func range(from: Date, to: Date) -> String {
+            let style = Date.FormatStyle.dateTime.month(.abbreviated).year()
+            // `to` is exclusive; the last day in the window is the one before it.
+            return "\(from.displayDay().formatted(style)) – \(to.addingTimeInterval(-1).displayDay().formatted(style))"
+        }
+    }
+
     /// Video wording shared with the web's `VideoPlayer`, `VideoBadge` and `videoFiles.ts`.
     enum video {
         static let badge = "Video"
