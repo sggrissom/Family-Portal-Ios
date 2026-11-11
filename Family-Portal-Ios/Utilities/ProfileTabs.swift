@@ -1,10 +1,7 @@
 import Foundation
 
-/// Which of a person's tabs show, and when their Story invites a first interview — the web's `lib/profileTabs.ts`. A content tab shows once it has something in it.
+/// Which of a person's tabs show — the web's `lib/profileTabs.ts`. A content tab shows once it has something in it.
 enum ProfileTabs {
-    /// The dashboard's annual-interview nudge starts at the same age (`interviewMinAgeYears`).
-    static let interviewMinAgeYears = 3
-
     struct Content {
         var isPregnancy = false
         var hasBirthday = true
@@ -26,10 +23,5 @@ enum ProfileTabs {
             case .story, .photos: true
             }
         }
-    }
-
-    static func invitesInterview(birthday: Date?, isPregnancy: Bool, interviews: Int, editable: Bool, today: Date) -> Bool {
-        guard editable, interviews == 0, !isPregnancy, let birthday else { return false }
-        return Interviews.ageYears(birthday: birthday, at: today) >= interviewMinAgeYears
     }
 }
