@@ -226,13 +226,13 @@ final class PhotoImporter {
                     throw VideoImportFailure.unreadable
                 }
                 defer { picked.remove() }
-                imported = try await importVideo(entryId, fileURL: picked.url, captureDate: Self.libraryDate(for: item), into: context)
+                imported = try await importVideo(entryId, fileURL: picked.url, captureDate: Self.libraryDate(for: item), libraryAssetId: item.itemIdentifier, into: context)
             case (.file(let url, let captureDate), true):
-                imported = try await importVideo(entryId, fileURL: url, captureDate: captureDate, into: context)
+                imported = try await importVideo(entryId, fileURL: url, captureDate: captureDate, libraryAssetId: nil, into: context)
             case (.picked(let item), false):
-                imported = try await importOne(Self.load(item), into: context, syncService: syncService)
+                imported = try await importOne(Self.load(item), libraryAssetId: item.itemIdentifier, into: context, syncService: syncService)
             case (.file(let url, let captureDate), false):
-                imported = try await importOne(Self.load(url, captureDate: captureDate), into: context, syncService: syncService)
+                imported = try await importOne(Self.load(url, captureDate: captureDate), libraryAssetId: nil, into: context, syncService: syncService)
             }
             entries[entryId]?.photoId = imported.photo.id
             entries[entryId]?.hasCaptureDate = imported.hasCaptureDate
@@ -306,8 +306,10 @@ final class PhotoImporter {
         }
     }
 
+    /// `libraryAssetId` is the library asset the bytes came from, when there was one: the picker's `itemIdentifier`, which `.shared()` exposes.
     private func importOne(
         _ loaded: (data: Data, captureDate: Date?),
+        libraryAssetId: String?,
         into context: ModelContext,
         syncService: SyncService?
     ) async throws -> (photo: Photo, hasCaptureDate: Bool) {
@@ -318,6 +320,7 @@ final class PhotoImporter {
             photoDate: (captureDate ?? Date()).localWallClock(),
             imageData: data
         )
+        photo.libraryAssetId = libraryAssetId
         context.insert(photo)
         try context.save()
         // Only queues: a finished import means every photo is on screen and queued, not that it is on the server.
@@ -327,7 +330,7 @@ final class PhotoImporter {
 
     /// Checks, uploads and stores one video. Online only: the batch form's people, caption and tags then queue against a photo that already has its server id, exactly as they would for an uploaded photo.
     /// `fileURL` is the caller's to delete: a picked video's scratch copy, or a shared file the inbox keeps until it hears the outcome.
-    private func importVideo(_ entryId: UUID, fileURL: URL, captureDate: Date?, into context: ModelContext) async throws -> (photo: Photo, hasCaptureDate: Bool) {
+    private func importVideo(_ entryId: UUID, fileURL: URL, captureDate: Date?, libraryAssetId: String?, into context: ModelContext) async throws -> (photo: Photo, hasCaptureDate: Bool) {
         guard let support = videoSupport else { throw VideoImportFailure.unsupported }
 
         let filename = fileURL.lastPathComponent
@@ -370,6 +373,9 @@ final class PhotoImporter {
         let photo = (try? context.fetch(FetchDescriptor<Photo>(predicate: #Predicate<Photo> { $0.remoteId == remoteId })).first)
             ?? Photo(title: "", descriptionText: "", photoDate: image.photoDate)
         applyPhotoDTO(image, to: photo)
+        if let libraryAssetId {
+            photo.libraryAssetId = libraryAssetId
+        }
         if photo.modelContext == nil {
             context.insert(photo)
         }

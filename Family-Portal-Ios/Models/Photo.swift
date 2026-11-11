@@ -29,6 +29,9 @@ final class Photo {
     /// See `Milestone.hasExactDate` and `Milestone.recordTimeData`.
     var hasExactDate: Bool = true
     var recordTimeData: Data? = nil
+    /// The `PHAsset.localIdentifier` this photo was imported from, when it was picked from the library **on this device**. Never synced: an identifier means nothing on another device, and the server has no field for it.
+    /// It is how the library finder knows a library photo is already in the app. `nil` for photos imported before it existed, shared in, scanned, or pulled from the server — those are matched by capture time instead.
+    var libraryAssetId: String? = nil
 
     @Relationship(inverse: \Person.photos)
     var taggedPeople: [Person]
