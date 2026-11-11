@@ -243,6 +243,41 @@ nonisolated struct SaveHistoricalInterviewRequestDTO: Encodable, Sendable {
 
 // MARK: - The question list
 
+/// When a family's interviews are suggested (backend/interview_cadence.go). `month` is the month school starts, 1–12, and only set for `schoolStart`.
+nonisolated struct InterviewCadenceDTO: Codable, Sendable, Equatable {
+    var kind: String
+    var month: Int
+
+    static let birthday = "birthday"
+    static let schoolStart = "school-start"
+    static let newYear = "new-year"
+    static let off = "off"
+    static let kinds = [birthday, schoolStart, newYear, off]
+    static let defaultSchoolMonth = 8
+
+    init(kind: String, month: Int = 0) {
+        self.kind = kind
+        self.month = month
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? Self.birthday
+        month = try c.decodeIfPresent(Int.self, forKey: .month) ?? 0
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, month }
+}
+
+nonisolated struct SetInterviewCadenceRequestDTO: Encodable, Sendable {
+    let familyId: Int
+    let cadence: InterviewCadenceDTO
+}
+
+nonisolated struct SetInterviewCadenceResponseDTO: Decodable, Sendable {
+    let cadence: InterviewCadenceDTO
+}
+
 nonisolated struct GetInterviewQuestionsRequestDTO: Encodable, Sendable {
     /// 0 is the caller's own family.
     let familyId: Int
@@ -267,6 +302,8 @@ nonisolated struct InterviewQuestionsResponseDTO: Decodable, Sendable {
     @OrZero var defaults: [InterviewQuestionDTO]
     /// By question id; a Go `map[int]…` arrives with string keys.
     @OrZero var usage: [String: QuestionUsageDTO]
+    /// When interviews are suggested; nil from servers that predate the setting.
+    var cadence: InterviewCadenceDTO?
 
     func usage(of questionId: Int) -> QuestionUsageDTO? {
         usage[String(questionId)]
