@@ -57,6 +57,11 @@ final class InterviewService {
         try await apiClient.callRPC(.saveInterviewAnswer, payload: request)
     }
 
+    func setAnswerNote(_ request: SetInterviewAnswerNoteRequestDTO) async throws -> MilestoneDTO {
+        let response: SetInterviewAnswerNoteResponseDTO = try await apiClient.callRPC(.setInterviewAnswerNote, payload: request)
+        return response.answer
+    }
+
     func addQuestion(_ request: AddInterviewQuestionRequestDTO) async throws -> AddInterviewQuestionResponseDTO {
         try await apiClient.callRPC(.addInterviewQuestion, payload: request)
     }

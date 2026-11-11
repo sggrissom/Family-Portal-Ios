@@ -85,6 +85,11 @@ struct InterviewCompareView: View {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(entry.person.name.firstName).bold()
                                 Text(entry.text)
+                                if !entry.note.isEmpty {
+                                    Text("(\(entry.note))")
+                                        .italic()
+                                        .foregroundStyle(.secondary)
+                                }
                                 Text("· \(String(entry.date.recordDay.year ?? 0))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
