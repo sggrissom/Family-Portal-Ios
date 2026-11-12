@@ -49,6 +49,7 @@ nonisolated struct PreviousAnswerDTO: Codable, Sendable, Hashable {
     let date: Date
     @OrZero var ageYears: Int
     @OrZero var text: String
+    @OrZero var note: String
 }
 
 nonisolated struct GetInterviewRequestDTO: Encodable, Sendable {
@@ -141,6 +142,17 @@ nonisolated struct SaveInterviewAnswerResponseDTO: Decodable, Sendable {
     let interview: InterviewDTO
     /// `id` 0 when the answer was cleared or skipped.
     let answer: MilestoneDTO?
+}
+
+/// The note beside one answer (`SetInterviewAnswerNote`). Saving the answer itself never changes it.
+nonisolated struct SetInterviewAnswerNoteRequestDTO: Encodable, Sendable {
+    let interviewId: Int
+    let questionId: Int
+    let note: String
+}
+
+nonisolated struct SetInterviewAnswerNoteResponseDTO: Decodable, Sendable {
+    let answer: MilestoneDTO
 }
 
 /// A follow-up, inserted after `afterQuestionId`. `keep` adds it to the family's list; otherwise it is asked just this once.

@@ -281,9 +281,11 @@ nonisolated struct MilestoneDTO: Codable, Sendable {
     @OrZero var questionId: Int
     /// What the family said about when it happened. Absent from servers older than approximate dates, where `milestoneDate` is an exact day; otherwise `milestoneDate` is only a sort key unless this is an exact day.
     var recordTime: RecordTime?
+    /// A note beside an interview answer, like how it was said. Empty on every other moment.
+    @OrZero var note: String
 
     enum CodingKeys: String, CodingKey {
-        case id, personId, familyId, category, context, milestoneDate, createdAt
+        case id, personId, familyId, category, context, milestoneDate, createdAt, note
         case descriptionText = "description"
         case photoIds
         case tagIds

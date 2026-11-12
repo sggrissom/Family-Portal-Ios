@@ -197,6 +197,7 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case getInterviewQuestions = "GetInterviewQuestions"
     case saveInterviewQuestions = "SaveInterviewQuestions"
     case mergeInterviewQuestions = "MergeInterviewQuestions"
+    case setInterviewAnswerNote = "SetInterviewAnswerNote"
     case setInterviewCadence = "SetInterviewCadence"
 
     // MARK: - Global search (backend/search.go)

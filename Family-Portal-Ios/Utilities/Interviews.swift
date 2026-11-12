@@ -277,6 +277,7 @@ struct InterviewAgeGroup: Identifiable {
     struct Entry {
         let person: PersonDTO
         let text: String
+        let note: String
         let date: Date
         let milestoneId: Int
     }
@@ -404,7 +405,7 @@ extension Interviews {
         var groups: [Int: InterviewAgeGroup] = [:]
         for row in rows {
             for answer in row.answers {
-                let entry = InterviewAgeGroup.Entry(person: row.person, text: answer.text, date: answer.date, milestoneId: answer.milestoneId)
+                let entry = InterviewAgeGroup.Entry(person: row.person, text: answer.text, note: answer.note, date: answer.date, milestoneId: answer.milestoneId)
                 groups[answer.ageYears, default: InterviewAgeGroup(age: answer.ageYears, answers: [])].answers.append(entry)
             }
         }

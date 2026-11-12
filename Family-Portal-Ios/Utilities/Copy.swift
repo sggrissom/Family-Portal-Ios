@@ -835,6 +835,7 @@ nonisolated enum Copy {
             static let deleteFailed = "The interview could not be deleted."
             static let whatChanged = "What changed since last time"
             static let editAnswers = "Edit answers"
+            static let notePlaceholder = "Add a note, like how it was said"
             static let doneEditing = "Done"
             static let editDetails = "Edit details"
             static let title = "Title"

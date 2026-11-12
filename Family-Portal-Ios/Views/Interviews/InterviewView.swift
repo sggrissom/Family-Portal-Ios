@@ -192,6 +192,12 @@ struct InterviewView: View {
                 } else {
                     Text(answer.descriptionText)
                 }
+                if !answer.note.isEmpty {
+                    Text(answer.note)
+                        .font(.footnote)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Text(Copy.interview.view.skipped)
                     .foregroundStyle(.tertiary)
@@ -309,7 +315,7 @@ private struct InterviewDetailsForm: View {
     }
 }
 
-/// Every question of the interview with its answer, editable — the web's "Edit answers". Only the answers that changed are sent, one `SaveInterviewAnswer` each; emptying one deletes it, as it does while asking.
+/// Every question of the interview with its answer, editable — the web's "Edit answers". Only the answers that changed are sent, one `SaveInterviewAnswer` each; emptying one deletes it, as it does while asking. An answer that was already there also has its note, sent through `SetInterviewAnswerNote` when it changed.
 private struct InterviewAnswersEditor: View {
     let response: GetInterviewResponseDTO
     let onSaved: () async -> Void
@@ -318,10 +324,12 @@ private struct InterviewAnswersEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var text: [Int: String]
+    @State private var notes: [Int: String]
     @State private var isSaving = false
     @State private var error: String?
 
     private let original: [Int: String]
+    private let originalNotes: [Int: String]
 
     init(response: GetInterviewResponseDTO, onSaved: @escaping () async -> Void) {
         self.response = response
@@ -329,11 +337,22 @@ private struct InterviewAnswersEditor: View {
         let answers = Dictionary(response.answers.map { ($0.questionId, $0.descriptionText) }, uniquingKeysWith: { first, _ in first })
         original = answers
         _text = State(initialValue: answers)
+        let notes = Dictionary(response.answers.map { ($0.questionId, $0.note) }, uniquingKeysWith: { first, _ in first })
+        originalNotes = notes
+        _notes = State(initialValue: notes)
     }
 
     private var changed: [Int] {
         response.questions.map(\.id).filter { id in
             (text[id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines) != (original[id] ?? "")
+        }
+    }
+
+    /// Notes edited on answers that still have text once saved.
+    private var changedNotes: [Int] {
+        originalNotes.keys.sorted().filter { id in
+            (notes[id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines) != (originalNotes[id] ?? "")
+                && !(text[id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -356,6 +375,15 @@ private struct InterviewAnswersEditor: View {
                                     get: { text[question.id] ?? "" },
                                     set: { text[question.id] = $0 }
                                 ), axis: .vertical)
+                                if originalNotes[question.id] != nil {
+                                    TextField(Copy.interview.view.notePlaceholder, text: Binding(
+                                        get: { notes[question.id] ?? "" },
+                                        set: { notes[question.id] = $0 }
+                                    ), axis: .vertical)
+                                    .font(.footnote)
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -374,7 +402,7 @@ private struct InterviewAnswersEditor: View {
                         Button(Copy.interview.view.save) {
                             Task { await save() }
                         }
-                        .disabled(changed.isEmpty)
+                        .disabled(changed.isEmpty && changedNotes.isEmpty)
                     }
                 }
             }
@@ -386,6 +414,7 @@ private struct InterviewAnswersEditor: View {
         isSaving = true
         error = nil
         defer { isSaving = false }
+        let notesToSave = changedNotes
         do {
             for questionId in changed {
                 _ = try await service.saveAnswer(SaveInterviewAnswerRequestDTO(
@@ -393,6 +422,13 @@ private struct InterviewAnswersEditor: View {
                     questionId: questionId,
                     answer: (text[questionId] ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
                     skipped: false
+                ))
+            }
+            for questionId in notesToSave {
+                _ = try await service.setAnswerNote(SetInterviewAnswerNoteRequestDTO(
+                    interviewId: response.interview.id,
+                    questionId: questionId,
+                    note: (notes[questionId] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 ))
             }
         } catch {

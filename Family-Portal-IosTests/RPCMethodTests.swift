@@ -180,6 +180,7 @@ struct RPCMethodTests {
         #expect(RPCMethod.compareInterviewAnswers.rawValue == "CompareInterviewAnswers")
         #expect(RPCMethod.saveHistoricalInterview.rawValue == "SaveHistoricalInterview")
         #expect(RPCMethod.getInterviewQuestions.rawValue == "GetInterviewQuestions")
+        #expect(RPCMethod.setInterviewAnswerNote.rawValue == "SetInterviewAnswerNote")
         #expect(RPCMethod.setInterviewCadence.rawValue == "SetInterviewCadence")
         #expect(RPCMethod.saveInterviewQuestions.rawValue == "SaveInterviewQuestions")
         #expect(RPCMethod.mergeInterviewQuestions.rawValue == "MergeInterviewQuestions")
