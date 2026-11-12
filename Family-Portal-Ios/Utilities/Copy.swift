@@ -751,6 +751,17 @@ nonisolated enum Copy {
             static let placeholders = "Use {name} and {age} to fill in the child's name and age."
             static let emptySection = "No questions in this section yet."
             static let edit = "Edit"
+            static let cadence = "Suggest an interview"
+            static let cadenceHint = "Home shows a reminder for each child at this time of year."
+            static func cadenceOption(_ kind: String) -> String {
+                switch kind {
+                case "school-start": return "When school starts"
+                case "new-year": return "At New Year"
+                case "off": return "Don't suggest"
+                default: return "Around each birthday"
+                }
+            }
+            static let schoolMonth = "School starts in"
         }
 
         enum setup {
