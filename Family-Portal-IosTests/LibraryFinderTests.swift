@@ -119,6 +119,23 @@ struct LibraryFinderTests {
         #expect(LibraryFinder.best(of: scenery, analyses: analyses) == nil)
     }
 
+    @Test("Removing a group photo keeps the other choices and preserves the group identity")
+    func groupKeepsAlternatives() {
+        let first = asset("first", day(2021, 5, 1, 10))
+        let cover = asset("cover", day(2021, 5, 1, 10, 1))
+        let last = asset("last", day(2021, 5, 1, 10, 2))
+        var group = LibraryFinder.Candidate(asset: cover, in: .init(assets: [first, cover, last]))
+
+        group.remove([last.id])
+        #expect(group.asset == cover)
+        #expect(group.assets == [first, cover])
+
+        group.remove([cover.id])
+        #expect(group.id == cover.id)
+        #expect(group.asset == first)
+        #expect(group.assets == [first])
+    }
+
     @Test("A utility shot isn't suggested, unless it's a favourite")
     func utilityLeftOut() {
         let receipt = asset("r", day(2021, 5, 1))

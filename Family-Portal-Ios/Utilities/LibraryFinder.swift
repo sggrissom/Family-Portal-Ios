@@ -102,6 +102,7 @@ nonisolated enum LibraryFinder {
         let isFavorite: Bool
         var latitude: Double? = nil
         var longitude: Double? = nil
+        var modificationDate: Date? = nil
     }
 
     /// Photos taken together: a birthday party, a morning at the beach. The finder suggests one photo from each, so forty shots of the same cake become one.
@@ -178,12 +179,25 @@ nonisolated enum LibraryFinder {
 
     /// A moment's best photo, offered for review.
     struct Candidate: Identifiable, Sendable, Equatable {
-        let asset: Asset
-        /// How many photos the moment had: "best of 12".
-        let momentSize: Int
-        let score: Double
+        let id: String
+        private(set) var asset: Asset
+        private(set) var assets: [Asset]
 
-        var id: String { asset.id }
+        var momentSize: Int { assets.count }
+
+        init(asset: Asset, in moment: Moment) {
+            id = asset.id
+            self.asset = asset
+            assets = moment.assets
+        }
+
+        /// Keep the group available when its cover is skipped or added.
+        mutating func remove(_ ids: Set<String>) {
+            assets.removeAll { ids.contains($0.id) }
+            if ids.contains(asset.id), let replacement = assets.first {
+                asset = replacement
+            }
+        }
     }
 
     static func score(_ asset: Asset, _ analysis: Analysis) -> Double {
@@ -205,11 +219,12 @@ nonisolated enum LibraryFinder {
     /// The moment's highest-scoring sampled photo that is worth suggesting, or nil when none is.
     static func best(of moment: Moment, analyses: [String: Analysis]) -> Candidate? {
         sample(moment)
-            .compactMap { asset -> Candidate? in
+            .compactMap { asset -> (asset: Asset, score: Double)? in
                 guard let analysis = analyses[asset.id], isWorthSuggesting(asset, analysis) else { return nil }
-                return Candidate(asset: asset, momentSize: moment.assets.count, score: score(asset, analysis))
+                return (asset, score(asset, analysis))
             }
             .max { $0.score < $1.score }
+            .map { Candidate(asset: $0.asset, in: moment) }
     }
 
     // MARK: - Already in the app
