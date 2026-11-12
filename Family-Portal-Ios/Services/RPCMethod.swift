@@ -169,6 +169,7 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     // Online only and never queued: naming a face makes the server re-match the family.
 
     case getFaceReview = "GetFaceReview"
+    case getFaceReviewCount = "GetFaceReviewCount"
     case assignFaces = "AssignFaces"
     case rejectFaces = "RejectFaces"
     case dismissFaces = "DismissFaces"
@@ -197,6 +198,7 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case saveInterviewQuestions = "SaveInterviewQuestions"
     case mergeInterviewQuestions = "MergeInterviewQuestions"
     case setInterviewAnswerNote = "SetInterviewAnswerNote"
+    case setInterviewCadence = "SetInterviewCadence"
 
     // MARK: - Global search (backend/search.go)
     // An online read, never cached or queued. Offline, the search screen searches the SwiftData mirror instead.

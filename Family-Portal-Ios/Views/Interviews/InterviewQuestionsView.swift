@@ -20,6 +20,8 @@ struct InterviewQuestionsView: View {
     @State private var renameText = ""
     @State private var confirmsReset = false
     @State private var merging: (from: QuestionRow, into: QuestionRow)?
+    @State private var cadence: InterviewCadenceDTO?
+    @State private var isSavingCadence = false
 
     private var hasChanges: Bool { draft != saved || !deleteIds.isEmpty }
 
@@ -86,6 +88,10 @@ struct InterviewQuestionsView: View {
                 if let error {
                     Text(error).foregroundStyle(.red)
                 }
+            }
+
+            if let cadence {
+                cadenceSection(cadence, familyId: loaded.familyId)
             }
 
             suggestedSection(loaded)
@@ -264,10 +270,58 @@ struct InterviewQuestionsView: View {
         if row.questionId > 0 { deleteIds.append(row.questionId) }
     }
 
+    private func cadenceSection(_ cadence: InterviewCadenceDTO, familyId: Int) -> some View {
+        Section {
+            Picker(Copy.interview.questions.cadence, selection: Binding(
+                get: { cadence.kind },
+                set: { kind in
+                    let month = kind == InterviewCadenceDTO.schoolStart ? InterviewCadenceDTO.defaultSchoolMonth : 0
+                    Task { await setCadence(InterviewCadenceDTO(kind: kind, month: month), familyId: familyId) }
+                }
+            )) {
+                ForEach(InterviewCadenceDTO.kinds, id: \.self) { kind in
+                    Text(Copy.interview.questions.cadenceOption(kind)).tag(kind)
+                }
+            }
+            if cadence.kind == InterviewCadenceDTO.schoolStart {
+                Picker(Copy.interview.questions.schoolMonth, selection: Binding(
+                    get: { cadence.month },
+                    set: { month in
+                        Task { await setCadence(InterviewCadenceDTO(kind: InterviewCadenceDTO.schoolStart, month: month), familyId: familyId) }
+                    }
+                )) {
+                    ForEach(Array(Calendar.current.monthSymbols.enumerated()), id: \.offset) { index, name in
+                        Text(name).tag(index + 1)
+                    }
+                }
+            }
+        } footer: {
+            if cadence.kind != InterviewCadenceDTO.off {
+                Text(Copy.interview.questions.cadenceHint)
+            }
+        }
+        .disabled(isSavingCadence)
+    }
+
     // MARK: - Server
+
+    private func setCadence(_ next: InterviewCadenceDTO, familyId: Int) async {
+        let previous = cadence
+        cadence = next
+        isSavingCadence = true
+        error = nil
+        defer { isSavingCadence = false }
+        do {
+            cadence = try await service.setCadence(next, familyId: familyId)
+        } catch {
+            cadence = previous
+            self.error = error.localizedDescription
+        }
+    }
 
     private func adopt(_ response: InterviewQuestionsResponseDTO) {
         loaded = response
+        cadence = response.cadence
         draft = QuestionListDraft(response.questions)
         saved = draft
         deleteIds = []

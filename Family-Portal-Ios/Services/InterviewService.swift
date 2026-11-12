@@ -90,6 +90,14 @@ final class InterviewService {
         try await apiClient.callRPC(.mergeInterviewQuestions, payload: request)
     }
 
+    func setCadence(_ cadence: InterviewCadenceDTO, familyId: Int) async throws -> InterviewCadenceDTO {
+        let response: SetInterviewCadenceResponseDTO = try await apiClient.callRPC(
+            .setInterviewCadence,
+            payload: SetInterviewCadenceRequestDTO(familyId: familyId, cadence: cadence)
+        )
+        return response.cadence
+    }
+
     /// A past interview in one write: the interview, complete, and every answer, with any new questions.
     func saveHistorical(_ request: SaveHistoricalInterviewRequestDTO) async throws -> InterviewDTO {
         let response: InterviewResponseDTO = try await apiClient.callRPC(.saveHistoricalInterview, payload: request)

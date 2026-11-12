@@ -154,6 +154,7 @@ struct RPCMethodTests {
 
     @Test("Face proc names match the backend")
     func faceProcNames() {
+        #expect(RPCMethod.getFaceReviewCount.rawValue == "GetFaceReviewCount")
         #expect(RPCMethod.assignFaces.rawValue == "AssignFaces")
         #expect(RPCMethod.rejectFaces.rawValue == "RejectFaces")
         #expect(RPCMethod.dismissFaces.rawValue == "DismissFaces")
@@ -180,6 +181,7 @@ struct RPCMethodTests {
         #expect(RPCMethod.saveHistoricalInterview.rawValue == "SaveHistoricalInterview")
         #expect(RPCMethod.getInterviewQuestions.rawValue == "GetInterviewQuestions")
         #expect(RPCMethod.setInterviewAnswerNote.rawValue == "SetInterviewAnswerNote")
+        #expect(RPCMethod.setInterviewCadence.rawValue == "SetInterviewCadence")
         #expect(RPCMethod.saveInterviewQuestions.rawValue == "SaveInterviewQuestions")
         #expect(RPCMethod.mergeInterviewQuestions.rawValue == "MergeInterviewQuestions")
     }

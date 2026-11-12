@@ -130,4 +130,35 @@ struct InterviewQuestionListTests {
         #expect(response.usage(of: 2) == nil)
         #expect(response.revision == 4)
     }
+
+    @Test("The cadence arrives with the list, and is absent from older servers")
+    func cadence() throws {
+        let response = try APIClient.decode(InterviewQuestionsResponseDTO.self, from: Fixture.data([
+            "familyId": 7, "revision": 4, "cadence": ["kind": "school-start", "month": 9],
+        ] as [String: Any]))
+        #expect(response.cadence == InterviewCadenceDTO(kind: "school-start", month: 9))
+
+        let older = try APIClient.decode(InterviewQuestionsResponseDTO.self, from: Fixture.data([
+            "familyId": 7, "revision": 4,
+        ] as [String: Any]))
+        #expect(older.cadence == nil)
+    }
+
+    @Test("Setting the cadence sends the family and the choice")
+    func setCadence() async throws {
+        let server = FakeHTTPServer()
+        server.route("rpc/SetInterviewCadence", respond: .json(["cadence": ["kind": "new-year", "month": 0]]))
+        let service = InterviewService(apiClient: server.apiClient(), cache: ActivitySnapshotCache(
+            directory: FileManager.default.temporaryDirectory.appendingPathComponent("Cadence-\(UUID().uuidString)", isDirectory: true)
+        ))
+
+        let saved = try await service.setCadence(InterviewCadenceDTO(kind: "new-year"), familyId: 7)
+
+        #expect(saved == InterviewCadenceDTO(kind: "new-year"))
+        let request = try #require(server.requests(for: "rpc/SetInterviewCadence").first)
+        let body = try #require(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
+        #expect(body["familyId"] as? Int == 7)
+        let cadence = try #require(body["cadence"] as? [String: Any])
+        #expect(cadence["kind"] as? String == "new-year")
+    }
 }

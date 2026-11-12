@@ -154,4 +154,75 @@ struct FaceReviewTests {
         navigator.updateFaceReviewCount(enabled: false, unknownCount: 4, autoCount: 2)
         #expect(navigator.faceReviewCount == nil)
     }
+
+    @Test("The menu badge asks for the count, and falls back to the full review on older servers")
+    func badgeFromCount() async {
+        let server = FakeHTTPServer()
+        server.route("rpc/GetFaceReviewCount", respond: .json(["enabled": true, "unknownCount": 3, "autoCount": 1]))
+        let navigator = AppNavigator()
+        await navigator.refreshFaceReviewCount(apiClient: server.apiClient())
+        #expect(navigator.faceReviewCount == 4)
+        #expect(server.requests(for: "rpc/GetFaceReview").isEmpty)
+
+        let older = FakeHTTPServer()
+        older.route("rpc/GetFaceReview", respond: .json(Self.review(unknownCount: 2, autoCount: 5)))
+        await navigator.refreshFaceReviewCount(apiClient: older.apiClient())
+        #expect(navigator.faceReviewCount == 7)
+    }
+
+    private static func state() throws -> FaceReviewState {
+        let dto = try APIClient.decode(GetFaceReviewResponseDTO.self, from: Fixture.data(Self.review(
+            groups: [
+                ["familyId": 7, "faces": [Self.face(id: 11), Self.face(id: 12), Self.face(id: 13)], "suggestedPersonId": 5],
+                ["familyId": 7, "faces": [Self.face(id: 14)]]
+            ],
+            autoTagged: [Self.face(id: 20, personId: 6, status: 1), Self.face(id: 21, personId: 6, status: 1)],
+            unknownCount: 4,
+            autoCount: 2
+        )))
+        return FaceReviewState(dto)
+    }
+
+    @Test("Naming part of a group shrinks it in place and drops its suggestion")
+    func namingPartOfAGroup() throws {
+        var review = try Self.state()
+        review.removeFromGroup(11, faceIds: [11, 12])
+        review.recordAssigned(try APIClient.decode(AssignFacesResponseDTO.self, from: Fixture.data(["assigned": 2, "autoTagged": 0, "skipped": 0])))
+
+        #expect(review.groups.map(\.id) == [11, 14])
+        #expect(review.groups[0].faces.map(\.id) == [13])
+        #expect(review.groups[0].suggestedPersonId == 0)
+        #expect(review.unknownCount == 2)
+    }
+
+    @Test("An emptied group leaves, and skipped or auto-tagged faces move the counts")
+    func namingAWholeGroup() throws {
+        var review = try Self.state()
+        review.removeFromGroup(14, faceIds: [14])
+        review.removeFromGroup(11, faceIds: [11, 12, 13])
+        review.recordAssigned(try APIClient.decode(AssignFacesResponseDTO.self, from: Fixture.data(["assigned": 2, "autoTagged": 1, "skipped": 1])))
+
+        #expect(review.groups.isEmpty)
+        #expect(review.unknownCount == 0)
+        #expect(review.autoCount == 3)
+    }
+
+    @Test("Confirming or rejecting an automatic tag takes it off the list; a rejected face waits to be named")
+    func automaticTags() throws {
+        var review = try Self.state()
+        review.removeAutoTag(20, rejected: false)
+        #expect(review.autoTagged.map(\.id) == [21])
+        #expect(review.autoCount == 1)
+        #expect(review.unknownCount == 4)
+
+        review.removeAutoTag(21, rejected: true)
+        #expect(review.autoTagged.isEmpty)
+        #expect(review.autoCount == 0)
+        #expect(review.unknownCount == 5)
+        #expect(!review.isEmpty)
+
+        review.removeFromGroup(11, faceIds: [11, 12, 13])
+        review.removeFromGroup(14, faceIds: [14])
+        #expect(review.isEmpty)
+    }
 }

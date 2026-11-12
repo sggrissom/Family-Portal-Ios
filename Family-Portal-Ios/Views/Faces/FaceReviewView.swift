@@ -2,13 +2,13 @@ import SwiftData
 import SwiftUI
 
 /// Telling the app who's who — the web's Faces page. Unnamed faces come grouped by likeness, each group with the server's guess when it has one; then the automatic tags, least certain first.
-/// Online only (see `FaceReviewService`). Naming a face can auto-tag others, so each change reloads the review rather than editing it in place. Leaving after a change pulls family data, so photos pick up the people the server just put on them.
+/// Online only (see `FaceReviewService`). Answers apply in place (see `FaceReviewState`); pull to refresh for the server's re-clustered view. Leaving after a change pulls family data, so photos pick up the people the server just put on them.
 struct FaceReviewView: View {
     @Environment(AppNavigator.self) private var navigator
     @Environment(SyncService.self) private var syncService
     @Environment(\.modelContext) private var modelContext
 
-    @State private var review: GetFaceReviewResponseDTO?
+    @State private var review: FaceReviewState?
     /// Faces left out of their group before it is named. Cleared on every reload, since the groups are re-clustered.
     @State private var excluded: Set<Int> = []
     @State private var shownGroups = Self.groupsPerPage
@@ -63,7 +63,7 @@ struct FaceReviewView: View {
     }
 
     @ViewBuilder
-    private func content(_ review: GetFaceReviewResponseDTO) -> some View {
+    private func content(_ review: FaceReviewState) -> some View {
         if review.unknownCount == 0 && review.autoCount == 0 {
             Section {
                 Text(
@@ -84,8 +84,8 @@ struct FaceReviewView: View {
                         familyName: review.families.count > 1 ? review.familyName(group.familyId) : nil,
                         excluded: $excluded,
                         isBusy: isBusy,
-                        assign: { ids, personId in Task { await assign(ids, to: personId) } },
-                        dismiss: { ids in Task { await dismiss(ids) } }
+                        assign: { ids, personId in Task { await assign(ids, in: group.id, to: personId) } },
+                        dismiss: { ids in Task { await dismiss(ids, in: group.id) } }
                     )
                 }
                 if review.groups.count > shownGroups {
@@ -147,7 +147,7 @@ struct FaceReviewView: View {
 
             AdaptiveActionRow {
                 Button("Confirm") {
-                    Task { await assign([face.id], to: face.personId) }
+                    Task { await confirm(face) }
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityLabel("Confirm \(name)")
@@ -180,12 +180,17 @@ struct FaceReviewView: View {
     }
 
     private func apply(_ fresh: GetFaceReviewResponseDTO) {
-        review = fresh
+        review = FaceReviewState(fresh)
         excluded = []
-        navigator.updateFaceReviewCount(enabled: fresh.enabled, unknownCount: fresh.unknownCount, autoCount: fresh.autoCount)
+        publishCount()
     }
 
-    /// Runs one change, then reloads. The notice is only shown once the reload has landed, so it never describes a list that is still stale.
+    private func publishCount() {
+        guard let review else { return }
+        navigator.updateFaceReviewCount(enabled: review.enabled, unknownCount: review.unknownCount, autoCount: review.autoCount)
+    }
+
+    /// Sends one answer, then applies it to the list in place. A failure, or a list that has run out, reloads from the server.
     private func perform(_ change: () async throws -> String?) async {
         guard !isBusy else { return }
         isBusy = true
@@ -196,41 +201,75 @@ struct FaceReviewView: View {
         do {
             let message = try await change()
             didChange = true
-            let fresh = try await service.review()
-            apply(fresh)
             notice = message
+            publishCount()
+            if review?.isEmpty == true {
+                await load()
+            }
         } catch {
-            errorMessage = error.localizedDescription
+            let reason = error.localizedDescription
+            await load()
+            errorMessage = "\(reason). The list has been reloaded."
         }
     }
 
-    private func assign(_ faceIds: [Int], to personId: Int) async {
+    private func assign(_ faceIds: [Int], in groupId: Int, to personId: Int) async {
         guard !faceIds.isEmpty else { return }
         await perform {
             let response = try await service.assign(faceIds: faceIds, to: personId)
             let name = review?.personName(personId) ?? "them"
-            let more = response.autoTagged > 0 ? " and found \(name) in \(Self.photos(response.autoTagged)) more" : ""
-            return "Tagged \(name) in \(Self.photos(response.assigned))\(more)."
+            review?.removeFromGroup(groupId, faceIds: faceIds)
+            review?.recordAssigned(response)
+            if let remaining = review?.groups.first(where: { $0.id == groupId }) {
+                for face in remaining.faces { excluded.remove(face.id) }
+            }
+            var message = "Tagged \(name) in \(Self.count(response.assigned, "photo"))."
+            if response.skipped > 0 {
+                message += " Left \(Self.count(response.skipped, "face")) for review, since \(name) is already confirmed on \(response.skipped == 1 ? "that photo" : "those photos")."
+            }
+            if response.autoTagged > 0 {
+                message += " Found \(name) in \(Self.count(response.autoTagged, "more photo")); pull to refresh to check them."
+            }
+            return message
         }
     }
 
-    private func dismiss(_ faceIds: [Int]) async {
+    private func dismiss(_ faceIds: [Int], in groupId: Int) async {
         guard !faceIds.isEmpty else { return }
         await perform {
             try await service.dismiss(faceIds: faceIds)
+            review?.removeFromGroup(groupId, faceIds: faceIds)
+            if let remaining = review?.groups.first(where: { $0.id == groupId }) {
+                for face in remaining.faces { excluded.remove(face.id) }
+            }
             return nil
+        }
+    }
+
+    private func confirm(_ face: PhotoFaceDTO) async {
+        await perform {
+            let response = try await service.assign(faceIds: [face.id], to: face.personId)
+            let name = review?.personName(face.personId) ?? "them"
+            review?.removeAutoTag(face.id, rejected: false)
+            review?.recordAssigned(response)
+            var message = "Confirmed \(name)."
+            if response.autoTagged > 0 {
+                message += " Found \(name) in \(Self.count(response.autoTagged, "more photo"))."
+            }
+            return message
         }
     }
 
     private func reject(_ face: PhotoFaceDTO) async {
         await perform {
             try await service.reject(faceIds: [face.id])
-            return "Removed the tag. The face is back in “Who is this?”."
+            review?.removeAutoTag(face.id, rejected: true)
+            return "Removed the tag. The face will wait in “Who is this?”."
         }
     }
 
-    private static func photos(_ count: Int) -> String {
-        count == 1 ? "1 photo" : "\(count) photos"
+    private static func count(_ n: Int, _ word: String) -> String {
+        "\(n) \(word)\(n == 1 ? "" : "s")"
     }
 
     private func photoIndex() -> [Int: UUID] {
@@ -244,7 +283,7 @@ struct FaceReviewView: View {
 
 /// One group of look-alike faces: tap a face to leave it out, then name the rest.
 private struct FaceGroupRow: View {
-    let group: FaceGroupDTO
+    let group: FaceGroupCard
     let people: [PersonDTO]
     let familyName: String?
     @Binding var excluded: Set<Int>
