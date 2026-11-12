@@ -49,7 +49,7 @@ struct LibraryFinderView: View {
                         }
                     case .window(let personId, let window):
                         if let person = lookUp(personId) {
-                            LibraryCandidatesView(person: person, window: window)
+                            LibrarySearchView(person: person, window: window)
                         }
                     }
                 }
@@ -352,10 +352,44 @@ struct LibraryCoverageView: View {
     }
 }
 
-/// The best photo from each moment in one age window, streamed in as the library is looked through, oldest first. Tap to choose, then **Add** imports them through the ordinary batch form with this person already chosen.
-struct LibraryCandidatesView: View {
+/// Changing the album starts a fresh scan and selection for the same age.
+private struct LibrarySearchView: View {
     let person: Person
     let window: LibraryFinder.AgeWindow
+
+    @State private var albums: [LibraryScanner.Album] = []
+    @State private var album: LibraryScanner.Album?
+
+    var body: some View {
+        LibraryCandidatesView(person: person, window: window, album: album)
+            .id(album?.id)
+            .toolbar {
+                if !albums.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Picker(Copy.libraryFinder.searchIn, selection: $album) {
+                                Text(Copy.libraryFinder.wholeLibrary).tag(nil as LibraryScanner.Album?)
+                                ForEach(albums) { album in
+                                    Text(album.title).tag(Optional(album))
+                                }
+                            }
+                        } label: {
+                            Label(Copy.libraryFinder.searchIn,
+                                  systemImage: album == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                        }
+                        .accessibilityValue(album?.title ?? Copy.libraryFinder.wholeLibrary)
+                    }
+                }
+            }
+            .task { albums = await LibraryScanner.albums() }
+    }
+}
+
+/// The best photo from each moment in one age window, streamed in as the library is looked through, oldest first. Tap to choose, then **Add** imports them through the ordinary batch form with this person already chosen.
+private struct LibraryCandidatesView: View {
+    let person: Person
+    let window: LibraryFinder.AgeWindow
+    let album: LibraryScanner.Album?
 
     @Environment(\.modelContext) private var modelContext
     @Environment(SyncService.self) private var syncService
@@ -365,6 +399,7 @@ struct LibraryCandidatesView: View {
     @State private var scan = LibraryScan()
     @State private var selected: Set<String> = []
     @State private var batch: PhotoBatch?
+    @State private var openedGroup: LibraryFinder.Candidate?
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
     private let skips = LibraryFinderSkips()
@@ -386,7 +421,7 @@ struct LibraryCandidatesView: View {
                 ContentUnavailableView(
                     Copy.libraryFinder.nothingFound,
                     systemImage: "photo.on.rectangle",
-                    description: Text(Copy.libraryFinder.nothingFoundDetail)
+                    description: Text(album == nil ? Copy.libraryFinder.nothingFoundDetail : Copy.libraryFinder.nothingInAlbum)
                 )
             }
         }
@@ -399,7 +434,10 @@ struct LibraryCandidatesView: View {
             }
         }
         .task {
-            await scan.run(window: window, imported: importedIndex(), skipped: skips.skipped(for: person.id))
+            await scan.run(window: window, album: album, imported: importedIndex(), skipped: skips.skipped(for: person.id))
+        }
+        .sheet(item: $openedGroup) { group in
+            groupSheet(group)
         }
         .sheet(item: $batch) { batch in
             PhotoBatchFormView(batch: batch, importer: addFlow.importer)
@@ -409,6 +447,10 @@ struct LibraryCandidatesView: View {
     @ViewBuilder
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let album {
+                Label(album.title, systemImage: "rectangle.stack")
+                    .font(.subheadline)
+            }
             if let progress = scan.progress {
                 ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1))) {
                     Text(Copy.libraryFinder.looking(photos: scan.photoCount, moments: progress.total))
@@ -417,7 +459,9 @@ struct LibraryCandidatesView: View {
             } else if !scan.isFinished {
                 ProgressView(Copy.libraryFinder.reading)
             } else if !scan.candidates.isEmpty {
-                Text(Copy.libraryFinder.summary(candidates: scan.candidates.count, moments: scan.momentCount))
+                Text(album == nil
+                     ? Copy.libraryFinder.summary(candidates: scan.candidates.count, moments: scan.momentCount)
+                     : Copy.libraryFinder.albumSummary)
                     .font(.subheadline)
             }
             if scan.alreadyInApp > 0 {
@@ -430,42 +474,84 @@ struct LibraryCandidatesView: View {
     }
 
     private func cell(_ candidate: LibraryFinder.Candidate) -> some View {
-        let isSelected = selected.contains(candidate.id)
-        return LibraryThumbnail(assetId: candidate.id)
-            .overlay(alignment: .topTrailing) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, isSelected ? Color.accentColor : Color.black.opacity(0.25))
-                    .padding(6)
+        photoCell(candidate.asset)
+            .contextMenu {
+                Button(Copy.libraryFinder.dontSuggest(person.name), systemImage: "eye.slash") {
+                    let id = candidate.asset.id
+                    skips.skip(id, for: person.id)
+                    selected.remove(id)
+                    scan.remove([id])
+                }
+            } preview: {
+                LibraryPreview(assetId: candidate.asset.id)
             }
             .overlay(alignment: .bottomLeading) {
                 if candidate.momentSize > 1 {
-                    Label("\(candidate.momentSize)", systemImage: "square.stack")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(.black.opacity(0.45), in: Capsule())
+                    Button {
+                        openedGroup = candidate
+                    } label: {
+                        Label("\(candidate.momentSize)", systemImage: "square.stack")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(.black.opacity(0.65), in: Capsule())
+                            .frame(minWidth: 44, minHeight: 44, alignment: .bottomLeading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(4)
+                    .accessibilityLabel(Copy.libraryFinder.browseGroup(candidate.momentSize))
+                }
+            }
+    }
+
+    private func groupSheet(_ group: LibraryFinder.Candidate) -> some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 4) {
+                    ForEach(group.assets) { asset in
+                        photoCell(asset)
+                            .contextMenu {
+                                Button(selected.contains(asset.id) ? Copy.libraryFinder.deselectPhoto : Copy.libraryFinder.selectPhoto) {
+                                    toggle(asset.id)
+                                }
+                            } preview: {
+                                LibraryPreview(assetId: asset.id)
+                            }
+                    }
+                }
+                .padding(4)
+            }
+            .navigationTitle(Copy.libraryFinder.inApp(group.momentSize))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(Copy.libraryFinder.done) { openedGroup = nil }
+                }
+            }
+        }
+    }
+
+    private func photoCell(_ asset: LibraryFinder.Asset) -> some View {
+        let isSelected = selected.contains(asset.id)
+        return Button {
+            toggle(asset.id)
+        } label: {
+            LibraryThumbnail(assetId: asset.id)
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, isSelected ? Color.accentColor : Color.black.opacity(0.25))
                         .padding(6)
-                        .accessibilityLabel(Copy.libraryFinder.bestOf(candidate.momentSize))
                 }
-            }
-            .opacity(isSelected ? 0.8 : 1)
-            .contentShape(Rectangle())
-            .onTapGesture { toggle(candidate.id) }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(candidate.asset.date.displayDay().formatted(date: .abbreviated, time: .omitted))
-            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-            .contextMenu {
-                Button(Copy.libraryFinder.dontSuggest(person.name), systemImage: "eye.slash") {
-                    skips.skip(candidate.id, for: person.id)
-                    selected.remove(candidate.id)
-                    scan.remove([candidate.id])
-                }
-            } preview: {
-                LibraryPreview(assetId: candidate.id)
-            }
+                .opacity(isSelected ? 0.8 : 1)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(asset.date.displayDay().formatted(date: .abbreviated, time: .omitted))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func toggle(_ id: String) {
@@ -478,7 +564,7 @@ struct LibraryCandidatesView: View {
 
     /// Oldest first, as the grid shows them. They leave the grid at once: the import records their asset ids, so the next search won't offer them either.
     private func add() {
-        let ids = scan.candidates.map(\.id).filter(selected.contains)
+        let ids = scan.candidates.flatMap(\.assets).map(\.id).filter(selected.contains)
         let entryIds = addFlow.importer.importLibraryAssets(ids, into: modelContext, syncService: syncService, errorPresenter: errorPresenter)
         scan.remove(Set(ids))
         selected = []
@@ -516,12 +602,31 @@ final class LibraryScan {
 
     private var hasStarted = false
 
-    func run(window: LibraryFinder.AgeWindow, imported: LibraryFinder.ImportedIndex, skipped: Set<String>) async {
+    private final class CachedAnalysis {
+        let value: LibraryFinder.Analysis
+
+        init(_ value: LibraryFinder.Analysis) {
+            self.value = value
+        }
+    }
+
+    private static let analysisCache: NSCache<NSString, CachedAnalysis> = {
+        let cache = NSCache<NSString, CachedAnalysis>()
+        cache.countLimit = 8_000
+        return cache
+    }()
+
+    func run(
+        window: LibraryFinder.AgeWindow,
+        album: LibraryScanner.Album?,
+        imported: LibraryFinder.ImportedIndex,
+        skipped: Set<String>
+    ) async {
         // `.task` runs again whenever the grid reappears, as it does on returning from the photo viewer.
         guard !hasStarted else { return }
         hasStarted = true
 
-        let all = await LibraryScanner.assets(in: window)
+        let all = await LibraryScanner.assets(in: window, album: album)
         let fresh = all.filter { !imported.contains($0) && !skipped.contains($0.id) }
         photoCount = all.count
         alreadyInApp = all.count - fresh.count
@@ -537,10 +642,23 @@ final class LibraryScan {
         }
 
         for moment in moments {
+            guard !Task.isCancelled else { return }
+            // An explicitly chosen album already narrows the photos. Show each group without downloading thumbnails for Vision.
+            if album != nil, let cover = moment.assets.first(where: \.isFavorite) ?? moment.assets.first {
+                candidates.append(LibraryFinder.Candidate(asset: cover, in: moment))
+                progress?.done += 1
+                continue
+            }
+
             var analyses: [String: LibraryFinder.Analysis] = [:]
             for asset in LibraryFinder.sample(moment) {
                 guard !Task.isCancelled else { return }
-                if let analysis = await LibraryScanner.analyze(asset.id) {
+                let version = asset.modificationDate?.timeIntervalSinceReferenceDate ?? 0
+                let key = "\(asset.id):\(version)" as NSString
+                if let cached = Self.analysisCache.object(forKey: key) {
+                    analyses[asset.id] = cached.value
+                } else if let analysis = await LibraryScanner.analyze(asset.id) {
+                    Self.analysisCache.setObject(CachedAnalysis(analysis), forKey: key)
                     analyses[asset.id] = analysis
                 }
             }
@@ -552,7 +670,10 @@ final class LibraryScan {
     }
 
     func remove(_ ids: Set<String>) {
-        candidates.removeAll { ids.contains($0.id) }
+        for index in candidates.indices {
+            candidates[index].remove(ids)
+        }
+        candidates.removeAll { $0.assets.isEmpty }
     }
 
     private func reset() {
@@ -583,7 +704,10 @@ struct LibraryThumbnail: View {
             }
             .clipped()
             .task(id: assetId) {
-                image = await LibraryScanner.thumbnail(assetId, side: 140 * displayScale)
+                image = nil
+                let thumbnail = await LibraryScanner.thumbnail(assetId, side: 140 * displayScale)
+                guard !Task.isCancelled else { return }
+                image = thumbnail
             }
     }
 }

@@ -18,19 +18,43 @@ nonisolated enum LibraryScanner {
         return PHAsset.fetchAssets(with: .image, options: options).firstObject?.creationDate?.localWallClock()
     }
 
+    struct Album: Identifiable, Hashable, Sendable {
+        let id: String
+        let title: String
+    }
+
+    @concurrent
+    static func albums() async -> [Album] {
+        let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: nil)
+        return (0..<collections.count).compactMap { index -> Album? in
+            let collection = collections.object(at: index)
+            guard let title = collection.localizedTitle else { return nil }
+            return Album(id: collection.localIdentifier, title: title)
+        }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
     /// The library's photos inside `window`, oldest first. Screenshots are left out; a burst is already one asset, since PhotoKit returns only its pick.
     /// The fetch is widened by a day on each side because PhotoKit compares instants, and the window is in wall-clock time; the exact cut is made after converting.
     @concurrent
-    static func assets(in window: LibraryFinder.AgeWindow) async -> [LibraryFinder.Asset] {
+    static func assets(in window: LibraryFinder.AgeWindow, album: Album? = nil) async -> [LibraryFinder.Asset] {
         let day: TimeInterval = 86_400
         let options = PHFetchOptions()
         options.predicate = NSPredicate(
-            format: "creationDate >= %@ AND creationDate < %@",
+            format: "mediaType == %d AND creationDate >= %@ AND creationDate < %@",
+            PHAssetMediaType.image.rawValue,
             window.from.addingTimeInterval(-day) as NSDate,
             window.to.addingTimeInterval(day) as NSDate
         )
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-        let result = PHAsset.fetchAssets(with: .image, options: options)
+        let result: PHFetchResult<PHAsset>
+        if let album {
+            guard let collection = PHAssetCollection.fetchAssetCollections(
+                withLocalIdentifiers: [album.id], options: nil
+            ).firstObject else { return [] }
+            result = PHAsset.fetchAssets(in: collection, options: options)
+        } else {
+            result = PHAsset.fetchAssets(with: .image, options: options)
+        }
 
         var assets: [LibraryFinder.Asset] = []
         assets.reserveCapacity(result.count)
@@ -44,7 +68,8 @@ nonisolated enum LibraryScanner {
                 date: date,
                 isFavorite: asset.isFavorite,
                 latitude: asset.location?.coordinate.latitude,
-                longitude: asset.location?.coordinate.longitude
+                longitude: asset.location?.coordinate.longitude,
+                modificationDate: asset.modificationDate
             ))
         }
         return assets

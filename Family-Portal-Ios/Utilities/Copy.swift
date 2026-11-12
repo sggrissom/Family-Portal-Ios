@@ -359,10 +359,17 @@ nonisolated enum Copy {
         static func add(_ n: Int) -> String { n == 0 ? "Add" : "Add \(n)" }
         static func looking(photos: Int, moments: Int) -> String { "Looking through \(photos) photos from \(moments) moments…" }
         static func summary(candidates: Int, moments: Int) -> String {
-            "The best photo with people from \(candidates) of \(moments) moments. Tap to choose; press and hold for a closer look."
+            "The best photo with people from \(candidates) of \(moments) moments. Tap a photo to select it, or tap the stack count to see the other shots."
         }
         static func alreadyAdded(_ n: Int) -> String { n == 1 ? "1 photo already in Family Record or skipped." : "\(n) photos already in Family Record or skipped." }
-        static func bestOf(_ n: Int) -> String { "Best of \(n) photos" }
+        static let searchIn = "Search in Album"
+        static let selectPhoto = "Select Photo"
+        static let deselectPhoto = "Deselect Photo"
+        static let wholeLibrary = "All Photos"
+        static let nothingInAlbum = "This album has no new photos from this age."
+        static let albumSummary = "Tap a photo to select it, or tap the stack count to see the other shots."
+
+        static func browseGroup(_ n: Int) -> String { "Browse \(n) photos in this group" }
         static func dontSuggest(_ name: String) -> String { "Don't Suggest for \(name)" }
         static func range(from: Date, to: Date) -> String {
             let style = Date.FormatStyle.dateTime.month(.abbreviated).year()
