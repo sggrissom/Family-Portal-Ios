@@ -129,7 +129,7 @@ final class AppNavigator {
         paths[tab] = path
     }
 
-    /// Photos with faces to review, from `GetFaceReview`; nil when face tagging is off or the count has not arrived.
+    /// Faces to review, from `GetFaceReviewCount`; nil when face tagging is off or the count has not arrived.
     private(set) var faceReviewCount: Int?
 
     func path(for tab: MainTab) -> Binding<NavigationPath> {
@@ -184,14 +184,20 @@ final class AppNavigator {
         paths[tab]?.count ?? 0
     }
 
-    /// The Faces screen already holds a fresh review after each change; it hands the counts over rather than asking again.
+    /// The Faces screen keeps its own counts as answers land; it hands them over rather than asking again.
     func updateFaceReviewCount(enabled: Bool, unknownCount: Int, autoCount: Int) {
         faceReviewCount = enabled ? unknownCount + autoCount : nil
     }
 
     func refreshFaceReviewCount(apiClient: APIClient = .shared) async {
         do {
-            let response: FaceReviewSummaryDTO = try await apiClient.callRPC(.getFaceReview, payload: EmptyRequestDTO())
+            let response: FaceReviewSummaryDTO
+            do {
+                response = try await apiClient.callRPC(.getFaceReviewCount, payload: EmptyRequestDTO())
+            } catch {
+                // Servers from before GetFaceReviewCount.
+                response = try await apiClient.callRPC(.getFaceReview, payload: EmptyRequestDTO())
+            }
             updateFaceReviewCount(enabled: response.enabled, unknownCount: response.unknownCount, autoCount: response.autoCount)
         } catch {
             // A badge is not worth an alert. The last count stays.

@@ -169,6 +169,7 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     // Online only and never queued: naming a face makes the server re-match the family.
 
     case getFaceReview = "GetFaceReview"
+    case getFaceReviewCount = "GetFaceReviewCount"
     case assignFaces = "AssignFaces"
     case rejectFaces = "RejectFaces"
     case dismissFaces = "DismissFaces"

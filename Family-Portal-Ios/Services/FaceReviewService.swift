@@ -1,6 +1,6 @@
 import Foundation
 
-/// Naming the faces the server found (backend/faces.go). Online only: every change re-matches the family's faces on the server, so the screen reloads the review after each one rather than predicting it.
+/// Naming the faces the server found (backend/faces.go). Online only: every change re-matches the family's faces on the server, so the screen applies only what each response reports and reloads for the rest.
 struct FaceReviewService {
     private let apiClient: APIClient
 
