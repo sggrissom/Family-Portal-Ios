@@ -95,9 +95,13 @@ final class ActivityOutboxMutation {
     /// The exact request body, fixed just before the first attempt and resent byte for byte after that: the server binds the mutation id to it.
     var sentRequest: Data?
     var attemptCount: Int
+    /// Consecutive attempts the server answered with a transient failure, for the backoff. A dropped connection is not counted: being offline must never use up a retry.
+    var failureCount: Int = 0
     var nextAttemptAt: Date?
     /// What the last attempt reported, for the sync status view. Never award text or other family content.
     var lastOutcome: String?
+    /// For an entry needing review: the server's response, carrying its current copy, so both versions are kept until someone chooses.
+    var serverResponseData: Data?
     var createdAt: Date
 
     init(
@@ -124,8 +128,10 @@ final class ActivityOutboxMutation {
         self.statusRaw = ActivityMutationStatus.pending.rawValue
         self.sentRequest = nil
         self.attemptCount = 0
+        self.failureCount = 0
         self.nextAttemptAt = nil
         self.lastOutcome = nil
+        self.serverResponseData = nil
         self.createdAt = createdAt
     }
 

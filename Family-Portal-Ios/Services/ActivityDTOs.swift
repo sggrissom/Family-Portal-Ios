@@ -263,7 +263,7 @@ nonisolated struct ResultInputDTO: Codable, Sendable, Equatable {
 }
 
 /// `SaveAppearance`: creates the appearance when `id` is 0 (from `eventId` and `entryId`, which an update ignores), then replaces its whole results sheet and its whole photo set.
-nonisolated struct SaveAppearanceRequestDTO: Encodable, Sendable {
+nonisolated struct SaveAppearanceRequestDTO: Codable, Sendable, Equatable {
     let id: Int
     let eventId: Int
     let entryId: Int
@@ -447,4 +447,43 @@ nonisolated extension ResultInputDTO {
             notes: result.notes
         )
     }
+}
+
+// MARK: - Queued writes (backend/activity_mutations.go)
+
+/// The contract version this build speaks. Queued results go only to a server reporting it.
+nonisolated enum ActivityMutationContract {
+    static let version = 1
+}
+
+nonisolated struct ActivitySyncSupportResponseDTO: Decodable, Sendable {
+    @OrZero var mutationVersion: Int
+}
+
+/// Codable so the outbox can keep the exact request it first sent and send that again: the server binds the mutation id to it.
+nonisolated struct SyncSaveAppearanceRequestDTO: Codable, Sendable, Equatable {
+    let mutationId: String
+    /// `nil` on a create; required on an edit.
+    let expectedRevision: Int?
+    let appearance: SaveAppearanceRequestDTO
+}
+
+nonisolated struct SyncDeleteAppearanceRequestDTO: Codable, Sendable, Equatable {
+    let mutationId: String
+    let id: Int
+    let expectedRevision: Int
+}
+
+nonisolated struct AppearanceMutationResponseDTO: Decodable, Sendable {
+    /// `AppearanceMutationStatus`'s raw value; an unknown one is treated as a failure to retry.
+    let status: String
+    @OrZero var appearanceId: Int
+    @OrZero var revision: Int
+    var appearance: AppearanceViewDTO? = nil
+    @OrZero var code: String
+    @OrZero var message: String
+}
+
+nonisolated enum AppearanceMutationStatus: String, Sendable {
+    case applied, replayed, conflict, deleted, notFound, forbidden, invalid
 }
