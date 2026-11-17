@@ -50,11 +50,11 @@ struct ActivitiesRootView: View {
             case .addActivity:
                 ActivityEditorView(onSaved: { await state.reload() })
             case .editActivity(let activity):
-                ActivityEditorView(existing: activity, onSaved: { await state.reload() }, onDeleted: { await state.reload() })
+                ActivityEditorView(existing: activity, onSaved: { await state.reload() }, onDeleted: { Task { await state.reload() } })
             case .addSeason(let activityId):
                 SeasonEditorView(activityId: activityId, onSaved: { await state.reload() })
             case .editSeason(let season):
-                SeasonEditorView(activityId: season.activityId, existing: season, onSaved: { await state.reload() }, onDeleted: { await state.reload() })
+                SeasonEditorView(activityId: season.activityId, existing: season, onSaved: { await state.reload() }, onDeleted: { Task { await state.reload() } })
             }
         }
     }

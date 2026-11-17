@@ -104,6 +104,7 @@ struct ActivityEditorView: View {
     let onDeleted: (@MainActor () async -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @State private var session = EditorSession()
     @Environment(ActivityService.self) private var service
 
     @State private var name: String
@@ -155,7 +156,8 @@ struct ActivityEditorView: View {
             }
             .navigationTitle(existing == nil ? "New Activity" : "Edit Activity")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { activityFormToolbar(isValid: isValid, isSaving: isSaving, dismiss: dismiss, save: save) }
+            .toolbar { activityFormToolbar(isValid: isValid, isSaving: isSaving, session: session, dismiss: dismiss, save: save) }
+            .interactiveDismissDisabled(isSaving)
         }
     }
 
@@ -180,14 +182,17 @@ struct ActivityEditorView: View {
             do {
                 try await work()
                 if isDelete, let onDeleted {
+                    // Usually leaves the deleted record's page, which closes this sheet with it.
                     await onDeleted()
+                    session.finish { dismiss() }
                 } else {
+                    // Closed on the write's success; the refresh after it is the page's to wait on, not this sheet's.
+                    session.finish { dismiss() }
                     await onSaved()
                 }
-                dismiss()
             } catch {
                 AppLog.activities.error("Activity write failed: \(String(describing: error), privacy: .public)")
-                saveError = error.localizedDescription
+                if session.isOpen { saveError = error.localizedDescription }
             }
             isSaving = false
         }
@@ -203,6 +208,7 @@ struct SeasonEditorView: View {
     let onDeleted: (@MainActor () async -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @State private var session = EditorSession()
     @Environment(ActivityService.self) private var service
 
     @State private var name: String
@@ -264,7 +270,8 @@ struct SeasonEditorView: View {
             }
             .navigationTitle(existing == nil ? "New Season" : "Edit Season")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { activityFormToolbar(isValid: isValid, isSaving: isSaving, dismiss: dismiss, save: save) }
+            .toolbar { activityFormToolbar(isValid: isValid, isSaving: isSaving, session: session, dismiss: dismiss, save: save) }
+            .interactiveDismissDisabled(isSaving)
         }
     }
 
@@ -296,14 +303,17 @@ struct SeasonEditorView: View {
             do {
                 try await work()
                 if isDelete, let onDeleted {
+                    // Usually leaves the deleted record's page, which closes this sheet with it.
                     await onDeleted()
+                    session.finish { dismiss() }
                 } else {
+                    // Closed on the write's success; the refresh after it is the page's to wait on, not this sheet's.
+                    session.finish { dismiss() }
                     await onSaved()
                 }
-                dismiss()
             } catch {
                 AppLog.activities.error("Season write failed: \(String(describing: error), privacy: .public)")
-                saveError = error.localizedDescription
+                if session.isOpen { saveError = error.localizedDescription }
             }
             isSaving = false
         }
@@ -321,6 +331,7 @@ struct CompetitionEditorView: View {
     let onDeleted: (@MainActor () async -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @State private var session = EditorSession()
     @Environment(ActivityService.self) private var service
 
     @State private var name: String
@@ -390,7 +401,8 @@ struct CompetitionEditorView: View {
             }
             .navigationTitle(existing == nil ? "New \(labels.event)" : "Edit \(labels.event)")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { activityFormToolbar(isValid: isValid, isSaving: isSaving, dismiss: dismiss, save: save) }
+            .toolbar { activityFormToolbar(isValid: isValid, isSaving: isSaving, session: session, dismiss: dismiss, save: save) }
+            .interactiveDismissDisabled(isSaving)
         }
     }
 
@@ -421,14 +433,17 @@ struct CompetitionEditorView: View {
             do {
                 try await work()
                 if isDelete, let onDeleted {
+                    // Usually leaves the deleted record's page, which closes this sheet with it.
                     await onDeleted()
+                    session.finish { dismiss() }
                 } else {
+                    // Closed on the write's success; the refresh after it is the page's to wait on, not this sheet's.
+                    session.finish { dismiss() }
                     await onSaved()
                 }
-                dismiss()
             } catch {
                 AppLog.activities.error("Competition write failed: \(String(describing: error), privacy: .public)")
-                saveError = error.localizedDescription
+                if session.isOpen { saveError = error.localizedDescription }
             }
             isSaving = false
         }
@@ -446,6 +461,7 @@ struct RoutineEditorView: View {
     let onDeleted: (@MainActor () async -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @State private var session = EditorSession()
     @Environment(ActivityService.self) private var service
     @Query private var people: [Person]
 
@@ -527,7 +543,8 @@ struct RoutineEditorView: View {
             }
             .navigationTitle(existing == nil ? "New \(labels.entry)" : "Edit \(labels.entry)")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { activityFormToolbar(isValid: isValid, isSaving: isSaving, dismiss: dismiss, save: save) }
+            .toolbar { activityFormToolbar(isValid: isValid, isSaving: isSaving, session: session, dismiss: dismiss, save: save) }
+            .interactiveDismissDisabled(isSaving)
         }
     }
 
@@ -563,14 +580,17 @@ struct RoutineEditorView: View {
             do {
                 try await work()
                 if isDelete, let onDeleted {
+                    // Usually leaves the deleted record's page, which closes this sheet with it.
                     await onDeleted()
+                    session.finish { dismiss() }
                 } else {
+                    // Closed on the write's success; the refresh after it is the page's to wait on, not this sheet's.
+                    session.finish { dismiss() }
                     await onSaved()
                 }
-                dismiss()
             } catch {
                 AppLog.activities.error("Routine write failed: \(String(describing: error), privacy: .public)")
-                saveError = error.localizedDescription
+                if session.isOpen { saveError = error.localizedDescription }
             }
             isSaving = false
         }
@@ -652,11 +672,15 @@ struct RosterPickerView: View {
 func activityFormToolbar(
     isValid: Bool,
     isSaving: Bool,
+    session: EditorSession,
     dismiss: DismissAction,
     save: @escaping () -> Void
 ) -> some ToolbarContent {
     ToolbarItem(placement: .cancellationAction) {
-        Button("Cancel") { dismiss() }
+        Button("Cancel") {
+            session.close()
+            dismiss()
+        }
     }
     ToolbarItem(placement: .confirmationAction) {
         Button("Save", action: save)

@@ -13,7 +13,8 @@ struct PerformanceEditorView: View {
     let activityId: Int?
     let activityKind: String
     let labels: ActivityLabels
-    let onSaved: @MainActor () async -> Void
+    /// Hands the page the server's copy of what was written, so it shows without another read. Called even after Cancel: the server may have committed the write regardless, and the page should say so.
+    let onChange: @MainActor (PerformanceChange) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(ActivityService.self) private var service
@@ -32,6 +33,7 @@ struct PerformanceEditorView: View {
     @State private var isSaving = false
     @State private var isPickingPhotos = false
     @State private var isConfirmingDelete = false
+    @State private var session = EditorSession()
 
     /// `entryId` preselects the routine of a new performance, as the competition page's "Record results" does.
     init(
@@ -42,7 +44,7 @@ struct PerformanceEditorView: View {
         activityId: Int?,
         activityKind: String,
         labels: ActivityLabels,
-        onSaved: @escaping @MainActor () async -> Void
+        onChange: @escaping @MainActor (PerformanceChange) -> Void
     ) {
         self.eventId = eventId
         self.existing = existing
@@ -50,7 +52,7 @@ struct PerformanceEditorView: View {
         self.activityId = activityId
         self.activityKind = activityKind
         self.labels = labels
-        self.onSaved = onSaved
+        self.onChange = onChange
         _entryId = State(initialValue: existing?.entry.id ?? entryId)
         _drafts = State(initialValue: existing?.results.map(ResultDraft.init) ?? [])
         _occurredAt = State(initialValue: existing.map { ActivityDateField($0.appearance.occurredAt) } ?? ActivityDateField())
@@ -123,13 +125,18 @@ struct PerformanceEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        session.close()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                         .disabled(entryId == nil || isSaving || matchup.error != nil)
                 }
             }
+            // A swipe would close the sheet without closing its session; Cancel is the way out of a save in flight.
+            .interactiveDismissDisabled(isSaving)
             .task {
                 guard let activityId else { return }
                 await vocabulary.load(service.vocabulary(activityId: activityId))
@@ -351,7 +358,7 @@ struct PerformanceEditorView: View {
         Task {
             do {
                 // The date is always sent: an absent one means "unknown", not "leave it alone".
-                _ = try await service.saveAppearance(
+                let saved = try await service.saveAppearance(
                     id: existing?.appearance.id ?? 0,
                     eventId: eventId,
                     entryId: entryId,
@@ -361,13 +368,13 @@ struct PerformanceEditorView: View {
                     results: inputs,
                     photoIds: photoIds
                 )
-                await onSaved()
-                dismiss()
+                onChange(.saved(saved))
+                session.finish { dismiss() }
             } catch {
                 AppLog.activities.error(
                     "Saving a performance failed: \(String(describing: error), privacy: .public)"
                 )
-                saveError = error.localizedDescription
+                if session.isOpen { saveError = error.localizedDescription }
             }
             isSaving = false
         }
@@ -379,13 +386,13 @@ struct PerformanceEditorView: View {
         Task {
             do {
                 try await service.deleteAppearance(id: existing.appearance.id)
-                await onSaved()
-                dismiss()
+                onChange(.deleted(appearanceId: existing.appearance.id))
+                session.finish { dismiss() }
             } catch {
                 AppLog.activities.error(
                     "Deleting an appearance failed: \(String(describing: error), privacy: .public)"
                 )
-                saveError = error.localizedDescription
+                if session.isOpen { saveError = error.localizedDescription }
             }
             isSaving = false
         }

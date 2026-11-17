@@ -397,6 +397,15 @@ final class ActivityScreenState<Value: Sendable> {
     private(set) var error: String?
 
     private var read: ActivityRead<Value>?
+    /// Bumped by every `apply`, so a read that began before a local change cannot land on top of it.
+    private var localChanges = 0
+
+    /// Shows a write's own result at once, without waiting on a re-read; call `reload` after it to confirm. Does nothing before the first payload arrives.
+    func apply(_ change: (Value) -> Value) {
+        guard let value else { return }
+        self.value = change(value)
+        localChanges += 1
+    }
 
     func load(_ read: ActivityRead<Value>) async {
         self.read = read
@@ -419,20 +428,30 @@ final class ActivityScreenState<Value: Sendable> {
             isShowingCached = true
         }
 
-        do {
-            value = try await read.live()
+        // A `reload` asked for while this read is out returns at once (`isLoading` above), so a read that a local change overtook is sent again here rather than trusted: it may predate the write.
+        while true {
+            let changesAtStart = localChanges
+            let live: Value
+            do {
+                live = try await read.live()
+            } catch {
+                AppLog.activities.error(
+                    "Activities read failed: \(String(describing: error), privacy: .public)"
+                )
+                if value == nil {
+                    self.error = error.localizedDescription
+                } else {
+                    isShowingCached = true
+                }
+                return
+            }
+            guard localChanges == changesAtStart else { continue }
+
+            value = live
             fetchedAt = Date()
             isShowingCached = false
             error = nil
-        } catch {
-            AppLog.activities.error(
-                "Activities read failed: \(String(describing: error), privacy: .public)"
-            )
-            if value == nil {
-                self.error = error.localizedDescription
-            } else {
-                isShowingCached = true
-            }
+            return
         }
     }
 }

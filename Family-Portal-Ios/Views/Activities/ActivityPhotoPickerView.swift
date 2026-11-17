@@ -24,6 +24,7 @@ struct ActivityPhotoPickerView: View {
     @State private var uploadedIds: [Int] = []
     @State private var newItems: [PhotosPickerItem] = []
     @State private var isUploading = false
+    @State private var session = EditorSession()
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 8)]
 
@@ -93,9 +94,13 @@ struct ActivityPhotoPickerView: View {
             }
             .navigationTitle("Photos")
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(isSaving)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        session.close()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { commitSelection() }
@@ -196,13 +201,13 @@ struct ActivityPhotoPickerView: View {
         Task {
             do {
                 try await save(photoIds)
+                session.finish { dismiss() }
                 await onSaved()
-                dismiss()
             } catch {
                 AppLog.activities.error(
                     "Attaching photos failed: \(String(describing: error), privacy: .public)"
                 )
-                saveError = error.localizedDescription
+                if session.isOpen { saveError = error.localizedDescription }
             }
             isSaving = false
         }

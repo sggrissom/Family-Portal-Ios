@@ -125,7 +125,12 @@ struct CompetitionView: View {
             activityId: seasonState.value?.activity.id,
             activityKind: state.value?.season.kind ?? ActivityKind.generic,
             labels: labels,
-            onSaved: { await state.reload() }
+            onChange: { change in
+                let entries = seasonState.value?.entries.map(\.entry) ?? []
+                state.apply { EventPerformances.applying(change, to: $0, entries: entries) }
+                // The editor closes on the save's own response; this read only confirms it, and nothing waits on it.
+                Task { await state.reload() }
+            }
         )
     }
 
