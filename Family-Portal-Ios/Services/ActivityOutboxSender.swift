@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import SwiftData
 
 /// Whether the server takes queued results (`GetActivitySyncSupport`), remembered across launches so a phone that went offline after checking still knows. Result entry saves locally only for a server known to support it; for any other, it stays online-only and says so.
 struct ActivitySyncCapability {
