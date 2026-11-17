@@ -64,6 +64,8 @@ nonisolated struct AppearanceDTO: Decodable, Sendable, Identifiable {
     @OrZero var outcome: String
     var scoreFor: Int? = nil
     var scoreAgainst: Int? = nil
+    /// Advances on every change to the performance, its results and its photos, wherever it was made. Absent (0) from servers older than revisions; see `SyncSaveAppearance`.
+    @OrZero var revision: Int
 }
 
 nonisolated struct ActivityResultDTO: Decodable, Sendable, Identifiable {
@@ -235,7 +237,7 @@ nonisolated struct ListActivityVocabularyResponseDTO: Decodable, Sendable {
 // MARK: - Write requests
 // Dates are `YYYY-MM-DD` strings and **nil clears**, so an editor must always send the value it is showing.
 
-nonisolated struct MatchupInputDTO: Encodable, Sendable, Equatable {
+nonisolated struct MatchupInputDTO: Codable, Sendable, Equatable {
     let round: String
     let opponent: String
     /// `""`, `"win"`, `"loss"` or `"draw"`; anything else is refused.
@@ -249,7 +251,7 @@ nonisolated struct AppearanceIdRequestDTO: Encodable, Sendable {
     let id: Int
 }
 
-nonisolated struct ResultInputDTO: Encodable, Sendable {
+nonisolated struct ResultInputDTO: Codable, Sendable, Equatable {
     let kind: String
     let label: String
     let rank: Int?
@@ -428,5 +430,21 @@ nonisolated extension GetEventDetailResponseDTO {
         season = other.season
         _photoIds = OrZero(wrappedValue: other.photoIds)
         _appearances = OrZero(wrappedValue: appearances)
+    }
+}
+
+nonisolated extension ResultInputDTO {
+    /// A stored result as the input that would write it again.
+    init(_ result: ActivityResultDTO) {
+        self.init(
+            kind: result.kind,
+            label: result.label,
+            rank: result.rank,
+            outOf: result.outOf,
+            category: result.category,
+            score: result.score,
+            personId: result.personId,
+            notes: result.notes
+        )
     }
 }
