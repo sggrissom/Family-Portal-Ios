@@ -30,6 +30,7 @@ nonisolated struct ActivityScope: Hashable, Sendable {
 /// Durable, local-first storage for competition results: `LocalPerformance` rows and the outbox that carries their changes to the server, written together in one transaction. A save here is what "Saved" means; reaching the server is the outbox's job, later.
 ///
 /// Its own SwiftData store, apart from `DataStore`: a store that fails to open is set aside (`recoveredStoreURL`) and a fresh one opened, so neither the family's records nor the app launch depend on it, and the set-aside file can still be recovered rather than read as "no pending work".
+@Observable
 @MainActor
 final class ActivityLocalStore {
 
@@ -46,7 +47,10 @@ final class ActivityLocalStore {
     let recoveredStoreURL: URL?
 
     /// The save step, replaceable so tests can prove a failed save leaves nothing behind.
-    var persist: (ModelContext) throws -> Void = { try $0.save() }
+    @ObservationIgnored var persist: (ModelContext) throws -> Void = { try $0.save() }
+
+    /// Advances with every committed change, so a screen that reads it redraws when the outbox sender acknowledges something, not only when this screen saves.
+    private(set) var changeCount = 0
 
     init(container: ModelContainer, isDurable: Bool, recoveredStoreURL: URL? = nil) {
         context = ModelContext(container)
@@ -465,6 +469,7 @@ final class ActivityLocalStore {
         do {
             try changes()
             try persist(context)
+            changeCount += 1
         } catch {
             context.rollback()
             AppLog.activities.error("A local activity write failed: \(String(describing: error), privacy: .public)")

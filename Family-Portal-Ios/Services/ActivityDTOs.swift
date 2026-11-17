@@ -487,3 +487,80 @@ nonisolated struct AppearanceMutationResponseDTO: Decodable, Sendable {
 nonisolated enum AppearanceMutationStatus: String, Sendable {
     case applied, replayed, conflict, deleted, notFound, forbidden, invalid
 }
+
+// MARK: - Performances saved on this phone
+// The competition page draws a locally saved performance the way it draws the server's, so these build the same view types from a `LocalPerformance`. Here rather than beside their callers: `@OrZero` storage is private to this file.
+
+nonisolated extension Date {
+    /// Go's zero `time.Time`, which the server sends for "no date".
+    static let serverZero = Date(timeIntervalSince1970: -62_135_596_800)
+}
+
+nonisolated extension AppearanceDTO {
+    init(
+        id: Int,
+        eventId: Int,
+        entryId: Int,
+        familyId: Int,
+        revision: Int,
+        createdAt: Date,
+        snapshot: PerformanceSnapshot
+    ) {
+        self.id = id
+        self.eventId = eventId
+        self.entryId = entryId
+        self.familyId = familyId
+        occurredAt = snapshot.occurredAt ?? .serverZero
+        notes = snapshot.notes
+        self.createdAt = createdAt
+        _round = OrZero(wrappedValue: snapshot.matchup?.round ?? "")
+        _opponent = OrZero(wrappedValue: snapshot.matchup?.opponent ?? "")
+        _outcome = OrZero(wrappedValue: snapshot.matchup?.outcome ?? "")
+        scoreFor = snapshot.matchup?.scoreFor
+        scoreAgainst = snapshot.matchup?.scoreAgainst
+        _revision = OrZero(wrappedValue: revision)
+    }
+}
+
+nonisolated extension AppearanceDetailDTO {
+    /// A performance as this phone holds it. `id` is the server's when there is one; one saved here and not yet acknowledged takes a negative id that no server record can have.
+    init(local performance: PerformanceSnapshot, id: Int, eventId: Int, familyId: Int, revision: Int, createdAt: Date, entry: ActivityEntryDTO, event: EventSummaryDTO) {
+        let appearance = AppearanceDTO(
+            id: id, eventId: eventId, entryId: entry.id, familyId: familyId,
+            revision: revision, createdAt: createdAt, snapshot: performance
+        )
+        self.init(
+            view: AppearanceViewDTO(
+                building: appearance,
+                results: performance.results.enumerated().map { index, row in
+                    ActivityResultDTO(
+                        id: row.serverId ?? 0,
+                        appearanceId: id,
+                        familyId: familyId,
+                        kind: row.input.kind,
+                        label: row.input.label,
+                        rank: row.input.rank,
+                        outOf: row.input.outOf,
+                        category: row.input.category,
+                        score: row.input.score,
+                        personId: row.input.personId,
+                        notes: row.input.notes,
+                        sortOrder: index,
+                        createdAt: createdAt
+                    )
+                },
+                photoIds: performance.photoIds
+            ),
+            entry: entry,
+            event: event
+        )
+    }
+}
+
+nonisolated extension AppearanceViewDTO {
+    init(building appearance: AppearanceDTO, results: [ActivityResultDTO], photoIds: [Int]) {
+        self.appearance = appearance
+        _results = OrZero(wrappedValue: results)
+        _photoIds = OrZero(wrappedValue: photoIds)
+    }
+}
