@@ -199,6 +199,12 @@ struct CompetitionView: View {
         )
     }
 
+    private static func syncStates(_ rows: [LocalPerformanceRow]?) -> [Int: PerformanceSyncState] {
+        var states: [Int: PerformanceSyncState] = [:]
+        for row in rows ?? [] { states[row.detail.id] = row.syncState }
+        return states
+    }
+
     @ViewBuilder
     private func content(_ response: GetEventDetailResponseDTO) -> some View {
         // The season summary carries the activity's kind; without it the screen renders "Event", the one word the label map exists to avoid.
@@ -206,8 +212,7 @@ struct CompetitionView: View {
         let people = ActivityPeople(self.people)
         let rows = localRows(response)
         let appearances = rows?.map(\.detail) ?? response.appearances
-        var syncStates: [Int: PerformanceSyncState] = [:]
-        for row in rows ?? [] { syncStates[row.detail.id] = row.syncState }
+        let syncStates = Self.syncStates(rows)
 
         VStack(spacing: 16) {
             header(response, labels: labels)
