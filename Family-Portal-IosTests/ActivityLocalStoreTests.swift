@@ -165,7 +165,7 @@ struct ActivityLocalStoreTests {
         #expect(queued.map(\.kind) == [.save, .delete])
         #expect(queued[0].id == create.id)
         #expect(queued[1].dependsOnMutationId == create.id)
-        #expect(performance.isDeleted)
+        #expect(performance.isLocallyDeleted)
         #expect(store.performances(eventId: 5, userId: 1).isEmpty)
     }
 
@@ -291,12 +291,12 @@ struct ActivityLocalStoreTests {
             eventId: 5, userId: 1, readStartedAt: start.addingTimeInterval(50)
         )
         #expect(store.performances(eventId: 5, userId: 1).compactMap(\.serverId) == [41])
-        #expect(store.performance(serverId: 40, userId: 1)?.isDeleted == true)
+        #expect(store.performance(serverId: 40, userId: 1)?.isLocallyDeleted == true)
 
         // A read after that which misses 41 means it is gone on the server.
         try store.mergeServerPerformances([], eventId: 5, userId: 1, readStartedAt: start.addingTimeInterval(200))
         #expect(store.performance(serverId: 41, userId: 1) == nil)
-        #expect(store.performance(serverId: 40, userId: 1)?.isDeleted == true)
+        #expect(store.performance(serverId: 40, userId: 1)?.isLocallyDeleted == true)
     }
 
     @Test("A pulled copy keeps its row identities across refreshes")

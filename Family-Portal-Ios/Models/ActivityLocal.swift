@@ -26,8 +26,8 @@ final class LocalPerformance {
     var localGeneration: Int
     /// The newest local generation the server has acknowledged. A performance with `localGeneration > acknowledgedGeneration` has changes the server has not seen, and a pull never overwrites it.
     var acknowledgedGeneration: Int
-    /// Deleted on this phone. Kept as a tombstone until the server acknowledges the delete, so a pull cannot bring it back.
-    var isDeleted: Bool
+    /// Deleted on this phone. Not `isDeleted`, which `PersistentModel` already uses for "deleted from its context". Kept as a tombstone until the server acknowledges the delete, so a pull cannot bring it back.
+    var isLocallyDeleted: Bool
     /// When the server last told this phone about this performance — a pull or an acknowledgement. A pull that began before then is older than what the phone already has.
     var serverUpdatedAt: Date?
     var createdAt: Date
@@ -53,7 +53,7 @@ final class LocalPerformance {
         self.serverRevision = serverRevision
         self.localGeneration = 0
         self.acknowledgedGeneration = 0
-        self.isDeleted = false
+        self.isLocallyDeleted = false
         self.serverUpdatedAt = nil
         self.createdAt = createdAt
     }

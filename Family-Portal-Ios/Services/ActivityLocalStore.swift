@@ -129,7 +129,7 @@ final class ActivityLocalStore {
     /// The performances at one competition as this account should see them: local changes included, local deletes left out.
     func performances(eventId: Int, userId: Int) -> [LocalPerformance] {
         fetch(FetchDescriptor<LocalPerformance>(
-            predicate: #Predicate { $0.eventId == eventId && $0.ownerUserId == userId && !$0.isDeleted },
+            predicate: #Predicate { $0.eventId == eventId && $0.ownerUserId == userId && !$0.isLocallyDeleted },
             sortBy: [SortDescriptor(\.createdAt)]
         ))
     }
@@ -178,7 +178,7 @@ final class ActivityLocalStore {
 
         let performance: LocalPerformance
         if let localId {
-            guard let existing = self.performance(localId), existing.ownerUserId == scope.userId, !existing.isDeleted else {
+            guard let existing = self.performance(localId), existing.ownerUserId == scope.userId, !existing.isLocallyDeleted else {
                 throw ActivityStoreError.notFound
             }
             performance = existing
@@ -207,7 +207,7 @@ final class ActivityLocalStore {
     /// Deletes a performance on this phone and queues the delete. One the server never heard of — created here, never sent — simply goes, with its queued create.
     func delete(_ localId: UUID, userId: Int, now: Date = Date()) throws {
         try requireDurable()
-        guard let performance = performance(localId), performance.ownerUserId == userId, !performance.isDeleted else {
+        guard let performance = performance(localId), performance.ownerUserId == userId, !performance.isLocallyDeleted else {
             throw ActivityStoreError.notFound
         }
         let queued = mutations(for: localId)
@@ -224,7 +224,7 @@ final class ActivityLocalStore {
                 context.delete(mutation)
             }
             let remaining = queued.filter { $0.kind != .save || $0.mayHaveBeenSent }
-            performance.isDeleted = true
+            performance.isLocallyDeleted = true
             performance.localGeneration += 1
             context.insert(ActivityOutboxMutation(
                 ownerUserId: performance.ownerUserId,
@@ -291,7 +291,7 @@ final class ActivityLocalStore {
             for detail in details where detail.appearance.eventId == eventId {
                 seen.insert(detail.id)
                 if let existing = byServerId[detail.id] {
-                    guard !existing.hasUnsyncedChanges, !existing.isDeleted else { continue }
+                    guard !existing.hasUnsyncedChanges, !existing.isLocallyDeleted else { continue }
                     if let heard = existing.serverUpdatedAt, heard > readStartedAt { continue }
                     guard detail.appearance.revision >= existing.serverRevision else { continue }
                     try existing.setSnapshot(Self.snapshot(of: detail, keepingRowIdsFrom: existing.snapshot))
@@ -316,7 +316,7 @@ final class ActivityLocalStore {
 
             for performance in local {
                 guard let serverId = performance.serverId, !seen.contains(serverId) else { continue }
-                guard !performance.hasUnsyncedChanges, !performance.isDeleted else { continue }
+                guard !performance.hasUnsyncedChanges, !performance.isLocallyDeleted else { continue }
                 if let heard = performance.serverUpdatedAt, heard > readStartedAt { continue }
                 context.delete(performance)
             }
