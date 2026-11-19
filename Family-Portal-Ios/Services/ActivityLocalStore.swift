@@ -325,20 +325,85 @@ final class ActivityLocalStore {
 
     /// The server's copy as a snapshot. Rows keep the local ids they had when the server's ids match, so a row on screen stays the same row.
     static func snapshot(of detail: AppearanceDetailDTO, keepingRowIdsFrom previous: PerformanceSnapshot?) -> PerformanceSnapshot {
+        snapshot(detail.appearance, results: detail.results, photoIds: detail.photoIds, keepingRowIdsFrom: previous)
+    }
+
+    static func snapshot(of view: AppearanceViewDTO, keepingRowIdsFrom previous: PerformanceSnapshot?) -> PerformanceSnapshot {
+        snapshot(view.appearance, results: view.results, photoIds: view.photoIds, keepingRowIdsFrom: previous)
+    }
+
+    private static func snapshot(
+        _ appearance: AppearanceDTO,
+        results: [ActivityResultDTO],
+        photoIds: [Int],
+        keepingRowIdsFrom previous: PerformanceSnapshot?
+    ) -> PerformanceSnapshot {
         var previousIds: [Int: UUID] = [:]
         for row in previous?.results ?? [] {
             if let serverId = row.serverId { previousIds[serverId] = row.id }
         }
-        let matchup = Matchup(detail.appearance)
+        let matchup = Matchup(appearance)
         return PerformanceSnapshot(
-            occurredAt: detail.appearance.occurredAt.serverDate,
-            notes: detail.appearance.notes,
+            occurredAt: appearance.occurredAt.serverDate,
+            notes: appearance.notes,
             matchup: matchup.isRecorded ? matchup.input : nil,
-            results: detail.results.map { result in
+            results: results.map { result in
                 LocalResultRow(id: previousIds[result.id] ?? UUID(), serverId: result.id, input: ResultInputDTO(result))
             },
-            photoIds: detail.photoIds
+            photoIds: photoIds
         )
+    }
+
+    // MARK: - Outbox bookkeeping
+
+    /// Records changes the outbox sender makes — freezing a request, an acknowledgement, a refusal — durably, or not at all.
+    func commit(_ changes: () throws -> Void) throws {
+        try requireDurable()
+        try transaction(changes)
+    }
+
+    func mutation(_ id: UUID) -> ActivityOutboxMutation? {
+        fetchFirst(FetchDescriptor<ActivityOutboxMutation>(predicate: #Predicate { $0.id == id }))
+    }
+
+    /// Applies the server's acknowledgement of `mutation` and removes it from the outbox. The server's id and revision are taken; the server's copy replaces the local one only when nothing newer was saved here meanwhile, so a late acknowledgement never undoes a later edit or clears its pending state.
+    func acknowledge(
+        _ mutation: ActivityOutboxMutation,
+        serverId: Int,
+        revision: Int,
+        serverCopy: AppearanceViewDTO?,
+        at now: Date
+    ) throws {
+        try commit {
+            guard let performance = performance(mutation.performanceLocalId) else {
+                context.delete(mutation)
+                return
+            }
+            if mutation.kind == .delete {
+                context.delete(mutation)
+                context.delete(performance)
+                return
+            }
+            if serverId > 0 { performance.serverId = serverId }
+            performance.serverRevision = revision
+            performance.acknowledgedGeneration = max(performance.acknowledgedGeneration, mutation.generation)
+            performance.serverUpdatedAt = now
+            if !performance.hasUnsyncedChanges, !performance.isLocallyDeleted, let serverCopy, serverCopy.appearance.revision >= revision {
+                try performance.setSnapshot(Self.snapshot(of: serverCopy, keepingRowIdsFrom: performance.snapshot))
+                performance.serverRevision = serverCopy.appearance.revision
+                performance.entryId = serverCopy.appearance.entryId
+            }
+            context.delete(mutation)
+        }
+    }
+
+    /// Entries paused for a sign-in go back in line once someone is signed in again.
+    func resumeAfterSignIn(userId: Int) throws {
+        let paused = mutations(userId: userId).filter { $0.status == .needsSignIn }
+        guard !paused.isEmpty else { return }
+        try commit {
+            for mutation in paused { mutation.status = .pending }
+        }
     }
 
     // MARK: - Preparation

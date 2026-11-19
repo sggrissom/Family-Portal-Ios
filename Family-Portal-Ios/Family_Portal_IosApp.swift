@@ -185,6 +185,12 @@ struct Family_Portal_IosApp: App {
             self.reindexSpotlight()
         }
 
+        // Results queued offline go under the account that saved them, and only while it is signed in.
+        syncService.drainActivityOutbox = {
+            guard self.authService.isAuthenticated, let userId = self.authService.currentUser?.id else { return }
+            await ActivityOutboxSender.shared.drain(userId: userId)
+        }
+
         // Siri learns the people its phrases name from the snapshot `PersonQuery` reads, so it hears again whenever that may have changed.
         // Chained onto the background refresh's own hook, set in `didFinishLaunching`.
         let scheduleRefresh = WidgetPublisher.shared.onPublished
