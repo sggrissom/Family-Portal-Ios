@@ -390,3 +390,43 @@ nonisolated struct SetEventPhotosResponseDTO: Decodable, Sendable {
     @OrZero var eventId: Int
     @OrZero var photoIds: [Int]
 }
+
+// MARK: - Local updates
+// Built here rather than beside their callers: an `@OrZero` field's storage is private to this file.
+
+nonisolated extension EventSummaryDTO {
+    init(_ event: ActivityEventDTO) {
+        self.init(
+            id: event.id,
+            name: event.name,
+            host: event.host,
+            location: event.location,
+            startDate: event.startDate,
+            endDate: event.endDate
+        )
+    }
+}
+
+nonisolated extension AppearanceDetailDTO {
+    /// A saved performance as a competition page lists it: the save response plus the routine and competition it belongs to.
+    init(view: AppearanceViewDTO, entry: ActivityEntryDTO, event: EventSummaryDTO) {
+        appearance = view.appearance
+        _results = OrZero(wrappedValue: view.results)
+        _photoIds = OrZero(wrappedValue: view.photoIds)
+        self.entry = entry
+        self.event = event
+    }
+}
+
+nonisolated extension GetEventDetailResponseDTO {
+    func replacingAppearances(_ appearances: [AppearanceDetailDTO]) -> GetEventDetailResponseDTO {
+        GetEventDetailResponseDTO(copying: self, appearances: appearances)
+    }
+
+    private init(copying other: GetEventDetailResponseDTO, appearances: [AppearanceDetailDTO]) {
+        event = other.event
+        season = other.season
+        _photoIds = OrZero(wrappedValue: other.photoIds)
+        _appearances = OrZero(wrappedValue: appearances)
+    }
+}
