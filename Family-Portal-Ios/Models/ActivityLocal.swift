@@ -164,49 +164,6 @@ nonisolated enum ActivityMutationStatus: String, Sendable {
     case failed
 }
 
-/// A competition downloaded for result entry without a connection: which reads it needs are on the phone. The reads themselves are in `ActivitySnapshotCache`.
-@Model
-final class PreparedCompetition {
-    /// `"<ownerUserId>:<eventId>"`.
-    @Attribute(.unique) var key: String
-    var ownerUserId: Int
-    var familyId: Int
-    var eventId: Int
-    var seasonId: Int
-    var activityId: Int?
-    var hasEventDetail: Bool
-    var hasSeasonOverview: Bool
-    var hasVocabulary: Bool
-    /// Whether this account could add results here when it was downloaded.
-    var canContribute: Bool
-    var preparedAt: Date?
-    var lastAttemptAt: Date
-
-    init(ownerUserId: Int, eventId: Int) {
-        self.key = Self.key(ownerUserId: ownerUserId, eventId: eventId)
-        self.ownerUserId = ownerUserId
-        self.familyId = 0
-        self.eventId = eventId
-        self.seasonId = 0
-        self.activityId = nil
-        self.hasEventDetail = false
-        self.hasSeasonOverview = false
-        self.hasVocabulary = false
-        self.canContribute = false
-        self.preparedAt = nil
-        self.lastAttemptAt = Date()
-    }
-
-    static func key(ownerUserId: Int, eventId: Int) -> String {
-        "\(ownerUserId):\(eventId)"
-    }
-
-    /// Everything result entry needs is on the phone. Short of this the competition is shown as incomplete, never as one with no results.
-    var isComplete: Bool {
-        hasEventDetail && hasSeasonOverview && hasVocabulary
-    }
-}
-
 /// A whole performance — everything `SaveAppearance` writes — as stored locally and queued.
 nonisolated struct PerformanceSnapshot: Codable, Sendable, Equatable {
     var occurredAt: Date?

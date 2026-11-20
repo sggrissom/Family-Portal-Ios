@@ -7,6 +7,7 @@ import Testing
 struct ActivityOutboxSenderTests {
 
     private static let owner = ActivityScope(userId: 1, familyId: 7)
+    private static let username = "owner@example.test"
     private static let save = "rpc/SyncSaveAppearance"
     private static let delete = "rpc/SyncDeleteAppearance"
 
@@ -17,7 +18,7 @@ struct ActivityOutboxSenderTests {
         return defaults
     }
 
-    private static func setUp(supported: Bool = true) -> (FakeHTTPServer, ActivityLocalStore, ActivityOutboxSender) {
+    private static func setUp(supported: Bool = true, signedInAs: String = username) -> (FakeHTTPServer, ActivityLocalStore, ActivityOutboxSender) {
         let server = FakeHTTPServer()
         if supported {
             server.route("rpc/GetActivitySyncSupport", respond: .json(["mutationVersion": ActivityMutationContract.version]))
@@ -25,9 +26,10 @@ struct ActivityOutboxSenderTests {
             server.route("rpc/GetActivitySyncSupport", respond: .status(400, message: "Procedure Not Found"))
         }
         let store = ActivityLocalStore.inMemory()
+        let claims = Fixture.data(["username": signedInAs]).base64EncodedString()
         let sender = ActivityOutboxSender(
             store: store,
-            apiClient: server.apiClient(),
+            apiClient: APIClient(baseURL: server.baseURL, session: server.session(), initialAccessToken: "header.\(claims).signature"),
             capability: ActivitySyncCapability(defaults: scratchDefaults())
         )
         sender.jitter = { 1 }
@@ -77,12 +79,25 @@ struct ActivityOutboxSenderTests {
 
     // MARK: - Capability
 
+    @Test("An empty outbox can learn support on the first online competition visit")
+    func capabilityProbeWithEmptyQueue() async {
+        let (server, store, sender) = Self.setUp()
+        #expect(!sender.capability.isSupported)
+        #expect(store.mutations(userId: 1).isEmpty)
+
+        #expect(await sender.checkSupport(username: Self.username) == nil)
+
+        #expect(sender.capability.isSupported)
+        #expect(server.requests(for: "rpc/GetActivitySyncSupport").count == 1)
+        #expect(server.requests(for: Self.save).isEmpty)
+    }
+
     @Test("A server without the queued-write procs gets nothing, and the queue is kept")
     func unsupportedServerKeepsQueue() async throws {
         let (server, store, sender) = Self.setUp(supported: false)
         try store.save(Self.snapshot("Gold"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
 
-        let stop = await sender.drain(userId: 1)
+        let stop = await sender.drain(userId: 1, username: Self.username)
 
         #expect(stop == .unsupported)
         #expect(server.requests(for: Self.save).isEmpty)
@@ -99,7 +114,7 @@ struct ActivityOutboxSenderTests {
         let performance = try store.save(Self.snapshot("Gold"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
         let mutationId = try #require(store.mutations(userId: 1).first?.id)
 
-        let stop = await sender.drain(userId: 1)
+        let stop = await sender.drain(userId: 1, username: Self.username)
 
         #expect(stop == nil)
         #expect(sender.capability.isSupported)
@@ -121,13 +136,13 @@ struct ActivityOutboxSenderTests {
         server.routeSequence(Self.save, [.offline(), Self.outcome("replayed", revision: 1, label: "Gold")])
         let performance = try store.save(Self.snapshot("Gold"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
 
-        #expect(await sender.drain(userId: 1) == .offline)
+        #expect(await sender.drain(userId: 1, username: Self.username) == .offline)
         let pending = try #require(store.mutations(userId: 1).first)
         #expect(pending.mayHaveBeenSent)
         #expect(pending.failureCount == 0)
         #expect(pending.status == .pending)
 
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
         let requests = server.requests(for: Self.save)
         #expect(requests.count == 2)
         #expect(try Self.saveBody(requests[0]) == Self.saveBody(requests[1]))
@@ -147,7 +162,7 @@ struct ActivityOutboxSenderTests {
         inFlight.attemptCount = 1
         try store.save(Self.snapshot("Platinum"), localId: performance.localId, scope: Self.owner, eventId: 5, entryId: 11)
 
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
 
         let requests = server.requests(for: Self.save)
         #expect(requests.count == 2)
@@ -169,7 +184,7 @@ struct ActivityOutboxSenderTests {
         inFlight.attemptCount = 1
         try store.save(Self.snapshot("Platinum"), localId: performance.localId, scope: Self.owner, eventId: 5, entryId: 11)
 
-        #expect(await sender.drain(userId: 1) == .offline)
+        #expect(await sender.drain(userId: 1, username: Self.username) == .offline)
 
         #expect(performance.serverId == 40)
         #expect(Self.label(performance) == "Platinum")
@@ -194,7 +209,7 @@ struct ActivityOutboxSenderTests {
         inFlight.attemptCount = 1
         try store.save(Self.snapshot("Mine again"), localId: performance.localId, scope: Self.owner, eventId: 5, entryId: 11)
 
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
 
         let queued = store.mutations(userId: 1)
         #expect(queued.count == 2)
@@ -213,8 +228,8 @@ struct ActivityOutboxSenderTests {
         server.route(Self.save, respond: Self.outcome("invalid", id: 0, revision: 0, code: "personNotOnEntry"))
         try store.save(Self.snapshot("Gold"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
 
-        #expect(await sender.drain(userId: 1) == nil)
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
 
         let failed = try #require(store.mutations(userId: 1).first)
         #expect(failed.status == .failed)
@@ -230,18 +245,18 @@ struct ActivityOutboxSenderTests {
         server.route(Self.save, respond: .status(503, message: "busy"))
         try store.save(Self.snapshot("Gold"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
 
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
         let waiting = try #require(store.mutations(userId: 1).first)
         #expect(waiting.status == .pending)
         #expect(waiting.failureCount == 1)
         #expect(waiting.nextAttemptAt == start.addingTimeInterval(ActivityOutboxSender.baseBackoff))
 
         // Not before its time.
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
         #expect(server.requests(for: Self.save).count == 1)
 
         sender.now = { start.addingTimeInterval(60) }
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
         #expect(server.requests(for: Self.save).count == 2)
         #expect(waiting.failureCount == 2)
     }
@@ -260,10 +275,10 @@ struct ActivityOutboxSenderTests {
         server.routeSequence(Self.save, [.status(400, message: "AuthFailure"), Self.outcome("replayed", revision: 1, label: "Gold")])
         try store.save(Self.snapshot("Gold"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
 
-        #expect(await sender.drain(userId: 1) == .signedOut)
+        #expect(await sender.drain(userId: 1, username: Self.username) == .signedOut)
         #expect(store.mutations(userId: 1).first?.status == .needsSignIn)
 
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
         #expect(store.mutations(userId: 1).isEmpty)
     }
 
@@ -280,7 +295,7 @@ struct ActivityOutboxSenderTests {
         inFlight.attemptCount = 1
         try store.delete(localId, userId: 1)
 
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
 
         let deleteRequest = try JSONDecoder().decode(
             SyncDeleteAppearanceRequestDTO.self,
@@ -304,7 +319,7 @@ struct ActivityOutboxSenderTests {
         server.route(Self.delete, respond: Self.outcome("deleted", revision: 3))
         try store.delete(localId, userId: 1)
 
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
 
         #expect(store.performance(localId) == nil)
         #expect(store.mutations(userId: 1).isEmpty)
@@ -318,12 +333,24 @@ struct ActivityOutboxSenderTests {
         server.route(Self.save, respond: Self.outcome("applied", revision: 1, label: "Gold"))
         try store.save(Self.snapshot("Gold"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
 
-        async let first = sender.drain(userId: 1)
-        async let second = sender.drain(userId: 1)
+        async let first = sender.drain(userId: 1, username: Self.username)
+        async let second = sender.drain(userId: 1, username: Self.username)
         _ = await (first, second)
 
         #expect(server.requests(for: Self.save).count == 1)
         #expect(store.mutations(userId: 1).isEmpty)
+    }
+
+    @Test("A drain for a previous account stops even after the server capability was confirmed")
+    func changedCredentialsStopAnExistingDrain() async throws {
+        let (server, store, sender) = Self.setUp(signedInAs: "other@example.test")
+        #expect(await sender.checkSupport(username: "other@example.test") == nil)
+        try store.save(Self.snapshot("Mine"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
+
+        #expect(await sender.drain(userId: 1, username: Self.username) == .signedOut)
+
+        #expect(server.requests(for: Self.save).isEmpty)
+        #expect(store.mutations(userId: 1).first?.status == .needsSignIn)
     }
 
     @Test("Another account's queue is never sent under this one")
@@ -332,7 +359,7 @@ struct ActivityOutboxSenderTests {
         server.route(Self.save, respond: Self.outcome("applied", revision: 1, label: "Gold"))
         try store.save(Self.snapshot("Theirs"), localId: nil, scope: ActivityScope(userId: 2, familyId: 7), eventId: 5, entryId: 11)
 
-        #expect(await sender.drain(userId: 1) == nil)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
 
         #expect(server.requests(for: Self.save).isEmpty)
         #expect(store.mutations(userId: 2).count == 1)

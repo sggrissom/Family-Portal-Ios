@@ -11,8 +11,7 @@ struct CompetitionView: View {
     @Query private var people: [Person]
 
     private let store = ActivityLocalStore.shared
-    /// Whether this visit has downloaded the competition for entry without a connection.
-    @State private var didPrepare = false
+    private let outbox = ActivityOutboxSender.shared
 
     @State private var state = ActivityScreenState<GetEventDetailResponseDTO>()
     @State private var seasonState = ActivityScreenState<GetSeasonOverviewResponseDTO>()
@@ -20,15 +19,15 @@ struct CompetitionView: View {
     /// One sheet slot rather than several `.sheet` modifiers: SwiftUI presents one sheet per view, and several `isPresented` bindings on the same node race each other.
     private enum AppearanceSheet: Identifiable {
         /// A new performance, of this routine when one is given.
-        case record(entryId: Int?)
-        case performance(AppearanceDetailDTO)
+        case record(entryId: Int?, local: PerformanceEditorView.LocalSave?)
+        case performance(AppearanceDetailDTO, local: PerformanceEditorView.LocalSave?)
         case editEvent
         case eventPhotos
 
         var id: String {
             switch self {
-            case .record(let entryId): return "record-\(entryId ?? 0)"
-            case .performance(let detail): return "performance-\(detail.id)"
+            case .record(let entryId, _): return "record-\(entryId ?? 0)"
+            case .performance(let detail, _): return "performance-\(detail.id)"
             case .editEvent: return "event"
             case .eventPhotos: return "event-photos"
             }
@@ -49,7 +48,7 @@ struct CompetitionView: View {
 
     /// Results are saved on this phone first, and sent later, once the server is known to take queued results and the store is on disk. Otherwise every save waits for the server, as before.
     private var savesLocally: Bool {
-        store.isDurable && userId != nil && ActivitySyncCapability().isSupported
+        store.isDurable && userId != nil && outbox.capability.isSupported
     }
 
     /// The performances to draw: the phone's own copy when saving locally, the read's otherwise.
@@ -82,27 +81,29 @@ struct CompetitionView: View {
             guard let seasonId = state.value?.season.id else { return }
             await seasonState.load(service.seasonOverview(seasonId: seasonId))
         }
-        // Every read, cached or live, is merged into the phone's copy; the merge keeps anything newer saved here.
         .task(id: state.fetchedAt) {
-            guard savesLocally, let userId, let response = state.value else { return }
+            guard store.isDurable, let user = authService.currentUser, let response = state.value else { return }
+            let readStartedAt = state.readStartedAt ?? .distantPast
+            if !state.isShowingCached {
+                _ = await outbox.checkSupport(username: user.email)
+            }
+            guard !Task.isCancelled, savesLocally, userId == user.id else { return }
             try? store.mergeServerPerformances(
-                response.appearances,
-                eventId: eventId,
-                userId: userId,
-                readStartedAt: state.readStartedAt ?? .distantPast
+                response.appearances, eventId: eventId, userId: user.id, readStartedAt: readStartedAt
             )
-            // Online, download everything entry here needs, once a visit, so it still works if the connection goes.
-            guard !didPrepare, !state.isShowingCached else { return }
-            didPrepare = true
-            _ = await CompetitionPreparation(service: service, store: store)
-                .prepare(eventId: eventId, userId: userId, access: authService.access)
+        }
+        // The page already loads and caches the event and season. Cache the vocabulary too
+        // so it is available in the editor even if it is first opened without a connection.
+        .task(id: vocabularyToCache) {
+            guard let activityId = vocabularyToCache else { return }
+            _ = try? await service.vocabulary(activityId: activityId).live()
         }
         .toolbar {
             if editable {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
-                            sheet = .record(entryId: nil)
+                            sheet = .record(entryId: nil, local: localSave(for: nil))
                         } label: {
                             Label("Add \(labels.appearance)", systemImage: "plus")
                         }
@@ -127,10 +128,10 @@ struct CompetitionView: View {
         }
         .sheet(item: $sheet) { presented in
             switch presented {
-            case .record(let entryId):
-                performanceEditor(existing: nil, entryId: entryId)
-            case .performance(let detail):
-                performanceEditor(existing: detail, entryId: nil)
+            case .record(let entryId, let local):
+                performanceEditor(existing: nil, entryId: entryId, local: local)
+            case .performance(let detail, let local):
+                performanceEditor(existing: detail, entryId: nil, local: local)
             case .editEvent:
                 if let response = state.value {
                     CompetitionEditorView(
@@ -157,7 +158,14 @@ struct CompetitionView: View {
         }
     }
 
-    private func performanceEditor(existing: AppearanceDetailDTO?, entryId: Int?) -> some View {
+    private var vocabularyToCache: Int? {
+        guard savesLocally, !state.isShowingCached else { return nil }
+        return seasonState.value?.activity.id
+    }
+
+    private func performanceEditor(
+        existing: AppearanceDetailDTO?, entryId: Int?, local: PerformanceEditorView.LocalSave?
+    ) -> some View {
         PerformanceEditorView(
             eventId: eventId,
             existing: existing,
@@ -166,7 +174,7 @@ struct CompetitionView: View {
             activityId: seasonState.value?.activity.id,
             activityKind: state.value?.season.kind ?? ActivityKind.generic,
             labels: labels,
-            local: localSave(for: existing),
+            local: local,
             onChange: { change in
                 let entries = seasonState.value?.entries.map(\.entry) ?? []
                 state.apply { EventPerformances.applying(change, to: $0, entries: entries) }
@@ -177,26 +185,42 @@ struct CompetitionView: View {
     }
 
     /// The editor's local save for `existing` (or a new performance), when saving locally. A sync pass is asked for after each commit; nothing waits on it.
-    private func localSave(for existing: AppearanceDetailDTO?) -> PerformanceEditorView.LocalSave? {
+    private func localSave(for row: LocalPerformanceRow?) -> PerformanceEditorView.LocalSave? {
         guard savesLocally, let userId, let response = state.value else { return nil }
-        let row = existing.flatMap { detail in localRows(response)?.first { $0.detail.id == detail.id } }
         let scope = ActivityScope(userId: userId, familyId: response.event.familyId)
         let eventId = self.eventId
         let store = self.store
         let syncService = self.syncService
+        let expectedRevision: @MainActor () throws -> Int? = {
+            guard let row else { return nil }
+            if row.syncState == .synced { return row.serverRevision }
+            return try store.revisionForPendingEdit(row.localId, openingSnapshot: row.snapshot)
+        }
         return PerformanceEditorView.LocalSave(
             snapshot: row?.snapshot,
             save: { snapshot, entryId in
-                try store.save(snapshot, localId: row?.localId, scope: scope, eventId: eventId, entryId: entryId)
+                try store.save(
+                    snapshot, localId: row?.localId, scope: scope, eventId: eventId, entryId: entryId,
+                    expectedRevision: expectedRevision()
+                )
                 Task { await syncService.processQueue() }
             },
             delete: row.map { row in
                 {
-                    try store.delete(row.localId, userId: userId)
+                    try store.delete(row.localId, userId: userId, expectedRevision: expectedRevision())
                     Task { await syncService.processQueue() }
                 }
             }
         )
+    }
+
+    private func edit(_ detail: AppearanceDetailDTO) {
+        if let response = state.value,
+           let row = localRows(response)?.first(where: { $0.detail.id == detail.id }) {
+            sheet = .performance(row.detail, local: localSave(for: row))
+        } else if !savesLocally {
+            sheet = .performance(detail, local: nil)
+        }
     }
 
     private static func syncStates(_ rows: [LocalPerformanceRow]?) -> [Int: PerformanceSyncState] {
@@ -257,7 +281,7 @@ struct CompetitionView: View {
         if card.appearances.isEmpty {
             if editable {
                 Button {
-                    sheet = .record(entryId: card.entryId)
+                    sheet = .record(entryId: card.entryId, local: localSave(for: nil))
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -328,7 +352,7 @@ struct CompetitionView: View {
 
                 if editable {
                     Button {
-                        sheet = .performance(detail)
+                        edit(detail)
                     } label: {
                         Image(systemName: "square.and.pencil")
                             .font(.title3)

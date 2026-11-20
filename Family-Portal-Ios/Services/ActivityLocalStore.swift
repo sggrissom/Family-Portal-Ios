@@ -8,6 +8,7 @@ nonisolated enum ActivityStoreError: Error, LocalizedError, Equatable {
     /// The local write itself failed; nothing was saved.
     case saveFailed(String)
     case notFound
+    case changedWhileEditing
 
     var errorDescription: String? {
         switch self {
@@ -17,6 +18,8 @@ nonisolated enum ActivityStoreError: Error, LocalizedError, Equatable {
             return "That couldn't be saved on this phone. Nothing was changed."
         case .notFound:
             return "That performance isn't on this phone anymore."
+        case .changedWhileEditing:
+            return "That performance changed while this editor was open. Reopen it to see the latest results."
         }
     }
 }
@@ -37,7 +40,7 @@ final class ActivityLocalStore {
     static let shared = ActivityLocalStore.open()
 
     nonisolated static func makeSchema() -> Schema {
-        Schema([LocalPerformance.self, ActivityOutboxMutation.self, PreparedCompetition.self])
+        Schema([LocalPerformance.self, ActivityOutboxMutation.self])
     }
 
     let context: ModelContext
@@ -158,12 +161,23 @@ final class ActivityLocalStore {
         Set(fetch(FetchDescriptor<ActivityOutboxMutation>()).map(\.ownerUserId))
     }
 
-    func preparedCompetition(eventId: Int, userId: Int) -> PreparedCompetition? {
-        let key = PreparedCompetition.key(ownerUserId: userId, eventId: eventId)
-        return fetchFirst(FetchDescriptor<PreparedCompetition>(predicate: #Predicate { $0.key == key }))
-    }
-
     // MARK: - Local writes
+
+    /// An editor opened on pending data can follow its own acknowledgement while it is
+    /// open, provided the fields it is replacing still match what the editor saw.
+    func revisionForPendingEdit(_ localId: UUID, openingSnapshot: PerformanceSnapshot) throws -> Int? {
+        guard let performance = performance(localId), !performance.isLocallyDeleted, let current = performance.snapshot else {
+            throw ActivityStoreError.notFound
+        }
+        guard current.occurredAt == openingSnapshot.occurredAt,
+              current.notes == openingSnapshot.notes,
+              current.matchup == openingSnapshot.matchup,
+              current.photoIds == openingSnapshot.photoIds,
+              current.results.map(\.input) == openingSnapshot.results.map(\.input) else {
+            throw ActivityStoreError.changedWhileEditing
+        }
+        return performance.hasUnsyncedChanges ? nil : performance.serverRevision
+    }
 
     /// Saves a performance on this phone and queues it for the server, in one transaction: both are written or neither is.
     /// - Parameters:
@@ -176,6 +190,7 @@ final class ActivityLocalStore {
         scope: ActivityScope,
         eventId: Int,
         entryId: Int,
+        expectedRevision: Int? = nil,
         now: Date = Date()
     ) throws -> LocalPerformance {
         try requireDurable()
@@ -203,13 +218,13 @@ final class ActivityLocalStore {
         try transaction {
             try performance.setSnapshot(snapshot)
             performance.localGeneration += 1
-            try enqueueSave(of: performance, snapshot: snapshot, now: now)
+            try enqueueSave(of: performance, snapshot: snapshot, expectedRevision: expectedRevision, now: now)
         }
         return performance
     }
 
     /// Deletes a performance on this phone and queues the delete. One the server never heard of — created here, never sent — simply goes, with its queued create.
-    func delete(_ localId: UUID, userId: Int, now: Date = Date()) throws {
+    func delete(_ localId: UUID, userId: Int, expectedRevision: Int? = nil, now: Date = Date()) throws {
         try requireDurable()
         guard let performance = performance(localId), performance.ownerUserId == userId, !performance.isLocallyDeleted else {
             throw ActivityStoreError.notFound
@@ -237,7 +252,7 @@ final class ActivityLocalStore {
                 kind: .delete,
                 snapshotData: nil,
                 generation: performance.localGeneration,
-                expectedRevision: remaining.isEmpty ? performance.serverRevision : nil,
+                expectedRevision: expectedRevision ?? (remaining.isEmpty ? performance.serverRevision : nil),
                 dependsOnMutationId: remaining.last?.id,
                 createdAt: now
             ))
@@ -245,7 +260,9 @@ final class ActivityLocalStore {
     }
 
     /// Coalesces into a save nobody has sent yet; otherwise queues another, after the last one.
-    private func enqueueSave(of performance: LocalPerformance, snapshot: PerformanceSnapshot, now: Date) throws {
+    private func enqueueSave(
+        of performance: LocalPerformance, snapshot: PerformanceSnapshot, expectedRevision: Int?, now: Date
+    ) throws {
         let data = try PerformanceSnapshot.encoder.encode(snapshot)
         let queued = mutations(for: performance.localId)
 
@@ -263,7 +280,7 @@ final class ActivityLocalStore {
             snapshotData: data,
             generation: performance.localGeneration,
             // A create has no revision; an edit after a queued change learns its revision when that change is acknowledged.
-            expectedRevision: queued.isEmpty && performance.serverId != nil ? performance.serverRevision : nil,
+            expectedRevision: expectedRevision ?? (queued.isEmpty && performance.serverId != nil ? performance.serverRevision : nil),
             dependsOnMutationId: queued.last?.id,
             createdAt: now
         ))
@@ -398,6 +415,37 @@ final class ActivityLocalStore {
                 performance.entryId = serverCopy.appearance.entryId
             }
             context.delete(mutation)
+            try reconcileServerCopies(of: performance)
+        }
+    }
+
+    /// A pull may import a create that succeeded before the phone received its server ID.
+    /// Keep the original row and its queued edits, and absorb any clean server copy.
+    private func reconcileServerCopies(of performance: LocalPerformance) throws {
+        guard let serverId = performance.serverId else { return }
+        let target: Int? = serverId
+        let userId = performance.ownerUserId
+        let localId = performance.localId
+        let copies = try context.fetch(FetchDescriptor<LocalPerformance>(
+            predicate: #Predicate { $0.serverId == target && $0.ownerUserId == userId && $0.localId != localId }
+        ))
+        for copy in copies {
+            if copy.hasUnsyncedChanges || copy.isLocallyDeleted {
+                // Both rows can have local edits if the imported copy was editable before
+                // the acknowledgement. Preserve each queued write and its own revision.
+                if !performance.hasUnsyncedChanges && !performance.isLocallyDeleted {
+                    context.delete(performance)
+                    return
+                }
+                continue
+            }
+            if !performance.hasUnsyncedChanges, !performance.isLocallyDeleted,
+               copy.serverRevision > performance.serverRevision, let snapshot = copy.snapshot {
+                try performance.setSnapshot(snapshot)
+                performance.serverRevision = copy.serverRevision
+                performance.entryId = copy.entryId
+            }
+            context.delete(copy)
         }
     }
 
@@ -410,37 +458,15 @@ final class ActivityLocalStore {
         }
     }
 
-    // MARK: - Preparation
-
-    func recordPreparation(
-        eventId: Int,
-        userId: Int,
-        update: (PreparedCompetition) -> Void
-    ) throws {
-        try requireDurable()
-        let record: PreparedCompetition
-        if let existing = preparedCompetition(eventId: eventId, userId: userId) {
-            record = existing
-        } else {
-            record = PreparedCompetition(ownerUserId: userId, eventId: eventId)
-            context.insert(record)
-        }
-        try transaction { update(record) }
-    }
-
     // MARK: - Accounts
 
     /// For a sign-in as a different account: drops everything already on the server, for every account, and keeps only work the server has not seen, still under its own account.
     func discardSyncedData() throws {
-        let pendingAccounts = accountsWithUnsyncedWork()
         let pendingPerformances = Set(fetch(FetchDescriptor<ActivityOutboxMutation>()).map(\.performanceLocalId))
         try transaction {
             for performance in fetch(FetchDescriptor<LocalPerformance>())
             where !pendingPerformances.contains(performance.localId) && !performance.hasUnsyncedChanges {
                 context.delete(performance)
-            }
-            for record in fetch(FetchDescriptor<PreparedCompetition>()) where !pendingAccounts.contains(record.ownerUserId) {
-                context.delete(record)
             }
         }
     }
@@ -451,9 +477,6 @@ final class ActivityLocalStore {
             for mutation in mutations(userId: userId) { context.delete(mutation) }
             for performance in fetch(FetchDescriptor<LocalPerformance>(predicate: #Predicate { $0.ownerUserId == userId })) {
                 context.delete(performance)
-            }
-            for record in fetch(FetchDescriptor<PreparedCompetition>(predicate: #Predicate { $0.ownerUserId == userId })) {
-                context.delete(record)
             }
         }
     }

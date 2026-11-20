@@ -137,6 +137,56 @@ struct ActivityLocalStoreTests {
         #expect(edit.dependsOnMutationId == nil)
     }
 
+    @Test("An editor's starting revision is used for saves and deletes after a newer pull")
+    func writesKeepTheEditorsRevision() throws {
+        for deleting in [false, true] {
+            let store = ActivityLocalStore.inMemory()
+            try store.mergeServerPerformances(
+                [try Self.detail(id: 40, revision: 5, label: "Original")],
+                eventId: 5, userId: 1, readStartedAt: Date(timeIntervalSince1970: 1)
+            )
+            let opened = try #require(store.performance(serverId: 40, userId: 1))
+            let revisionAtOpen = opened.serverRevision
+            try store.mergeServerPerformances(
+                [try Self.detail(id: 40, revision: 6, label: "Website edit")],
+                eventId: 5, userId: 1, readStartedAt: Date(timeIntervalSince1970: 2)
+            )
+            #expect(opened.serverRevision == 6)
+
+            if deleting {
+                try store.delete(opened.localId, userId: 1, expectedRevision: revisionAtOpen)
+            } else {
+                try store.save(
+                    Self.snapshot("Phone edit"), localId: opened.localId, scope: Self.owner,
+                    eventId: 5, entryId: 11, expectedRevision: revisionAtOpen
+                )
+            }
+
+            #expect(store.mutations(userId: 1).first?.expectedRevision == 5)
+        }
+    }
+
+    @Test("A create acknowledgement absorbs a server copy imported after a lost response")
+    func createAcknowledgementCoalescesImportedCopy() throws {
+        let store = ActivityLocalStore.inMemory()
+        let performance = try Self.create(store, "Original")
+        let localId = performance.localId
+        let mutation = try #require(store.mutations(userId: 1).first)
+        try store.mergeServerPerformances(
+            [try Self.detail(id: 40, revision: 2, label: "Newer server copy")],
+            eventId: 5, userId: 1, readStartedAt: Date()
+        )
+        #expect(store.performances(eventId: 5, userId: 1).count == 2)
+
+        try store.acknowledge(mutation, serverId: 40, revision: 1, serverCopy: nil, at: Date())
+
+        let rows = store.performances(eventId: 5, userId: 1)
+        #expect(rows.map(\.localId) == [localId])
+        #expect(rows.first?.serverRevision == 2)
+        #expect(Self.label(rows.first) == "Newer server copy")
+        #expect(store.mutations(userId: 1).isEmpty)
+    }
+
     // MARK: - Deleting
 
     @Test("Deleting a performance the server never heard of leaves nothing to send")
@@ -333,13 +383,11 @@ struct ActivityLocalStoreTests {
     func switchingAccountsKeepsUnsentWork() throws {
         let store = ActivityLocalStore.inMemory()
         try store.mergeServerPerformances([try Self.detail(id: 40, revision: 1, label: "Synced")], eventId: 5, userId: 1, readStartedAt: Date())
-        try store.recordPreparation(eventId: 5, userId: 1) { $0.hasEventDetail = true }
         try Self.create(store, "Unsent", scope: Self.otherAccount)
 
         try store.discardSyncedData()
 
         #expect(store.performance(serverId: 40, userId: 1) == nil)
-        #expect(store.preparedCompetition(eventId: 5, userId: 1) == nil)
         #expect(store.performances(eventId: 5, userId: 2).map { Self.label($0) } == ["Unsent"])
         #expect(store.accountsWithUnsyncedWork() == [2])
     }
@@ -378,96 +426,5 @@ struct ActivityLocalStoreTests {
         #expect(store.performance(serverId: 40, userId: 1) == nil)
         #expect(store.performances(eventId: 5, userId: 1).map { Self.label($0) } == ["Unsent"])
         #expect(store.performances(eventId: 5, userId: 2).isEmpty)
-    }
-}
-
-@MainActor
-@Suite("Preparing a competition")
-struct CompetitionPreparationTests {
-
-    private static func service(_ server: FakeHTTPServer) -> ActivityService {
-        ActivityService(
-            apiClient: server.apiClient(),
-            cache: ActivitySnapshotCache(
-                directory: FileManager.default.temporaryDirectory
-                    .appendingPathComponent("Preparation-\(UUID().uuidString)", isDirectory: true)
-            )
-        )
-    }
-
-    private static let access = FamilyAccess(families: [FamilyRefDTO(id: 7, role: FamilyAccess.contribute, isPrimary: true)], primaryFamilyId: 7)
-
-    private static func routeCompetition(_ server: FakeHTTPServer) {
-        server.route("rpc/GetEventDetail", respond: .json(Fixture.eventDetail(
-            event: Fixture.activityEvent(id: 5, seasonId: 1),
-            season: Fixture.seasonSummary(id: 1),
-            appearances: [Fixture.appearanceDetail(
-                Fixture.appearance(id: 40, eventId: 5, entryId: 11),
-                results: [Fixture.activityResult(id: 400, appearanceId: 40)],
-                entry: Fixture.activityEntry(id: 11),
-                event: Fixture.eventSummary(id: 5)
-            )]
-        )))
-        server.route("rpc/GetSeasonOverview", respond: .json(Fixture.seasonOverview(
-            activity: Fixture.activity(id: 3),
-            season: Fixture.season(id: 1, activityId: 3),
-            entries: [Fixture.entryView(Fixture.activityEntry(id: 11), personIds: [21])]
-        )))
-    }
-
-    @Test("A complete download records every part and seeds the local performances")
-    func completeDownload() async throws {
-        let server = FakeHTTPServer()
-        Self.routeCompetition(server)
-        server.route("rpc/ListActivityVocabulary", respond: .json(Fixture.activityVocabulary(activityId: 3)))
-        let store = ActivityLocalStore.inMemory()
-
-        let outcome = await CompetitionPreparation(service: Self.service(server), store: store)
-            .prepare(eventId: 5, userId: 1, access: Self.access)
-
-        #expect(outcome == .complete)
-        let record = try #require(store.preparedCompetition(eventId: 5, userId: 1))
-        #expect(record.isComplete)
-        #expect(record.familyId == 7)
-        #expect(record.seasonId == 1)
-        #expect(record.activityId == 3)
-        #expect(record.canContribute)
-        #expect(record.preparedAt != nil)
-        #expect(store.performances(eventId: 5, userId: 1).compactMap(\.serverId) == [40])
-    }
-
-    @Test("A download cut short is recorded as incomplete, keeping what arrived")
-    func incompleteDownload() async throws {
-        let server = FakeHTTPServer()
-        Self.routeCompetition(server)
-        server.route("rpc/ListActivityVocabulary", respond: .offline())
-        let store = ActivityLocalStore.inMemory()
-
-        let outcome = await CompetitionPreparation(service: Self.service(server), store: store)
-            .prepare(eventId: 5, userId: 1, access: Self.access)
-
-        #expect(outcome == .incomplete)
-        let record = try #require(store.preparedCompetition(eventId: 5, userId: 1))
-        #expect(record.hasEventDetail)
-        #expect(record.hasSeasonOverview)
-        #expect(!record.hasVocabulary)
-        #expect(!record.isComplete)
-        #expect(record.preparedAt == nil)
-    }
-
-    @Test("A competition that could not be read records nothing")
-    func failedDownload() async throws {
-        let server = FakeHTTPServer()
-        server.route("rpc/GetEventDetail", respond: .offline())
-        let store = ActivityLocalStore.inMemory()
-
-        let outcome = await CompetitionPreparation(service: Self.service(server), store: store)
-            .prepare(eventId: 5, userId: 1, access: Self.access)
-
-        guard case .failed = outcome else {
-            Issue.record("outcome = \(outcome), want failed")
-            return
-        }
-        #expect(store.preparedCompetition(eventId: 5, userId: 1) == nil)
     }
 }

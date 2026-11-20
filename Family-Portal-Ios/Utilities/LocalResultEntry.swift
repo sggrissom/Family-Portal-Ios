@@ -104,13 +104,16 @@ extension LocalCompetition {
         for entry in entries { entryById[entry.id] = entry }
         let summary = EventSummaryDTO(event)
 
+        var shownServerIds = Set<Int>()
         let rows: [LocalPerformanceRow] = store.performances(eventId: eventId, userId: userId).compactMap { performance in
             guard let snapshot = performance.snapshot, let entry = entryById[performance.entryId] else { return nil }
             let statuses = store.mutations(for: performance.localId).map(\.status)
+            // Independent queued edits can outlive the duplicate they were based on.
+            let visibleServerId = performance.serverId.flatMap { shownServerIds.insert($0).inserted ? $0 : nil }
             return LocalPerformanceRow(
                 detail: AppearanceDetailDTO(
                     local: snapshot,
-                    id: displayId(serverId: performance.serverId, localId: performance.localId),
+                    id: displayId(serverId: visibleServerId, localId: performance.localId),
                     eventId: eventId,
                     familyId: performance.familyId,
                     revision: performance.serverRevision,

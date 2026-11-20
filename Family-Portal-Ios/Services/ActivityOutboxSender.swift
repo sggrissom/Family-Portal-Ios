@@ -3,20 +3,25 @@ import OSLog
 import SwiftData
 
 /// Whether the server takes queued results (`GetActivitySyncSupport`), remembered across launches so a phone that went offline after checking still knows. Result entry saves locally only for a server known to support it; for any other, it stays online-only and says so.
-struct ActivitySyncCapability {
+@Observable
+@MainActor
+final class ActivitySyncCapability {
     private static let storageKey = "com.familyrecord.activitySyncVersion"
 
     private let defaults: UserDefaults
+    private var version: Int
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        version = defaults.integer(forKey: Self.storageKey)
     }
 
     var isSupported: Bool {
-        defaults.integer(forKey: Self.storageKey) == ActivityMutationContract.version
+        version == ActivityMutationContract.version
     }
 
     func record(version: Int) {
+        self.version = version
         defaults.set(version, forKey: Self.storageKey)
     }
 }
@@ -31,7 +36,7 @@ final class ActivityOutboxSender {
 
     let store: ActivityLocalStore
     let apiClient: APIClient
-    var capability: ActivitySyncCapability
+    let capability: ActivitySyncCapability
     var now: () -> Date = Date.init
     /// Multiplies each backoff, so phones that failed together do not retry together.
     var jitter: () -> Double = { Double.random(in: 0.8...1.2) }
@@ -60,7 +65,7 @@ final class ActivityOutboxSender {
     /// Sends what is ready for `userId`. A drain asked for while one is running runs again after it rather than beside it.
     /// - Returns: why the pass stopped early, if it did.
     @discardableResult
-    func drain(userId: Int) async -> StopReason? {
+    func drain(userId: Int, username: String) async -> StopReason? {
         if isDraining {
             drainRequested = true
             return nil
@@ -71,19 +76,19 @@ final class ActivityOutboxSender {
         var stop: StopReason?
         repeat {
             drainRequested = false
-            stop = await drainOnce(userId: userId)
+            stop = await drainOnce(userId: userId, username: username)
         } while drainRequested && stop == nil
         return stop
     }
 
-    private func drainOnce(userId: Int) async -> StopReason? {
+    private func drainOnce(userId: Int, username: String) async -> StopReason? {
         guard store.isDurable else { return .storeUnavailable }
         guard !store.mutations(userId: userId).isEmpty else { return nil }
 
         // Draining at all means someone is signed in.
         try? store.resumeAfterSignIn(userId: userId)
 
-        if let stop = await checkSupport() {
+        if let stop = await checkSupport(username: username) {
             return stop
         }
 
@@ -91,7 +96,7 @@ final class ActivityOutboxSender {
         while sentSomething {
             sentSomething = false
             for mutation in store.mutations(userId: userId) where isReady(mutation) {
-                switch await send(mutation) {
+                switch await send(mutation, username: username) {
                 case .stop(let reason):
                     return reason
                 case .done:
@@ -106,13 +111,14 @@ final class ActivityOutboxSender {
 
     // MARK: - Capability
 
-    private func checkSupport() async -> StopReason? {
+    /// Probe after a live competition read, including on an install with an empty outbox.
+    func checkSupport(username: String) async -> StopReason? {
         if supportConfirmed { return nil }
         do {
-            let response: ActivitySyncSupportResponseDTO = try await apiClient.callRPC(
-                .getActivitySyncSupport,
-                payload: EmptyRequestDTO()
+            let data = try await apiClient.callRPCData(
+                .getActivitySyncSupport, payload: EmptyRequestDTO(), requiringUsername: username
             )
+            let response = try APIClient.decodeResponse(ActivitySyncSupportResponseDTO.self, from: data)
             capability.record(version: response.mutationVersion)
             supportConfirmed = response.mutationVersion == ActivityMutationContract.version
             return supportConfirmed ? nil : .unsupported
@@ -147,7 +153,7 @@ final class ActivityOutboxSender {
         return true
     }
 
-    private func send(_ mutation: ActivityOutboxMutation) async -> SendResult {
+    private func send(_ mutation: ActivityOutboxMutation, username: String) async -> SendResult {
         guard let performance = store.performance(mutation.performanceLocalId), let kind = mutation.kind else {
             try? store.commit { store.context.delete(mutation) }
             return .done
@@ -173,10 +179,10 @@ final class ActivityOutboxSender {
             switch kind {
             case .save:
                 let request = try JSONDecoder().decode(SyncSaveAppearanceRequestDTO.self, from: body)
-                responseData = try await apiClient.callRPCData(.syncSaveAppearance, payload: request)
+                responseData = try await apiClient.callRPCData(.syncSaveAppearance, payload: request, requiringUsername: username)
             case .delete:
                 let request = try JSONDecoder().decode(SyncDeleteAppearanceRequestDTO.self, from: body)
-                responseData = try await apiClient.callRPCData(.syncDeleteAppearance, payload: request)
+                responseData = try await apiClient.callRPCData(.syncDeleteAppearance, payload: request, requiringUsername: username)
             }
         } catch {
             return handle(error, for: mutation)
