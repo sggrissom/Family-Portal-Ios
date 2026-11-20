@@ -4,7 +4,7 @@ import Foundation
 
 extension ResultDraft {
     /// A stored row, editable, keeping its identity.
-    init(row: LocalResultRow) {
+    nonisolated init(row: LocalResultRow) {
         self.init(
             id: row.id,
             kind: ActivityResultKind(rawValue: row.input.kind) ?? .adjudication,

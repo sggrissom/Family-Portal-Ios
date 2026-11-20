@@ -206,7 +206,7 @@ struct CompetitionView: View {
                 Task { await syncService.processQueue() }
             },
             delete: row.map { row in
-                {
+                { @MainActor in
                     try store.delete(row.localId, userId: userId, expectedRevision: expectedRevision())
                     Task { await syncService.processQueue() }
                 }
