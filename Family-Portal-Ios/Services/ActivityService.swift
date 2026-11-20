@@ -393,6 +393,8 @@ final class ActivityScreenState<Value: Sendable> {
     private(set) var isLoading = false
     private(set) var isShowingCached = false
     private(set) var fetchedAt: Date?
+    /// When the read behind `value` was sent — earlier than `fetchedAt`. What a merge into `ActivityLocalStore` compares against, since anything the phone heard after this the read may not include.
+    private(set) var readStartedAt: Date?
     /// Set only when there is nothing at all to show; a failed refresh over a cached payload is reported by `isShowingCached`.
     private(set) var error: String?
 
@@ -425,12 +427,14 @@ final class ActivityScreenState<Value: Sendable> {
         if consultingCache, value == nil, let snapshot = await read.cached() {
             value = snapshot.value
             fetchedAt = snapshot.fetchedAt
+            readStartedAt = snapshot.fetchedAt
             isShowingCached = true
         }
 
         // A `reload` asked for while this read is out returns at once (`isLoading` above), so a read that a local change overtook is sent again here rather than trusted: it may predate the write.
         while true {
             let changesAtStart = localChanges
+            let started = Date()
             let live: Value
             do {
                 live = try await read.live()
@@ -448,6 +452,7 @@ final class ActivityScreenState<Value: Sendable> {
             guard localChanges == changesAtStart else { continue }
 
             value = live
+            readStartedAt = started
             fetchedAt = Date()
             isShowingCached = false
             error = nil

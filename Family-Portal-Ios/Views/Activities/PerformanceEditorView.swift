@@ -15,9 +15,20 @@ struct PerformanceEditorView: View {
     let labels: ActivityLabels
     /// Hands the page the server's copy of what was written, so it shows without another read. Called even after Cancel: the server may have committed the write regardless, and the page should say so.
     let onChange: @MainActor (PerformanceChange) -> Void
+    /// Set when results are saved on this phone first (`ActivityLocalStore`), for a server that takes queued results: Save commits locally, at once, and the outbox sends it later. `nil` keeps the online-only save.
+    let local: LocalSave?
+
+    /// Saving to the phone's store. `save` is handed the whole performance and the routine; both closures throw only when the local write itself failed, in which case nothing was saved.
+    struct LocalSave {
+        /// The stored copy being edited; `nil` records a new performance.
+        let snapshot: PerformanceSnapshot?
+        let save: @MainActor (PerformanceSnapshot, _ entryId: Int) throws -> Void
+        let delete: (@MainActor () throws -> Void)?
+    }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(ActivityService.self) private var service
+    @Environment(NetworkMonitor.self) private var network
     @Query private var people: [Person]
 
     @State private var entryId: Int?
@@ -44,6 +55,7 @@ struct PerformanceEditorView: View {
         activityId: Int?,
         activityKind: String,
         labels: ActivityLabels,
+        local: LocalSave? = nil,
         onChange: @escaping @MainActor (PerformanceChange) -> Void
     ) {
         self.eventId = eventId
@@ -53,8 +65,11 @@ struct PerformanceEditorView: View {
         self.activityKind = activityKind
         self.labels = labels
         self.onChange = onChange
+        self.local = local
         _entryId = State(initialValue: existing?.entry.id ?? entryId)
-        _drafts = State(initialValue: existing?.results.map(ResultDraft.init) ?? [])
+        // From the stored copy when there is one, so each row keeps the identity it was saved with.
+        _drafts = State(initialValue: local?.snapshot?.results.map(ResultDraft.init(row:))
+            ?? existing?.results.map(ResultDraft.init) ?? [])
         _occurredAt = State(initialValue: existing.map { ActivityDateField($0.appearance.occurredAt) } ?? ActivityDateField())
         _notes = State(initialValue: existing?.appearance.notes ?? "")
         _matchup = State(initialValue: existing.map { MatchupDraft(Matchup($0.appearance)) } ?? MatchupDraft())
@@ -108,6 +123,11 @@ struct PerformanceEditorView: View {
                         LabeledContent("Photos and videos", value: photoIds.isEmpty ? "" : "\(photoIds.count)")
                     }
                     ActivityPhotoStrip(photoIds: photoIds)
+                } footer: {
+                    // Attached photos are kept as they are; only uploading new ones needs the server.
+                    if local != nil && !network.isConnected {
+                        Text("Results save on this phone now and sync later. Uploading new photos needs a connection.")
+                    }
                 }
 
                 if existing != nil {
@@ -352,6 +372,11 @@ struct PerformanceEditorView: View {
         invalidRow = nil
         validationError = nil
         saveError = nil
+
+        if let local {
+            saveLocally(local, entryId: entryId)
+            return
+        }
         isSaving = true
 
         let inputs = ResultSheet.inputs(drafts)
@@ -380,7 +405,35 @@ struct PerformanceEditorView: View {
         }
     }
 
+    /// A local commit is synchronous and short, so nothing can be tapped while it runs; nothing here waits on the network. Closes only once the change is durably saved.
+    private func saveLocally(_ local: LocalSave, entryId: Int) {
+        let snapshot = PerformanceSnapshot(
+            occurredAt: occurredAt.date,
+            notes: ActivityFieldLimit.notes.clamp(notes),
+            matchup: matchup.matchup.isRecorded ? matchup.matchup.input : nil,
+            results: ResultSheet.rows(drafts, previous: local.snapshot?.results ?? []),
+            photoIds: photoIds
+        )
+        do {
+            try local.save(snapshot, entryId)
+            session.finish { dismiss() }
+        } catch {
+            AppLog.activities.error("Saving a performance on the phone failed: \(String(describing: error), privacy: .public)")
+            saveError = error.localizedDescription
+        }
+    }
+
     private func delete() {
+        if let local, let deleteLocally = local.delete {
+            do {
+                try deleteLocally()
+                session.finish { dismiss() }
+            } catch {
+                AppLog.activities.error("Deleting a performance on the phone failed: \(String(describing: error), privacy: .public)")
+                saveError = error.localizedDescription
+            }
+            return
+        }
         guard let existing else { return }
         isSaving = true
         Task {

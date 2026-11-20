@@ -37,7 +37,7 @@ enum LocalDataResetScope {
 
 enum LocalDataReset {
 
-    /// Deletes local records and, for a full erase, drops whatever the previous account had queued for upload — a pending operation carries no identity and would push under the new session.
+    /// Deletes local records and, for a full erase, drops whatever the previous account had queued for upload — a pending operation carries no identity and would push under the new session. Activity results queued offline are the exception: they carry their account (`ActivityLocalStore`).
     ///
     /// `activityCache`, `photoCache`, `widgets` and `shareInbox` are injectable for the same reason `syncQueue` is: a test must be able to prove the sweep happens without erasing the real app's cache directories. `photoCache` carries no default because `PhotoImageCache.shared` is main-actor isolated, and a default value expression is evaluated outside the function's isolation.
     @MainActor static func erase(
@@ -47,7 +47,9 @@ enum LocalDataReset {
         activityCache: ActivitySnapshotCache = .shared,
         photoCache: PhotoImageCache,
         widgets: WidgetPublisher? = nil,
-        shareInbox: ShareInbox? = nil
+        shareInbox: ShareInbox? = nil,
+        activityStore: ActivityLocalStore? = nil,
+        discardingActivitiesOf deletedUserId: Int? = nil
     ) async {
         delete(ChatMessage.self, from: context)
 
@@ -56,6 +58,14 @@ enum LocalDataReset {
 
             // Activities live on disk as cached response bodies, and no pull reconciles them.
             await activityCache.removeAll()
+
+            // Results saved offline are the one thing here the server may never have seen. Each row names its account, so another account's are never shown or sent under this one; they stay until that account signs back in and sends them. A deleted account's go with it — the server has dropped its receipts too.
+            if let activityStore {
+                if let deletedUserId {
+                    try? activityStore.discardAll(userId: deletedUserId)
+                }
+                try? activityStore.discardSyncedData()
+            }
 
             // The widgets' snapshot is the old account's family, readable from the Home Screen without opening the app.
             widgets?.clear()

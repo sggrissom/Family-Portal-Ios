@@ -163,13 +163,13 @@ actor APIClient {
         return URLSession(configuration: configuration)
     }()
 
-    init(baseURL: URL? = nil, session: URLSession = APIClient.defaultSession) {
+    init(baseURL: URL? = nil, session: URLSession = APIClient.defaultSession, initialAccessToken: String? = nil) {
         let initialBaseURL = baseURL ?? Self.defaultURL
         self.session = session
 
         clientId = UUID().uuidString
 
-        let loadedAccessToken = Self.loadToken(forKey: Self.keychainAccessToken)
+        let loadedAccessToken = initialAccessToken ?? Self.loadToken(forKey: Self.keychainAccessToken)
         // Older installs may hold the refresh token only in the cookie jar; adopting it here upgrades them instead of signing them out.
         let storedRefreshToken = Self.loadToken(forKey: Self.keychainRefreshToken)
         let loadedRefreshToken = storedRefreshToken ?? Self.refreshCookie(for: initialBaseURL)?.value
@@ -231,8 +231,12 @@ actor APIClient {
         try await request(path: "rpc/\(proc.rawValue)", method: .post, body: payload, requiresAuth: true)
     }
 
-    func callRPCData<Body: Encodable>(_ proc: RPCMethod, payload: Body) async throws -> Data {
-        try await requestData(path: "rpc/\(proc.rawValue)", method: .post, body: payload, requiresAuth: true)
+    func callRPCData<Body: Encodable>(
+        _ proc: RPCMethod, payload: Body, requiringUsername: String? = nil
+    ) async throws -> Data {
+        try await requestData(
+            path: "rpc/\(proc.rawValue)", method: .post, body: payload, requiringUsername: requiringUsername
+        )
     }
 
     func callPublicRPC<T: Decodable, Body: Encodable>(_ proc: RPCMethod, payload: Body) async throws -> T {
@@ -267,7 +271,8 @@ actor APIClient {
         method: HTTPMethod = .post,
         body: Body? = nil,
         requiresAuth: Bool = true,
-        retryOnAuthFailure: Bool = true
+        retryOnAuthFailure: Bool = true,
+        requiringUsername: String? = nil
     ) async throws -> Data {
         var request = try makeRequest(path, method: method)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -278,19 +283,35 @@ actor APIClient {
                 throw APIError.network(error)
             }
         }
-        return try await send(request, requiresAuth: requiresAuth, retryOnAuthFailure: retryOnAuthFailure)
+        return try await send(
+            request, requiresAuth: requiresAuth, retryOnAuthFailure: retryOnAuthFailure, requiringUsername: requiringUsername
+        )
     }
 
     /// One round trip with this client's headers. A 401 on an authenticated request refreshes the token and retries once, when `retryOnAuthFailure` allows; any other status outside 2xx, or an empty body, throws.
-    private func send(_ request: URLRequest, requiresAuth: Bool, retryOnAuthFailure: Bool) async throws -> Data {
+    private func send(
+        _ request: URLRequest, requiresAuth: Bool, retryOnAuthFailure: Bool, requiringUsername: String? = nil
+    ) async throws -> Data {
         var request = request
         request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
-        addAuthHeaders(to: &request, requiresAuth: requiresAuth)
-        let (data, response) = try await transport(request)
+        if let requiringUsername {
+            let token = try accessToken(forUsername: requiringUsername)
+            // The server checks the cookie before the header. Bind this request to the checked
+            // token even if the shared cookie jar changes before URLSession starts sending.
+            request.httpShouldHandleCookies = false
+            request.setValue(nil, forHTTPHeaderField: "Cookie")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        } else {
+            addAuthHeaders(to: &request, requiresAuth: requiresAuth)
+        }
+        let (data, response) = try await transport(request, capturingTokens: requiringUsername == nil)
 
         if response.statusCode == 401, requiresAuth, retryOnAuthFailure {
+            if let requiringUsername { _ = try accessToken(forUsername: requiringUsername) }
             try await refreshAccessToken()
-            return try await send(request, requiresAuth: requiresAuth, retryOnAuthFailure: false)
+            return try await send(
+                request, requiresAuth: requiresAuth, retryOnAuthFailure: false, requiringUsername: requiringUsername
+            )
         }
         guard (200...299).contains(response.statusCode) else {
             if response.statusCode == 401 {
@@ -446,23 +467,32 @@ actor APIClient {
         }
     }
 
+    private func accessToken(forUsername username: String) throws -> String {
+        guard let accessToken, Self.jwtPayload(accessToken)?["username"] as? String == username else {
+            throw APIError.unauthorized
+        }
+        return accessToken
+    }
+
     nonisolated static func jwtExpiry(_ token: String) -> Date? {
+        guard let exp = jwtPayload(token)?["exp"] as? Double else { return nil }
+        return Date(timeIntervalSince1970: exp)
+    }
+
+    private nonisolated static func jwtPayload(_ token: String) -> [String: Any]? {
         let segments = token.split(separator: ".")
         guard segments.count == 3 else { return nil }
 
         var payload = String(segments[1])
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
+
         while payload.count % 4 != 0 {
             payload.append("=")
         }
 
-        guard let data = Data(base64Encoded: payload),
-              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let exp = object["exp"] as? Double else {
-            return nil
-        }
-        return Date(timeIntervalSince1970: exp)
+        guard let data = Data(base64Encoded: payload) else { return nil }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
     nonisolated private static func refreshCookie(for baseURL: URL) -> HTTPCookie? {

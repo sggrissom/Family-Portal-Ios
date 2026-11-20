@@ -131,6 +131,10 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case setAppearanceResults = "SetAppearanceResults"
     /// A whole performance — the appearance, its results sheet and its photos — in one transaction; nothing is written if any part is refused.
     case saveAppearance = "SaveAppearance"
+    /// Queued, offline-safe writes (backend/activity_mutations.go): deduplicated by mutation id, refused with a "conflict" outcome when the performance changed since the revision they name. Send only to a server whose `GetActivitySyncSupport` reports the version this build speaks.
+    case getActivitySyncSupport = "GetActivitySyncSupport"
+    case syncSaveAppearance = "SyncSaveAppearance"
+    case syncDeleteAppearance = "SyncDeleteAppearance"
 
     // MARK: - Activities: aggregate reads (backend/activity_views.go)
 

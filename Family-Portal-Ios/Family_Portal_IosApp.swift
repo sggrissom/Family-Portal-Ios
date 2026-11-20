@@ -185,6 +185,12 @@ struct Family_Portal_IosApp: App {
             self.reindexSpotlight()
         }
 
+        // Results queued offline go under the account that saved them, and only while it is signed in.
+        syncService.drainActivityOutbox = {
+            guard self.authService.isAuthenticated, let user = self.authService.currentUser else { return }
+            await ActivityOutboxSender.shared.drain(userId: user.id, username: user.email)
+        }
+
         // Siri learns the people its phrases name from the snapshot `PersonQuery` reads, so it hears again whenever that may have changed.
         // Chained onto the background refresh's own hook, set in `didFinishLaunching`.
         let scheduleRefresh = WidgetPublisher.shared.onPublished
@@ -198,7 +204,7 @@ struct Family_Portal_IosApp: App {
         }
 
         authService.onAccountDeleted = {
-            await self.eraseLocalData(.everything)
+            await self.eraseLocalData(.everything, discardingActivitiesOf: self.authService.currentUser?.id)
         }
 
         // Local only, so the tabs are up before anything touches the network. Signing in here fires the `isAuthenticated` handler, which starts sync, chat and push — they are not started again below.
@@ -211,7 +217,7 @@ struct Family_Portal_IosApp: App {
     }
 
     @MainActor
-    private func eraseLocalData(_ scope: LocalDataResetScope) async {
+    private func eraseLocalData(_ scope: LocalDataResetScope, discardingActivitiesOf deletedUserId: Int? = nil) async {
         retireChatService()
         await LocalDataReset.erase(
             scope,
@@ -219,7 +225,9 @@ struct Family_Portal_IosApp: App {
             syncQueue: syncService.syncQueue,
             photoCache: .shared,
             widgets: .shared,
-            shareInbox: ShareInbox.shared()
+            shareInbox: ShareInbox.shared(),
+            activityStore: .shared,
+            discardingActivitiesOf: deletedUserId
         )
         deepLinkRouter.clear()
     }

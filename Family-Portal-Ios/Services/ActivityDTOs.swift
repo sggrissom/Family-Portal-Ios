@@ -64,6 +64,8 @@ nonisolated struct AppearanceDTO: Decodable, Sendable, Identifiable {
     @OrZero var outcome: String
     var scoreFor: Int? = nil
     var scoreAgainst: Int? = nil
+    /// Advances on every change to the performance, its results and its photos, wherever it was made. Absent (0) from servers older than revisions; see `SyncSaveAppearance`.
+    @OrZero var revision: Int
 }
 
 nonisolated struct ActivityResultDTO: Decodable, Sendable, Identifiable {
@@ -235,7 +237,7 @@ nonisolated struct ListActivityVocabularyResponseDTO: Decodable, Sendable {
 // MARK: - Write requests
 // Dates are `YYYY-MM-DD` strings and **nil clears**, so an editor must always send the value it is showing.
 
-nonisolated struct MatchupInputDTO: Encodable, Sendable, Equatable {
+nonisolated struct MatchupInputDTO: Codable, Sendable, Equatable {
     let round: String
     let opponent: String
     /// `""`, `"win"`, `"loss"` or `"draw"`; anything else is refused.
@@ -249,7 +251,7 @@ nonisolated struct AppearanceIdRequestDTO: Encodable, Sendable {
     let id: Int
 }
 
-nonisolated struct ResultInputDTO: Encodable, Sendable {
+nonisolated struct ResultInputDTO: Codable, Sendable, Equatable {
     let kind: String
     let label: String
     let rank: Int?
@@ -261,7 +263,7 @@ nonisolated struct ResultInputDTO: Encodable, Sendable {
 }
 
 /// `SaveAppearance`: creates the appearance when `id` is 0 (from `eventId` and `entryId`, which an update ignores), then replaces its whole results sheet and its whole photo set.
-nonisolated struct SaveAppearanceRequestDTO: Encodable, Sendable {
+nonisolated struct SaveAppearanceRequestDTO: Codable, Sendable, Equatable {
     let id: Int
     let eventId: Int
     let entryId: Int
@@ -428,5 +430,137 @@ nonisolated extension GetEventDetailResponseDTO {
         season = other.season
         _photoIds = OrZero(wrappedValue: other.photoIds)
         _appearances = OrZero(wrappedValue: appearances)
+    }
+}
+
+nonisolated extension ResultInputDTO {
+    /// A stored result as the input that would write it again.
+    init(_ result: ActivityResultDTO) {
+        self.init(
+            kind: result.kind,
+            label: result.label,
+            rank: result.rank,
+            outOf: result.outOf,
+            category: result.category,
+            score: result.score,
+            personId: result.personId,
+            notes: result.notes
+        )
+    }
+}
+
+// MARK: - Queued writes (backend/activity_mutations.go)
+
+/// The contract version this build speaks. Queued results go only to a server reporting it.
+nonisolated enum ActivityMutationContract {
+    static let version = 1
+}
+
+nonisolated struct ActivitySyncSupportResponseDTO: Decodable, Sendable {
+    @OrZero var mutationVersion: Int
+}
+
+/// Codable so the outbox can keep the exact request it first sent and send that again: the server binds the mutation id to it.
+nonisolated struct SyncSaveAppearanceRequestDTO: Codable, Sendable, Equatable {
+    let mutationId: String
+    /// `nil` on a create; required on an edit.
+    let expectedRevision: Int?
+    let appearance: SaveAppearanceRequestDTO
+}
+
+nonisolated struct SyncDeleteAppearanceRequestDTO: Codable, Sendable, Equatable {
+    let mutationId: String
+    let id: Int
+    let expectedRevision: Int
+}
+
+nonisolated struct AppearanceMutationResponseDTO: Decodable, Sendable {
+    /// `AppearanceMutationStatus`'s raw value; an unknown one is treated as a failure to retry.
+    let status: String
+    @OrZero var appearanceId: Int
+    @OrZero var revision: Int
+    var appearance: AppearanceViewDTO? = nil
+    @OrZero var code: String
+    @OrZero var message: String
+}
+
+nonisolated enum AppearanceMutationStatus: String, Sendable {
+    case applied, replayed, conflict, deleted, notFound, forbidden, invalid
+}
+
+// MARK: - Performances saved on this phone
+// The competition page draws a locally saved performance the way it draws the server's, so these build the same view types from a `LocalPerformance`. Here rather than beside their callers: `@OrZero` storage is private to this file.
+
+nonisolated extension Date {
+    /// Go's zero `time.Time`, which the server sends for "no date".
+    static let serverZero = Date(timeIntervalSince1970: -62_135_596_800)
+}
+
+nonisolated extension AppearanceDTO {
+    init(
+        id: Int,
+        eventId: Int,
+        entryId: Int,
+        familyId: Int,
+        revision: Int,
+        createdAt: Date,
+        snapshot: PerformanceSnapshot
+    ) {
+        self.id = id
+        self.eventId = eventId
+        self.entryId = entryId
+        self.familyId = familyId
+        occurredAt = snapshot.occurredAt ?? .serverZero
+        notes = snapshot.notes
+        self.createdAt = createdAt
+        _round = OrZero(wrappedValue: snapshot.matchup?.round ?? "")
+        _opponent = OrZero(wrappedValue: snapshot.matchup?.opponent ?? "")
+        _outcome = OrZero(wrappedValue: snapshot.matchup?.outcome ?? "")
+        scoreFor = snapshot.matchup?.scoreFor
+        scoreAgainst = snapshot.matchup?.scoreAgainst
+        _revision = OrZero(wrappedValue: revision)
+    }
+}
+
+nonisolated extension AppearanceDetailDTO {
+    /// A performance as this phone holds it. `id` is the server's when there is one; one saved here and not yet acknowledged takes a negative id that no server record can have.
+    init(local performance: PerformanceSnapshot, id: Int, eventId: Int, familyId: Int, revision: Int, createdAt: Date, entry: ActivityEntryDTO, event: EventSummaryDTO) {
+        let appearance = AppearanceDTO(
+            id: id, eventId: eventId, entryId: entry.id, familyId: familyId,
+            revision: revision, createdAt: createdAt, snapshot: performance
+        )
+        self.init(
+            view: AppearanceViewDTO(
+                building: appearance,
+                results: performance.results.enumerated().map { index, row in
+                    ActivityResultDTO(
+                        id: row.serverId ?? 0,
+                        appearanceId: id,
+                        familyId: familyId,
+                        kind: row.input.kind,
+                        label: row.input.label,
+                        rank: row.input.rank,
+                        outOf: row.input.outOf,
+                        category: row.input.category,
+                        score: row.input.score,
+                        personId: row.input.personId,
+                        notes: row.input.notes,
+                        sortOrder: index,
+                        createdAt: createdAt
+                    )
+                },
+                photoIds: performance.photoIds
+            ),
+            entry: entry,
+            event: event
+        )
+    }
+}
+
+nonisolated extension AppearanceViewDTO {
+    init(building appearance: AppearanceDTO, results: [ActivityResultDTO], photoIds: [Int]) {
+        self.appearance = appearance
+        _results = OrZero(wrappedValue: results)
+        _photoIds = OrZero(wrappedValue: photoIds)
     }
 }

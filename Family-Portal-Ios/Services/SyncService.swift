@@ -18,6 +18,9 @@ final class SyncService {
     /// Set when the queue gives up on an operation for good; survives the pulls that clear `syncError`.
     private(set) var discardedChangeWarning: String?
 
+    /// Sends queued competition results (`ActivityOutboxSender`) on every queue run, after the family queue, so both share one set of triggers and one run at a time.
+    @ObservationIgnored var drainActivityOutbox: (@MainActor () async -> Void)?
+
     /// Called after every full sync, once the store holds the server's answer — the widgets republish from it. Not awaited, so a pull-to-refresh is not held up by image downloads.
     @ObservationIgnored var onFullSyncFinished: (@MainActor () -> Void)?
 
@@ -257,6 +260,7 @@ final class SyncService {
         repeat {
             queueRunRequested = false
             unblockedMore = await runQueueOnce()
+            await drainActivityOutbox?()
         } while (queueRunRequested || unblockedMore) && networkMonitor.isConnected
     }
 
