@@ -49,10 +49,10 @@ final class ActivityOutboxSender {
     /// Asked once per launch: a server does not lose support mid-session, and one that turns out not to have the procs after all is caught when a send reports them missing.
     private var supportConfirmed = false
 
-    init(store: ActivityLocalStore, apiClient: APIClient, capability: ActivitySyncCapability = ActivitySyncCapability()) {
+    init(store: ActivityLocalStore, apiClient: APIClient, capability: ActivitySyncCapability? = nil) {
         self.store = store
         self.apiClient = apiClient
-        self.capability = capability
+        self.capability = capability ?? ActivitySyncCapability()
     }
 
     nonisolated enum StopReason: Equatable, Sendable {
