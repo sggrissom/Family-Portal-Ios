@@ -7,6 +7,8 @@ import SwiftUI
 struct ActivityScreen<Value: Sendable, Content: View>: View {
     let state: ActivityScreenState<Value>
     let read: @MainActor () -> ActivityRead<Value>
+    /// Off for a screen that draws the phone's own copy, where results waiting to sync are already shown.
+    var showsUnsyncedNote = true
     @ViewBuilder let content: (Value) -> Content
 
     var body: some View {
@@ -16,6 +18,9 @@ struct ActivityScreen<Value: Sendable, Content: View>: View {
                     VStack(alignment: .leading, spacing: 8) {
                         if state.isShowingCached, !state.isLoading {
                             ActivityStaleNote(fetchedAt: state.fetchedAt)
+                        }
+                        if showsUnsyncedNote {
+                            ActivityUnsyncedNote()
                         }
                         content(value)
                     }
@@ -72,6 +77,47 @@ struct ActivityStaleNote: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
         .padding(.vertical, 6)
+    }
+}
+
+/// Results saved on this phone that the server has not taken yet. Every activity screen but the competition page draws the server's copy, so this says why a result entered offline is not there yet, and where to go when one is stuck.
+struct ActivityUnsyncedNote: View {
+    @Environment(AuthService.self) private var authService
+    private let store = ActivityLocalStore.shared
+
+    var body: some View {
+        let summary = currentSummary
+        if summary.waiting > 0 {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: summary.needsAttention > 0 ? "exclamationmark.icloud" : "icloud.and.arrow.up")
+                    .accessibilityHidden(true)
+                Text(Self.text(waiting: summary.waiting, needsAttention: summary.needsAttention))
+            }
+            .font(.caption)
+            .foregroundStyle(summary.needsAttention > 0 ? Color.orange : Color.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+            .padding(.vertical, 6)
+        }
+    }
+
+    private var currentSummary: (waiting: Int, needsAttention: Int) {
+        guard let userId = authService.currentUser?.id else { return (0, 0) }
+        _ = store.changeCount
+        return store.unsyncedSummary(userId: userId)
+    }
+
+    static func text(waiting: Int, needsAttention: Int) -> String {
+        if needsAttention > 0 {
+            return needsAttention == 1
+                ? "1 result couldn't sync · open its competition to fix it"
+                : "\(needsAttention) results couldn't sync · open their competitions to fix them"
+        }
+        return waiting == 1
+            ? "1 result saved on this phone · it shows here once it syncs"
+            : "\(waiting) results saved on this phone · they show here once they sync"
     }
 }
 

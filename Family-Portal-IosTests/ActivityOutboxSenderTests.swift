@@ -222,6 +222,116 @@ struct ActivityOutboxSenderTests {
         #expect(Self.label(performance) == "Mine again")
     }
 
+    // MARK: - Review
+
+    /// A server copy at revision 1, edited here, with the edit answered by a conflict at revision 7.
+    private static func conflicted() async throws -> (FakeHTTPServer, ActivityLocalStore, ActivityOutboxSender, LocalPerformance) {
+        let (server, store, sender) = Self.setUp()
+        try store.mergeServerPerformances([try APIClient.decode(AppearanceDetailDTO.self, from: Fixture.data(Fixture.appearanceDetail(
+            Fixture.appearance(id: 40, eventId: 5, entryId: 11),
+            entry: Fixture.activityEntry(id: 11),
+            event: Fixture.eventSummary(id: 5)
+        )))], eventId: 5, userId: 1, readStartedAt: Date())
+        let performance = try #require(store.performance(serverId: 40, userId: 1))
+        server.route(Self.save, respond: Self.outcome("conflict", revision: 7, label: "From the website"))
+        try store.save(Self.snapshot("Mine"), localId: performance.localId, scope: Self.owner, eventId: 5, entryId: 11)
+        _ = await sender.drain(userId: 1, username: Self.username)
+        #expect(store.mutations(userId: 1).first?.status == .needsReview)
+        return (server, store, sender, performance)
+    }
+
+    @Test("Keep mine resends the change, as a new request, against the website's revision")
+    func keepMine() async throws {
+        let (server, store, sender, performance) = try await Self.conflicted()
+        server.route(Self.save, respond: Self.outcome("applied", revision: 8, label: "Mine"))
+
+        try store.resend(performance.localId, userId: 1)
+        #expect(store.unsyncedSummary(userId: 1).waiting == 1)
+        #expect(store.unsyncedSummary(userId: 1).needsAttention == 0)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
+
+        let requests = server.requests(for: Self.save)
+        #expect(requests.count == 2)
+        let first = try Self.saveBody(requests[0])
+        let second = try Self.saveBody(requests[1])
+        #expect(second.expectedRevision == 7)
+        #expect(second.mutationId != first.mutationId)
+        #expect(store.mutations(userId: 1).isEmpty)
+        #expect(performance.serverRevision == 8)
+        #expect(Self.label(performance) == "Mine")
+    }
+
+    @Test("Use the website's drops the change and shows the website's copy")
+    func useTheWebsites() async throws {
+        let (server, store, _, performance) = try await Self.conflicted()
+
+        try store.discardChanges(performance.localId, userId: 1)
+
+        #expect(store.mutations(userId: 1).isEmpty)
+        #expect(!performance.hasUnsyncedChanges)
+        #expect(performance.serverRevision == 7)
+        #expect(Self.label(performance) == "From the website")
+        #expect(server.requests(for: Self.save).count == 1)
+    }
+
+    @Test("Keeping a change to a performance deleted on the website records it again")
+    func keepMineAfterDelete() async throws {
+        let (server, store, sender, performance) = try await Self.conflicted()
+        try store.commit {
+            store.mutations(userId: 1)[0].serverResponseData = try JSONSerialization.data(withJSONObject: [
+                "status": "deleted", "appearanceId": 40, "revision": 9
+            ])
+        }
+        server.route(Self.save, respond: Self.outcome("applied", id: 41, revision: 1, label: "Mine"))
+
+        try store.resend(performance.localId, userId: 1)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
+
+        let again = try Self.saveBody(try #require(server.requests(for: Self.save).last))
+        #expect(again.appearance.id == 0)
+        #expect(again.expectedRevision == nil)
+        #expect(performance.serverId == 41)
+    }
+
+    @Test("Discarding a performance never sent removes it")
+    func discardNeverSent() throws {
+        let store = ActivityLocalStore.inMemory()
+        let created = try store.save(Self.snapshot("Gold"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
+
+        try store.discardChanges(created.localId, userId: 1)
+
+        #expect(store.performance(created.localId) == nil)
+        #expect(store.mutations(userId: 1).isEmpty)
+        #expect(store.unsyncedSummary(userId: 1).waiting == 0)
+        #expect(store.unsyncedSummary(userId: 1).needsAttention == 0)
+    }
+
+    @Test("Try again resends a refused save")
+    func tryAgain() async throws {
+        let (server, store, sender) = Self.setUp()
+        server.route(Self.save, respond: Self.outcome("invalid", id: 0, revision: 0, code: "personNotOnEntry"))
+        let created = try store.save(Self.snapshot("Gold"), localId: nil, scope: Self.owner, eventId: 5, entryId: 11)
+        _ = await sender.drain(userId: 1, username: Self.username)
+        #expect(store.unsyncedSummary(userId: 1).waiting == 1)
+        #expect(store.unsyncedSummary(userId: 1).needsAttention == 1)
+
+        server.route(Self.save, respond: Self.outcome("applied", revision: 1, label: "Gold"))
+        try store.resend(created.localId, userId: 1)
+        #expect(await sender.drain(userId: 1, username: Self.username) == nil)
+
+        #expect(server.requests(for: Self.save).count == 2)
+        #expect(store.mutations(userId: 1).isEmpty)
+        #expect(created.serverId == 40)
+    }
+
+    @Test("Sign-out warns about results still on this phone")
+    func signOutMessage() {
+        #expect(ActivityLocalStore.signOutMessage(waiting: 0) == "Are you sure you want to sign out?")
+        #expect(ActivityLocalStore.signOutMessage(waiting: 1).hasPrefix("1 result hasn't"))
+        #expect(ActivityLocalStore.signOutMessage(waiting: 3).hasPrefix("3 results haven't"))
+        #expect(ActivityUnsyncedNote.text(waiting: 2, needsAttention: 1).contains("couldn't sync"))
+    }
+
     @Test("A refused save is kept with its reason and not retried")
     func invalidIsKept() async throws {
         let (server, store, sender) = Self.setUp()

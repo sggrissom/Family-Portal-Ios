@@ -458,6 +458,94 @@ final class ActivityLocalStore {
         }
     }
 
+    // MARK: - Review
+
+    /// How many of this account's performances are still only on this phone, and how many of those are stuck until someone acts.
+    func unsyncedSummary(userId: Int) -> (waiting: Int, needsAttention: Int) {
+        var waiting = Set<UUID>()
+        var stuck = Set<UUID>()
+        for mutation in mutations(userId: userId) {
+            waiting.insert(mutation.performanceLocalId)
+            if mutation.status == .needsReview || mutation.status == .failed {
+                stuck.insert(mutation.performanceLocalId)
+            }
+        }
+        return (waiting.count, stuck.count)
+    }
+
+    /// "Keep mine" / "Try again": the performance's stuck entries go back in line as new requests, against the server's current revision when the server reported one. A save the server found deleted is sent as a new performance.
+    func resend(_ localId: UUID, userId: Int) throws {
+        try requireDurable()
+        guard let performance = performance(localId), performance.ownerUserId == userId else { throw ActivityStoreError.notFound }
+        let queued = mutations(for: localId)
+        let stuck = queued.filter { $0.status == .needsReview || $0.status == .failed }
+        guard !stuck.isEmpty else { return }
+
+        try transaction {
+            for mutation in stuck {
+                let response = mutation.serverResponseData.flatMap {
+                    try? APIClient.decodeResponse(AppearanceMutationResponseDTO.self, from: $0)
+                }
+                let status = response.flatMap { AppearanceMutationStatus(rawValue: $0.status) }
+                if status == .conflict, let response {
+                    mutation.expectedRevision = response.revision
+                    performance.serverRevision = response.revision
+                } else if status == .deleted, mutation.kind == .save {
+                    performance.serverId = nil
+                    performance.serverRevision = 0
+                    mutation.expectedRevision = nil
+                }
+
+                // A new mutation id: the old one is bound on the server to the request it carried.
+                let oldId = mutation.id
+                let newId = UUID()
+                mutation.id = newId
+                for dependent in queued where dependent.dependsOnMutationId == oldId {
+                    dependent.dependsOnMutationId = newId
+                }
+                mutation.status = .pending
+                mutation.sentRequest = nil
+                mutation.attemptCount = 0
+                mutation.failureCount = 0
+                mutation.nextAttemptAt = nil
+                mutation.lastOutcome = nil
+                mutation.serverResponseData = nil
+            }
+        }
+    }
+
+    /// "Use the website's" / "Discard": drops every change to this performance the server has not taken. One the server never had, or has since deleted, goes; otherwise it takes the server's copy when a stuck entry brought one back, and is replaced by the next read either way.
+    func discardChanges(_ localId: UUID, userId: Int) throws {
+        try requireDurable()
+        guard let performance = performance(localId), performance.ownerUserId == userId else { throw ActivityStoreError.notFound }
+        let queued = mutations(for: localId)
+        let responses: [AppearanceMutationResponseDTO] = queued.compactMap { mutation in
+            guard let data = mutation.serverResponseData else { return nil }
+            return try? APIClient.decodeResponse(AppearanceMutationResponseDTO.self, from: data)
+        }
+        let goneOnServer = responses.contains { $0.status == AppearanceMutationStatus.deleted.rawValue }
+        let current = responses.last(where: { $0.appearance != nil })?.appearance
+
+        try transaction {
+            for mutation in queued { context.delete(mutation) }
+            guard performance.serverId != nil, !goneOnServer else {
+                context.delete(performance)
+                return
+            }
+            performance.acknowledgedGeneration = performance.localGeneration
+            performance.isLocallyDeleted = false
+            performance.serverUpdatedAt = nil
+            if let current {
+                try performance.setSnapshot(Self.snapshot(of: current, keepingRowIdsFrom: performance.snapshot))
+                performance.serverRevision = current.appearance.revision
+                performance.entryId = current.appearance.entryId
+            } else {
+                // Any read at all now replaces it.
+                performance.serverRevision = 0
+            }
+        }
+    }
+
     // MARK: - Accounts
 
     /// For a sign-in as a different account: drops everything already on the server, for every account, and keeps only work the server has not seen, still under its own account.
