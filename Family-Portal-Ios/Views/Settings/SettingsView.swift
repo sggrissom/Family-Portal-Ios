@@ -156,7 +156,7 @@ struct SettingsView: View {
                 }
             }
         } message: {
-            Text("Are you sure you want to sign out?")
+            Text(ActivityLocalStore.shared.signOutMessage(userId: authService.currentUser?.id))
         }
     }
 }

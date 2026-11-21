@@ -59,6 +59,11 @@ nonisolated enum PerformanceSyncState: Equatable, Sendable {
         }
     }
 
+    /// Stuck until someone chooses what to do with it.
+    var needsAttention: Bool {
+        self == .needsReview || self == .failed
+    }
+
     var systemImage: String {
         switch self {
         case .synced: return "checkmark.icloud"
@@ -128,5 +133,21 @@ extension LocalCompetition {
             )
         }
         return rows.sorted { EventPerformances.order($0.detail, $1.detail) }
+    }
+}
+
+extension ActivityLocalStore {
+    /// The sign-out confirmation, warning when results are still only on this phone. They are kept, under this account, and sent the next time it signs in here.
+    func signOutMessage(userId: Int?) -> String {
+        let waiting = userId.map { unsyncedSummary(userId: $0).waiting } ?? 0
+        return Self.signOutMessage(waiting: waiting)
+    }
+
+    nonisolated static func signOutMessage(waiting: Int) -> String {
+        guard waiting > 0 else { return "Are you sure you want to sign out?" }
+        if waiting == 1 {
+            return "1 result hasn't synced yet. It stays on this phone and syncs the next time you sign in here."
+        }
+        return "\(waiting) results haven't synced yet. They stay on this phone and sync the next time you sign in here."
     }
 }

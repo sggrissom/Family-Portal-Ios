@@ -35,6 +35,7 @@ struct CompetitionView: View {
     }
 
     @State private var sheet: AppearanceSheet?
+    @State private var resolveError: String?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -72,7 +73,7 @@ struct CompetitionView: View {
     }
 
     var body: some View {
-        ActivityScreen(state: state, read: { service.eventDetail(eventId: eventId) }) { response in
+        ActivityScreen(state: state, read: { service.eventDetail(eventId: eventId) }, showsUnsyncedNote: !savesLocally) { response in
             content(response)
         }
         .navigationTitle(state.value?.event.name ?? eventName)
@@ -223,10 +224,29 @@ struct CompetitionView: View {
         }
     }
 
-    private static func syncStates(_ rows: [LocalPerformanceRow]?) -> [Int: PerformanceSyncState] {
-        var states: [Int: PerformanceSyncState] = [:]
-        for row in rows ?? [] { states[row.detail.id] = row.syncState }
-        return states
+    private static func rowsById(_ rows: [LocalPerformanceRow]?) -> [Int: LocalPerformanceRow] {
+        var byId: [Int: LocalPerformanceRow] = [:]
+        for row in rows ?? [] { byId[row.detail.id] = row }
+        return byId
+    }
+
+    /// Keep mine / try again, or take the website's copy / discard, for a performance whose sync is stuck.
+    private func resolve(_ row: LocalPerformanceRow, keepingMine: Bool) {
+        guard let userId else { return }
+        do {
+            if keepingMine {
+                try store.resend(row.localId, userId: userId)
+            } else {
+                try store.discardChanges(row.localId, userId: userId)
+            }
+            resolveError = nil
+        } catch {
+            resolveError = error.localizedDescription
+        }
+        Task {
+            await syncService.processQueue()
+            await state.reload()
+        }
     }
 
     @ViewBuilder
@@ -236,13 +256,20 @@ struct CompetitionView: View {
         let people = ActivityPeople(self.people)
         let rows = localRows(response)
         let appearances = rows?.map(\.detail) ?? response.appearances
-        let syncStates = Self.syncStates(rows)
+        let localById = Self.rowsById(rows)
 
         VStack(spacing: 16) {
             header(response, labels: labels)
 
+            if let resolveError {
+                Text(resolveError)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             ForEach(cards(appearances)) { card in
-                routineCard(card, labels: labels, people: people, syncStates: syncStates)
+                routineCard(card, labels: labels, people: people, localById: localById)
             }
 
             if appearances.isEmpty && (!editable || cards(appearances).isEmpty) {
@@ -277,7 +304,7 @@ struct CompetitionView: View {
     }
 
     @ViewBuilder
-    private func routineCard(_ card: RoutineCard, labels: ActivityLabels, people: ActivityPeople, syncStates: [Int: PerformanceSyncState]) -> some View {
+    private func routineCard(_ card: RoutineCard, labels: ActivityLabels, people: ActivityPeople, localById: [Int: LocalPerformanceRow]) -> some View {
         if card.appearances.isEmpty {
             if editable {
                 Button {
@@ -316,7 +343,7 @@ struct CompetitionView: View {
                             .font(.subheadline.weight(.semibold))
                     }
                     ForEach(card.appearances) { detail in
-                        appearanceRow(detail, people: people, syncState: syncStates[detail.id] ?? .synced)
+                        appearanceRow(detail, people: people, local: localById[detail.id])
                         if detail.id != card.appearances.last?.id {
                             Divider()
                         }
@@ -328,12 +355,27 @@ struct CompetitionView: View {
         }
     }
 
-    private func appearanceRow(_ detail: AppearanceDetailDTO, people: ActivityPeople, syncState: PerformanceSyncState) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func appearanceRow(_ detail: AppearanceDetailDTO, people: ActivityPeople, local: LocalPerformanceRow?) -> some View {
+        let syncState = local?.syncState ?? .synced
+        return VStack(alignment: .leading, spacing: 8) {
             if let label = syncState.label {
-                Label(label, systemImage: syncState.systemImage)
-                    .font(.caption)
-                    .foregroundStyle(syncState == .pending || syncState == .needsSignIn ? Color.secondary : Color.orange)
+                HStack(spacing: 8) {
+                    Label(label, systemImage: syncState.systemImage)
+                        .font(.caption)
+                        .foregroundStyle(syncState.needsAttention ? Color.orange : Color.secondary)
+                    if let local, syncState.needsAttention, editable {
+                        Spacer(minLength: 0)
+                        Menu("Fix") {
+                            Button(syncState == .needsReview ? "Keep mine" : "Try again") {
+                                resolve(local, keepingMine: true)
+                            }
+                            Button(syncState == .needsReview ? "Use the website's" : "Discard my changes", role: .destructive) {
+                                resolve(local, keepingMine: false)
+                            }
+                        }
+                        .font(.caption.weight(.semibold))
+                    }
+                }
             }
             HStack(alignment: .top, spacing: 8) {
                 NavigationLink {
