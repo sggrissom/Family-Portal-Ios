@@ -168,7 +168,8 @@ struct CompetitionView: View {
                         ),
                         people: ActivityPeople(people),
                         labels: ActivityLabels.forKind(response.season.kind),
-                        mayBeIncomplete: state.isShowingCached && !savesLocally
+                        mayBeIncomplete: state.isShowingCached && !savesLocally,
+                        recapLink: editable ? recapLinkContext(response) : nil
                     )
                 }
             case .eventPhotos:
@@ -188,6 +189,21 @@ struct CompetitionView: View {
 
     private func shownAppearances(_ response: GetEventDetailResponseDTO) -> [AppearanceDetailDTO] {
         localRows(response)?.map(\.detail) ?? response.appearances
+    }
+
+    /// A recap link publishes what the server holds, so it waits for a live read and for every result on this phone to sync. The revisions are the server's, which it checks each performance against.
+    private func recapLinkContext(_ response: GetEventDetailResponseDTO) -> RecapLinkContext {
+        let unsynced = localRows(response)?.contains { $0.syncState != .synced } ?? false
+        return RecapLinkContext(
+            eventId: response.event.id,
+            revisions: Dictionary(
+                response.appearances.map { ($0.id, $0.appearance.revision) },
+                uniquingKeysWith: { first, _ in first }
+            ),
+            blocker: state.isShowingCached
+                ? Copy.share.recapLink.offline
+                : unsynced ? Copy.share.recapLink.waitingForSync : nil
+        )
     }
 
     private var vocabularyToCache: Int? {
