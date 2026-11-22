@@ -54,6 +54,8 @@ enum AppRoute: Hashable {
     case remotePhoto(id: Int, startMs: Int = 0)
     /// One milestone by local id, as its own page — where a link to it lands.
     case milestone(UUID)
+    /// Measurements by local id, as their own page — where a link to them lands.
+    case measurements([UUID])
     /// A competition or other event, where its results are entered — what the add sheet's Result rows open.
     case event(id: Int, name: String)
     /// One annual interview by server id. Interviews live on the server only, so there is no local id to name.
@@ -257,6 +259,8 @@ private struct AppRouteDestination: View {
             CompetitionView(eventId: id, eventName: name)
         case .milestone(let id):
             MilestoneRouteView(milestoneId: id)
+        case .measurements(let ids):
+            MeasurementRouteView(measurementIds: ids)
         case .interview(let id):
             InterviewView(interviewId: id)
         case .interviewSetup(let personId):

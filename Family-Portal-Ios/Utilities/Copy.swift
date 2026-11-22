@@ -349,6 +349,10 @@ nonisolated enum Copy {
         static let renderFailed = "Couldn't make the file to share."
         static let partial = "This phone may not have every result yet. Only the results shown here will be shared."
         static let shareAvailable = "Share the results shown"
+        static let copyLink = "Copy family link"
+        static let linkNote = "The link opens only for people who can already see this family."
+        static let linkAfterSync = "A family link is available once this has synced."
+        static let measurementTitle = "Measurement"
     }
 
     /// **Find in your library** (`LibraryFinderView`). iOS only: the web has no photo library to look through.

@@ -22,6 +22,8 @@ nonisolated enum DeepLink: Equatable, Sendable {
     case photo(remoteId: Int)
     /// `/milestone/<serverId>` — the milestone page. Waits, as a person does, for a sync to bring a milestone this device has not seen.
     case milestone(remoteId: Int)
+    /// `/view-growth/<serverId>[,<serverId>]` — one measurement, or a checkup's values together. Waits for a sync like a milestone.
+    case measurement(remoteIds: [Int])
     /// `/interview/<serverId>` — one annual interview, and `/interview/<serverId>/ask`, its conduct screen. Interviews are read from the server, so unlike a milestone there is nothing to wait for.
     case interview(id: Int, ask: Bool = false)
     /// `/interview/past/<personServerId>` — typing in a past interview.
@@ -85,6 +87,10 @@ nonisolated enum DeepLink: Equatable, Sendable {
             return Int(segments[1]).map { DeepLink.photo(remoteId: $0) }
         case "milestone" where segments.count == 2:
             return Int(segments[1]).map { DeepLink.milestone(remoteId: $0) }
+        case "view-growth" where segments.count == 2:
+            let ids = segments[1].split(separator: ",", omittingEmptySubsequences: false).map { Int($0) }
+            guard !ids.isEmpty, !ids.contains(nil) else { return nil }
+            return .measurement(remoteIds: ids.compactMap { $0 })
         case "interviews" where segments.count == 1:
             return .interviews
         case "interview-questions" where segments.count == 1:
