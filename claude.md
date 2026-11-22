@@ -28,6 +28,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   ├── InterviewService.swift, InterviewDTOs.swift # annual interview: reads cached like books, writes online-only
 │   ├── SearchDTOs.swift                            # global search: online read, never cached or queued
 │   ├── VideoDTOs.swift                             # video support, upload and playback: online only, never queued
+│   ├── RecapLinkDTOs.swift                         # hosted competition recap links: online only, never queued
 │   ├── WidgetSnapshotBuilder.swift, WidgetPublisher.swift  # the widgets' snapshot in the App Group
 │   ├── ShareInboxDrain.swift                       # imports what the share extension left in the App Group
 │   └── ChatService.swift, ChatWebSocketService.swift, ChatDTOs.swift
