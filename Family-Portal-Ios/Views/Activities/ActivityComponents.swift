@@ -217,26 +217,9 @@ struct ActivityResultRow: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var icon: String {
-        switch ActivityResultKind(rawValue: result.kind) {
-        case .placement: return "trophy"
-        case .adjudication: return "rosette"
-        case .award: return "star"
-        case .score: return "number"
-        case nil: return "checkmark.seal"
-        }
-    }
+    private var icon: String { ActivityResultText.icon(ActivityResultKind(rawValue: result.kind)) }
 
-    private var headline: String {
-        switch ActivityResultKind(rawValue: result.kind) {
-        case .placement:
-            return ActivityResultText.placement(rank: result.rank, outOf: result.outOf, label: result.label)
-        case .score:
-            return ActivityResultText.score(result.score, label: result.label)
-        case .adjudication, .award, nil:
-            return result.label.isEmpty ? result.kind.capitalized : result.label
-        }
-    }
+    private var headline: String { ActivityResultText.headline(result) }
 
     private var detail: String? {
         var parts: [String] = []
@@ -251,6 +234,27 @@ struct ActivityResultRow: View {
 }
 
 enum ActivityResultText {
+
+    static func icon(_ kind: ActivityResultKind?) -> String {
+        switch kind {
+        case .placement: return "trophy"
+        case .adjudication: return "rosette"
+        case .award: return "star"
+        case .score: return "number"
+        case nil: return "checkmark.seal"
+        }
+    }
+
+    static func headline(_ result: ActivityResultDTO) -> String {
+        switch ActivityResultKind(rawValue: result.kind) {
+        case .placement:
+            return placement(rank: result.rank, outOf: result.outOf, label: result.label)
+        case .score:
+            return score(result.score, label: result.label)
+        case .adjudication, .award, nil:
+            return result.label.isEmpty ? result.kind.capitalized : result.label
+        }
+    }
 
     static func placement(rank: Int?, outOf: Int?, label: String) -> String {
         guard let rank else {

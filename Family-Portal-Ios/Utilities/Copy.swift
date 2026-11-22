@@ -327,6 +327,30 @@ nonisolated enum Copy {
         static let saveFailed = "Couldn't Save Photo"
     }
 
+    /// Sharing a measurement or a competition's results from its page.
+    enum share {
+        static let action = "Share"
+        static let previewTitle = "Share preview"
+        static let include = "Include"
+        static let comparisons = "Comparisons"
+        static let allComparisons = "All comparisons"
+        static let noComparisons = "There are no comparisons to include."
+        static let copyText = "Copy text"
+        static let copied = "Copied"
+        static let shareImage = "Share image"
+        static let sharePDF = "Share PDF"
+        static let forwarding = "Anyone you send this to can save it or forward it."
+        static let pendingSync = "Not synced yet. The image and text use what's on this phone."
+        static let showNames = "Show names"
+        static let resultsSoFar = "Results so far"
+        static func asOf(_ day: String) -> String { "Results so far, as of \(day)" }
+        static let individual = "Individual"
+        static let nothingIncluded = "Choose at least one to share."
+        static let renderFailed = "Couldn't make the file to share."
+        static let partial = "This phone may not have every result yet. Only the results shown here will be shared."
+        static let shareAvailable = "Share the results shown"
+    }
+
     /// **Find in your library** (`LibraryFinderView`). iOS only: the web has no photo library to look through.
     enum libraryFinder {
         static let entry = "Find in your library"
