@@ -23,6 +23,7 @@ struct CompetitionView: View {
         case performance(AppearanceDetailDTO, local: PerformanceEditorView.LocalSave?)
         case editEvent
         case eventPhotos
+        case share
 
         var id: String {
             switch self {
@@ -30,6 +31,7 @@ struct CompetitionView: View {
             case .performance(let detail, _): return "performance-\(detail.id)"
             case .editEvent: return "event"
             case .eventPhotos: return "event-photos"
+            case .share: return "share"
             }
         }
     }
@@ -100,6 +102,16 @@ struct CompetitionView: View {
             _ = try? await service.vocabulary(activityId: activityId).live()
         }
         .toolbar {
+            if let response = state.value, !shownAppearances(response).isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        sheet = .share
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel(Copy.share.action)
+                }
+            }
             if editable {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -144,6 +156,21 @@ struct CompetitionView: View {
                         onDeleted: { dismiss() }
                     )
                 }
+            case .share:
+                if let response = state.value {
+                    CompetitionShareSheet(
+                        event: response.event,
+                        seasonName: response.season.name,
+                        routines: cards(shownAppearances(response)),
+                        rosters: Dictionary(
+                            (seasonState.value?.entries ?? []).map { ($0.entry.id, $0.personIds) },
+                            uniquingKeysWith: { first, _ in first }
+                        ),
+                        people: ActivityPeople(people),
+                        labels: ActivityLabels.forKind(response.season.kind),
+                        mayBeIncomplete: state.isShowingCached && !savesLocally
+                    )
+                }
             case .eventPhotos:
                 if let response = state.value {
                     ActivityPhotoPickerView(
@@ -157,6 +184,10 @@ struct CompetitionView: View {
                 }
             }
         }
+    }
+
+    private func shownAppearances(_ response: GetEventDetailResponseDTO) -> [AppearanceDetailDTO] {
+        localRows(response)?.map(\.detail) ?? response.appearances
     }
 
     private var vocabularyToCache: Int? {
@@ -282,29 +313,12 @@ struct CompetitionView: View {
         .padding(.horizontal)
     }
 
-    /// A card for every routine in the season, recorded or not, so a weekend's results are entered from here rather than by adding each performance first. Routines the season no longer lists still show when they have performances here.
-    private struct RoutineCard: Identifiable {
-        let entryId: Int
-        let name: String
-        let appearances: [AppearanceDetailDTO]
-        var id: Int { entryId }
-    }
-
-    private func cards(_ appearances: [AppearanceDetailDTO]) -> [RoutineCard] {
-        let byEntry = Dictionary(grouping: appearances) { $0.entry.id }
-        var cards = (seasonState.value?.entries ?? []).map { view in
-            RoutineCard(entryId: view.entry.id, name: view.entry.name, appearances: byEntry[view.entry.id] ?? [])
-        }
-        let listed = Set(cards.map(\.entryId))
-        for run in Matchups.group(appearances, by: { $0.entry.id }) {
-            guard let first = run.first, !listed.contains(first.entry.id) else { continue }
-            cards.append(RoutineCard(entryId: first.entry.id, name: first.entry.name, appearances: run))
-        }
-        return cards
+    private func cards(_ appearances: [AppearanceDetailDTO]) -> [CompetitionRoutine] {
+        CompetitionRoutine.list(entries: seasonState.value?.entries.map(\.entry) ?? [], appearances: appearances)
     }
 
     @ViewBuilder
-    private func routineCard(_ card: RoutineCard, labels: ActivityLabels, people: ActivityPeople, localById: [Int: LocalPerformanceRow]) -> some View {
+    private func routineCard(_ card: CompetitionRoutine, labels: ActivityLabels, people: ActivityPeople, localById: [Int: LocalPerformanceRow]) -> some View {
         if card.appearances.isEmpty {
             if editable {
                 Button {

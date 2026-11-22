@@ -13,6 +13,7 @@ struct CheckupResultView: View {
     @Query private var records: [GrowthData]
     @Environment(SyncService.self) private var syncService
     @State private var isRetrying = false
+    @State private var isSharing = false
 
     init(result: CheckupResult, onAddAnother: @escaping () -> Void, onDone: @escaping () -> Void) {
         _result = State(initialValue: result)
@@ -52,6 +53,9 @@ struct CheckupResultView: View {
         .navigationTitle(Copy.home.checkupTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
+        .sheet(isPresented: $isSharing) {
+            MeasurementShareSheet(measurements: ordered)
+        }
     }
 
     /// One row, so the bar takes as little of the screen as it can.
@@ -64,6 +68,16 @@ struct CheckupResultView: View {
                     .padding(.horizontal, 8)
             }
             .buttonStyle(.bordered)
+
+            Button {
+                isSharing = true
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .padding(.horizontal, 2)
+            }
+            .buttonStyle(.bordered)
+            .disabled(ordered.isEmpty)
+            .accessibilityLabel(Copy.share.action)
 
             Button {
                 onAddAnother()
