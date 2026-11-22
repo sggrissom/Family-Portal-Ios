@@ -353,6 +353,39 @@ nonisolated enum Copy {
         static let linkNote = "The link opens only for people who can already see this family."
         static let linkAfterSync = "A family link is available once this has synced."
         static let measurementTitle = "Measurement"
+
+        /// A hosted, account-free recap page (web: copy.share.recapLink).
+        enum recapLink {
+            static let title = "Recap link"
+            static let explain = "A page anyone with the link can open, no account needed. It shows what's in this preview, and later edits won't change it."
+            static let lasts = "Link works for"
+            static let expiryOptions: [(days: Int, label: String)] = [
+                (7, "7 days"), (30, "30 days"), (90, "90 days"), (0, "Until turned off"),
+            ]
+            static let create = "Create recap link"
+            static func confirm(_ included: String, showsNames: Bool, lasts: String) -> String {
+                "Publish \(included) \(showsNames ? "with names" : "without names"), working \(lasts)?"
+            }
+            static let untilTurnedOff = "until you turn it off"
+            static func forDays(_ days: Int) -> String { "for \(days) days" }
+            static let publish = "Publish link"
+            static let cancel = "Cancel"
+            static let created = "Copy or send this link now. For privacy it isn't stored, so it can't be shown again."
+            static let copy = "Copy link"
+            static let turnOffNote = "Turning a link off ends access through it. Copies people saved, and previews kept by messaging apps, stay with them."
+            static let existing = "Links for this event"
+            static func createdBy(_ day: String, _ name: String) -> String {
+                name.isEmpty ? "Created \(day)" : "Created \(day) by \(name)"
+            }
+            static func expires(_ day: String) -> String { "Expires \(day)" }
+            static let noExpiry = "No expiry"
+            static let expired = "Expired"
+            static let turnOff = "Turn off"
+            static let remove = "Remove"
+            static let loadFailed = "Couldn't load this event's recap links."
+            static let offline = "Connect to the internet to create a recap link."
+            static let waitingForSync = "A recap link can be made once every result here has synced."
+        }
     }
 
     /// **Find in your library** (`LibraryFinderView`). iOS only: the web has no photo library to look through.

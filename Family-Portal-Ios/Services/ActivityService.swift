@@ -374,6 +374,30 @@ final class ActivityService {
         return response.photoIds
     }
 
+    // MARK: - Recap links (online only, never queued or cached)
+
+    func createRecapLink(eventId: Int, expiresInDays: Int, recap: RecapInputDTO) async throws -> CreateRecapLinkResponseDTO {
+        try await apiClient.callRPC(
+            .createRecapLink,
+            payload: CreateRecapLinkRequestDTO(eventId: eventId, expiresInDays: expiresInDays, recap: recap)
+        )
+    }
+
+    func recapLinks(eventId: Int) async throws -> [RecapLinkDTO] {
+        let response: ListRecapLinksResponseDTO = try await apiClient.callRPC(
+            .listRecapLinks,
+            payload: ListRecapLinksRequestDTO(eventId: eventId)
+        )
+        return response.links
+    }
+
+    func revokeRecapLink(id: Int) async throws {
+        let _: ActivityDeleteResponseDTO = try await apiClient.callRPC(
+            .revokeRecapLink,
+            payload: RevokeRecapLinkRequestDTO(id: id)
+        )
+    }
+
     // MARK: - Internals
 
     private func read<Response: Decodable & Sendable, Request: Encodable & Sendable>(

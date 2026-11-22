@@ -151,6 +151,13 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case setAppearancePhotos = "SetAppearancePhotos"
     case setEventPhotos = "SetEventPhotos"
 
+    // MARK: - Activities: recap links (backend/recap_links.go)
+
+    /// An account-free page holding one approved recap. Online only; the response's URL is the only copy of the link.
+    case createRecapLink = "CreateRecapLink"
+    case listRecapLinks = "ListRecapLinks"
+    case revokeRecapLink = "RevokeRecapLink"
+
     // MARK: - Overviews (backend/dashboard.go, backend/same_age.go)
     // Read-only aggregates. Cached like the activity reads, never queued.
 
