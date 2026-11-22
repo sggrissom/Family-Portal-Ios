@@ -169,6 +169,39 @@ extension CompetitionShare {
     }
 }
 
+extension CompetitionShare {
+
+    /// The recap as a hosted link stores it, matching the web's fields. `revisions` are the server's, by performance id: the server refuses a performance whose revision has moved on, and keeps neither ids nor revisions.
+    func recapInput(revisions: [Int: Int]) -> RecapInputDTO {
+        RecapInputDTO(
+            eventName: eventName,
+            subtitle: [seasonName.isEmpty ? nil : seasonName, dates].compactMap { $0 }.joined(separator: " · "),
+            place: place ?? "",
+            snapshotLabel: snapshotLabel ?? "",
+            routines: routines.map { routine in
+                RecapRoutineInputDTO(
+                    entryId: routine.id,
+                    name: routine.name,
+                    descriptors: routine.descriptors ?? "",
+                    roster: routine.roster ?? "",
+                    summary: routine.summary ?? "",
+                    performances: routine.performances.map { performance in
+                        RecapPerformanceInputDTO(
+                            appearanceId: performance.id,
+                            revision: revisions[performance.id] ?? 0,
+                            when: performance.when ?? "",
+                            matchup: performance.matchup ?? "",
+                            results: performance.results.map {
+                                RecapResultDTO(kind: $0.kind?.rawValue ?? "", text: $0.text, detail: $0.detail ?? "")
+                            }
+                        )
+                    }
+                )
+            }
+        )
+    }
+}
+
 /// How the recap falls onto PDF pages. Each group (the header, then each routine) starts a new page rather than split, unless it is taller than a page on its own; then its items run on across pages.
 nonisolated enum SharePagination {
     struct Placement: Equatable, Sendable {

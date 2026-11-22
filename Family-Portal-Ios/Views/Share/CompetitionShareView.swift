@@ -10,6 +10,8 @@ struct CompetitionShareSheet: View {
     let labels: ActivityLabels
     /// The phone is showing a copy that may be missing newer results.
     let mayBeIncomplete: Bool
+    /// Set for members who can publish a recap link; nil hides the section.
+    let recapLink: RecapLinkContext?
 
     @Environment(\.dismiss) private var dismiss
     @State private var options: CompetitionShare.Options
@@ -24,7 +26,8 @@ struct CompetitionShareSheet: View {
         rosters: [Int: [Int]],
         people: ActivityPeople,
         labels: ActivityLabels,
-        mayBeIncomplete: Bool
+        mayBeIncomplete: Bool,
+        recapLink: RecapLinkContext? = nil
     ) {
         self.event = event
         self.seasonName = seasonName
@@ -33,6 +36,7 @@ struct CompetitionShareSheet: View {
         self.people = people
         self.labels = labels
         self.mayBeIncomplete = mayBeIncomplete
+        self.recapLink = recapLink
         let unfinished = CompetitionShare.looksUnfinished(
             event: event,
             appearances: routines.flatMap(\.appearances),
@@ -100,6 +104,10 @@ struct CompetitionShareSheet: View {
                     Text(Copy.share.include)
                 } footer: {
                     Text(Copy.share.forwarding)
+                }
+
+                if let recapLink {
+                    RecapLinksSection(context: recapLink, share: current, labels: labels)
                 }
             }
             .navigationTitle(Copy.share.previewTitle)
