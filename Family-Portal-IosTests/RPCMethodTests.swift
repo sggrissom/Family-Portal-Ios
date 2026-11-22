@@ -144,6 +144,13 @@ struct RPCMethodTests {
         #expect(RPCMethod.setEventPhotos.rawValue == "SetEventPhotos")
     }
 
+    @Test("Recap link proc names match the backend")
+    func recapLinkProcNames() {
+        #expect(RPCMethod.createRecapLink.rawValue == "CreateRecapLink")
+        #expect(RPCMethod.listRecapLinks.rawValue == "ListRecapLinks")
+        #expect(RPCMethod.revokeRecapLink.rawValue == "RevokeRecapLink")
+    }
+
     @Test("Overview proc names match the backend")
     func overviewProcNames() {
         #expect(RPCMethod.getDashboard.rawValue == "GetDashboard")
