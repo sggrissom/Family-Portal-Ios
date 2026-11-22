@@ -21,6 +21,15 @@ struct MeasurementShareSheet: View {
         measurements.contains { $0.remoteId == nil }
     }
 
+    /// The page on the website and in the app, for someone who can already see this family. `nil` until every value has synced.
+    private var familyLink: URL? {
+        let ids = measurements.compactMap(\.serverId)
+        guard !ids.isEmpty, ids.count == measurements.count else { return nil }
+        return URL(string: "https://\(DeepLink.siteHost)/view-growth/\(ids.map(String.init).joined(separator: ","))")
+    }
+
+    @State private var linkCopied = false
+
     var body: some View {
         NavigationStack {
             Group {
@@ -70,6 +79,20 @@ struct MeasurementShareSheet: View {
                 Text(Copy.share.comparisons)
             } footer: {
                 Text(Copy.share.forwarding)
+            }
+
+            Section {
+                Button {
+                    if let familyLink {
+                        UIPasteboard.general.url = familyLink
+                        linkCopied = true
+                    }
+                } label: {
+                    Label(linkCopied ? Copy.share.copied : Copy.share.copyLink, systemImage: linkCopied ? "checkmark" : "link")
+                }
+                .disabled(familyLink == nil)
+            } footer: {
+                Text(familyLink == nil ? Copy.share.linkAfterSync : Copy.share.linkNote)
             }
         }
         .safeAreaInset(edge: .bottom) {

@@ -33,6 +33,8 @@ struct DeepLinkTests {
         // A record's own page, which the widgets open.
         ("/view-photo/123", DeepLink.photo(remoteId: 123)),
         ("/milestone/45", DeepLink.milestone(remoteId: 45)),
+        ("/view-growth/88", DeepLink.measurement(remoteIds: [88])),
+        ("/view-growth/88,89", DeepLink.measurement(remoteIds: [88, 89])),
         // An interview's page, and its conduct screen.
         ("/interview/12", DeepLink.interview(id: 12)),
         ("/interview/12/ask", DeepLink.interview(id: 12, ask: true)),
@@ -78,6 +80,10 @@ struct DeepLinkTests {
         "/view-photo",
         "/view-photo/abc",
         "/milestone/45/edit",
+        "/view-growth",
+        "/view-growth/88,abc",
+        "/view-growth/88,",
+        "/view-growth/88/edit",
         // Interview pages the app has no screen for yet, and a setup link with no person id.
         "/interview/new/ada",
         "/interview/past/ada",

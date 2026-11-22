@@ -138,6 +138,11 @@ struct ContentView: View {
             guard let milestone = fetchMilestone(remoteId: remoteId) else { return }
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([.milestone(milestone.id)], on: .home)
+        case .measurement(let remoteIds):
+            let records = remoteIds.compactMap(fetchMeasurement(remoteId:))
+            guard !records.isEmpty else { return }
+            _ = deepLinkRouter.claim { $0 == link }
+            navigator.show([.measurements(records.map(\.id))], on: .home)
         case .interview(let id, let ask):
             _ = deepLinkRouter.claim { $0 == link }
             navigator.show([ask ? .interviewAsk(id: id) : .interview(id: id)], on: .home)
@@ -178,6 +183,13 @@ private extension ContentView {
     func fetchPhoto(remoteId: Int) -> Photo? {
         let id = String(remoteId)
         var descriptor = FetchDescriptor<Photo>(predicate: #Predicate { $0.remoteId == id })
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
+    }
+
+    func fetchMeasurement(remoteId: Int) -> GrowthData? {
+        let id = String(remoteId)
+        var descriptor = FetchDescriptor<GrowthData>(predicate: #Predicate { $0.remoteId == id })
         descriptor.fetchLimit = 1
         return try? modelContext.fetch(descriptor).first
     }

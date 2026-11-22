@@ -55,6 +55,58 @@ struct MeasurementDetailSheetView: View {
     }
 }
 
+/// Measurements opened from a link, as a page of their own: a checkup's values one after another.
+struct MeasurementRouteView: View {
+    let measurementIds: [UUID]
+
+    @Query private var records: [GrowthData]
+    @State private var isSharing = false
+
+    init(measurementIds: [UUID]) {
+        self.measurementIds = measurementIds
+        let ids = measurementIds
+        _records = Query(filter: #Predicate<GrowthData> { ids.contains($0.id) })
+    }
+
+    private var ordered: [GrowthData] {
+        measurementIds.compactMap { id in records.first { $0.id == id } }
+    }
+
+    var body: some View {
+        Group {
+            if ordered.isEmpty {
+                ContentUnavailableView("Measurement not found", systemImage: "ruler")
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 28) {
+                        ForEach(ordered) { record in
+                            MeasurementInsightsView(measurement: record)
+                        }
+                    }
+                    .padding()
+                }
+            }
+        }
+        .navigationTitle(Copy.share.measurementTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !ordered.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isSharing = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel(Copy.share.action)
+                }
+            }
+        }
+        .sheet(isPresented: $isSharing) {
+            MeasurementShareSheet(measurements: ordered)
+        }
+    }
+}
+
 /// The body of a measurement's page — its value, facts, percentile and the family comparison — shared by the detail sheet and the checkup's result screen, so a measurement reads the same wherever it was just saved or later opened.
 struct MeasurementInsightsView: View {
     let measurement: GrowthData
