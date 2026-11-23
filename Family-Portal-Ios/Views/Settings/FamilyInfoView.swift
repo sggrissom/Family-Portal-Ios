@@ -114,6 +114,14 @@ struct FamilyInfoView: View {
                 Label("Members", systemImage: "person.2")
             }
 
+            if family.role >= FamilyAccess.contribute {
+                NavigationLink {
+                    FamilyPageView(family: family)
+                } label: {
+                    Label(Copy.familyPage.settingsTitle, systemImage: "globe")
+                }
+            }
+
             if let rotationFailure, rotationFailure.id == family.id {
                 Text(rotationFailure.message)
                     .foregroundStyle(.red)
