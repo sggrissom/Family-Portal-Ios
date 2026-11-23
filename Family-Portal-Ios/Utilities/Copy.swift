@@ -388,6 +388,54 @@ nonisolated enum Copy {
         }
     }
 
+    /// The public family page at /f/<slug> (web: copy.familyPage).
+    enum familyPage {
+        static let settingsTitle = "Family page"
+        static let settingsExplain = "One public page about your family, to hand to people you meet: who's in it and a few photos. Nothing else from the app appears on it."
+        static let published = "Published at"
+        static let notPublished = "Not published."
+        static let edit = "Edit family page"
+        static let adminsOnly = "Only a family admin can publish or change it."
+        static let title = "Family page"
+        static let intro = "Everything here is public to anyone with the address. The page shows only what you choose below, and later edits in the app won't change it until you publish again."
+        static let address = "Address"
+        static let addressHint = "Lowercase letters, numbers and hyphens."
+        static let pageTitle = "Title"
+        static let introLabel = "Introduction"
+        static let introPlaceholder = "A few lines about your family"
+        static let people = "People"
+        static let peopleHint = "Choose who appears. Birth dates are never shown; at most, an age in years."
+        static let noPeople = "No one in this family yet."
+        static let shownName = "Name shown"
+        static let line = "One line about them"
+        static let showAge = "Show age"
+        static let showPhoto = "Show profile photo"
+        static let noProfilePhoto = "No profile photo"
+        static func photos(_ max: Int) -> String { "Photos (up to \(max))" }
+        static let photosHint = "Finished photos from this family's library. Videos can't be added."
+        static let noPhotos = "No photos in this family yet."
+        static let indexable = "Let search engines list this page"
+        static let indexableHint = "Off by default. With it off, the page is still public to anyone with the address."
+        static let publish = "Publish"
+        static let republish = "Publish changes"
+        static let publishing = "Publishing…"
+        static func confirmPublish(_ url: String) -> String { "Publish this page at \(url)? Anyone with the address can see it." }
+        static let unpublish = "Unpublish"
+        static let confirmUnpublish = "Take the page down now? The address stops working right away."
+        static let copyLink = "Copy address"
+        static let copied = "Copied"
+        static func publishedBy(_ day: String, _ name: String) -> String {
+            name.isEmpty ? "Published \(day)" : "Published \(day) by \(name)"
+        }
+        static let caching = "People can save or screenshot what they see, and link previews may be kept by messaging apps after you unpublish."
+        static let loadFailed = "Couldn't load the family page settings."
+        static func age(_ years: Int) -> String {
+            years == 0 ? "Under a year old" : years == 1 ? "1 year old" : "\(years) years old"
+        }
+        static let preview = "Preview"
+        static let offline = "Connect to the internet to change the family page."
+    }
+
     /// **Find in your library** (`LibraryFinderView`). iOS only: the web has no photo library to look through.
     enum libraryFinder {
         static let entry = "Find in your library"
