@@ -68,7 +68,7 @@ Family-Portal-Ios/Family-Portal-Ios/
 │   │                  TypingIndicatorView, ConnectionStatusView,
 │   │                  DateSeparatorView, UserAvatarView
 │   ├── Settings/      SettingsView, FamilyManagementView, FamilyInfoView,
-│   │                  FamilyMembershipView
+│   │                  FamilyMembershipView, FamilyPageView (public page at /f/<slug>)
 │   ├── Tags/          ManageTagsView (+ TagEditorView sheet)
 │   ├── Faces/         FaceReviewView (+ FaceGroupRow)
 │   ├── Search/        SearchView (global search, pushed from the magnifying glass
@@ -95,6 +95,7 @@ Family-Portal-Ios/Family-Portal-Ios/
     ├── SearchText.swift              # search folding, prefix-of-word matching, highlight ranges
     ├── SearchResults.swift           # port of frontend/lib/search.ts: chips, moment folding, See all photos
     ├── SearchLocal.swift             # offline search over the mirror, with the server's filters
+    ├── FamilyPage.swift              # port of frontend/lib/familyPage.ts: the editor's draft and preview
     ├── RecentSearches.swift          # last 8 searches in UserDefaults, erased with the account
     ├── RelationGraph.swift           # walks the stored edges
     ├── FamilyGroups.swift            # bands the roster by generation
