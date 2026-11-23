@@ -158,6 +158,13 @@ nonisolated enum RPCMethod: String, Sendable, CaseIterable {
     case listRecapLinks = "ListRecapLinks"
     case revokeRecapLink = "RevokeRecapLink"
 
+    // MARK: - Family page (backend/family_page.go)
+
+    /// The one public page a family can publish at /f/<slug>. Online only; publishing needs admin access.
+    case getFamilyPageSettings = "GetFamilyPageSettings"
+    case publishFamilyPage = "PublishFamilyPage"
+    case unpublishFamilyPage = "UnpublishFamilyPage"
+
     // MARK: - Overviews (backend/dashboard.go, backend/same_age.go)
     // Read-only aggregates. Cached like the activity reads, never queued.
 
