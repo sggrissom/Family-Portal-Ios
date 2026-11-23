@@ -151,6 +151,13 @@ struct RPCMethodTests {
         #expect(RPCMethod.revokeRecapLink.rawValue == "RevokeRecapLink")
     }
 
+    @Test("Family page proc names match the backend")
+    func familyPageProcNames() {
+        #expect(RPCMethod.getFamilyPageSettings.rawValue == "GetFamilyPageSettings")
+        #expect(RPCMethod.publishFamilyPage.rawValue == "PublishFamilyPage")
+        #expect(RPCMethod.unpublishFamilyPage.rawValue == "UnpublishFamilyPage")
+    }
+
     @Test("Overview proc names match the backend")
     func overviewProcNames() {
         #expect(RPCMethod.getDashboard.rawValue == "GetDashboard")
