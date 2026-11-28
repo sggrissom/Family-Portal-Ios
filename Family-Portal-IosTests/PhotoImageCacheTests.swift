@@ -89,6 +89,24 @@ struct PhotoImageCacheTests {
         #expect(server.requests(for: "api/photo/5/thumb").count == 1)
     }
 
+    @Test("Different photo IDs at the same size never share decoded images")
+    func photoIdsDoNotCollide() async throws {
+        let server = FakeHTTPServer()
+        server.route("api/photo/5/medium", respond: Self.imageResponse())
+        server.route("api/photo/6/medium", respond: Self.imageResponse())
+        let cache = await Self.cache(server)
+
+        _ = await cache.image(remoteId: 5, size: .medium)
+        #expect(cache.cachedImage(remoteId: 6, size: .medium) == nil)
+
+        _ = await cache.image(remoteId: 6, size: .medium)
+        let first = try #require(cache.cachedImage(remoteId: 5, size: .medium))
+        let second = try #require(cache.cachedImage(remoteId: 6, size: .medium))
+        #expect(first !== second)
+        #expect(server.requests(for: "api/photo/5/medium").count == 1)
+        #expect(server.requests(for: "api/photo/6/medium").count == 1)
+    }
+
     @Test("Different variants of one photo are cached apart")
     func variantsDoNotCollide() async throws {
         let server = FakeHTTPServer()
