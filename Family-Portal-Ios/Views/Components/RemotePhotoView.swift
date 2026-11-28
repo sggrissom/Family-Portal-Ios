@@ -17,6 +17,44 @@ struct RemotePhotoView: View {
     let showsPlaceholder: Bool
     let onPhaseChange: ((RemotePhotoPhase) -> Void)?
 
+    init(
+        remoteId: Int,
+        size: PhotoSizeVariant,
+        contentMode: ContentMode = .fill,
+        showsPlaceholder: Bool = true,
+        onPhaseChange: ((RemotePhotoPhase) -> Void)? = nil
+    ) {
+        self.remoteId = remoteId
+        self.size = size
+        self.contentMode = contentMode
+        self.showsPlaceholder = showsPlaceholder
+        self.onPhaseChange = onPhaseChange
+    }
+
+    var body: some View {
+        // A reused SwiftUI slot can receive a different photo (e.g. Home's featured
+        // memory). @State follows view identity, not init arguments; .task(id:)
+        // alone leaves the old bitmap visible until the new task starts.
+        RemotePhotoContent(
+            remoteId: remoteId,
+            size: size,
+            contentMode: contentMode,
+            showsPlaceholder: showsPlaceholder,
+            onPhaseChange: onPhaseChange
+        )
+        .id("\(remoteId)-\(size.rawValue)")
+    }
+}
+
+/// Owns the image and phase for exactly one photo variant. Connectivity changes
+/// retry the load without changing this identity or discarding its cached image.
+private struct RemotePhotoContent: View {
+    let remoteId: Int
+    let size: PhotoSizeVariant
+    let contentMode: ContentMode
+    let showsPlaceholder: Bool
+    let onPhaseChange: ((RemotePhotoPhase) -> Void)?
+
     /// How long to wait between asks while the server is still generating the photo's variants, and how many times to ask. It stops rather than polling forever.
     private static let processingRetryDelays: [Duration] = [
         .seconds(2), .seconds(3), .seconds(5), .seconds(8), .seconds(13), .seconds(21),
@@ -96,6 +134,7 @@ struct RemotePhotoView: View {
     }
 
     private func load() async {
+        guard !Task.isCancelled else { return }
         // A thumbnail already in memory renders in the first layout pass instead of flashing a spinner on every scroll back.
         if let cached = PhotoImageCache.shared.cachedImage(remoteId: remoteId, size: size) {
             image = cached
@@ -107,7 +146,11 @@ struct RemotePhotoView: View {
         setPhase(.loading)
 
         for attempt in 0...Self.processingRetryDelays.count {
-            switch await PhotoImageCache.shared.image(remoteId: remoteId, size: size) {
+            let outcome = await PhotoImageCache.shared.image(remoteId: remoteId, size: size)
+            // The shared cache coalesces requests and may finish even after this
+            // view disappears. Do not publish a superseded image or phase callback.
+            guard !Task.isCancelled else { return }
+            switch outcome {
             case .image(let loaded):
                 image = loaded
                 setPhase(.ready)
